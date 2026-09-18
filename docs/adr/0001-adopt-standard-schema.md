@@ -1,0 +1,3 @@
+# Adopt Standard Schema for `@pvl/schema`
+
+`packages/schema`'s schemas will implement [Standard Schema](https://github.com/standard-schema/standard-schema) (`StandardSchemaV1`, optionally `StandardJSONSchemaV1` later) rather than a bespoke `"~standard"`-shaped interface of our own. This lets our schemas be consumed directly by any tool already built against Standard Schema (form libraries, RPC/validation middleware, other schema libraries' compose APIs) with no adapter layer, at the cost of conforming our `validate`/`Result`/`Issue` shapes to the spec's rather than designing them freely. Full interface reference and conformance rules: [`docs/specification/standard-schema.md`](../specification/standard-schema.md).
