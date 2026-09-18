@@ -6,17 +6,7 @@ A minimal internal package with a single purpose: exporting `ValueOfEnum<T>`, th
 export type ValueOfEnum<T> = T[keyof T];
 ```
 
-```ts
-// Usage in a consuming package:
-import type { ValueOfEnum } from "@repo/types";
-
-export const SYSTEM_ROLE = {
-  OWNER: "OWNER",
-  MEMBER: "MEMBER",
-} as const;
-
-export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>;
-```
+See `docs/standards/typescript.md`'s "Use ValueOfEnum for extracting enum value types" section for the consuming-package usage example (an `as const` enum object plus the derived `ValueOfEnum<typeof ...>` value-union type) — not repeated here.
 
 ## Technology
 

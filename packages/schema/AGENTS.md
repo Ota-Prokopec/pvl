@@ -27,7 +27,7 @@ A concrete subclass adds its own methods on top where applicable — `object`'s 
 
 ### Chained-instance-method API
 
-Every modifier is a method on the schema instance that returns a (possibly differently-typed) schema, not a wrapping function or a static combinator — e.g. `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))`. This matches the Zod-style ergonomics `@pvl/schema` is modeled on and lets modifiers compose left-to-right in the order they're applied.
+Every modifier is a method on the schema instance that returns a (possibly differently-typed) schema, not a wrapping function or a static combinator — e.g. `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))`. This matches the Zod-style ergonomics `@pvl/schema` is modeled on and lets modifiers compose left-to-right in the order they're applied. See [ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) for why this shape, backed by a shared base `Schema` class, was chosen over standalone modifier functions.
 
 ```ts
 pvl.string().min(1).max(100).optional();
@@ -40,17 +40,17 @@ pvl.object({ extra: pvl.string() }).passthrough();
 
 Primitives (`string`, `number`, `boolean`), `object`, `array` (including nested combinations of these), `optional`, `nullable`, `union`, `literal`, `enum`. Recursive/self-referential schemas and `record`/`tuple`/`intersection` are deferred past v1.
 
-- **`object`** strips unknown keys by default. `.strict()` reports unexpected keys as validation `Issue`s instead of silently dropping them. `.passthrough()` preserves unrecognized keys, untyped, instead of stripping or rejecting them. Exactly one of the three behaviors (default strip / strict / passthrough) is active per `ObjectSchema` instance.
+- **`object`** strips unknown keys by default. `.strict()` reports unexpected keys as validation `Issue`s instead of silently dropping them. `.passthrough()` preserves unrecognized keys, untyped, instead of stripping or rejecting them. Exactly one of the three behaviors (default strip / strict / passthrough) is active per `ObjectSchema` instance. See [ADR-0007](../../docs/adr/0007-object-strips-unknown-keys-by-default.md) for why strip is the default.
 - **`union`** is **plain-only** in v1: `pvl.union([schemaA, schemaB, ...])` tries each member schema and succeeds if any accepts the value. Discriminated union (`pvl.discriminatedUnion`) is deferred past v1 — there is no fast-path dispatch on a shared discriminant key yet, so every member schema is attempted.
 - **`enum`** accepts two source forms:
   - This repo's mandated `as const` enum-object shape (see [`docs/specification/enums-and-constants.md`](../../docs/specification/enums-and-constants.md)): `pvl.enum(SYSTEM_ROLE)` where `SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const` — the schema validates against `ValueOfEnum<typeof SYSTEM_ROLE>`.
   - A plain array of string literals: `pvl.enum(['A', 'B'])` — for ad hoc string sets that don't warrant first declaring a named `as const` object.
 
-  Both forms produce the same kind of `EnumSchema`; only the accepted input shape to the `pvl.enum()` factory differs.
+  Both forms produce the same kind of `EnumSchema`; only the accepted input shape to the `pvl.enum()` factory differs. See [ADR-0009](../../docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md).
 
 ### Cheap structural constraints only
 
-The relevant primitives/composites get **cheap structural constraint** methods: `.min()`, `.max()`, `.length()`, `.int()` (plain numeric/length comparisons only). Regex-backed constraint helpers (`.email()`, `.url()`, `.regex()`) are **not** built into any schema type in v1 — a consumer who needs one attaches it as their own `.refine()`. This keeps every built-in primitive/composite check on the fast, non-regex hot path (see Coding style below); it isn't a statement that regex validation is never useful, just that it doesn't belong in the library's own built-ins yet.
+The relevant primitives/composites get **cheap structural constraint** methods: `.min()`, `.max()`, `.length()`, `.int()` (plain numeric/length comparisons only). Regex-backed constraint helpers (`.email()`, `.url()`, `.regex()`) are **not** built into any schema type in v1 — a consumer who needs one attaches it as their own `.refine()`. This keeps every built-in primitive/composite check on the fast, non-regex hot path (see Coding style below); it isn't a statement that regex validation is never useful, just that it doesn't belong in the library's own built-ins yet. See [ADR-0008](../../docs/adr/0008-no-regex-backed-constraints-in-v1.md).
 
 ### Trailing-options-object custom messages
 

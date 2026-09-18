@@ -44,3 +44,7 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0003](./docs/adr/0003-compiled-validators-conform-to-standard-schema.md) — compiled validators conform to StandardSchemaV1
 - [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md) — publish `@pvl/schema` and `@pvl/schema-compiler` as dual ESM+CJS
 - [ADR-0005](./docs/adr/0005-production-mode-gates-build-output-rewrite.md) — production-mode compilation rewrites build output, never tracked source
+- [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) — chained-instance-method API via a shared base `Schema` class
+- [ADR-0007](./docs/adr/0007-object-strips-unknown-keys-by-default.md) — `object()` strips unknown keys by default
+- [ADR-0008](./docs/adr/0008-no-regex-backed-constraints-in-v1.md) — no regex-backed constraint helpers in v1
+- [ADR-0009](./docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md) — `enum()` accepts either an `as const` object or a string-literal array
