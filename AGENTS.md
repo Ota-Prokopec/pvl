@@ -25,8 +25,9 @@ Run from the repo root (executed across the workspace via Turborepo):
 - `pnpm lint` — lint all apps and packages
 - `pnpm format` — format the repo with Prettier
 - `pnpm check-types` — typecheck all apps and packages
+- `pnpm format:check` — check formatting without writing (non-writing Prettier check)
 
-> `pnpm format:check` and `pnpm test` are referenced by the Post-Modification Checklist below but are not yet defined in the root `package.json` — add them (`format:check` as a non-writing Prettier check, `test` fanned out via `turbo run test`) when the first package lands.
+> `pnpm test` is referenced by the Post-Modification Checklist below but is not yet defined in the root `package.json` — add it (fanned out via `turbo run test`, plus a corresponding `test` task in `turbo.json`) when the first package lands.
 
 ## Issue Tracker
 

@@ -159,24 +159,6 @@ type Role = (typeof ROLES)[keyof typeof ROLES];
 type ValueOfEnum<T> = T[keyof T];
 ```
 
-- **Use Effect Schema for all validation and DTOs**
-  Always use `effect/schema` (`Schema` from the `effect` package) for runtime validation and for defining Data Transfer Objects (DTOs). Never use `zod`, manual type guards, or plain TypeScript types alone for data coming from external sources (HTTP requests, database results, environment variables, etc.).
-
-```typescript
-import { Schema } from "effect";
-
-const UserDTO = Schema.Struct({
-  id: Schema.String,
-  email: Schema.String,
-  role: Schema.Literal("ADMIN", "USER"),
-});
-
-type UserDTO = Schema.Schema.Type<typeof UserDTO>;
-
-// Parsing / validation
-const user = Schema.decodeUnknownSync(UserDTO)(rawInput);
-```
-
 - **Barrel files always use `export * from '...'`**
   In `index.ts` barrel files, re-export every sibling module with `export * from './module.js';`. Never cherry-pick named or type-only exports (`export { x } from ...`, `export type { X } from ...`) in a barrel — a source module either belongs in the barrel or it doesn't. This keeps barrels mechanically regenerable (see `pnpm barrels`) and consistent regardless of what a module happens to export today.
 
