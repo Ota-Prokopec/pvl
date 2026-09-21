@@ -4,7 +4,7 @@ A Zod-style schema validation library. Compose `Schema`s and validate values aga
 
 ## Technology
 
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). No runtime dependencies.
+- TypeScript, ESM source (see root `AGENTS.md` Core Rules). No runtime dependencies, aside from `@standard-schema/spec` — the canonical `StandardSchemaV1` type definitions published by the Standard Schema project itself (see below), which is types-only and contributes zero executable code.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The dual output is a publish-target concern only; source stays ESM.
 - Tooling depends on the monorepo's shared `@repo/eslint-config` (its generic `base` preset, not the React-flavored ones) and `@repo/typescript-config` (`base.json`) as `workspace:*` devDependencies, rather than a standalone lint/type-check config. It also takes `@repo/types` as a `workspace:*` dependency for its own internal `as const` enums (e.g. `Issue` codes) — see [`packages/types/AGENTS.md`](../types/AGENTS.md).
 
