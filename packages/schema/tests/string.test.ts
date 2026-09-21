@@ -204,6 +204,75 @@ describe("pvl.string()", () => {
     });
   });
 
+  describe("interleaved .refine()/.transform() ordering", () => {
+    it("applies steps in exact call order, not refinements-then-transforms", () => {
+      const schema = pvl
+        .string()
+        .refine((value) => value.startsWith("a"))
+        .transform((value) => value.toUpperCase())
+        .refine((value) => value === value.toUpperCase());
+      const result = schema.validate("abc");
+      assertSuccess(result);
+      expect(result.value).toBe("ABC");
+    });
+
+    it("fails the final refinement when it observes the post-transform value", () => {
+      const schema = pvl
+        .string()
+        .refine((value) => value.startsWith("a"))
+        .transform((value) => value.toUpperCase())
+        .refine((value) => value.startsWith("a"));
+      const result = schema.validate("abc");
+      expect(result.issues).toBeDefined();
+    });
+  });
+
+  describe(".optional()/.nullable() short-circuit ordering", () => {
+    it("short-circuits on undefined before the base type check runs", () => {
+      const schema = pvl.string().optional();
+      const result = schema.validate(undefined);
+      assertSuccess(result);
+      expect(result.value).toBeUndefined();
+    });
+
+    it("short-circuits on undefined before any .refine()/.transform() step runs", () => {
+      const schema = pvl
+        .string()
+        .refine(() => {
+          throw new Error("refine should not run for undefined");
+        })
+        .transform(() => {
+          throw new Error("transform should not run for undefined");
+        })
+        .optional();
+      const result = schema.validate(undefined);
+      assertSuccess(result);
+      expect(result.value).toBeUndefined();
+    });
+
+    it("short-circuits on null before the base type check runs", () => {
+      const schema = pvl.string().nullable();
+      const result = schema.validate(null);
+      assertSuccess(result);
+      expect(result.value).toBeNull();
+    });
+
+    it("short-circuits on null before any .refine()/.transform() step runs", () => {
+      const schema = pvl
+        .string()
+        .refine(() => {
+          throw new Error("refine should not run for null");
+        })
+        .transform(() => {
+          throw new Error("transform should not run for null");
+        })
+        .nullable();
+      const result = schema.validate(null);
+      assertSuccess(result);
+      expect(result.value).toBeNull();
+    });
+  });
+
   describe("never throws for an invalid value", () => {
     it("returns a Result instead of throwing", () => {
       expect(() =>
