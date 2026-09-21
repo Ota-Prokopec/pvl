@@ -1,10 +1,10 @@
-import { ISSUE_CODE, type IssueCode } from "./issue-code.js";
 import {
   buildIssue,
-  Schema,
+  ISSUE_CODE,
+  type IssueCode,
   type Result,
-  type SchemaOptions,
-} from "./schema.js";
+} from "../issue.js";
+import { Schema, type SchemaOptions } from "./baseSchema.js";
 
 type StringCheck = {
   readonly code: IssueCode;
@@ -66,7 +66,7 @@ export class StringSchema extends Schema<string, string> {
     return value;
   }
 
-  _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
     if (typeof value !== "string") {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],

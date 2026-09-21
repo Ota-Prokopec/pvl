@@ -1,5 +1,5 @@
-import type { SchemaOptions } from "./schema.js";
-import { StringSchema } from "./string.js";
+import type { SchemaOptions } from "./schemas/baseSchema.js";
+import { StringSchema } from "./schemas/stringSchema.js";
 
 export const pvl = {
   string: (options?: SchemaOptions): StringSchema => new StringSchema(options),
