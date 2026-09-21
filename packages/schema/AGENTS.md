@@ -12,11 +12,11 @@ A Zod-style schema validation library. Compose `Schema`s and validate values aga
 
 ### Entry point: the `pvl` namespace
 
-`@pvl/schema` exposes a single public entry point: a `pvl` namespace object (`import { pvl } from '@pvl/schema'`), not a set of flat named exports. Every schema factory hangs off it: `pvl.string()`, `pvl.number()`, `pvl.boolean()`, `pvl.object(shape)`, `pvl.array(item)`, `pvl.union(schemas)`, `pvl.literal(value)`, `pvl.enum(source)`, and `pvl.compile(schema)` — plus `pvl.bigint()`, a planned addition not yet implemented (see "Planned: `pvl.bigint()`" below).
+`@pvl/schema` exposes a single public entry point: a `pvl` namespace object (`import { pvl } from '@pvl/schema'`), not a set of flat named exports. Every schema factory hangs off it: `pvl.string()`, `pvl.number()`, `pvl.boolean()`, `pvl.bigint()`, `pvl.object(shape)`, `pvl.array(item)`, `pvl.union(schemas)`, `pvl.literal(value)`, `pvl.enum(source)`, and `pvl.compile(schema)`.
 
 ### The shared base `Schema` class
 
-Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends one abstract base `Schema` class. The base class is where Standard Schema conformance and the modifiers common to every schema type are implemented exactly once — a concrete subclass adds only the constructor logic and checks specific to its own shape, never a second copy of `"~standard"` or the modifier methods.
+Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends one abstract base `Schema` class. The base class is where Standard Schema conformance and the modifiers common to every schema type are implemented exactly once — a concrete subclass adds only the constructor logic and checks specific to its own shape, never a second copy of `"~standard"` or the modifier methods.
 
 The base class implements:
 
@@ -38,9 +38,10 @@ pvl.object({ extra: pvl.string() }).passthrough();
 
 ### Schema surface (v1 scope)
 
-Primitives (`string`, `number`, `boolean`), `object`, `array` (including nested combinations of these), `optional`, `nullable`, `union`, `literal`, `enum`. Recursive/self-referential schemas and `record`/`tuple`/`intersection` are deferred past v1. `bigint` is a planned addition outside v1 scope — see "Planned: `pvl.bigint()`" below.
+Primitives (`string`, `number`, `boolean`, `bigint`), `object`, `array` (including nested combinations of these), `optional`, `nullable`, `union`, `literal`, `enum`. Recursive/self-referential schemas and `record`/`tuple`/`intersection` are deferred past v1.
 
 - **`number`** validates any JS `number` value (`typeof value === "number"`) — floats, integers, and large values alike, since JS has only one numeric type. It rejects `NaN` explicitly (despite `typeof NaN === "number"`): an accepted `NaN` would silently fail every `.min()`/`.max()` comparison instead of surfacing a clear "not a number" `Issue`. It accepts `Infinity`/`-Infinity` — there's no built-in finiteness constraint in v1. It has no `bigint` involvement at all, bare or via `.coerce()` — arbitrary-precision integers are `pvl.bigint()`'s job, not this schema's (see below).
+- **`bigint`** validates only a real JS `bigint` (`typeof value === "bigint"`), never overlapping with `number`'s accepted shapes. `.coerce()` additionally accepts `string` and `number`, converting via native `BigInt(value)`; a throw from `BigInt()` (a malformed string like `"12.5"`, or a non-integer number like `1.5`) is caught in `_coerceInput` and surfaces as the normal base-type `Issue` rather than propagating — no custom parsing grammar is layered on top of `BigInt()`'s own string parsing. `.min()`/`.max()` compare using real `bigint` operators against real `bigint` bounds; cross-type (`bigint`/`number`) comparison isn't supported. There's no `.int()` — a `bigint` has no fractional representation, so the constraint would never reject anything. Output stays a real `bigint`, never converted to `number` (which would reintroduce the precision loss `bigint` exists to avoid) or `string`.
 - **`object`** strips unknown keys by default. `.strict()` reports unexpected keys as validation `Issue`s instead of silently dropping them. `.passthrough()` preserves unrecognized keys, untyped, instead of stripping or rejecting them. Exactly one of the three behaviors (default strip / strict / passthrough) is active per `ObjectSchema` instance. See [ADR-0007](../../docs/adr/0007-object-strips-unknown-keys-by-default.md) for why strip is the default.
 - **`union`** is **plain-only** in v1: `pvl.union([schemaA, schemaB, ...])` tries each member schema and succeeds if any accepts the value. Discriminated union (`pvl.discriminatedUnion`) is deferred past v1 — there is no fast-path dispatch on a shared discriminant key yet, so every member schema is attempted.
 - **`enum`** accepts two source forms:
@@ -48,18 +49,6 @@ Primitives (`string`, `number`, `boolean`), `object`, `array` (including nested 
   - A plain array of string literals: `pvl.enum(['A', 'B'])` — for ad hoc string sets that don't warrant first declaring a named `as const` object.
 
   Both forms produce the same kind of `EnumSchema`; only the accepted input shape to the `pvl.enum()` factory differs. See [ADR-0009](../../docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md).
-
-### Planned: `pvl.bigint()`
-
-Not yet implemented — no `BigintSchema` exists in this package today. This documents the agreed design ahead of the issue that will build it, tracked separately from `pvl.number()`/`pvl.boolean()`.
-
-`pvl.bigint()` will validate arbitrary-precision integers as a dedicated `Schema<bigint, bigint>` primitive, distinct from and never overlapping with `pvl.number()`:
-
-- The bare schema accepts only a real JS `bigint` (`typeof value === "bigint"`). `pvl.number()` never accepts `bigint`, bare or coerced — the two primitives' accepted shapes don't overlap.
-- `.coerce()` additionally accepts `string` and `number`, converting via native `BigInt(value)`. A malformed `string` (e.g. `"12.5"`) or non-integer `number` (e.g. `1.5`) throws inside `BigInt()`; that throw is caught and reported as a normal validation `Issue` rather than propagating. No custom parsing grammar is layered on top of `BigInt()`'s own string parsing (which already handles whitespace trimming and hex literals, among other cases).
-- `.min(bound: bigint)` / `.max(bound: bigint)` compare using real `bigint` operators against real `bigint` bounds. Cross-type (`bigint` vs `number`) comparison isn't supported — JS throws comparing them directly with `>=`/`<=`.
-- No `.int()` — a `bigint` has no fractional representation, so the constraint would never have anything to reject.
-- Output stays a real `bigint`, never converted to `number` (which would reintroduce the precision loss `bigint` exists to avoid) or to `string`.
 
 ### Cheap structural constraints only
 

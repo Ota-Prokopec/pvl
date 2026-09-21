@@ -25,6 +25,11 @@ describe("pvl.number()", () => {
     expect(result.issues).toBeDefined();
   });
 
+  it("rejects a bare bigint", () => {
+    const result = pvl.number().validate(42n);
+    expect(result.issues).toBeDefined();
+  });
+
   it("rejects NaN", () => {
     const result = pvl.number().validate(NaN);
     expect(result.issues).toBeDefined();
@@ -151,6 +156,11 @@ describe("pvl.number()", () => {
 
     it("still rejects a value that can't become a valid number", () => {
       const result = pvl.number().coerce().validate("not a number");
+      expect(result.issues).toBeDefined();
+    });
+
+    it("never accepts a bigint, even with coerce()", () => {
+      const result = pvl.number().coerce().validate(42n);
       expect(result.issues).toBeDefined();
     });
 

@@ -62,4 +62,24 @@ describe("type inference", () => {
       StandardSchemaV1.InferOutput<typeof schema>
     >().toEqualTypeOf<number>();
   });
+
+  it("infers pvl.bigint()'s input/output as bigint", () => {
+    const schema = pvl.bigint();
+    expectTypeOf<
+      StandardSchemaV1.InferInput<typeof schema>
+    >().toEqualTypeOf<bigint>();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<bigint>();
+  });
+
+  it("infers a transformed pvl.bigint()'s differing input/output", () => {
+    const schema = pvl.bigint().transform((value) => value.toString());
+    expectTypeOf<
+      StandardSchemaV1.InferInput<typeof schema>
+    >().toEqualTypeOf<bigint>();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<string>();
+  });
 });
