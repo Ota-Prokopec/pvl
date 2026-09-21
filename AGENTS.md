@@ -102,3 +102,15 @@ Do not report a task as complete if any of these commands exit with a non-zero s
 - Per the pull-request rule above, never commit an issue's fix straight to `main`. Branch off `main` named `issue/<issue-number>-<slug>` (e.g. `issue/5-fix-flag-cache-eviction`), commit the fix there, push the branch, and open a PR into `main` — title `CLAUDE(<type>): <description>`, body stating `Closes #<issue-number>` (this PR targets `main` directly, so the closing keyword fires on merge).
 - Once the PR is open, post a `CLAUDE: ` comment on the issue linking to the PR — do not close the issue yourself; the `Closes #<n>` keyword in the PR body handles that automatically once the user merges. Once every subissue of a parent is done this way, post the same kind of comment on the parent linking to all of its subissues' PRs.
 - The agent never merges a PR — every merge is the user's action, performed on GitHub.
+
+### Parent issues and sub-issues
+
+When implementing an issue that has sub-issues:
+
+- Treat the parent issue as an orchestration/integration issue.
+- Before implementing a parent issue, inspect its sub-issues.
+- If all required sub-issues are already implemented, do not re-implement their work.
+- Instead, verify that the sub-issue implementations together satisfy the parent issue.
+- Run relevant tests, typechecks, linting, and integration checks.
+- Complete any remaining parent-level work that is not covered by the sub-issues.
+- If required sub-issues are not implemented yet, do not duplicate their work. Report which sub-issues are still pending.
