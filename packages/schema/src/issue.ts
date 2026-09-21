@@ -6,6 +6,7 @@ export const ISSUE_CODE = {
   TOO_SMALL: "TOO_SMALL",
   TOO_BIG: "TOO_BIG",
   INVALID_LENGTH: "INVALID_LENGTH",
+  NOT_INTEGER: "NOT_INTEGER",
   CUSTOM: "CUSTOM",
 } as const;
 
