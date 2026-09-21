@@ -52,11 +52,7 @@ export class NumberSchema extends Schema<number, number> {
   }
 
   override _coerceInput(value: unknown): unknown {
-    if (
-      typeof value === "string" ||
-      typeof value === "boolean" ||
-      typeof value === "bigint"
-    ) {
+    if (typeof value === "string" || typeof value === "boolean") {
       return Number(value);
     }
     return value;
