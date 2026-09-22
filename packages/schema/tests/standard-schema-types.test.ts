@@ -1,6 +1,12 @@
 import { describe, expectTypeOf, it } from "vitest";
 import type { StandardSchemaV1 } from "@standard-schema/spec";
+import type { ValueOfEnum } from "@repo/types";
 import { pvl } from "../src/index.js";
+
+const SYSTEM_ROLE = {
+  OWNER: "OWNER",
+  MEMBER: "MEMBER",
+} as const;
 
 describe("type inference", () => {
   it("infers pvl.string()'s input/output as string", () => {
@@ -81,5 +87,54 @@ describe("type inference", () => {
     expectTypeOf<
       StandardSchemaV1.InferOutput<typeof schema>
     >().toEqualTypeOf<string>();
+  });
+  it("infers pvl.literal()'s input/output as the literal type", () => {
+    const schema = pvl.literal("OWNER");
+    expectTypeOf<
+      StandardSchemaV1.InferInput<typeof schema>
+    >().toEqualTypeOf<"OWNER">();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<"OWNER">();
+  });
+
+  it("infers a numeric pvl.literal()'s input/output as the literal type", () => {
+    const schema = pvl.literal(42);
+    expectTypeOf<
+      StandardSchemaV1.InferInput<typeof schema>
+    >().toEqualTypeOf<42>();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<42>();
+  });
+
+  it("infers pvl.enum()'s input/output from an `as const` object via ValueOfEnum", () => {
+    const schema = pvl.enum(SYSTEM_ROLE);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      ValueOfEnum<typeof SYSTEM_ROLE>
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      "OWNER" | "MEMBER"
+    >();
+  });
+
+  it("infers pvl.enum()'s input/output from a string-literal array", () => {
+    const schema = pvl.enum(["A", "B"]);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      "A" | "B"
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      "A" | "B"
+    >();
+  });
+
+  it("infers a transformed pvl.enum()'s differing input/output", () => {
+    const schema = pvl.enum(SYSTEM_ROLE).transform((value) => value.length);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      "OWNER" | "MEMBER"
+    >();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<number>();
   });
 });

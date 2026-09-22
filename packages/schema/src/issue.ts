@@ -3,6 +3,7 @@ import type { ValueOfEnum } from "@repo/types";
 
 export const ISSUE_CODE = {
   INVALID_TYPE: "INVALID_TYPE",
+  INVALID_VALUE: "INVALID_VALUE",
   TOO_SMALL: "TOO_SMALL",
   TOO_BIG: "TOO_BIG",
   INVALID_LENGTH: "INVALID_LENGTH",
@@ -22,7 +23,17 @@ export type Issue = StandardSchemaV1.Issue & {
   readonly code: IssueCode;
 };
 
-export type Result<Output> = StandardSchemaV1.Result<Output>;
+/**
+ * A failed validation, narrowed to this package's `Issue` so a caller can
+ * read `code` off it. Structurally still a `StandardSchemaV1.FailureResult`,
+ * so it stays assignable wherever the spec's own result type is expected.
+ */
+export type FailureResult = {
+  readonly issues: ReadonlyArray<Issue>;
+};
+
+export type Result<Output> =
+  StandardSchemaV1.SuccessResult<Output> | FailureResult;
 
 export const buildIssue = (
   code: IssueCode,
