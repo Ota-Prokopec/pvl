@@ -4,6 +4,7 @@ import { BooleanSchema } from "./schemas/booleanSchema.js";
 import { EnumSchema, type EnumSource } from "./schemas/enumSchema.js";
 import { LiteralSchema, type LiteralValue } from "./schemas/literalSchema.js";
 import { NumberSchema } from "./schemas/numberSchema.js";
+import { ObjectSchema, type ObjectShape } from "./schemas/objectSchema.js";
 import { StringSchema } from "./schemas/stringSchema.js";
 
 export const pvl = {
@@ -16,6 +17,10 @@ export const pvl = {
     value: Value,
     options?: SchemaOptions,
   ): LiteralSchema<Value> => new LiteralSchema(value, options),
+  object: <Shape extends ObjectShape>(
+    shape: Shape,
+    options?: SchemaOptions,
+  ): ObjectSchema<Shape> => new ObjectSchema(shape, options),
   // `const Source` so a bare `pvl.enum(["A", "B"])` call site infers the
   // readonly tuple of literals rather than widening to `string[]`.
   enum: <const Source extends EnumSource>(

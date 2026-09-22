@@ -2,16 +2,7 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import type { Result } from "../src/index.js";
 import { pvl } from "../src/index.js";
-
-function assertSuccess<Output>(
-  result: Result<Output>,
-): asserts result is { value: Output; issues?: undefined } {
-  if (result.issues) {
-    throw new Error(
-      `Expected a success Result, got issues: ${JSON.stringify(result.issues)}`,
-    );
-  }
-}
+import { assertSuccess } from "./helpers.js";
 
 describe("pvl.string()", () => {
   it("accepts a string", () => {
