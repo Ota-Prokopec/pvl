@@ -1,5 +1,5 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec'
-import type { ValueOfEnum } from '@repo/types'
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { ValueOfEnum } from '@repo/types';
 
 export const ISSUE_CODE = {
   INVALID_TYPE: 'INVALID_TYPE',
@@ -11,9 +11,9 @@ export const ISSUE_CODE = {
   UNRECOGNIZED_KEY: 'UNRECOGNIZED_KEY',
   INVALID_UNION: 'INVALID_UNION',
   CUSTOM: 'CUSTOM',
-} as const
+} as const;
 
-export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>
+export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
 
 /**
  * Extends the base Standard Schema `Issue` with a `code` for programmatic
@@ -22,8 +22,8 @@ export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>
  * representation returned by both `.validate()` and `"~standard".validate`.
  */
 export type Issue = StandardSchemaV1.Issue & {
-  readonly code: IssueCode
-}
+  readonly code: IssueCode;
+};
 
 /**
  * The spec's own failure result, narrowed to this package's `Issue` so a
@@ -32,10 +32,10 @@ export type Issue = StandardSchemaV1.Issue & {
  * that can't drift from the spec's — see ADR-0011.
  */
 export type FailureResult = StandardSchemaV1.FailureResult & {
-  readonly issues: ReadonlyArray<Issue>
-}
+  readonly issues: ReadonlyArray<Issue>;
+};
 
-export type Result<Output> = StandardSchemaV1.SuccessResult<Output> | FailureResult
+export type Result<Output> = StandardSchemaV1.SuccessResult<Output> | FailureResult;
 
 /**
  * Renders a value for a default `Issue` message — strings quoted so an empty
@@ -43,7 +43,7 @@ export type Result<Output> = StandardSchemaV1.SuccessResult<Output> | FailureRes
  * because it throws on `bigint`.
  */
 export const formatValue = (value: string | number | boolean | bigint): string =>
-  typeof value === 'string' ? `"${value}"` : String(value)
+  typeof value === 'string' ? `"${value}"` : String(value);
 
 export const buildIssue = (
   code: IssueCode,
@@ -53,4 +53,4 @@ export const buildIssue = (
   code,
   message,
   ...(path.length > 0 ? { path: [...path] } : {}),
-})
+});

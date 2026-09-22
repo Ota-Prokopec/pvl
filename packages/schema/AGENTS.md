@@ -30,10 +30,10 @@ A concrete subclass adds its own methods on top where applicable — `object`'s 
 Every modifier is a method on the schema instance that returns a (possibly differently-typed) schema, not a wrapping function or a static combinator — e.g. `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))`. This matches the Zod-style ergonomics `@pvl/schema` is modeled on and lets modifiers compose left-to-right in the order they're applied. See [ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) for why this shape, backed by a shared base `Schema` class, was chosen over standalone modifier functions.
 
 ```ts
-pvl.string().min(1).max(100).optional()
-pvl.number().int().nullable()
-pvl.object({ name: pvl.string() }).strict()
-pvl.object({ extra: pvl.string() }).passthrough()
+pvl.string().min(1).max(100).optional();
+pvl.number().int().nullable();
+pvl.object({ name: pvl.string() }).strict();
+pvl.object({ extra: pvl.string() }).passthrough();
 ```
 
 ### Schema surface (v1 scope)
@@ -60,9 +60,9 @@ The relevant primitives/composites get **cheap structural constraint** methods: 
 Every schema-affecting call — factories and constraint methods alike — accepts an optional trailing options object whose `message` field overrides the default `Issue` message it would otherwise produce:
 
 ```ts
-pvl.string({ message: 'must be a string' })
-pvl.string().min(3, { message: 'must be at least 3 characters' })
-pvl.object({ name: pvl.string() }, { message: 'invalid payload' })
+pvl.string({ message: 'must be a string' });
+pvl.string().min(3, { message: 'must be at least 3 characters' });
+pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
 ```
 
 This is the _only_ place a custom message is supplied — there's no separate global error-map mechanism in v1.

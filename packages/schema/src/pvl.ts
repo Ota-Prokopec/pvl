@@ -1,12 +1,12 @@
-import type { SchemaOptions } from './schemas/baseSchema.js'
-import { BigintSchema } from './schemas/bigintSchema.js'
-import { BooleanSchema } from './schemas/booleanSchema.js'
-import { EnumSchema, type EnumSource } from './schemas/enumSchema.js'
-import { LiteralSchema, type LiteralValue } from './schemas/literalSchema.js'
-import { NumberSchema } from './schemas/numberSchema.js'
-import { ObjectSchema, type ObjectShape } from './schemas/objectSchema.js'
-import { StringSchema } from './schemas/stringSchema.js'
-import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js'
+import type { SchemaOptions } from './schemas/baseSchema.js';
+import { BigintSchema } from './schemas/bigintSchema.js';
+import { BooleanSchema } from './schemas/booleanSchema.js';
+import { EnumSchema, type EnumSource } from './schemas/enumSchema.js';
+import { LiteralSchema, type LiteralValue } from './schemas/literalSchema.js';
+import { NumberSchema } from './schemas/numberSchema.js';
+import { ObjectSchema, type ObjectShape } from './schemas/objectSchema.js';
+import { StringSchema } from './schemas/stringSchema.js';
+import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
 
 export const pvl = {
   string: (options?: SchemaOptions): StringSchema => new StringSchema(options),
@@ -31,4 +31,4 @@ export const pvl = {
     members: Members,
     options?: SchemaOptions,
   ): UnionSchema<Members> => new UnionSchema(members, options),
-}
+};

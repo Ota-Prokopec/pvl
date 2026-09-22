@@ -6,9 +6,9 @@
 export const SYSTEM_ROLE = {
   OWNER: 'OWNER',
   MEMBER: 'MEMBER',
-} as const
+} as const;
 
-export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>
+export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>;
 ```
 
 **True constants** (single values that are not part of an enum set) must be placed in a `consts.ts` file scoped to the app or package that owns them. Export them as `UPPER_SNAKE_CASE` named exports.

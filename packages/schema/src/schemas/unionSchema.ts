@@ -1,9 +1,9 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec'
-import { buildIssue, ISSUE_CODE, type Issue, type Result } from '../issue.js'
-import { Schema, type SchemaOptions } from './baseSchema.js'
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { buildIssue, ISSUE_CODE, type Issue, type Result } from '../issue.js';
+import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /** The alternative schemas a `UnionSchema` tries, in the order given. */
-export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>
+export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
 
 /**
  * Homomorphic mapped tuple types: mapping over `Members` (a tuple when the
@@ -12,16 +12,16 @@ export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>
  * own input/output type rather than a single merged type.
  */
 type MemberInputs<Members extends UnionMembers> = {
-  [Index in keyof Members]: StandardSchemaV1.InferInput<Members[Index]>
-}
+  [Index in keyof Members]: StandardSchemaV1.InferInput<Members[Index]>;
+};
 
 type MemberOutputs<Members extends UnionMembers> = {
-  [Index in keyof Members]: StandardSchemaV1.InferOutput<Members[Index]>
-}
+  [Index in keyof Members]: StandardSchemaV1.InferOutput<Members[Index]>;
+};
 
-export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[number]
+export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[number];
 
-export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number]
+export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number];
 
 /**
  * Plain union only, per v1 scope: tries each member schema in order and
@@ -49,29 +49,29 @@ export class UnionSchema<Members extends UnionMembers> extends Schema<
   UnionInput<Members>,
   UnionOutput<Members>
 > {
-  private readonly _members: Members
-  private readonly _message: string | undefined
+  private readonly _members: Members;
+  private readonly _message: string | undefined;
 
   constructor(members: Members, options?: SchemaOptions) {
-    super()
-    this._members = members
-    this._message = options?.message
+    super();
+    this._members = members;
+    this._message = options?.message;
   }
 
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<UnionOutput<Members>> {
-    const rejections: Issue[] = []
+    const rejections: Issue[] = [];
     for (const member of this._members) {
-      const result = member._validate(value, path)
+      const result = member._validate(value, path);
       if (!result.issues) {
-        return { value: result.value as UnionOutput<Members> }
+        return { value: result.value as UnionOutput<Members> };
       }
-      rejections.push(...result.issues)
+      rejections.push(...result.issues);
     }
     if (this._message !== undefined) {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_UNION, this._message, path)],
-      }
+      };
     }
-    return { issues: rejections }
+    return { issues: rejections };
   }
 }

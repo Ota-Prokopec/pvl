@@ -10,10 +10,10 @@ Wrap the app in a `QueryClientProvider`. In `apps/dashboard`, create the client 
 
 ```tsx
 // apps/dashboard/src/app/(dashboard)/layout.tsx or a dedicated providers.tsx
-'use client'
+'use client';
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 const QueryProvider = ({ children }: { children: React.ReactNode }): React.ReactNode => {
   const [queryClient] = useState(
@@ -23,10 +23,10 @@ const QueryProvider = ({ children }: { children: React.ReactNode }): React.React
           queries: { staleTime: 30_000 },
         },
       }),
-  )
+  );
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-}
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+};
 ```
 
 ## Query Keys
@@ -41,7 +41,7 @@ export const flagKeys = {
   detail: (projectId: string, flagId: string) => ['projects', projectId, 'flags', flagId] as const,
   auditLog: (projectId: string, flagId: string) =>
     ['projects', projectId, 'flags', flagId, 'audit'] as const,
-} as const
+} as const;
 ```
 
 Use prefix matching for invalidation: invalidating `flagKeys.all(projectId)` marks all flag queries for that project stale.
@@ -52,32 +52,32 @@ Every `queryFn`/`mutationFn` calls `apiFetch<T>(args: ApiFetchArgs)` from `src/l
 
 ```ts
 export type ApiFetchArgs = {
-  path: string
-  init?: RequestInit
-}
+  path: string;
+  init?: RequestInit;
+};
 
 export const apiFetch = async <T>(args: ApiFetchArgs): Promise<T> => {
-  const res = await fetch(args.path, args.init)
+  const res = await fetch(args.path, args.init);
   if (!res.ok) {
     const exception =
       HttpException.fromResponse({ json: await res.json(), status: res.status }) ??
-      new UnknownError()
-    throw exception
+      new UnknownError();
+    throw exception;
   }
-  return res.json() as Promise<T>
-}
+  return res.json() as Promise<T>;
+};
 ```
 
 ## useQuery
 
 ```ts
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/apiFetch'
+import { apiFetch } from '../lib/apiFetch';
 
 type FlagsQueryPayload = {
-  flags: Flag[]
-}
+  flags: Flag[];
+};
 
 const useFlags = (projectId: string, environmentId: string): FlagsQueryPayload | undefined => {
   const { data } = useQuery({
@@ -86,9 +86,9 @@ const useFlags = (projectId: string, environmentId: string): FlagsQueryPayload |
       apiFetch({
         path: `/api/projects/${projectId}/flags?environmentId=${environmentId}`,
       }),
-  })
-  return data
-}
+  });
+  return data;
+};
 ```
 
 - Always type the `queryFn` return explicitly.
@@ -98,22 +98,22 @@ const useFlags = (projectId: string, environmentId: string): FlagsQueryPayload |
 ## useMutation
 
 ```ts
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from '../lib/apiFetch'
+import { apiFetch } from '../lib/apiFetch';
 
 type CreateFlagArgs = {
-  projectId: string
-  key: string
-  name: string
-}
+  projectId: string;
+  key: string;
+  name: string;
+};
 
 type CreateFlagPayload = {
-  flagId: string
-}
+  flagId: string;
+};
 
 const useCreateFlag = (projectId: string) => {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (args: CreateFlagArgs): Promise<CreateFlagPayload> =>
@@ -126,10 +126,10 @@ const useCreateFlag = (projectId: string) => {
         },
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: flagKeys.all(projectId) })
+      void queryClient.invalidateQueries({ queryKey: flagKeys.all(projectId) });
     },
-  })
-}
+  });
+};
 ```
 
 - One `args` object as the single mutation parameter (matches the `Args` suffix TypeScript convention).
@@ -142,12 +142,12 @@ Invalidate by prefix to catch all variants:
 
 ```ts
 // Invalidate all flag queries for a project (all environments, all details)
-void queryClient.invalidateQueries({ queryKey: flagKeys.all(projectId) })
+void queryClient.invalidateQueries({ queryKey: flagKeys.all(projectId) });
 
 // Invalidate only a specific flag's detail
 void queryClient.invalidateQueries({
   queryKey: flagKeys.detail(projectId, flagId),
-})
+});
 ```
 
 ## Error Handling
@@ -155,7 +155,7 @@ void queryClient.invalidateQueries({
 Errors surface through `mutation.error` / `query.error`. Display them inline near the action that caused them. Do not use global error boundaries for expected API errors (validation failures, 409 conflicts). Use error boundaries only for unexpected rendering errors.
 
 ```tsx
-const { mutate, isPending, error } = useCreateFlag(projectId)
+const { mutate, isPending, error } = useCreateFlag(projectId);
 
 return (
   <>
@@ -164,7 +164,7 @@ return (
     </button>
     {error && <p className="text-sm text-red-700">{error.message}</p>}
   </>
-)
+);
 ```
 
 ## Rules
