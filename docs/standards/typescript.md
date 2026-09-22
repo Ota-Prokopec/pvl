@@ -9,9 +9,9 @@ This guide outlines the core rules and standards that coding agents must follow 
 
 ```typescript
 type User = {
-  id: string;
-  name: string;
-};
+  id: string
+  name: string
+}
 ```
 
 - **Use Args suffix for function arguments**
@@ -19,13 +19,13 @@ type User = {
 
 ```typescript
 type RegisterUserArgs = {
-  email: string;
-  username: string;
-};
+  email: string
+  username: string
+}
 
 const registerUser = (args: RegisterUserArgs) => {
   // implementation
-};
+}
 ```
 
 - **Use Options suffix for class configurations**
@@ -33,9 +33,9 @@ const registerUser = (args: RegisterUserArgs) => {
 
 ```typescript
 type LoggerOptions = {
-  level: string;
-  silent: boolean;
-};
+  level: string
+  silent: boolean
+}
 
 class Logger {
   constructor(options: LoggerOptions) {}
@@ -48,8 +48,8 @@ class Logger {
 
 ```typescript
 const calculateTotal = (args: CalculateTotalArgs): number => {
-  return args.count * 2;
-};
+  return args.count * 2
+}
 ```
 
 - **Enable strict mode**
@@ -63,34 +63,34 @@ const calculateTotal = (args: CalculateTotalArgs): number => {
 
 ```typescript
 const calculateTotal = (args: CalculateTotalArgs): number => {
-  return args.count * 2;
-};
+  return args.count * 2
+}
 ```
 
 - **Define payload type for complex return type**
 
 ```typescript
 type CalculateTotalPayload = {
-  result: number;
-};
+  result: number
+}
 
 const calculateTotal = (args: CalculateTotalArgs): CalculateTotalPayload => {
   return {
     result: args.count * 2,
-  };
-};
+  }
+}
 ```
 
 - **Prefer type guards and type predicates**
   Use type predicates to narrow down types safely instead of forcing types via type assertions.
 
 ```typescript
-type Admin = { role: "admin" };
-type Guest = { role: "guest" };
+type Admin = { role: 'admin' }
+type Guest = { role: 'guest' }
 
 const isAdmin = (user: Admin | Guest): user is Admin => {
-  return user.role === "admin";
-};
+  return user.role === 'admin'
+}
 ```
 
 - **Use const assertions for literal types**
@@ -98,9 +98,9 @@ const isAdmin = (user: Admin | Guest): user is Admin => {
 
 ```typescript
 const Roles = {
-  Admin: "admin",
-  User: "user",
-} as const;
+  Admin: 'admin',
+  User: 'user',
+} as const
 ```
 
 - **Use const assertions for enums — never use the `enum` keyword**
@@ -108,27 +108,27 @@ const Roles = {
 
 ```typescript
 export const SYSTEM_ROLE = {
-  OWNER: "OWNER",
-  MEMBER: "MEMBER",
-} as const;
+  OWNER: 'OWNER',
+  MEMBER: 'MEMBER',
+} as const
 
-export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>;
+export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>
 
 export const HTTP_STATUS = {
   OK_200: 200,
   NOT_FOUND_404: 404,
-} as const;
+} as const
 
-export type HttpStatus = ValueOfEnum<typeof HTTP_STATUS>;
+export type HttpStatus = ValueOfEnum<typeof HTTP_STATUS>
 
 // Externally dictated values may differ from key format:
 export const NODE_ENV = {
-  DEVELOPMENT: "development",
-  PRODUCTION: "production",
-  TEST: "test",
-} as const;
+  DEVELOPMENT: 'development',
+  PRODUCTION: 'production',
+  TEST: 'test',
+} as const
 
-export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
+export type NodeEnv = ValueOfEnum<typeof NODE_ENV>
 ```
 
 - **Keep types clean and concise**
@@ -143,20 +143,20 @@ export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
 
 ```typescript
 // Correct
-import type { ValueOfEnum } from "@repo/types";
+import type { ValueOfEnum } from '@repo/types'
 
 const ROLES = {
-  ADMIN: "ADMIN",
-  USER: "USER",
-} as const;
+  ADMIN: 'ADMIN',
+  USER: 'USER',
+} as const
 
-type Role = ValueOfEnum<typeof ROLES>; // 'ADMIN' | 'USER'
+type Role = ValueOfEnum<typeof ROLES> // 'ADMIN' | 'USER'
 
 // Incorrect — inline typeof/keyof
-type Role = (typeof ROLES)[keyof typeof ROLES];
+type Role = (typeof ROLES)[keyof typeof ROLES]
 
 // Incorrect — local re-declaration instead of importing from @repo/types
-type ValueOfEnum<T> = T[keyof T];
+type ValueOfEnum<T> = T[keyof T]
 ```
 
 - **Barrel files always use `export * from '...'`**
@@ -164,12 +164,12 @@ type ValueOfEnum<T> = T[keyof T];
 
 ```typescript
 // Correct
-export * from "./Exception.js";
-export * from "./HttpException.js";
+export * from './Exception.js'
+export * from './HttpException.js'
 
 // Incorrect
-export { Exception } from "./Exception.js";
-export type { AnyException } from "./Exception.js";
+export { Exception } from './Exception.js'
+export type { AnyException } from './Exception.js'
 ```
 
 - **Define env schema using createEnv from @repo/utils package**

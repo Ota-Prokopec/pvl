@@ -1,14 +1,9 @@
-import {
-  coerceToBigint,
-  coerceToBoolean,
-  coerceToNumber,
-  coerceToString,
-} from "../coercions.js";
-import { buildIssue, formatValue, ISSUE_CODE, type Result } from "../issue.js";
-import { Schema, type SchemaOptions } from "./baseSchema.js";
+import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js'
+import { buildIssue, formatValue, ISSUE_CODE, type Result } from '../issue.js'
+import { Schema, type SchemaOptions } from './baseSchema.js'
 
 /** Every primitive type `pvl.literal()` can pin a schema to. */
-export type LiteralValue = string | number | boolean | bigint;
+export type LiteralValue = string | number | boolean | bigint
 
 /**
  * The `.coerce()` conversion matching a literal's own type. Resolved once at
@@ -17,16 +12,16 @@ export type LiteralValue = string | number | boolean | bigint;
  */
 const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
   switch (typeof value) {
-    case "string":
-      return coerceToString;
-    case "number":
-      return coerceToNumber;
-    case "boolean":
-      return coerceToBoolean;
+    case 'string':
+      return coerceToString
+    case 'number':
+      return coerceToNumber
+    case 'boolean':
+      return coerceToBoolean
     default:
-      return coerceToBigint;
+      return coerceToBigint
   }
-};
+}
 
 /**
  * Matches exactly one constant value. The comparison is `Object.is`, not
@@ -36,19 +31,16 @@ const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
  * that can never accept anything. A right-shaped value of the wrong type
  * (`"42"` for `pvl.literal(42)`) is rejected just like a wrong value is.
  */
-export class LiteralSchema<Value extends LiteralValue> extends Schema<
-  Value,
-  Value
-> {
-  private readonly _value: Value;
-  private readonly _message: string;
-  private readonly _coerce: (value: unknown) => unknown;
+export class LiteralSchema<Value extends LiteralValue> extends Schema<Value, Value> {
+  private readonly _value: Value
+  private readonly _message: string
+  private readonly _coerce: (value: unknown) => unknown
 
   constructor(value: Value, options?: SchemaOptions) {
-    super();
-    this._value = value;
-    this._message = options?.message ?? `Expected ${formatValue(value)}`;
-    this._coerce = coercionFor(value);
+    super()
+    this._value = value
+    this._message = options?.message ?? `Expected ${formatValue(value)}`
+    this._coerce = coercionFor(value)
   }
 
   /**
@@ -58,15 +50,15 @@ export class LiteralSchema<Value extends LiteralValue> extends Schema<
    * input falls through unchanged and fails that comparison.
    */
   override _coerceInput(value: unknown): unknown {
-    return this._coerce(value);
+    return this._coerce(value)
   }
 
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Value> {
     if (!Object.is(value, this._value)) {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_VALUE, this._message, path)],
-      };
+      }
     }
-    return { value: this._value };
+    return { value: this._value }
   }
 }

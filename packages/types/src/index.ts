@@ -1,1 +1,1 @@
-export type ValueOfEnum<T> = T[keyof T];
+export type ValueOfEnum<T> = T[keyof T]
