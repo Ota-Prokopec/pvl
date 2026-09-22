@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Result } from "../src/index.js";
 import { pvl } from "../src/index.js";
+import { assertSuccess } from "./helpers.js";
 
 const SYSTEM_ROLE = {
   OWNER: "OWNER",
@@ -11,16 +11,6 @@ const HTTP_STATUS = {
   OK_200: 200,
   NOT_FOUND_404: 404,
 } as const;
-
-function assertSuccess<Output>(
-  result: Result<Output>,
-): asserts result is { value: Output; issues?: undefined } {
-  if (result.issues) {
-    throw new Error(
-      `Expected a success Result, got issues: ${JSON.stringify(result.issues)}`,
-    );
-  }
-}
 
 describe("pvl.enum()", () => {
   describe("`as const` object source", () => {

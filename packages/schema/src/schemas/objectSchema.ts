@@ -102,15 +102,21 @@ const assignKey = (
  * Each field is validated through its own full pipeline (its `.optional()`,
  * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`), with the field's
  * key appended to the path so a nested failure reports where it happened.
+ *
+ * `.coerce()` is inherited but has no object-specific conversion: there is no
+ * one unambiguous way to read an object out of a non-object, so a value that
+ * isn't one is rejected rather than guessed at. A field that needs coercion
+ * opts into it on its own schema.
  */
 export class ObjectSchema<
   Shape extends ObjectShape,
   Mode extends UnknownKeys = typeof UNKNOWN_KEYS.STRIP,
 > extends Schema<ObjectInput<Shape>, ObjectOutput<Shape, Mode>> {
-  private readonly _shape: Shape;
   private readonly _typeMessage: string;
-  private readonly _unknownKeys: Mode;
-  private readonly _unknownKeyMessage: string | undefined;
+  // `Mode` is a type-level marker for the output type only; the runtime field
+  // is the plain union, so the clone below can re-point it without a cast.
+  private _unknownKeys: UnknownKeys = UNKNOWN_KEYS.STRIP;
+  private _unknownKeyMessage: string | undefined;
   // Derived from the shape once at construction rather than per `.validate()`
   // call, since both sit on the validation hot path.
   private readonly _fields: ReadonlyArray<
@@ -118,17 +124,9 @@ export class ObjectSchema<
   >;
   private readonly _declaredKeys: ReadonlySet<string>;
 
-  constructor(
-    shape: Shape,
-    options?: SchemaOptions,
-    unknownKeys: Mode = UNKNOWN_KEYS.STRIP as Mode,
-    unknownKeyMessage?: string,
-  ) {
+  constructor(shape: Shape, options?: SchemaOptions) {
     super();
-    this._shape = shape;
     this._typeMessage = options?.message ?? "Expected object";
-    this._unknownKeys = unknownKeys;
-    this._unknownKeyMessage = unknownKeyMessage;
     this._fields = Object.entries(shape);
     this._declaredKeys = new Set(Object.keys(shape));
   }
@@ -137,21 +135,12 @@ export class ObjectSchema<
   strict(
     options?: SchemaOptions,
   ): ObjectSchema<Shape, typeof UNKNOWN_KEYS.STRICT> {
-    return new ObjectSchema(
-      this._shape,
-      { message: this._typeMessage },
-      UNKNOWN_KEYS.STRICT,
-      options?.message,
-    );
+    return this._withUnknownKeys(UNKNOWN_KEYS.STRICT, options?.message);
   }
 
   /** Keep keys the shape doesn't declare, untyped, instead of stripping them. */
   passthrough(): ObjectSchema<Shape, typeof UNKNOWN_KEYS.PASSTHROUGH> {
-    return new ObjectSchema(
-      this._shape,
-      { message: this._typeMessage },
-      UNKNOWN_KEYS.PASSTHROUGH,
-    );
+    return this._withUnknownKeys(UNKNOWN_KEYS.PASSTHROUGH);
   }
 
   _checkType(
@@ -207,5 +196,24 @@ export class ObjectSchema<
     // The loops above built `output` key by key from each field's own result,
     // which the type system can't follow back to the composed object type.
     return { value: output as ObjectOutput<Shape, Mode> };
+  }
+
+  /**
+   * Clones through the base class's prototype-preserving clone, so any
+   * modifier already chained onto this instance survives, then re-points the
+   * unknown-key fields. Constructing a fresh `ObjectSchema` instead would
+   * reset the base `Schema` state and silently drop those modifiers.
+   */
+  private _withUnknownKeys<NextMode extends UnknownKeys>(
+    unknownKeys: NextMode,
+    unknownKeyMessage?: string,
+  ): ObjectSchema<Shape, NextMode> {
+    const clone = this._withState({}) as unknown as ObjectSchema<
+      Shape,
+      NextMode
+    >;
+    clone._unknownKeys = unknownKeys;
+    clone._unknownKeyMessage = unknownKeyMessage;
+    return clone;
   }
 }

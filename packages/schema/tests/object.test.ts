@@ -1,17 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import type { Result } from "../src/index.js";
 import { pvl } from "../src/index.js";
-
-function assertSuccess<Output>(
-  result: Result<Output>,
-): asserts result is { value: Output; issues?: undefined } {
-  if (result.issues) {
-    throw new Error(
-      `Expected a success Result, got issues: ${JSON.stringify(result.issues)}`,
-    );
-  }
-}
+import { assertSuccess } from "./helpers.js";
 
 describe("pvl.object()", () => {
   it("accepts an object whose every field matches its schema", () => {
@@ -215,6 +205,14 @@ describe("pvl.object()", () => {
       expect(result.value).toBe("ADA");
     });
 
+    it("leaves the value unchanged once .coerce(), having no object-specific conversion", () => {
+      const schema = pvl.object({ name: pvl.string() }).coerce();
+      const accepted = schema.validate({ name: "ada" });
+      assertSuccess(accepted);
+      expect(accepted.value).toEqual({ name: "ada" });
+      expect(schema.validate('{"name":"ada"}').issues).toBeDefined();
+    });
+
     it("exposes Standard Schema conformance", () => {
       const schema = pvl.object({ name: pvl.string() });
       expect(schema["~standard"].version).toBe(1);
@@ -306,6 +304,41 @@ describe("pvl.object() (property-based)", () => {
       fc.property(fc.string(), fc.integer(), (name, age) => {
         const schema = pvl.object({ name: pvl.string(), age: pvl.number() });
         return schema.validate({ name, age }).issues === undefined;
+      }),
+    );
+  });
+
+  it("accepts any deeply nested object built from its fields' accepted values", () => {
+    const schema = pvl.object({
+      user: pvl.object({
+        name: pvl.string(),
+        address: pvl.object({ city: pvl.string(), zip: pvl.number() }),
+      }),
+    });
+    fc.assert(
+      fc.property(
+        fc.string(),
+        fc.string(),
+        fc.integer(),
+        (name, city, zip) =>
+          schema.validate({ user: { name, address: { city, zip } } }).issues ===
+          undefined,
+      ),
+    );
+  });
+
+  it("paths a nested failure to the field that failed, however deep", () => {
+    const schema = pvl.object({
+      user: pvl.object({ address: pvl.object({ zip: pvl.number() }) }),
+    });
+    fc.assert(
+      fc.property(fc.string(), (zip) => {
+        const result = schema.validate({ user: { address: { zip } } });
+        return (
+          result.issues?.length === 1 &&
+          JSON.stringify(result.issues[0]?.path) ===
+            JSON.stringify(["user", "address", "zip"])
+        );
       }),
     );
   });
