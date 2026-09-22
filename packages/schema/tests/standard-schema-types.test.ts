@@ -143,6 +143,78 @@ describe("type inference", () => {
     >();
   });
 
+  it("infers pvl.object()'s input/output as the composed object type", () => {
+    const schema = pvl.object({ name: pvl.string(), age: pvl.number() });
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+      age: number;
+    }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+      age: number;
+    }>();
+  });
+
+  it("infers an .optional() field as an optional key", () => {
+    const schema = pvl.object({
+      name: pvl.string(),
+      nickname: pvl.string().optional(),
+    });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+      nickname?: string | undefined;
+    }>();
+  });
+
+  it("infers a .nullable() field as a required key that may be null", () => {
+    const schema = pvl.object({ nickname: pvl.string().nullable() });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      nickname: string | null;
+    }>();
+  });
+
+  it("infers an .optional().nullable() field as an optional, nullable key", () => {
+    const schema = pvl.object({ nickname: pvl.string().optional().nullable() });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      nickname?: string | null | undefined;
+    }>();
+  });
+
+  it("infers a nested pvl.object()'s composed type", () => {
+    const schema = pvl.object({
+      user: pvl.object({ name: pvl.string() }),
+    });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      user: { name: string };
+    }>();
+  });
+
+  it("infers a transformed field's differing input/output", () => {
+    const schema = pvl.object({
+      name: pvl.string().transform((value) => value.length),
+    });
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+    }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: number;
+    }>();
+  });
+
+  it("infers .passthrough()'s output as the known keys plus untyped unknown ones", () => {
+    const schema = pvl.object({ name: pvl.string() }).passthrough();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      { name: string } & Record<string, unknown>
+    >();
+  });
+
+  it("infers .strict()'s output as the known keys only", () => {
+    const schema = pvl.object({ name: pvl.string() }).strict();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+    }>();
+  });
+
   it("infers a transformed pvl.enum()'s differing input/output", () => {
     const schema = pvl.enum(SYSTEM_ROLE).transform((value) => value.length);
     expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<

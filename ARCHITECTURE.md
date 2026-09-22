@@ -48,3 +48,6 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0007](./docs/adr/0007-object-strips-unknown-keys-by-default.md) — `object()` strips unknown keys by default
 - [ADR-0008](./docs/adr/0008-no-regex-backed-constraints-in-v1.md) — no regex-backed constraint helpers in v1
 - [ADR-0009](./docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md) — `enum()` accepts either an `as const` object or a string-literal array
+- [ADR-0010](./docs/adr/0010-schema-modifier-ordered-step-list.md) — `.refine()`/`.transform()` are recorded as one ordered step list
+- [ADR-0011](./docs/adr/0011-result-failure-branch-carries-pvl-issue.md) — `Result`'s failure branch carries `@pvl/schema`'s own `Issue`
+- [ADR-0012](./docs/adr/0012-composite-schemas-collect-every-issue.md) — composite schemas collect every field's `Issue` rather than failing fast
