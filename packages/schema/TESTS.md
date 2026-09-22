@@ -33,27 +33,27 @@ Every schema type is exercised through these four seams. Not every seam applies 
 The primary, uniform seam. Every schema type — primitive or composite — is tested by feeding it inputs and asserting on the returned `Result`/`Issue[]`, covering both the accept and reject paths. This is where constraint (`.min()`/`.max()`/`.length()`/`.int()`), `.refine()`, `.transform()`, `.coerce()`, `.optional()`, and `.nullable()` behavior gets covered — for each, test both a value that should pass and one that should fail, plus the boundary itself for numeric/length constraints (e.g. exactly `min`, exactly `max`).
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { pvl } from "../src/index.js";
+import { describe, it, expect } from 'vitest';
+import { pvl } from '../src/index.js';
 
-describe("pvl.string()", () => {
-  it("accepts a string", () => {
-    const result = pvl.string().validate("hello");
+describe('pvl.string()', () => {
+  it('accepts a string', () => {
+    const result = pvl.string().validate('hello');
     expect(result.issues).toBeUndefined();
   });
 
-  it("rejects a non-string", () => {
+  it('rejects a non-string', () => {
     const result = pvl.string().validate(42);
     expect(result.issues).toBeDefined();
   });
 
-  it("accepts the exact min boundary", () => {
-    const result = pvl.string().min(3).validate("abc");
+  it('accepts the exact min boundary', () => {
+    const result = pvl.string().min(3).validate('abc');
     expect(result.issues).toBeUndefined();
   });
 
-  it("rejects one below the min boundary", () => {
-    const result = pvl.string().min(3).validate("ab");
+  it('rejects one below the min boundary', () => {
+    const result = pvl.string().min(3).validate('ab');
     expect(result.issues).toBeDefined();
   });
 });
@@ -66,29 +66,21 @@ Never assert `.validate()` throws for an invalid value — it doesn't, by contra
 `expectTypeOf`-style (or tsd-style) tests asserting that `StandardSchemaV1.InferInput`/`InferOutput` produce the expected static type for representative schemas — a seam runtime tests can't cover. Cover at minimum: a primitive, an `object`, and a `.transform()`'d schema where `Input !== Output`.
 
 ```ts
-import { describe, it, expectTypeOf } from "vitest";
-import type { StandardSchemaV1 } from "some-standard-schema-types-source";
-import { pvl } from "../src/index.js";
+import { describe, it, expectTypeOf } from 'vitest';
+import type { StandardSchemaV1 } from 'some-standard-schema-types-source';
+import { pvl } from '../src/index.js';
 
-describe("type inference", () => {
-  it("infers string input/output", () => {
+describe('type inference', () => {
+  it('infers string input/output', () => {
     const schema = pvl.string();
-    expectTypeOf<
-      StandardSchemaV1.InferInput<typeof schema>
-    >().toEqualTypeOf<string>();
-    expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof schema>
-    >().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
   });
 
   it("infers a transform's differing input/output", () => {
     const schema = pvl.string().transform((s) => s.length);
-    expectTypeOf<
-      StandardSchemaV1.InferInput<typeof schema>
-    >().toEqualTypeOf<string>();
-    expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof schema>
-    >().toEqualTypeOf<number>();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
   });
 });
 ```
@@ -98,11 +90,11 @@ describe("type inference", () => {
 A direct test that `pvl.compile(schema)` returns the schema unchanged before any compilation has run. Tested as its own seam, not incidentally via `.validate()` on a compiled schema, because this v1 guarantee (see `AGENTS.md`) is easy to silently regress if it's only ever exercised indirectly.
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { pvl } from "../src/index.js";
+import { describe, it, expect } from 'vitest';
+import { pvl } from '../src/index.js';
 
-describe("pvl.compile()", () => {
-  it("returns the given composite schema unchanged pre-compilation", () => {
+describe('pvl.compile()', () => {
+  it('returns the given composite schema unchanged pre-compilation', () => {
     const schema = pvl.object({ name: pvl.string() });
     expect(pvl.compile(schema)).toBe(schema);
   });
@@ -114,19 +106,19 @@ describe("pvl.compile()", () => {
 Direct assertions on the exact `Issue.message`/`Issue.path` produced for nested `object`/`array`/`union` validation failures — a seam distinct from a bare pass/fail check on `Result`. Consumers rely on precise error paths to point a user at exactly which field failed, so this is verified explicitly rather than left to an incidental pass/fail assertion.
 
 ```ts
-import { describe, it, expect } from "vitest";
-import { pvl } from "../src/index.js";
+import { describe, it, expect } from 'vitest';
+import { pvl } from '../src/index.js';
 
-describe("nested Issue paths", () => {
+describe('nested Issue paths', () => {
   it("reports the failing field's path for a nested object", () => {
     const schema = pvl.object({ user: pvl.object({ name: pvl.string() }) });
     const result = schema.validate({ user: { name: 42 } });
-    expect(result.issues?.[0]?.path).toEqual(["user", "name"]);
+    expect(result.issues?.[0]?.path).toEqual(['user', 'name']);
   });
 
-  it("reports the failing index for an array", () => {
+  it('reports the failing index for an array', () => {
     const schema = pvl.array(pvl.string());
-    const result = schema.validate(["a", 42, "c"]);
+    const result = schema.validate(['a', 42, 'c']);
     expect(result.issues?.[0]?.path).toEqual([1]);
   });
 });
@@ -137,12 +129,12 @@ describe("nested Issue paths", () => {
 `fast-check` is used for **primitives and composite combinators** specifically — hand-written examples tend to miss the boundary/edge-case bugs this library exists to catch (off-by-one boundaries on `.min()`/`.max()`, unusual-but-valid strings/numbers, deeply nested `object`/`array` shapes). It isn't required for every schema type; reach for it where an arbitrary-input generator materially strengthens coverage over hand-picked examples, e.g.:
 
 ```ts
-import { describe, it } from "vitest";
-import fc from "fast-check";
-import { pvl } from "../src/index.js";
+import { describe, it } from 'vitest';
+import fc from 'fast-check';
+import { pvl } from '../src/index.js';
 
-describe("pvl.string().min()/.max() (property-based)", () => {
-  it("accepts any string within [min, max] length", () => {
+describe('pvl.string().min()/.max() (property-based)', () => {
+  it('accepts any string within [min, max] length', () => {
     fc.assert(
       fc.property(fc.string({ minLength: 3, maxLength: 10 }), (value) => {
         const result = pvl.string().min(3).max(10).validate(value);

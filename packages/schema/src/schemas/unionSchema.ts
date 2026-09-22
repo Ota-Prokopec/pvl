@@ -1,6 +1,6 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { buildIssue, ISSUE_CODE, type Issue, type Result } from "../issue.js";
-import { Schema, type SchemaOptions } from "./baseSchema.js";
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { buildIssue, ISSUE_CODE, type Issue, type Result } from '../issue.js';
+import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /** The alternative schemas a `UnionSchema` tries, in the order given. */
 export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
@@ -19,11 +19,9 @@ type MemberOutputs<Members extends UnionMembers> = {
   [Index in keyof Members]: StandardSchemaV1.InferOutput<Members[Index]>;
 };
 
-export type UnionInput<Members extends UnionMembers> =
-  MemberInputs<Members>[number];
+export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[number];
 
-export type UnionOutput<Members extends UnionMembers> =
-  MemberOutputs<Members>[number];
+export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number];
 
 /**
  * Plain union only, per v1 scope: tries each member schema in order and
@@ -60,10 +58,7 @@ export class UnionSchema<Members extends UnionMembers> extends Schema<
     this._message = options?.message;
   }
 
-  _checkType(
-    value: unknown,
-    path: ReadonlyArray<PropertyKey>,
-  ): Result<UnionOutput<Members>> {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<UnionOutput<Members>> {
     const rejections: Issue[] = [];
     for (const member of this._members) {
       const result = member._validate(value, path);

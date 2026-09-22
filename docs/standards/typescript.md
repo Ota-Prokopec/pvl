@@ -85,11 +85,11 @@ const calculateTotal = (args: CalculateTotalArgs): CalculateTotalPayload => {
   Use type predicates to narrow down types safely instead of forcing types via type assertions.
 
 ```typescript
-type Admin = { role: "admin" };
-type Guest = { role: "guest" };
+type Admin = { role: 'admin' };
+type Guest = { role: 'guest' };
 
 const isAdmin = (user: Admin | Guest): user is Admin => {
-  return user.role === "admin";
+  return user.role === 'admin';
 };
 ```
 
@@ -98,8 +98,8 @@ const isAdmin = (user: Admin | Guest): user is Admin => {
 
 ```typescript
 const Roles = {
-  Admin: "admin",
-  User: "user",
+  Admin: 'admin',
+  User: 'user',
 } as const;
 ```
 
@@ -108,8 +108,8 @@ const Roles = {
 
 ```typescript
 export const SYSTEM_ROLE = {
-  OWNER: "OWNER",
-  MEMBER: "MEMBER",
+  OWNER: 'OWNER',
+  MEMBER: 'MEMBER',
 } as const;
 
 export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>;
@@ -123,9 +123,9 @@ export type HttpStatus = ValueOfEnum<typeof HTTP_STATUS>;
 
 // Externally dictated values may differ from key format:
 export const NODE_ENV = {
-  DEVELOPMENT: "development",
-  PRODUCTION: "production",
-  TEST: "test",
+  DEVELOPMENT: 'development',
+  PRODUCTION: 'production',
+  TEST: 'test',
 } as const;
 
 export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
@@ -143,11 +143,11 @@ export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
 
 ```typescript
 // Correct
-import type { ValueOfEnum } from "@repo/types";
+import type { ValueOfEnum } from '@repo/types';
 
 const ROLES = {
-  ADMIN: "ADMIN",
-  USER: "USER",
+  ADMIN: 'ADMIN',
+  USER: 'USER',
 } as const;
 
 type Role = ValueOfEnum<typeof ROLES>; // 'ADMIN' | 'USER'
@@ -164,12 +164,12 @@ type ValueOfEnum<T> = T[keyof T];
 
 ```typescript
 // Correct
-export * from "./Exception.js";
-export * from "./HttpException.js";
+export * from './Exception.js';
+export * from './HttpException.js';
 
 // Incorrect
-export { Exception } from "./Exception.js";
-export type { AnyException } from "./Exception.js";
+export { Exception } from './Exception.js';
+export type { AnyException } from './Exception.js';
 ```
 
 - **Define env schema using createEnv from @repo/utils package**

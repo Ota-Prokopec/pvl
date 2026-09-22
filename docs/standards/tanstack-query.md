@@ -15,11 +15,7 @@ Wrap the app in a `QueryClientProvider`. In `apps/dashboard`, create the client 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 
-const QueryProvider = ({
-  children,
-}: {
-  children: React.ReactNode;
-}): React.ReactNode => {
+const QueryProvider = ({ children }: { children: React.ReactNode }): React.ReactNode => {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -29,9 +25,7 @@ const QueryProvider = ({
       }),
   );
 
-  return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 };
 ```
 
@@ -43,10 +37,8 @@ Query keys are arrays. Structure them hierarchically: `[resource, ...scope, ...f
 // queries/flags.ts
 export const flagKeys = {
   all: (projectId: string) => ['projects', projectId, 'flags'] as const,
-  byEnv: (projectId: string, envId: string) =>
-    ['projects', projectId, 'flags', { envId }] as const,
-  detail: (projectId: string, flagId: string) =>
-    ['projects', projectId, 'flags', flagId] as const,
+  byEnv: (projectId: string, envId: string) => ['projects', projectId, 'flags', { envId }] as const,
+  detail: (projectId: string, flagId: string) => ['projects', projectId, 'flags', flagId] as const,
   auditLog: (projectId: string, flagId: string) =>
     ['projects', projectId, 'flags', flagId, 'audit'] as const,
 } as const;
@@ -87,10 +79,7 @@ type FlagsQueryPayload = {
   flags: Flag[];
 };
 
-const useFlags = (
-  projectId: string,
-  environmentId: string,
-): FlagsQueryPayload | undefined => {
+const useFlags = (projectId: string, environmentId: string): FlagsQueryPayload | undefined => {
   const { data } = useQuery({
     queryKey: flagKeys.byEnv(projectId, environmentId),
     queryFn: (): Promise<FlagsQueryPayload> =>

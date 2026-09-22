@@ -60,9 +60,9 @@ The relevant primitives/composites get **cheap structural constraint** methods: 
 Every schema-affecting call — factories and constraint methods alike — accepts an optional trailing options object whose `message` field overrides the default `Issue` message it would otherwise produce:
 
 ```ts
-pvl.string({ message: "must be a string" });
-pvl.string().min(3, { message: "must be at least 3 characters" });
-pvl.object({ name: pvl.string() }, { message: "invalid payload" });
+pvl.string({ message: 'must be a string' });
+pvl.string().min(3, { message: 'must be at least 3 characters' });
+pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
 ```
 
 This is the _only_ place a custom message is supplied — there's no separate global error-map mechanism in v1.

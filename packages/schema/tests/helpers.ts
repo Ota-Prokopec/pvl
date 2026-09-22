@@ -1,4 +1,4 @@
-import type { Result } from "../src/index.js";
+import type { Result } from '../src/index.js';
 
 /**
  * Narrows a `Result` to its success branch, failing the test with the issues
@@ -13,8 +13,6 @@ export const assertSuccess: <Output>(
   result: Result<Output>,
 ) => asserts result is { value: Output; issues?: undefined } = (result) => {
   if (result.issues) {
-    throw new Error(
-      `Expected a success Result, got issues: ${JSON.stringify(result.issues)}`,
-    );
+    throw new Error(`Expected a success Result, got issues: ${JSON.stringify(result.issues)}`);
   }
 };

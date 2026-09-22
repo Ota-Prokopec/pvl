@@ -1,20 +1,20 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-import { buildIssue, ISSUE_CODE, type Result } from "../issue.js";
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { buildIssue, ISSUE_CODE, type Result } from '../issue.js';
 
-const VENDOR = "@pvl/schema";
+const VENDOR = '@pvl/schema';
 
 export type SchemaOptions = {
   readonly message?: string;
 };
 
 type RefineStep = {
-  readonly kind: "refine";
+  readonly kind: 'refine';
   readonly predicate: (value: unknown) => boolean;
   readonly options?: SchemaOptions;
 };
 
 type TransformStep = {
-  readonly kind: "transform";
+  readonly kind: 'transform';
   readonly fn: (value: unknown) => unknown;
 };
 
@@ -49,7 +49,7 @@ const DEFAULT_STATE: SchemaState = {
 export abstract class Schema<Input = unknown, Output = Input> {
   private _state: SchemaState = DEFAULT_STATE;
 
-  get "~standard"(): StandardSchemaV1.Props<Input, Output> {
+  get '~standard'(): StandardSchemaV1.Props<Input, Output> {
     return {
       version: 1,
       vendor: VENDOR,
@@ -86,16 +86,10 @@ export abstract class Schema<Input = unknown, Output = Input> {
 
     let current: unknown = result.value;
     for (const step of this._state.steps) {
-      if (step.kind === "refine") {
+      if (step.kind === 'refine') {
         if (!step.predicate(current)) {
           return {
-            issues: [
-              buildIssue(
-                ISSUE_CODE.CUSTOM,
-                step.options?.message ?? "Invalid value",
-                path,
-              ),
-            ],
+            issues: [buildIssue(ISSUE_CODE.CUSTOM, step.options?.message ?? 'Invalid value', path)],
           };
         }
       } else {
@@ -107,46 +101,32 @@ export abstract class Schema<Input = unknown, Output = Input> {
   }
 
   /** The concrete shape check for this schema type (e.g. "is this a string"). */
-  abstract _checkType(
-    value: unknown,
-    path: ReadonlyArray<PropertyKey>,
-  ): Result<Output>;
+  abstract _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output>;
 
   _coerceInput(value: unknown): unknown {
     return value;
   }
 
   optional(): Schema<Input | undefined, Output | undefined> {
-    return this._withState({ isOptional: true }) as Schema<
-      Input | undefined,
-      Output | undefined
-    >;
+    return this._withState({ isOptional: true }) as Schema<Input | undefined, Output | undefined>;
   }
 
   nullable(): Schema<Input | null, Output | null> {
-    return this._withState({ isNullable: true }) as Schema<
-      Input | null,
-      Output | null
-    >;
+    return this._withState({ isNullable: true }) as Schema<Input | null, Output | null>;
   }
 
-  refine(
-    predicate: (value: Output) => boolean,
-    options?: SchemaOptions,
-  ): Schema<Input, Output> {
+  refine(predicate: (value: Output) => boolean, options?: SchemaOptions): Schema<Input, Output> {
     const step: RefineStep = {
-      kind: "refine",
+      kind: 'refine',
       predicate: predicate as (value: unknown) => boolean,
       options,
     };
     return this._withState({ steps: [...this._state.steps, step] });
   }
 
-  transform<NewOutput>(
-    fn: (value: Output) => NewOutput,
-  ): Schema<Input, NewOutput> {
+  transform<NewOutput>(fn: (value: Output) => NewOutput): Schema<Input, NewOutput> {
     const step: TransformStep = {
-      kind: "transform",
+      kind: 'transform',
       fn: fn as (value: unknown) => unknown,
     };
     return this._withState({

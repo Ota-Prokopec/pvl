@@ -255,11 +255,7 @@ const { user, config, profile } = await all({
 const userPromise = fetchUser();
 const profilePromise = userPromise.then((user) => fetchProfile(user.id));
 
-const [user, config, profile] = await Promise.all([
-  userPromise,
-  fetchConfig(),
-  profilePromise,
-]);
+const [user, config, profile] = await Promise.all([userPromise, fetchConfig(), profilePromise]);
 ```
 
 We can also create all the promises first, and do `Promise.all()` at the end.
@@ -290,10 +286,7 @@ export async function GET(request: Request) {
   const sessionPromise = auth();
   const configPromise = fetchConfig();
   const session = await sessionPromise;
-  const [config, data] = await Promise.all([
-    configPromise,
-    fetchData(session.user.id),
-  ]);
+  const [config, data] = await Promise.all([configPromise, fetchData(session.user.id)]);
   return Response.json({ data, config });
 }
 ```
@@ -317,11 +310,7 @@ const comments = await fetchComments();
 **Correct: parallel execution, 1 round trip**
 
 ```typescript
-const [user, posts, comments] = await Promise.all([
-  fetchUser(),
-  fetchPosts(),
-  fetchComments(),
-]);
+const [user, posts, comments] = await Promise.all([fetchUser(), fetchPosts(), fetchComments()]);
 ```
 
 ### 1.6 Strategic Suspense Boundaries
@@ -540,10 +529,9 @@ export default function RootLayout({ children }) {
 ```tsx
 import dynamic from 'next/dynamic';
 
-const Analytics = dynamic(
-  () => import('@vercel/analytics/react').then((m) => m.Analytics),
-  { ssr: false },
-);
+const Analytics = dynamic(() => import('@vercel/analytics/react').then((m) => m.Analytics), {
+  ssr: false,
+});
 
 export default function RootLayout({ children }) {
   return (
@@ -578,10 +566,9 @@ function CodePanel({ code }: { code: string }) {
 ```tsx
 import dynamic from 'next/dynamic';
 
-const MonacoEditor = dynamic(
-  () => import('./monaco-editor').then((m) => m.MonacoEditor),
-  { ssr: false },
-);
+const MonacoEditor = dynamic(() => import('./monaco-editor').then((m) => m.MonacoEditor), {
+  ssr: false,
+});
 
 function CodePanel({ code }: { code: string }) {
   return <MonacoEditor value={code} />;
@@ -681,9 +668,7 @@ function FlagsProvider({ children, flags }: Props) {
     }
   }, [flags.editorEnabled]);
 
-  return (
-    <FlagsContext.Provider value={flags}>{children}</FlagsContext.Provider>
-  );
+  return <FlagsContext.Provider value={flags}>{children}</FlagsContext.Provider>;
 }
 ```
 
@@ -1044,10 +1029,7 @@ const configPromise = fs.readFile('./config.json', 'utf-8').then(JSON.parse);
 const templatePromise = fs.readFile('./template.html', 'utf-8');
 
 export async function processRequest(data: Data) {
-  const [config, template] = await Promise.all([
-    configPromise,
-    templatePromise,
-  ]);
+  const [config, template] = await Promise.all([configPromise, templatePromise]);
 
   return render(template, data, config);
 }
@@ -1203,9 +1185,7 @@ When fetching nested data in parallel, chain dependent fetches within each item'
 ```tsx
 const chats = await Promise.all(chatIds.map((id) => getChat(id)));
 
-const chatAuthors = await Promise.all(
-  chats.map((chat) => getUser(chat.author)),
-);
+const chatAuthors = await Promise.all(chats.map((chat) => getUser(chat.author)));
 ```
 
 If one `getChat(id)` out of 100 is extremely slow, the authors of the other 99 chats can't start loading even though their data is ready.
@@ -1326,8 +1306,7 @@ export async function POST(request: Request) {
   // Log after response is sent
   after(async () => {
     const userAgent = (await headers()).get('user-agent') || 'unknown';
-    const sessionCookie =
-      (await cookies()).get('session-id')?.value || 'anonymous';
+    const sessionCookie = (await cookies()).get('session-id')?.value || 'anonymous';
 
     logUserAction({ sessionCookie, userAgent });
   });
@@ -1737,10 +1716,7 @@ A common reason developers do this is to access parent variables without passing
 function UserProfile({ user, theme }) {
   // Defined inside to access `theme` - BAD
   const Avatar = () => (
-    <img
-      src={user.avatarUrl}
-      className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'}
-    />
+    <img src={user.avatarUrl} className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'} />
   );
 
   // Defined inside to access `user` - BAD
@@ -1766,12 +1742,7 @@ Every time `UserProfile` renders, `Avatar` and `Stats` are new component types. 
 
 ```tsx
 function Avatar({ src, theme }: { src: string; theme: string }) {
-  return (
-    <img
-      src={src}
-      className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'}
-    />
-  );
+  return <img src={src} className={theme === 'dark' ? 'avatar-dark' : 'avatar-light'} />;
 }
 
 function Stats({ followers, posts }: { followers: number; posts: number }) {
@@ -2143,9 +2114,7 @@ function FilteredList({ items }: { items: Item[] }) {
 
 function UserProfile() {
   // JSON.parse runs on every render
-  const [settings, setSettings] = useState(
-    JSON.parse(localStorage.getItem('settings') || '{}'),
-  );
+  const [settings, setSettings] = useState(JSON.parse(localStorage.getItem('settings') || '{}'));
 
   return <SettingsForm settings={settings} onChange={setSettings} />;
 }
@@ -2619,10 +2588,7 @@ import Script from 'next/script';
 export default function Page() {
   return (
     <>
-      <Script
-        src="https://example.com/analytics.js"
-        strategy="afterInteractive"
-      />
+      <Script src="https://example.com/analytics.js" strategy="afterInteractive" />
       <Script src="/scripts/utils.js" strategy="beforeInteractive" />
     </>
   );
@@ -3098,9 +3064,7 @@ let cookieCache: Record<string, string> | null = null;
 
 function getCookie(name: string) {
   if (!cookieCache) {
-    cookieCache = Object.fromEntries(
-      document.cookie.split('; ').map((c) => c.split('=')),
-    );
+    cookieCache = Object.fromEntries(document.cookie.split('; ').map((c) => c.split('=')));
   }
   return cookieCache[name];
 }
@@ -3196,10 +3160,9 @@ function handleSearch(query: string) {
 
 ```typescript
 // Ensure analytics fires within 2 seconds even if browser stays busy
-requestIdleCallback(
-  () => analytics.track('page_view', { path: location.pathname }),
-  { timeout: 2000 },
-);
+requestIdleCallback(() => analytics.track('page_view', { path: location.pathname }), {
+  timeout: 2000,
+});
 ```
 
 **Chunking large tasks:**
@@ -3228,8 +3191,7 @@ function processLargeDataset(items: Item[]) {
 **With fallback for unsupported browsers:**
 
 ```typescript
-const scheduleIdleWork =
-  window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1));
+const scheduleIdleWork = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1));
 
 scheduleIdleWork(() => {
   // Non-critical work
@@ -3401,9 +3363,7 @@ Chaining `.map().filter(Boolean)` creates an intermediate array and iterates twi
 **Incorrect: 2 iterations, intermediate array**
 
 ```typescript
-const userNames = users
-  .map((user) => (user.isActive ? user.name : null))
-  .filter(Boolean);
+const userNames = users.map((user) => (user.isActive ? user.name : null)).filter(Boolean);
 ```
 
 **Correct: 1 iteration, no intermediate array**
@@ -3615,13 +3575,7 @@ Effect Event functions do not have a stable identity. Their identity intentional
 ```tsx
 import { useEffect, useEffectEvent } from 'react';
 
-function ChatRoom({
-  roomId,
-  onConnected,
-}: {
-  roomId: string;
-  onConnected: () => void;
-}) {
+function ChatRoom({ roomId, onConnected }: { roomId: string; onConnected: () => void }) {
   const handleConnected = useEffectEvent(onConnected);
 
   useEffect(() => {
@@ -3641,13 +3595,7 @@ Including the Effect Event in dependencies makes the effect re-run every render 
 ```tsx
 import { useEffect, useEffectEvent } from 'react';
 
-function ChatRoom({
-  roomId,
-  onConnected,
-}: {
-  roomId: string;
-  onConnected: () => void;
-}) {
+function ChatRoom({ roomId, onConnected }: { roomId: string; onConnected: () => void }) {
   const handleConnected = useEffectEvent(onConnected);
 
   useEffect(() => {

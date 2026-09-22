@@ -1,7 +1,7 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { ValueOfEnum } from "@repo/types";
-import { buildIssue, ISSUE_CODE, type Issue, type Result } from "../issue.js";
-import { Schema, type SchemaOptions } from "./baseSchema.js";
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { ValueOfEnum } from '@repo/types';
+import { buildIssue, ISSUE_CODE, type Issue, type Result } from '../issue.js';
+import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /**
  * What an `ObjectSchema` does with keys its shape doesn't declare. Exactly one
@@ -9,9 +9,9 @@ import { Schema, type SchemaOptions } from "./baseSchema.js";
  * as `Issue`s, passthrough keeps them untyped — see ADR-0007.
  */
 export const UNKNOWN_KEYS = {
-  STRIP: "STRIP",
-  STRICT: "STRICT",
-  PASSTHROUGH: "PASSTHROUGH",
+  STRIP: 'STRIP',
+  STRICT: 'STRICT',
+  PASSTHROUGH: 'PASSTHROUGH',
 } as const;
 
 export type UnknownKeys = ValueOfEnum<typeof UNKNOWN_KEYS>;
@@ -54,9 +54,7 @@ type ComposeObject<Fields> = Flatten<
  * property of the value handed in, not of what the schema asks for, and
  * `.strict()` rejects them at runtime rather than at the type level.
  */
-export type ObjectInput<Shape extends ObjectShape> = ComposeObject<
-  ShapeInput<Shape>
->;
+export type ObjectInput<Shape extends ObjectShape> = ComposeObject<ShapeInput<Shape>>;
 
 /**
  * `.passthrough()` keeps unrecognized keys in the output, so its type carries
@@ -76,12 +74,8 @@ export type ObjectOutput<
  * produces as a real own property — silently reparenting the output instead of
  * copying the key. `defineProperty` writes it as the own data property it was.
  */
-const assignKey = (
-  target: Record<string, unknown>,
-  key: string,
-  value: unknown,
-): void => {
-  if (key === "__proto__") {
+const assignKey = (target: Record<string, unknown>, key: string, value: unknown): void => {
+  if (key === '__proto__') {
     Object.defineProperty(target, key, {
       value,
       writable: true,
@@ -119,22 +113,18 @@ export class ObjectSchema<
   private _unknownKeyMessage: string | undefined;
   // Derived from the shape once at construction rather than per `.validate()`
   // call, since both sit on the validation hot path.
-  private readonly _fields: ReadonlyArray<
-    readonly [string, Schema<unknown, unknown>]
-  >;
+  private readonly _fields: ReadonlyArray<readonly [string, Schema<unknown, unknown>]>;
   private readonly _declaredKeys: ReadonlySet<string>;
 
   constructor(shape: Shape, options?: SchemaOptions) {
     super();
-    this._typeMessage = options?.message ?? "Expected object";
+    this._typeMessage = options?.message ?? 'Expected object';
     this._fields = Object.entries(shape);
     this._declaredKeys = new Set(Object.keys(shape));
   }
 
   /** Report keys the shape doesn't declare as `Issue`s instead of stripping them. */
-  strict(
-    options?: SchemaOptions,
-  ): ObjectSchema<Shape, typeof UNKNOWN_KEYS.STRICT> {
+  strict(options?: SchemaOptions): ObjectSchema<Shape, typeof UNKNOWN_KEYS.STRICT> {
     return this._withUnknownKeys(UNKNOWN_KEYS.STRICT, options?.message);
   }
 
@@ -143,11 +133,8 @@ export class ObjectSchema<
     return this._withUnknownKeys(UNKNOWN_KEYS.PASSTHROUGH);
   }
 
-  _checkType(
-    value: unknown,
-    path: ReadonlyArray<PropertyKey>,
-  ): Result<ObjectOutput<Shape, Mode>> {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<ObjectOutput<Shape, Mode>> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
       };
@@ -208,10 +195,7 @@ export class ObjectSchema<
     unknownKeys: NextMode,
     unknownKeyMessage?: string,
   ): ObjectSchema<Shape, NextMode> {
-    const clone = this._withState({}) as unknown as ObjectSchema<
-      Shape,
-      NextMode
-    >;
+    const clone = this._withState({}) as unknown as ObjectSchema<Shape, NextMode>;
     clone._unknownKeys = unknownKeys;
     clone._unknownKeyMessage = unknownKeyMessage;
     return clone;

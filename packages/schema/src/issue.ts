@@ -1,16 +1,16 @@
-import type { StandardSchemaV1 } from "@standard-schema/spec";
-import type { ValueOfEnum } from "@repo/types";
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { ValueOfEnum } from '@repo/types';
 
 export const ISSUE_CODE = {
-  INVALID_TYPE: "INVALID_TYPE",
-  INVALID_VALUE: "INVALID_VALUE",
-  TOO_SMALL: "TOO_SMALL",
-  TOO_BIG: "TOO_BIG",
-  INVALID_LENGTH: "INVALID_LENGTH",
-  NOT_INTEGER: "NOT_INTEGER",
-  UNRECOGNIZED_KEY: "UNRECOGNIZED_KEY",
-  INVALID_UNION: "INVALID_UNION",
-  CUSTOM: "CUSTOM",
+  INVALID_TYPE: 'INVALID_TYPE',
+  INVALID_VALUE: 'INVALID_VALUE',
+  TOO_SMALL: 'TOO_SMALL',
+  TOO_BIG: 'TOO_BIG',
+  INVALID_LENGTH: 'INVALID_LENGTH',
+  NOT_INTEGER: 'NOT_INTEGER',
+  UNRECOGNIZED_KEY: 'UNRECOGNIZED_KEY',
+  INVALID_UNION: 'INVALID_UNION',
+  CUSTOM: 'CUSTOM',
 } as const;
 
 export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
@@ -35,17 +35,15 @@ export type FailureResult = StandardSchemaV1.FailureResult & {
   readonly issues: ReadonlyArray<Issue>;
 };
 
-export type Result<Output> =
-  StandardSchemaV1.SuccessResult<Output> | FailureResult;
+export type Result<Output> = StandardSchemaV1.SuccessResult<Output> | FailureResult;
 
 /**
  * Renders a value for a default `Issue` message — strings quoted so an empty
  * or space-padded one is visible in the message. `JSON.stringify` is avoided
  * because it throws on `bigint`.
  */
-export const formatValue = (
-  value: string | number | boolean | bigint,
-): string => (typeof value === "string" ? `"${value}"` : String(value));
+export const formatValue = (value: string | number | boolean | bigint): string =>
+  typeof value === 'string' ? `"${value}"` : String(value);
 
 export const buildIssue = (
   code: IssueCode,

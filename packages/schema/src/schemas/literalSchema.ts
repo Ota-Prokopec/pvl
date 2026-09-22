@@ -1,11 +1,6 @@
-import {
-  coerceToBigint,
-  coerceToBoolean,
-  coerceToNumber,
-  coerceToString,
-} from "../coercions.js";
-import { buildIssue, formatValue, ISSUE_CODE, type Result } from "../issue.js";
-import { Schema, type SchemaOptions } from "./baseSchema.js";
+import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
+import { buildIssue, formatValue, ISSUE_CODE, type Result } from '../issue.js';
+import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /** Every primitive type `pvl.literal()` can pin a schema to. */
 export type LiteralValue = string | number | boolean | bigint;
@@ -17,11 +12,11 @@ export type LiteralValue = string | number | boolean | bigint;
  */
 const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
   switch (typeof value) {
-    case "string":
+    case 'string':
       return coerceToString;
-    case "number":
+    case 'number':
       return coerceToNumber;
-    case "boolean":
+    case 'boolean':
       return coerceToBoolean;
     default:
       return coerceToBigint;
@@ -36,10 +31,7 @@ const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
  * that can never accept anything. A right-shaped value of the wrong type
  * (`"42"` for `pvl.literal(42)`) is rejected just like a wrong value is.
  */
-export class LiteralSchema<Value extends LiteralValue> extends Schema<
-  Value,
-  Value
-> {
+export class LiteralSchema<Value extends LiteralValue> extends Schema<Value, Value> {
   private readonly _value: Value;
   private readonly _message: string;
   private readonly _coerce: (value: unknown) => unknown;

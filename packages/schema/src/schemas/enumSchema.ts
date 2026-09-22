@@ -1,6 +1,6 @@
-import type { ValueOfEnum } from "@repo/types";
-import { buildIssue, formatValue, ISSUE_CODE, type Result } from "../issue.js";
-import { Schema, type SchemaOptions } from "./baseSchema.js";
+import type { ValueOfEnum } from '@repo/types';
+import { buildIssue, formatValue, ISSUE_CODE, type Result } from '../issue.js';
+import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /** A single accepted enum value, in either source form. */
 export type EnumMember = string | number;
@@ -20,14 +20,15 @@ export type EnumSource = EnumObjectSource | EnumArraySource;
  * `@repo/types`' `ValueOfEnum`, the repo-wide way to read an enum object's
  * value union (see docs/standards/typescript.md).
  */
-export type EnumOutput<Source extends EnumSource> =
-  Source extends EnumArraySource ? Source[number] : ValueOfEnum<Source>;
+export type EnumOutput<Source extends EnumSource> = Source extends EnumArraySource
+  ? Source[number]
+  : ValueOfEnum<Source>;
 
 const toMembers = (source: EnumSource): ReadonlyArray<EnumMember> =>
   Array.isArray(source) ? source : Object.values(source);
 
 const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
-  members.map(formatValue).join(", ");
+  members.map(formatValue).join(', ');
 
 /**
  * Accepts one of a fixed set of values, sourced from either an `as const`
@@ -49,14 +50,10 @@ export class EnumSchema<Source extends EnumSource> extends Schema<
     super();
     const members = toMembers(source);
     this._members = new Set(members);
-    this._message =
-      options?.message ?? `Expected one of ${formatMembers(members)}`;
+    this._message = options?.message ?? `Expected one of ${formatMembers(members)}`;
   }
 
-  _checkType(
-    value: unknown,
-    path: ReadonlyArray<PropertyKey>,
-  ): Result<EnumOutput<Source>> {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<EnumOutput<Source>> {
     if (!this._members.has(value as EnumMember)) {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_VALUE, this._message, path)],
