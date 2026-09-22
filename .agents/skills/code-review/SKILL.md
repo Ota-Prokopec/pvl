@@ -22,7 +22,11 @@ Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so th
 
 Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here, not inside two parallel sub-agents.
 
-### 2. Identify the spec source
+### 2. Run the tests yourself
+
+Before spawning either sub-agent, run the repo's test suite (and typecheck/lint/build if the repo documents a Post-Modification Checklist) against the working tree yourself — don't rely on a prior claim, a commit message, or a sub-agent's say-so. Capture pass/fail and any failure output. This result gets reported alongside the two axes in step 5 regardless of outcome, and a failing suite is a finding on the Standards axis even if no sub-agent independently spots it.
+
+### 3. Identify the spec source
 
 Look for the originating spec, in this order:
 
@@ -31,7 +35,7 @@ Look for the originating spec, in this order:
 3. A spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
 4. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
 
-### 3. Identify the standards sources
+### 4. Identify the standards sources
 
 Anything in the repo that documents how code should be written, such as `CODING_STANDARDS.md` or `CONTRIBUTING.md`.
 
@@ -55,7 +59,7 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 - **Middle Man**: a class or function that mostly just delegates onward. → cut it, call the real target direct.
 - **Refused Bequest**: a subclass or implementer that ignores or overrides most of what it inherits. → drop the inheritance, use composition.
 
-### 4. Spawn both sub-agents in parallel
+### 5. Spawn both sub-agents in parallel
 
 **Standards sub-agent prompt** should include:
 
@@ -71,11 +75,11 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 If the spec is missing, skip the Spec sub-agent and note this in the final report.
 
-### 5. Aggregate
+### 6. Aggregate
 
-Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned. Do **not** merge or rerank findings, because the two axes are deliberately separate (see _Why two axes_).
+Present the two reports under `## Standards` and `## Spec` headings, verbatim or lightly cleaned, plus a `## Tests` line stating whether the suite (and checklist, if applicable) passed and, if not, what failed. Do **not** merge or rerank findings, because the two axes are deliberately separate (see _Why two axes_).
 
-End with a one-line summary: total findings per axis, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
+End with a one-line summary: total findings per axis, whether tests passed, and the worst issue _within each axis_ (if any). Don't pick a single winner across axes: that's the reranking the separation exists to prevent.
 
 ## Why two axes
 

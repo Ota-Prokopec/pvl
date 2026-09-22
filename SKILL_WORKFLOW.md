@@ -13,3 +13,4 @@ https://www.aihero.dev/skills/skills-changelog-v1-1-wayfinder-to-spec-to-tickets
 3. /to-tickets
 4. /implement
 5. /review
+   Within review run tests.
