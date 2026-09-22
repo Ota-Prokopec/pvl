@@ -1,5 +1,5 @@
 import type { ValueOfEnum } from "@repo/types";
-import { buildIssue, ISSUE_CODE, type Result } from "../issue.js";
+import { buildIssue, formatValue, ISSUE_CODE, type Result } from "../issue.js";
 import { Schema, type SchemaOptions } from "./baseSchema.js";
 
 /** A single accepted enum value, in either source form. */
@@ -27,11 +27,7 @@ const toMembers = (source: EnumSource): ReadonlyArray<EnumMember> =>
   Array.isArray(source) ? source : Object.values(source);
 
 const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
-  members
-    .map((member) =>
-      typeof member === "string" ? `"${member}"` : String(member),
-    )
-    .join(", ");
+  members.map(formatValue).join(", ");
 
 /**
  * Accepts one of a fixed set of values, sourced from either an `as const`

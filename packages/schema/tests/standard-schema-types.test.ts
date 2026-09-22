@@ -8,6 +8,11 @@ const SYSTEM_ROLE = {
   MEMBER: "MEMBER",
 } as const;
 
+const HTTP_STATUS = {
+  OK_200: 200,
+  NOT_FOUND_404: 404,
+} as const;
+
 describe("type inference", () => {
   it("infers pvl.string()'s input/output as string", () => {
     const schema = pvl.string();
@@ -125,6 +130,16 @@ describe("type inference", () => {
     >();
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
       "A" | "B"
+    >();
+  });
+
+  it("infers a numeric enum object's values, not its keys", () => {
+    const schema = pvl.enum(HTTP_STATUS);
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      ValueOfEnum<typeof HTTP_STATUS>
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      200 | 404
     >();
   });
 

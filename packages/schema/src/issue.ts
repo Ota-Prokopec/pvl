@@ -24,16 +24,26 @@ export type Issue = StandardSchemaV1.Issue & {
 };
 
 /**
- * A failed validation, narrowed to this package's `Issue` so a caller can
- * read `code` off it. Structurally still a `StandardSchemaV1.FailureResult`,
- * so it stays assignable wherever the spec's own result type is expected.
+ * The spec's own failure result, narrowed to this package's `Issue` so a
+ * caller can read `code` off it. Derived from `StandardSchemaV1.FailureResult`
+ * by intersection rather than re-declared, so this stays one representation
+ * that can't drift from the spec's — see ADR-0011.
  */
-export type FailureResult = {
+export type FailureResult = StandardSchemaV1.FailureResult & {
   readonly issues: ReadonlyArray<Issue>;
 };
 
 export type Result<Output> =
   StandardSchemaV1.SuccessResult<Output> | FailureResult;
+
+/**
+ * Renders a value for a default `Issue` message — strings quoted so an empty
+ * or space-padded one is visible in the message. `JSON.stringify` is avoided
+ * because it throws on `bigint`.
+ */
+export const formatValue = (
+  value: string | number | boolean | bigint,
+): string => (typeof value === "string" ? `"${value}"` : String(value));
 
 export const buildIssue = (
   code: IssueCode,

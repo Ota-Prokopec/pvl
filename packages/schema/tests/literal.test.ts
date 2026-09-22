@@ -57,6 +57,23 @@ describe("pvl.literal()", () => {
     expect(result.issues).toBeDefined();
   });
 
+  it("matches NaN against a NaN literal", () => {
+    const result = pvl.literal(Number.NaN).validate(Number.NaN);
+    assertSuccess(result);
+    expect(result.value).toBeNaN();
+  });
+
+  it("rejects -0 against a literal 0 rather than normalizing it", () => {
+    const result = pvl.literal(0).validate(-0);
+    expect(result.issues).toBeDefined();
+  });
+
+  it("accepts 0 against a literal 0", () => {
+    const result = pvl.literal(0).validate(0);
+    assertSuccess(result);
+    expect(Object.is(result.value, 0)).toBe(true);
+  });
+
   it("rejects undefined when the schema is not optional", () => {
     const result = pvl.literal("OWNER").validate(undefined);
     expect(result.issues).toBeDefined();

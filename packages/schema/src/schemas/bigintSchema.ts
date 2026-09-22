@@ -1,3 +1,4 @@
+import { coerceToBigint } from "../coercions.js";
 import {
   buildIssue,
   ISSUE_CODE,
@@ -44,14 +45,7 @@ export class BigintSchema extends Schema<bigint, bigint> {
   }
 
   override _coerceInput(value: unknown): unknown {
-    if (typeof value === "string" || typeof value === "number") {
-      try {
-        return BigInt(value);
-      } catch {
-        return value;
-      }
-    }
-    return value;
+    return coerceToBigint(value);
   }
 
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {

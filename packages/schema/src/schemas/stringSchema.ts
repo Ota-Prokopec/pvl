@@ -1,3 +1,4 @@
+import { coerceToString } from "../coercions.js";
 import {
   buildIssue,
   ISSUE_CODE,
@@ -56,14 +57,7 @@ export class StringSchema extends Schema<string, string> {
   }
 
   override _coerceInput(value: unknown): unknown {
-    if (
-      typeof value === "number" ||
-      typeof value === "boolean" ||
-      typeof value === "bigint"
-    ) {
-      return String(value);
-    }
-    return value;
+    return coerceToString(value);
   }
 
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
