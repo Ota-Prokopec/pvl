@@ -188,4 +188,33 @@ describe('type inference', () => {
     expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string | number>();
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
   });
+
+  it("infers pvl.array()'s input/output as the item's element type", () => {
+    const schema = pvl.array(pvl.string());
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string[]>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string[]>();
+  });
+
+  it("infers a transformed item's differing element input/output", () => {
+    const schema = pvl.array(pvl.string().transform((value) => value.length));
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string[]>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number[]>();
+  });
+
+  it("infers an array of objects' element type", () => {
+    const schema = pvl.array(pvl.object({ name: pvl.string() }));
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{ name: string }[]>();
+  });
+
+  it("infers an object with an array field's composed type", () => {
+    const schema = pvl.object({ tags: pvl.array(pvl.string()) });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      tags: string[];
+    }>();
+  });
+
+  it("infers an array of arrays' nested element type", () => {
+    const schema = pvl.array(pvl.array(pvl.number()));
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number[][]>();
+  });
 });

@@ -1,3 +1,4 @@
+export * from './arraySchema.js';
 export * from './baseSchema.js';
 export * from './bigintSchema.js';
 export * from './booleanSchema.js';
