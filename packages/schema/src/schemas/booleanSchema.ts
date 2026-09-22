@@ -1,3 +1,4 @@
+import { coerceToBoolean } from "../coercions.js";
 import { buildIssue, ISSUE_CODE, type Result } from "../issue.js";
 import { Schema, type SchemaOptions } from "./baseSchema.js";
 
@@ -10,14 +11,7 @@ export class BooleanSchema extends Schema<boolean, boolean> {
   }
 
   override _coerceInput(value: unknown): unknown {
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "bigint"
-    ) {
-      return Boolean(value);
-    }
-    return value;
+    return coerceToBoolean(value);
   }
 
   _checkType(

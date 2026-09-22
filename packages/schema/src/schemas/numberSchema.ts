@@ -1,3 +1,4 @@
+import { coerceToNumber } from "../coercions.js";
 import {
   buildIssue,
   ISSUE_CODE,
@@ -52,10 +53,7 @@ export class NumberSchema extends Schema<number, number> {
   }
 
   override _coerceInput(value: unknown): unknown {
-    if (typeof value === "string" || typeof value === "boolean") {
-      return Number(value);
-    }
-    return value;
+    return coerceToNumber(value);
   }
 
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<number> {
