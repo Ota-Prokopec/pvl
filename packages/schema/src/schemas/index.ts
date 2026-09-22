@@ -6,3 +6,4 @@ export * from "./literalSchema.js";
 export * from "./numberSchema.js";
 export * from "./objectSchema.js";
 export * from "./stringSchema.js";
+export * from "./unionSchema.js";

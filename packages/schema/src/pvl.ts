@@ -6,6 +6,7 @@ import { LiteralSchema, type LiteralValue } from "./schemas/literalSchema.js";
 import { NumberSchema } from "./schemas/numberSchema.js";
 import { ObjectSchema, type ObjectShape } from "./schemas/objectSchema.js";
 import { StringSchema } from "./schemas/stringSchema.js";
+import { UnionSchema, type UnionMembers } from "./schemas/unionSchema.js";
 
 export const pvl = {
   string: (options?: SchemaOptions): StringSchema => new StringSchema(options),
@@ -27,4 +28,10 @@ export const pvl = {
     source: Source,
     options?: SchemaOptions,
   ): EnumSchema<Source> => new EnumSchema(source, options),
+  // `const Members` so a bare `pvl.union([...])` call site infers the
+  // readonly tuple of member schemas rather than widening to their union.
+  union: <const Members extends UnionMembers>(
+    members: Members,
+    options?: SchemaOptions,
+  ): UnionSchema<Members> => new UnionSchema(members, options),
 };

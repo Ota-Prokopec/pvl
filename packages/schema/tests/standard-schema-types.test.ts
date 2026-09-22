@@ -224,4 +224,27 @@ describe("type inference", () => {
       StandardSchemaV1.InferOutput<typeof schema>
     >().toEqualTypeOf<number>();
   });
+
+  it("infers a pvl.union()'s input/output as the union of its members' types", () => {
+    const schema = pvl.union([pvl.string(), pvl.number(), pvl.boolean()]);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      string | number | boolean
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      string | number | boolean
+    >();
+  });
+
+  it("infers a pvl.union()'s differing input/output when a member has a .transform()", () => {
+    const schema = pvl.union([
+      pvl.string(),
+      pvl.number().transform((value) => value.toFixed(2)),
+    ]);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      string | number
+    >();
+    expectTypeOf<
+      StandardSchemaV1.InferOutput<typeof schema>
+    >().toEqualTypeOf<string>();
+  });
 });
