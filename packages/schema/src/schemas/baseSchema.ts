@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
-import { buildIssue, ISSUE_CODE, type Result } from '../issue.js';
+import { buildIssue, ISSUE_CODE } from '../issue.js';
+import type { Result } from '../result.js';
 
 export type SchemaOptions = {
   readonly message?: string;

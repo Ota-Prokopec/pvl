@@ -1,5 +1,6 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
-import { buildIssue, formatValue, ISSUE_CODE, type Result } from '../issue.js';
+import { buildIssue, formatIssueMessageValue, ISSUE_CODE } from '../issue.js';
+import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /** Every primitive type `pvl.literal()` can pin a schema to. */
@@ -39,7 +40,7 @@ export class LiteralSchema<Value extends LiteralValue> extends Schema<Value, Val
   constructor(value: Value, options?: SchemaOptions) {
     super();
     this._value = value;
-    this._message = options?.message ?? `Expected ${formatValue(value)}`;
+    this._message = options?.message ?? `Expected ${formatIssueMessageValue(value)}`;
     this._coerce = coercionFor(value);
   }
 

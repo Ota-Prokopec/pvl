@@ -1,5 +1,6 @@
 import { coerceToBigint } from '../coercions.js';
-import { buildIssue, ISSUE_CODE, type IssueCode, type Result } from '../issue.js';
+import { buildIssue, ISSUE_CODE, type IssueCode } from '../issue.js';
+import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
 type BigintCheck = {
