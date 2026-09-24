@@ -79,6 +79,7 @@ export type RunStepsArgs = {
  */
 export const runSteps = <Output>({ steps, value, path }: RunStepsArgs): Result<Output> => {
   let current = value;
+
   for (const step of steps) {
     if (step.kind === 'refine') {
       if (!step.predicate(current)) {
