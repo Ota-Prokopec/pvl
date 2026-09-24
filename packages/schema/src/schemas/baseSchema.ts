@@ -1,37 +1,17 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
-import { buildIssue, ISSUE_CODE } from '../issue.js';
 import type { Result } from '../result.js';
+import {
+  DEFAULT_STATE,
+  resolveShortCircuit,
+  runSteps,
+  type RefineStep,
+  type SchemaState,
+  type TransformStep,
+} from './schemaState.js';
 
 export type SchemaOptions = {
   readonly message?: string;
-};
-
-type RefineStep = {
-  readonly kind: 'refine';
-  readonly predicate: (value: unknown) => boolean;
-  readonly options?: SchemaOptions;
-};
-
-type TransformStep = {
-  readonly kind: 'transform';
-  readonly fn: (value: unknown) => unknown;
-};
-
-type Step = RefineStep | TransformStep;
-
-type SchemaState = {
-  readonly isOptional: boolean;
-  readonly isNullable: boolean;
-  readonly shouldCoerce: boolean;
-  readonly steps: ReadonlyArray<Step>;
-};
-
-const DEFAULT_STATE: SchemaState = {
-  isOptional: false,
-  isNullable: false,
-  shouldCoerce: false,
-  steps: [],
 };
 
 /**
@@ -75,11 +55,9 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     const input = this._state.shouldCoerce ? this._coerceInput(value) : value;
 
-    if (input === undefined && this._state.isOptional) {
-      return { value: undefined as Output };
-    }
-    if (input === null && this._state.isNullable) {
-      return { value: null as Output };
+    const shortCircuited = resolveShortCircuit<Output>({ state: this._state, input });
+    if (shortCircuited) {
+      return shortCircuited;
     }
 
     const result = this._checkType(input, path);
@@ -87,20 +65,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       return result;
     }
 
-    let current: unknown = result.value;
-    for (const step of this._state.steps) {
-      if (step.kind === 'refine') {
-        if (!step.predicate(current)) {
-          return {
-            issues: [buildIssue(ISSUE_CODE.CUSTOM, step.options?.message ?? 'Invalid value', path)],
-          };
-        }
-      } else {
-        current = step.fn(current);
-      }
-    }
-
-    return { value: current as Output };
+    return runSteps<Output>({ steps: this._state.steps, value: result.value, path });
   }
 
   /** The concrete shape check for this schema type (e.g. "is this a string"). */
