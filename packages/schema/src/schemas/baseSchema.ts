@@ -46,7 +46,10 @@ const DEFAULT_STATE: SchemaState = {
  * This avoids a circular ESM import that wrapper classes extending `Schema`
  * while `Schema` constructs them would otherwise create.
  */
-export abstract class Schema<Input = unknown, Output = Input> {
+export abstract class Schema<Input = unknown, Output = Input> implements StandardSchemaV1<
+  Input,
+  Output
+> {
   private _state: SchemaState = DEFAULT_STATE;
 
   get '~standard'(): StandardSchemaV1.Props<Input, Output> {
