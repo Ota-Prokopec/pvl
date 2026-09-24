@@ -1,5 +1,6 @@
 import { coerceToBoolean } from '../coercions.js';
-import { buildIssue, ISSUE_CODE, type Result } from '../issue.js';
+import { buildIssue, ISSUE_CODE } from '../issue.js';
+import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
 export class BooleanSchema extends Schema<boolean, boolean> {

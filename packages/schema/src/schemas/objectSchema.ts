@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { buildIssue, ISSUE_CODE, type Issue, type Result } from '../issue.js';
+import { buildIssue, ISSUE_CODE, type Issue } from '../issue.js';
+import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
 /**
