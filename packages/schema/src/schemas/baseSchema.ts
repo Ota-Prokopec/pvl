@@ -1,7 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { VENDOR } from '../consts.js';
 import { buildIssue, ISSUE_CODE, type Result } from '../issue.js';
-
-const VENDOR = '@pvl/schema';
 
 export type SchemaOptions = {
   readonly message?: string;
