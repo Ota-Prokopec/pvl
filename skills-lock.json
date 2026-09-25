@@ -7,6 +7,12 @@
       "skillPath": "skills/engineering/ask-matt/SKILL.md",
       "computedHash": "0cd14026efa0330083cbc7adf590976c162b60e02f696a8dcce96f0b4dab8a72"
     },
+    "cli-developer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cli-developer/SKILL.md",
+      "computedHash": "8ac5b5dc1cc784f255f4ebde0c65d0185da4a7d6b02d8d38838be178b62cfd7a"
+    },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
