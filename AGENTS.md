@@ -14,7 +14,7 @@
 
 Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); neither has any implementation yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
 
-The default `create-turbo` starter apps have been removed. `apps/` now holds two entries:
+The `apps/` holds two entries:
 
 - **[`apps/playground`](./apps/playground/AGENTS.md)** (`playground`, private) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so `@pvl/schema` can be watched working without writing a throwaway test. It has no tests on purpose, and requires `@pvl/schema` to have been built before it runs; its own `AGENTS.md` explains why.
 
