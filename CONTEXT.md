@@ -14,9 +14,9 @@ _Avoid_: Type, Model.
 A single reported failure produced when a value doesn't satisfy a Schema.
 _Avoid_: Error, Violation.
 
-**Parse Result**:
-The outcome of validating a value against a Schema: either the accepted value (possibly transformed) or the list of Issues that failed it.
-_Avoid_: Validation Result.
+**Result**:
+The outcome of validating a value against a Schema: either the accepted value (possibly transformed) or the list of Issues that failed it. The term is the name of the type `@pvl/schema`'s validation call returns, and the one used by the [Standard Schema](./docs/specification/standard-schema.md) specification the package conforms to.
+_Avoid_: Validation Result, Parse Result.
 
 **Refinement**:
 An extra, user-supplied predicate attached to a Schema that a value must satisfy in addition to the Schema's base shape. A Refinement only accepts or rejects a value — it never changes it (contrast Transform).
@@ -27,7 +27,7 @@ An explicit, opt-in conversion of an input value to a Schema's target type _befo
 _Avoid_: Cast, Transform.
 
 **Transform**:
-A user-supplied function that converts a Schema's accepted value into a different Output value as part of producing the Parse Result — unlike Coercion, which runs before validation, a Transform runs as validation succeeds, and unlike a Refinement, it changes the value rather than only accepting or rejecting it.
+A user-supplied function that converts a Schema's accepted value into a different Output value as part of producing the Result — unlike Coercion, which runs before validation, a Transform runs as validation succeeds, and unlike a Refinement, it changes the value rather than only accepting or rejecting it.
 _Avoid_: Mapper, Coercion.
 
 ### AOT compiler
