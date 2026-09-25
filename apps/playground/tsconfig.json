@@ -1,0 +1,12 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    // The playground is the one workspace entry that runs as a Node program
+    // rather than being imported, so it needs Node's own globals and built-in
+    // modules (`console`, `node:util`) in scope.
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
