@@ -36,3 +36,10 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Generated API reference (TypeDoc writes it on every docs build)
+apps/docs/content/api
+
+# VitePress
+.vitepress/cache
+.vitepress/dist

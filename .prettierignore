@@ -9,6 +9,10 @@ node_modules
 .agents
 .claude/skills
 
+# Generated API reference — TypeDoc writes this on every docs build and it is
+# not committed, so Prettier must not fight it in `pnpm format:check`.
+apps/docs/content/api
+
 # Build output
 dist
 build

@@ -9,31 +9,78 @@ type ArrayCheck = {
   readonly test: (value: ReadonlyArray<unknown>) => boolean;
 };
 
-/** The element schema an `ArraySchema` validates every item against. */
+/**
+ * The element schema an array schema validates every item against. Any schema
+ * qualifies, including another array schema or an object schema.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ArrayItem } from '@pvl/schema';
+ *
+ * const item: ArrayItem = pvl.string();
+ * const tags = pvl.array(item);
+ * ```
+ */
 export type ArrayItem = Schema<unknown, unknown>;
 
+/**
+ * The array type a value must match going in, composed from the item
+ * schema's own input type.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ArrayInput } from '@pvl/schema';
+ *
+ * const item = pvl.string();
+ * const input: ArrayInput<typeof item> = ['a', 'b'];
+ *
+ * pvl.array(item).validate(input);
+ * ```
+ */
 export type ArrayInput<Item extends ArrayItem> = StandardSchemaV1.InferInput<Item>[];
 
+/**
+ * The array type a successful validation hands back, composed from the item
+ * schema's own output type — which differs from the input type once the item
+ * schema carries a `.transform()`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ArrayOutput } from '@pvl/schema';
+ *
+ * const item = pvl.string().transform((value) => value.length);
+ * const output: ArrayOutput<typeof item> = [1, 2]; // numbers, not strings
+ *
+ * pvl.array(item).validate(['a', 'bc']); // { value: [1, 2] }
+ * ```
+ */
 export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<Item>[];
 
 /**
- * Validates each element against a shared item schema, composing an array
- * type from it. Elements are independent children per ADR-0012: every
- * element is checked even after an earlier one fails, so a caller gets one
- * `Issue` per failing element in a single pass, each pathed with its numeric
- * index — recursively composing with object-key paths for nested
- * object/array combinations (arrays of objects, objects containing arrays,
- * arrays of arrays), since the item schema's own `_validate` is what appends
- * the next path segment.
+ * Validates every element against one shared item schema. Build one with
+ * `pvl.array(item)`.
  *
- * `.min()`/`.max()`/`.length()` are ordered checks on the array itself (its
- * length), not independent sub-validations, so — like a primitive's own
- * checks — they stop at the first failing one rather than collecting
- * alongside element issues.
+ * Elements are independent: every element is checked even after an earlier
+ * one fails, so a single `Result` carries one `Issue` per failing element,
+ * each pathed with its numeric index. Nest arrays and objects freely — each
+ * level appends its own path segment, so a failure deep inside reports
+ * exactly where it happened.
  *
- * `.coerce()` is inherited but has no array-specific conversion: there is no
- * one unambiguous way to read an array out of a non-array, so a value that
- * isn't one is rejected rather than guessed at.
+ * The length constraints are checks on the array itself and, like a
+ * primitive's checks, stop at the first failure rather than collecting
+ * alongside element issues. `.coerce()` is inherited but does nothing here —
+ * there is no unambiguous way to read an array out of a non-array.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const tags = pvl.array(pvl.string()).min(1).max(5);
+ *
+ * tags.validate(['a', 'b']); // { value: ['a', 'b'] }
+ * tags.validate(['a', 2, 3]);
+ * // { issues: [{ path: [1], ... }, { path: [2], ... }] } — every failing element
+ * ```
  */
 export class ArraySchema<Item extends ArrayItem> extends Schema<
   ArrayInput<Item>,
@@ -43,6 +90,7 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
   private readonly _typeMessage: string;
   private readonly _checks: ReadonlyArray<ArrayCheck>;
 
+  /** @internal */
   constructor(item: Item, options?: SchemaOptions, checks: ReadonlyArray<ArrayCheck> = []) {
     super();
     this._item = item;
@@ -50,6 +98,18 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
     this._checks = checks;
   }
 
+  /**
+   * Requires at least `length` elements.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const tags = pvl.array(pvl.string()).min(1, { message: 'pick at least one tag' });
+   *
+   * tags.validate([]); // { issues: [{ code: 'TOO_SMALL', message: 'pick at least one tag' }] }
+   * ```
+   */
   min(length: number, options?: SchemaOptions): ArraySchema<Item> {
     return this._withCheck({
       code: ISSUE_CODE.TOO_SMALL,
@@ -58,6 +118,18 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
     });
   }
 
+  /**
+   * Requires at most `length` elements.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const tags = pvl.array(pvl.string()).max(5);
+   *
+   * tags.validate(['a', 'b', 'c', 'd', 'e', 'f']); // { issues: [{ code: 'TOO_BIG', ... }] }
+   * ```
+   */
   max(length: number, options?: SchemaOptions): ArraySchema<Item> {
     return this._withCheck({
       code: ISSUE_CODE.TOO_BIG,
@@ -66,6 +138,19 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
     });
   }
 
+  /**
+   * Requires exactly `length` elements.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const rgb = pvl.array(pvl.number().int().min(0).max(255)).length(3);
+   *
+   * rgb.validate([12, 34, 56]); // { value: [12, 34, 56] }
+   * rgb.validate([12, 34]); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
+   * ```
+   */
   length(length: number, options?: SchemaOptions): ArraySchema<Item> {
     return this._withCheck({
       code: ISSUE_CODE.INVALID_LENGTH,
@@ -74,6 +159,7 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
     });
   }
 
+  /** @internal */
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<ArrayOutput<Item>> {
     if (!Array.isArray(value)) {
       return {

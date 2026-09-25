@@ -96,6 +96,20 @@ This package exports `compile()`, used to mark a schema as a candidate for ahead
 - **Primitive validators must be written for raw speed** — no regex or other comparatively slow techniques. They're both the runtime hot path for every schema built on top of them and the performance baseline `@pvl/schema-compiler`'s compiled output is trying to beat. This is also why regex-backed constraint helpers stay out of the built-in surface (see Cheap structural constraints only, above).
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
 
+### TSDoc is user-facing documentation, not contributor rationale
+
+`/** */` TSDoc on anything reachable from this package's barrel (`src/index.ts`) **is** the published API reference: [`apps/docs`](../../apps/docs/AGENTS.md) generates `content/api/` from this source with TypeDoc, so whatever a TSDoc block says is what a consumer reads on the documentation site. Two rules follow.
+
+**Every publicly reachable member carries user-facing TSDoc with an `@example`.** Write for someone using the library, not for someone maintaining it: what the member accepts, what it hands back, and a runnable snippet that imports from `'@pvl/schema'` and shows both a passing and a failing case where that is the interesting part. This covers every `pvl.*` factory, every check method on every schema class, every modifier on `Schema`, and the exported types.
+
+**Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and left in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments immediately above the declaration, which TypeDoc never picks up.
+
+Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the schema class constructors that the `pvl.*` factories exist to hide) stays documented — a maintainer still needs it — but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. **Adding a new public member without an `@example` silently ships an empty entry in the reference.**
+
+An internal-only module deliberately excluded from the barrel (`schemas/schemaState.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
+
+Examples are not yet verified by the build. Making them typecheck is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60); until then, check a changed snippet by hand.
+
 ## Open questions
 
 - Nothing package-specific currently open — see the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) "Still open" section for cross-cutting items (mainly about `@pvl/schema-compiler`'s partial-compilation behavior, which affects how consumers of this package would opt into compiled output).

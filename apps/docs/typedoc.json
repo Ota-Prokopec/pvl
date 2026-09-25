@@ -1,0 +1,33 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "../../packages/schema/src/index.ts"
+  ],
+  "tsconfig": "../../packages/schema/tsconfig.json",
+  "plugin": [
+    "typedoc-plugin-markdown",
+    "typedoc-vitepress-theme"
+  ],
+  "out": "content/api",
+  "docsRoot": "./content",
+  "outputFileStrategy": "members",
+  "entryFileName": "index",
+  "readme": "none",
+  "excludeInternal": true,
+  "excludeProtected": true,
+  "excludeExternals": true,
+  "hidePageHeader": true,
+  "useCodeBlocks": true,
+  "sidebar": {
+    "autoConfiguration": true,
+    "pretty": false
+  },
+  "intentionallyNotExported": [
+    "ComposeObject",
+    "Flatten",
+    "ShapeInput",
+    "ShapeOutput",
+    "MemberInputs",
+    "MemberOutputs"
+  ]
+}
