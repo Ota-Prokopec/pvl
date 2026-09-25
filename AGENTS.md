@@ -117,3 +117,7 @@ When implementing an issue that has sub-issues:
 - Run relevant tests, typechecks, linting, and integration checks.
 - Complete any remaining parent-level work that is not covered by the sub-issues.
 - If required sub-issues are not implemented yet, do not duplicate their work. Report which sub-issues are still pending.
+
+## Skills
+
+- When using `/grill-with-docs` skill, do not implement or edit any files.
