@@ -1,13 +1,8 @@
 {
   "$schema": "https://typedoc.org/schema.json",
-  "entryPoints": [
-    "../../packages/schema/src/index.ts"
-  ],
+  "entryPoints": ["../../packages/schema/src/index.ts"],
   "tsconfig": "../../packages/schema/tsconfig.json",
-  "plugin": [
-    "typedoc-plugin-markdown",
-    "typedoc-vitepress-theme"
-  ],
+  "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
   "out": "content/api",
   "docsRoot": "./content",
   "outputFileStrategy": "members",

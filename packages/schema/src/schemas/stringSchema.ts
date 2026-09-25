@@ -17,6 +17,13 @@ type StringCheck = {
  * at the first one that fails, so a single `Issue` comes back rather than
  * one per constraint.
  *
+ * Chain these constraints **before** the shared modifiers (`.optional()`,
+ * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
+ * method rebuilds the schema from its constraints alone, so a modifier
+ * applied earlier in the chain is silently dropped. This is a defect, not a
+ * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
+ * fixed.
+ *
  * @example
  * ```ts
  * import { pvl } from '@pvl/schema';

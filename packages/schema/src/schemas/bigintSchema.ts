@@ -20,6 +20,13 @@ type BigintCheck = {
  * output is always a `bigint`, never downgraded to a `number` — the precision
  * loss that would cause is exactly what `bigint` exists to avoid.
  *
+ * Chain these constraints **before** the shared modifiers (`.optional()`,
+ * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
+ * method rebuilds the schema from its constraints alone, so a modifier
+ * applied earlier in the chain is silently dropped. This is a defect, not a
+ * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
+ * fixed.
+ *
  * @example
  * ```ts
  * import { pvl } from '@pvl/schema';

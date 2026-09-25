@@ -24,7 +24,9 @@ const user = pvl.object({
 });
 ```
 
-Each factory returns a schema, and each method on a schema returns a new schema, so constraints and modifiers chain left to right in the order you apply them. Nothing is mutated — `pvl.string()` and `pvl.string().min(1)` are two separate schemas.
+Each factory returns a schema, and each method on a schema returns a new schema. Nothing is mutated — `pvl.string()` and `pvl.string().min(1)` are two separate schemas.
+
+One ordering rule applies while chaining: put a type's own constraints (`.min()`, `.max()`, `.length()`, `.int()`) **before** the shared modifiers (`.optional()`, `.nullable()`, `.coerce()`, `.refine()`, `.transform()`). See [the warning under Modifiers](./schemas#modifiers) for why.
 
 See [Schema types](./schemas) for the full set of factories and modifiers.
 

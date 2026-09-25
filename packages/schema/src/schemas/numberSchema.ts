@@ -19,6 +19,13 @@ type NumberCheck = {
  * built-in finiteness constraint. Arbitrary-precision integers belong to
  * `pvl.bigint()`, and this schema never accepts or produces one.
  *
+ * Chain these constraints **before** the shared modifiers (`.optional()`,
+ * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
+ * method rebuilds the schema from its constraints alone, so a modifier
+ * applied earlier in the chain is silently dropped. This is a defect, not a
+ * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
+ * fixed.
+ *
  * @example
  * ```ts
  * import { pvl } from '@pvl/schema';
