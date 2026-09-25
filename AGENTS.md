@@ -14,7 +14,11 @@
 
 Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); neither has any implementation yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
 
-The default `create-turbo` starter apps (`apps/web`, `apps/docs`) have been removed — `apps/` is kept as an empty placeholder directory for a future app. `packages/eslint-config` and `packages/typescript-config` remain as generic shared config, reusable by `@pvl/schema`/`@pvl/schema-compiler`. `packages/ui` also remains, but it has no current consumer now that `apps/web`/`apps/docs` are gone; it's kept intentionally for a future app rather than repurposed or removed — treat it as unused-but-deliberate scaffolding, not project code.
+The default `create-turbo` starter apps (`apps/web`, `apps/docs`) have been removed. `apps/` now holds one entry:
+
+- **[`apps/playground`](./apps/playground/AGENTS.md)** (`playground`, private) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so `@pvl/schema` can be watched working without writing a throwaway test. It has no tests on purpose, and requires `@pvl/schema` to have been built before it runs; its own `AGENTS.md` explains why.
+
+`packages/eslint-config` and `packages/typescript-config` remain as generic shared config, reusable by `@pvl/schema`/`@pvl/schema-compiler`. `packages/ui` also remains, but it has no current consumer now that `apps/web`/`apps/docs` are gone; it's kept intentionally for a future app rather than repurposed or removed — treat it as unused-but-deliberate scaffolding, not project code.
 
 ## Root Commands
 
