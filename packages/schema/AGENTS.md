@@ -1,6 +1,6 @@
 # `@pvl/schema`
 
-A Zod-style schema validation library. Compose `Schema`s and validate values against them at runtime. This directory is currently empty except for this file (and `TESTS.md`) — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for how this package relates to `@pvl/schema-compiler`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Issue`, `Parse Result`, `Refinement`, `Transform`, `Coercion`) referenced throughout this file. See [`TESTS.md`](./TESTS.md) for the testing strategy.
+A Zod-style schema validation library. Compose `Schema`s and validate values against them at runtime. This directory is currently empty except for this file (and `TESTS.md`) — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for how this package relates to `@pvl/schema-compiler`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`) referenced throughout this file. See [`TESTS.md`](./TESTS.md) for the testing strategy.
 
 ## Technology
 
@@ -71,8 +71,8 @@ This is the _only_ place a custom message is supplied — there's no separate gl
 
 All three are supported in v1 (see `CONTEXT.md` for the precise distinction between them):
 
-- **Refinement**: `(data) => boolean` predicates attached to a schema via `.refine(predicate, options?)`, e.g. `myCustomValidationFunction`. Never change the value; a failing Refinement produces a Parse Result `Issue`, it never throws.
-- **Transform**: functions attached via `.transform(fn)` that convert a schema's accepted value into a different `Output` value (`Input !== Output`), run as part of producing the `Parse Result`. The schema's inferred `Output` type reflects the transform's return type, distinct from its `Input` type.
+- **Refinement**: `(data) => boolean` predicates attached to a schema via `.refine(predicate, options?)`, e.g. `myCustomValidationFunction`. Never change the value; a failing Refinement produces a Result `Issue`, it never throws.
+- **Transform**: functions attached via `.transform(fn)` that convert a schema's accepted value into a different `Output` value (`Input !== Output`), run as part of producing the `Result`. The schema's inferred `Output` type reflects the transform's return type, distinct from its `Input` type.
 - **Coercion**: opt-in conversion of the raw input value to the schema's target type via `.coerce()`, run strictly _before_ the schema's own checks — a coercion failure and a base-check failure compose predictably because coercion always resolves first.
 
 ### Standard Schema conformance
