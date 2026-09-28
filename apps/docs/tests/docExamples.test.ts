@@ -5,6 +5,7 @@ import {
   parseMarkdownExamples,
   parseTsdocExamples,
   renderDocExampleFixtures,
+  type DocExample,
 } from '../scripts/docExamples.ts';
 
 const SOURCE_PATH = 'apps/docs/content/guide/example.md';
@@ -84,22 +85,44 @@ describe('parseMarkdownExamples', () => {
     expect(examples[0]?.shared).toBe(true);
   });
 
-  it('ignores meta tokens outside the marker namespace', () => {
+  // A `ts` block is a `ts` block however VitePress lets it be spelled. Missing
+  // one of these forms would silently stop checking it, which is the one thing
+  // the default must never do.
+  it.each([
+    ['```ts:line-numbers'],
+    ['```ts:no-line-numbers'],
+    ['```ts:line-numbers=2'],
+    ['```ts{1,3}'],
+    ['```ts-vue'],
+    ['```ts [config.ts]'],
+    ['```ts{1,3} [config.ts]'],
+  ])('extracts a ts block written as %s', (fence) => {
     const examples = parseMarkdownExamples({
       sourcePath: SOURCE_PATH,
-      text: ['```ts:line-numbers', 'const a = 1;', '```'].join('\n'),
-    });
-
-    expect(examples).toHaveLength(0);
-  });
-
-  it('ignores a VitePress meta token separated by a space', () => {
-    const examples = parseMarkdownExamples({
-      sourcePath: SOURCE_PATH,
-      text: ['```ts [config.ts]', 'const a = 1;', '```'].join('\n'),
+      text: [fence, 'const a = 1;', '```'].join('\n'),
     });
 
     expect(examples).toHaveLength(1);
+  });
+
+  it('still ignores another language carrying VitePress meta', () => {
+    const examples = parseMarkdownExamples({
+      sourcePath: SOURCE_PATH,
+      text: ['```sh:line-numbers', 'pnpm add @pvl/schema', '```'].join('\n'),
+    });
+
+    expect(examples).toEqual([]);
+  });
+
+  it('honours a marker on a fence whose language carries meta', () => {
+    const examples = parseMarkdownExamples({
+      sourcePath: SOURCE_PATH,
+      text: [`\`\`\`ts:line-numbers ${DOC_EXAMPLE_MARKER.SHARED}`, 'const a = 1;', '```'].join(
+        '\n',
+      ),
+    });
+
+    expect(examples[0]?.shared).toBe(true);
   });
 
   it('rejects an unknown marker in the docs-check namespace', () => {
@@ -290,9 +313,7 @@ describe('parseTsdocExamples', () => {
   });
 });
 
-const example = (
-  overrides: Partial<Parameters<typeof renderDocExampleFixtures>[0]['examples'][number]>,
-) => ({
+const example = (overrides: Partial<DocExample>): DocExample => ({
   sourcePath: SOURCE_PATH,
   line: 1,
   code: 'const a = 1;',

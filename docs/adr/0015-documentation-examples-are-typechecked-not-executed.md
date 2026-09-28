@@ -20,7 +20,9 @@ The alternative — one fixture per page, everything flat — fails on the first
 
 A snippet marked `docs-check-skip` is left out. It exists for code that is deliberately not valid: pseudo-code, or a chain shown precisely because the compiler rejects it. Markers are written after the language in the fence info string, which VitePress does not render, so the published page is unchanged.
 
-Rejected alternatives: a magic comment inside the snippet would be visible to a reader, and an opt-_in_ marker was rejected because it makes silence mean "unchecked" — the default has to be that a snippet is verified, so that a newly added example is covered without anyone remembering to ask for it. A token beginning `docs-check-` that is not a known marker is an error rather than being ignored, so that a typo cannot quietly disable a check.
+Rejected alternatives: a magic comment inside the snippet would be visible to a reader, and an opt-_in_ marker was rejected because it makes silence mean "unchecked" — the default has to be that a snippet is verified, so that a newly added example is covered without anyone remembering to ask for it.
+
+Because silence means "checked", every way of losing a snippet without an error is a defect in this design rather than a rough edge. Two follow from that. A token beginning `docs-check-` that is not a known marker is an error rather than being ignored, so a typo cannot quietly disable a check. And the fence's language token is normalized exactly as VitePress normalizes it — `ts:line-numbers`, `ts:line-numbers=2`, `ts{1,3}` and `ts-vue` are all `ts` — because recognising only a bare `ts` would silently skip a block a reader sees as TypeScript. The first version of this harness got that second point wrong, and the review that caught it is the reason it is written down here.
 
 ## The examples are compiled by TypeScript 5.9
 

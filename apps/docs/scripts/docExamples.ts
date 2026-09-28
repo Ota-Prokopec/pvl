@@ -81,7 +81,30 @@ const EXAMPLE_TAG_RE = /^@example\b/;
 
 const lineAt = (lines: ReadonlyArray<string>, index: number): string => lines[index] ?? '';
 
-type FenceInfo = {
+/** Where in a documentation source something is, for an error a reader can act on. */
+type DocLocation = {
+  readonly sourcePath: string;
+  readonly line: number;
+};
+
+const at = (location: DocLocation): string => `${location.sourcePath}:${location.line}`;
+
+// VitePress lets a fence carry its highlighting options on the language token
+// itself: `ts:line-numbers`, `ts:line-numbers=2`, `ts{1,3}`, `ts-vue`. Its own
+// `extractLang` strips all of that to decide the language, and so must this — a
+// `ts` block written in any of those forms is still a snippet to check. Getting
+// this wrong would not fail loudly; it would silently stop checking the block,
+// which is the one thing the default must never do.
+const LANGUAGE_NORMALIZERS: ReadonlyArray<RegExp> = [
+  /=(\d*)/,
+  /:(no-)?line-numbers(\{| |$|=\d*).*/,
+  /(-vue|\{| ).*$/,
+];
+
+const extractFenceLanguage = (info: string): string =>
+  LANGUAGE_NORMALIZERS.reduce((language, pattern) => language.replace(pattern, ''), info.trim());
+
+type ParseFenceInfoPayload = {
   readonly language: string;
   readonly skip: boolean;
   readonly shared: boolean;
@@ -89,18 +112,17 @@ type FenceInfo = {
 
 type ParseFenceInfoArgs = {
   readonly info: string;
-  readonly sourcePath: string;
-  readonly line: number;
+  readonly location: DocLocation;
 };
 
-const parseFenceInfo = (args: ParseFenceInfoArgs): FenceInfo => {
-  const [language = '', ...tokens] = args.info.trim().split(/\s+/);
+const parseFenceInfo = (args: ParseFenceInfoArgs): ParseFenceInfoPayload => {
+  const [languageToken = '', ...tokens] = args.info.trim().split(/\s+/);
   const markers = tokens.filter((token) => token.startsWith(MARKER_NAMESPACE));
 
   const unknown = markers.find((token) => !KNOWN_MARKERS.has(token));
   if (unknown !== undefined) {
     throw new Error(
-      `${args.sourcePath}:${args.line}: unknown documentation-example marker \`${unknown}\`. ` +
+      `${at(args.location)}: unknown documentation-example marker \`${unknown}\`. ` +
         `Known markers: ${[...KNOWN_MARKERS].join(', ')}.`,
     );
   }
@@ -109,13 +131,13 @@ const parseFenceInfo = (args: ParseFenceInfoArgs): FenceInfo => {
   const shared = markers.includes(DOC_EXAMPLE_MARKER.SHARED);
   if (skip && shared) {
     throw new Error(
-      `${args.sourcePath}:${args.line}: \`${DOC_EXAMPLE_MARKER.SKIP}\` and ` +
+      `${at(args.location)}: \`${DOC_EXAMPLE_MARKER.SKIP}\` and ` +
         `\`${DOC_EXAMPLE_MARKER.SHARED}\` contradict each other — a snippet that is not ` +
         `checked cannot provide shared context to the snippets after it.`,
     );
   }
 
-  return { language, skip, shared };
+  return { language: extractFenceLanguage(languageToken), skip, shared };
 };
 
 /**
@@ -135,17 +157,13 @@ export const parseMarkdownExamples = (args: ParseDocExamplesArgs): ReadonlyArray
       continue;
     }
 
-    const fenceLine = index + 1;
-    const info = parseFenceInfo({
-      info: opening[1] ?? '',
-      sourcePath: args.sourcePath,
-      line: fenceLine,
-    });
+    const fence: DocLocation = { sourcePath: args.sourcePath, line: index + 1 };
+    const info = parseFenceInfo({ info: opening[1] ?? '', location: fence });
 
     let end = index + 1;
     while (end < lines.length && !FENCE_CLOSE_RE.test(lineAt(lines, end))) end += 1;
     if (end >= lines.length) {
-      throw new Error(`${args.sourcePath}:${fenceLine}: unterminated code fence.`);
+      throw new Error(`${at(fence)}: unterminated code fence.`);
     }
 
     if (EXAMPLE_LANGUAGES.has(info.language) && !info.skip) {
@@ -225,14 +243,13 @@ const parseTsdocBlockExamples = (args: ParseTsdocBlockArgs): ReadonlyArray<DocEx
       continue;
     }
 
-    const info = parseFenceInfo({ info: opening[1] ?? '', sourcePath, line: fence.line });
+    const fenceLocation: DocLocation = { sourcePath, line: fence.line };
+    const info = parseFenceInfo({ info: opening[1] ?? '', location: fenceLocation });
 
     let end = cursor + 1;
     while (end < block.length && !TSDOC_FENCE_CLOSE_RE.test(block[end]?.content ?? '')) end += 1;
     if (end >= block.length) {
-      throw new Error(
-        `${sourcePath}:${fence.line}: unterminated code fence in an \`@example\` block.`,
-      );
+      throw new Error(`${at(fenceLocation)}: unterminated code fence in an \`@example\` block.`);
     }
 
     if (EXAMPLE_LANGUAGES.has(info.language) && !info.skip) {
@@ -278,8 +295,7 @@ const ALIAS_RE = /\bas\s+([A-Za-z_$][\w$]*)$/;
 
 type ParseImportStatementArgs = {
   readonly statement: string;
-  readonly sourcePath: string;
-  readonly line: number;
+  readonly location: DocLocation;
 };
 
 const parseImportStatement = (args: ParseImportStatementArgs): ReadonlyArray<ImportBinding> => {
@@ -289,7 +305,7 @@ const parseImportStatement = (args: ParseImportStatementArgs): ReadonlyArray<Imp
 
   if (match === null) {
     throw new Error(
-      `${args.sourcePath}:${args.line}: unsupported import form in a documentation example — ` +
+      `${at(args.location)}: unsupported import form in a documentation example — ` +
         `\`${args.statement}\`. Examples import named bindings only, e.g. ` +
         `\`import { pvl, type Result } from '@pvl/schema';\`.`,
     );
@@ -316,8 +332,7 @@ const parseImportStatement = (args: ParseImportStatementArgs): ReadonlyArray<Imp
 
 type SplitCodeImportsArgs = {
   readonly code: string;
-  readonly sourcePath: string;
-  readonly line: number;
+  readonly location: DocLocation;
 };
 
 type SplitCodeImportsPayload = {
@@ -339,17 +354,11 @@ const splitCodeImports = (args: SplitCodeImportsArgs): SplitCodeImportsPayload =
     }
     if (!trimmed.endsWith(';')) {
       throw new Error(
-        `${args.sourcePath}:${args.line}: an import in a documentation example must be a ` +
+        `${at(args.location)}: an import in a documentation example must be a ` +
           `single line ending in \`;\` — got \`${trimmed}\`.`,
       );
     }
-    bindings.push(
-      ...parseImportStatement({
-        statement: trimmed,
-        sourcePath: args.sourcePath,
-        line: args.line,
-      }),
-    );
+    bindings.push(...parseImportStatement({ statement: trimmed, location: args.location }));
   });
 
   return { bindings, body: bodyLines.join('\n').trim() };
@@ -421,8 +430,7 @@ export const renderDocExampleFixtures = (
   args.examples.forEach((example) => {
     const { bindings, body } = splitCodeImports({
       code: example.code,
-      sourcePath: example.sourcePath,
-      line: example.line,
+      location: { sourcePath: example.sourcePath, line: example.line },
     });
     const allBindings = mergeImportBindings([...carriedBindings, ...bindings]);
     carriedBindings = allBindings;

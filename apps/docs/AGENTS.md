@@ -35,7 +35,12 @@ A snippet whose declarations a later snippet builds on is marked ` ```ts docs-ch
 
 ` ```ts docs-check-skip ` leaves a snippet out of the fixtures. It is for code that is deliberately not valid — pseudo-code, or a chain shown precisely because the compiler rejects it (the `Modifiers` callout in `schemas.md` does this). Reach for it only when the snippet is _meant_ not to compile; a snippet that fails because the API moved is the harness working.
 
-Markers go after the language in the fence info string. VitePress reads a block's language as everything up to the first space, so a marker never reaches the rendered page. A token starting `docs-check-` that is not a known marker is an error rather than a silently ignored typo; any other meta token (`ts:line-numbers`, `ts [title]`) passes through untouched.
+Markers go after the language in the fence info string. VitePress reads a block's language as everything up to the first space, so a marker never reaches the rendered page.
+
+Two rules keep the default — "a snippet is checked" — from ever being lost by accident:
+
+- **A token starting `docs-check-` that is not a known marker is an error**, not a silently ignored typo. A misspelled `docs-check-skip` would otherwise leave a snippet checked that was meant to be exempt, or worse, look exempt while being checked.
+- **The language token is normalized the way VitePress normalizes it.** VitePress lets a fence carry its highlighting options on the language itself — `ts:line-numbers`, `ts:line-numbers=2`, `ts{1,3}`, `ts-vue` — and all of those are still `ts` blocks that get checked. Recognising only a bare `ts` would silently drop them, which is exactly the failure the opt-out design exists to prevent. `extractFenceLanguage` in `scripts/docExamples.ts` mirrors VitePress's own `extractLang`; keep them in step if VitePress adds a form.
 
 ### `@standard-schema/spec` and `vite` are declared for this
 
