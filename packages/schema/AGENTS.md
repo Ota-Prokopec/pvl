@@ -109,7 +109,3 @@ Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the
 An internal-only module deliberately excluded from the barrel (`schemas/schemaState.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
 
 Examples are not yet verified by the build. Making them typecheck is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60); until then, check a changed snippet by hand.
-
-## Open questions
-
-- Nothing package-specific currently open — see the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) "Still open" section for cross-cutting items (mainly about `@pvl/schema-compiler`'s partial-compilation behavior, which affects how consumers of this package would opt into compiled output).
