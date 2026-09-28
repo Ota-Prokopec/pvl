@@ -4,23 +4,23 @@
 
 ## Project shape
 
-Two packages define the project. Both exist as directories with their own `AGENTS.md`; neither has any implementation yet. Per the Core Rules in `AGENTS.md`, all technology/architecture/coding-style detail for a package lives in _that package's own_ `AGENTS.md`, not duplicated here — this file covers only the cross-package shape.
+Two packages define the project. Both exist as directories with their own `AGENTS.md`; `schema` is implemented, `schema-compiler` is not yet. Per the Core Rules in `AGENTS.md`, all technology/architecture/coding-style detail for a package lives in _that package's own_ `AGENTS.md`, not duplicated here — this file covers only the cross-package shape.
 
 ```
 packages/
 ├── schema/            (npm: @pvl/schema) — Zod-style schema/validation library
 │   └── AGENTS.md       → full detail: schema surface, Refinement/Transform/Coercion, Standard Schema conformance, validate(), pvl.compile()
 └── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler
-    └── AGENTS.md       → full detail: static AST discovery, compilation unit, generated-file output, Standard Schema conformance
+    └── AGENTS.md       → full detail: static AST discovery, compilation unit, Destination File output, Standard Schema conformance
 ```
 
-`schema-compiler` depends on `schema` (compiles schemas defined with it into `Compiled Validator`s) and never the other way around. Both publish dual ESM+CJS builds via tsup, per [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). Both implement [Standard Schema](./docs/specification/standard-schema.md) — `schema` per [ADR-0001](./docs/adr/0001-adopt-standard-schema.md), `schema-compiler`'s output per [ADR-0003](./docs/adr/0003-compiled-validators-conform-to-standard-schema.md) — and `schema-compiler` discovers what to compile via static AST analysis rather than running user code, per [ADR-0002](./docs/adr/0002-static-ast-compilation-via-ts-morph.md).
+`schema-compiler` depends on `schema` (compiles Schemas defined with it into `Compiled Schema`s) and never the other way around. Both publish dual ESM+CJS builds via tsup, per [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). Both implement [Standard Schema](./docs/specification/standard-schema.md) — `schema` per [ADR-0001](./docs/adr/0001-adopt-standard-schema.md), `schema-compiler`'s output per [ADR-0003](./docs/adr/0003-compiled-schemas-conform-to-standard-schema.md) — and `schema-compiler` discovers what to compile via static AST analysis rather than running user code, per [ADR-0002](./docs/adr/0002-static-ast-compilation-via-ts-morph.md).
 
-`pvl.compile(X)` (`X` a composite schema — `object`/`array`, never a bare primitive) produces its own standalone `Compiled Validator`, scoped to exactly `X` — it never reaches up to compile an ancestor schema `X` is nested inside. Whether that compiled version requires a manual import-path change depends on `pvlconfig.json`'s `production` flag: in dev (`production: false`, default) it's a separate generated file the consumer opts into explicitly; in production (`production: true`, meant for CI/build), the compiler also rewrites `pvl.compile(...)` call sites to reference the compiled output, but only in the app's **build output**, never in its tracked source — see [ADR-0005](./docs/adr/0005-production-mode-gates-build-output-rewrite.md).
+`pvl.compile(X)` (`X` a composite Schema — `object`/`array`, never a bare primitive) produces its own `Compiled Schema`, scoped to exactly `X` — it never reaches up to compile an ancestor Schema `X` is nested inside. A `Compiled Schema` is terminal: its surface is `~standard`, `validate`, `shape` and `element`, and no modifier attaches to it, so every modifier is applied before compiling ([ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md)). Its emitted code inlines primitive checks within a node and delegates to the child's own emitted validator at each composite boundary ([ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md)). Because a `Compiled Schema` is a Standard Schema object rather than a `@pvl/schema` class instance, `schema`'s composites accept any Standard Schema as a field and re-prefix the child's `Issue` paths with the parent key ([ADR-0018](./docs/adr/0018-composites-accept-any-standard-schema-field.md)) — which is what lets a compiled child sit inside an interpreted parent, and incidentally makes a schema from any other conforming library usable as a field.
 
-**Still open**:
+The compiler writes a single `Destination File` mirroring every export of every scanned file, and rewrites nothing — not tracked source, not build output; adopting it is a one-line import-path change the developer makes by hand ([ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md)). By default that file lands in the consuming application's own `node_modules/.pvl/compiled-schemas/`, reachable as `@pvl/compiled-schemas` through a sibling symlink; setting `destination` redirects it to a plain TypeScript file the consuming build compiles itself ([ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md)).
 
-- `pvlconfig.json`'s full shape beyond `production` and the directories to scan (output directory for generated files, other settings).
+`pvlconfig.json` carries `$schema`, `include`, `destination`, `withTypes` and `watch`, and is itself validated with `@pvl/schema`. There is no `production` flag — see ADR-0005 for the design it replaced.
 
 ## Pre-existing scaffolding
 
@@ -41,9 +41,9 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 
 - [ADR-0001](./docs/adr/0001-adopt-standard-schema.md) — adopt Standard Schema for `@pvl/schema`
 - [ADR-0002](./docs/adr/0002-static-ast-compilation-via-ts-morph.md) — compile schemas via static AST analysis, not runtime introspection
-- [ADR-0003](./docs/adr/0003-compiled-validators-conform-to-standard-schema.md) — compiled validators conform to StandardSchemaV1
+- [ADR-0003](./docs/adr/0003-compiled-schemas-conform-to-standard-schema.md) — `Compiled Schema`s conform to StandardSchemaV1
 - [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md) — publish `@pvl/schema` and `@pvl/schema-compiler` as dual ESM+CJS
-- [ADR-0005](./docs/adr/0005-production-mode-gates-build-output-rewrite.md) — production-mode compilation rewrites build output, never tracked source
+- [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) — the compiler emits one Destination File and rewrites nothing
 - [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) — chained-instance-method API via a shared base `Schema` class
 - [ADR-0007](./docs/adr/0007-object-strips-unknown-keys-by-default.md) — `object()` strips unknown keys by default
 - [ADR-0008](./docs/adr/0008-no-regex-backed-constraints-in-v1.md) — no regex-backed constraint helpers in v1
@@ -51,3 +51,9 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0010](./docs/adr/0010-schema-modifier-ordered-step-list.md) — `.refine()`/`.transform()` are recorded as one ordered step list
 - [ADR-0011](./docs/adr/0011-result-failure-branch-carries-pvl-issue.md) — `Result`'s failure branch carries `@pvl/schema`'s own `Issue`
 - [ADR-0012](./docs/adr/0012-composite-schemas-collect-every-issue.md) — composite schemas collect every field's `Issue` rather than failing fast
+- [ADR-0013](./docs/adr/0013-pin-formatting-rules-via-root-prettierrc.md) — pin formatting rules via a root `.prettierrc.json`
+- [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) — TypeDoc runs against TypeScript 5.9 in `apps/docs`
+- [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) — the Destination File defaults into the application's own `node_modules`
+- [ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md) — `Compiled Schema`s are terminal; no modifier attaches after compilation
+- [ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md) — generated code inlines within a node and delegates at composite boundaries
+- [ADR-0018](./docs/adr/0018-composites-accept-any-standard-schema-field.md) — composites accept any Standard Schema as a field, re-prefixing `Issue` paths

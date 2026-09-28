@@ -80,4 +80,4 @@ The getting-started page opens with a `::: warning` callout stating that `@pvl/s
 
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for the VitePress config, and [`docs/standards/turborepo.md`](../../docs/standards/turborepo.md) for script wiring.
 - Use the vocabulary the library's own code uses (`validate()`, `Result`, `Issue`), not a paraphrase of it.
-- Prose in the guide describes what the library does today. A capability that does not exist yet — compiled validators, async validation — is either absent or named as absent, never implied.
+- Prose in the guide describes what the library does today. A capability that does not exist yet — Compiled Schemas, async validation — is either absent or named as absent, never implied.
