@@ -151,7 +151,7 @@ Membership is a `Set` lookup rather than a scan, so the check stays O(1) however
 
 Validates every element against one shared item schema.
 
-```ts
+```ts docs-check-shared
 const tags = pvl.array(pvl.string()).min(1).max(5);
 
 tags.validate(['a', 'b']); // { value: ['a', 'b'] }
@@ -178,7 +178,7 @@ The length constraints above are checks on the array itself, so — unlike the e
 
 Validates each declared key against its own field schema.
 
-```ts
+```ts docs-check-shared
 const user = pvl.object({
   name: pvl.string().min(1),
   age: pvl.number().int().min(0),
@@ -230,7 +230,7 @@ envelope.validate({ id: 'a1', meta: { source: 'api' } });
 
 Tries each member schema in the order given and succeeds on the first that accepts the value.
 
-```ts
+```ts docs-check-shared
 const id = pvl.union([pvl.string(), pvl.number().int()]);
 
 id.validate('a1'); // { value: 'a1' }
@@ -266,25 +266,25 @@ These five are on **every** schema, primitive or composite, because they are ort
 Within one `validate()` call they are _evaluated_ in a fixed order, whatever order you chained them in: `.coerce()` first, then the `.optional()`/`.nullable()` short-circuit, then the schema's own type and constraint checks, and finally the `.refine()`/`.transform()` steps — those in the order they were chained.
 
 ::: danger Chain a type's own constraints first
-Where you chain a modifier relative to `.min()`, `.max()`, `.length()` or `.int()` **does** matter, and getting it wrong fails silently.
+Where you chain a modifier relative to `.min()`, `.max()`, `.length()` or `.int()` **does** matter: those four constraint methods rebuild the schema from its constraints alone, which discards any modifier applied before them.
 
-Those four constraint methods rebuild the schema from its constraints alone, which discards any modifier applied before them:
+In TypeScript you cannot write the wrong order by accident, because every modifier returns the shared base `Schema`, which has no constraint methods on it — so these two lines do not compile:
+
+```ts docs-check-skip
+pvl.string().optional().min(3); // `.min` does not exist on `Schema`
+pvl.number().coerce().int(); // `.int` does not exist on `Schema`
+```
+
+Write the constraints first and both chains type-check and behave:
 
 ```ts
-pvl.string().optional().min(3).validate(undefined);
-// { issues: [{ code: 'INVALID_TYPE' }] } — `.optional()` was dropped
-
-pvl.string().min(3).optional().validate(undefined);
-// { value: undefined } — correct
-
-pvl.number().coerce().int().validate('8');
-// { issues: [{ code: 'INVALID_TYPE' }] } — `.coerce()` was dropped
-
-pvl.number().int().coerce().validate('8');
-// { value: 8 } — correct
+pvl.string().min(3).optional().validate(undefined); // { value: undefined }
+pvl.number().int().coerce().validate('8'); // { value: 8 }
 ```
 
 So: **constraints first, then modifiers.** The same applies on `array`, whose `.min()`/`.max()`/`.length()` behave the same way. `object`'s `.strict()` and `.passthrough()` are not affected — they preserve modifiers correctly.
+
+The dropped modifier is real, not merely a type-level nuisance: a plain-JavaScript caller, who has no compiler to stop them, gets a schema that silently ignores the modifier they applied first.
 
 This is a defect in the library, not a deliberate design, and the guidance here will be withdrawn when it is fixed.
 :::
