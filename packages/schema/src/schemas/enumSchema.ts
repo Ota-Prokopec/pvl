@@ -3,23 +3,79 @@ import { buildIssue, formatIssueMessageValue, ISSUE_CODE } from '../issue.js';
 import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
-/** A single accepted enum value, in either source form. */
+/**
+ * A single accepted enum value, in either source form. Values may be strings
+ * or numbers, and one `as const` enum object may mix the two.
+ *
+ * @example
+ * ```ts
+ * import type { EnumMember } from '@pvl/schema';
+ *
+ * const member: EnumMember = 'OWNER';
+ * const numericMember: EnumMember = 404;
+ * ```
+ */
 export type EnumMember = string | number;
 
-/** The repo's mandated `as const` enum-object shape (see docs/specification/enums-and-constants.md). */
+/**
+ * The `as const` enum-object source form — an object whose values are the
+ * accepted set.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type EnumObjectSource } from '@pvl/schema';
+ *
+ * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const satisfies EnumObjectSource;
+ * const role = pvl.enum(SYSTEM_ROLE); // accepts 'OWNER' | 'MEMBER'
+ * ```
+ */
 export type EnumObjectSource = Readonly<Record<string, EnumMember>>;
 
-/** An ad hoc array of string literals, for sets that don't warrant a named enum object. */
+/**
+ * The array source form — an ad hoc list of string literals, for sets that do
+ * not warrant first declaring a named enum object.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type EnumArraySource } from '@pvl/schema';
+ *
+ * const sizes: EnumArraySource = ['small', 'medium', 'large'];
+ * const size = pvl.enum(['small', 'medium', 'large']);
+ * ```
+ */
 export type EnumArraySource = ReadonlyArray<string>;
 
-/** Either source form `pvl.enum()` accepts — see ADR-0009. */
+/**
+ * Either source form `pvl.enum()` accepts. Both produce the same kind of
+ * schema; only the shape you hand the factory differs.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type EnumSource } from '@pvl/schema';
+ *
+ * const fromObject: EnumSource = { OWNER: 'OWNER' } as const;
+ * const fromArray: EnumSource = ['OWNER'];
+ *
+ * pvl.enum(fromArray);
+ * ```
+ */
 export type EnumSource = EnumObjectSource | EnumArraySource;
 
 /**
- * The union of values an `EnumSchema` accepts. The array form's members are
- * the array's own element types; the `as const` object form resolves through
- * `@repo/types`' `ValueOfEnum`, the repo-wide way to read an enum object's
- * value union (see docs/standards/typescript.md).
+ * The union of values an enum schema accepts, resolved from whichever source
+ * form was used. This is the type `.validate()` hands back on success.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type EnumOutput } from '@pvl/schema';
+ *
+ * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const;
+ *
+ * type Role = EnumOutput<typeof SYSTEM_ROLE>; // 'OWNER' | 'MEMBER'
+ * type Size = EnumOutput<['small', 'large']>; // 'small' | 'large'
+ *
+ * const role = pvl.enum(SYSTEM_ROLE);
+ * ```
  */
 export type EnumOutput<Source extends EnumSource> = Source extends EnumArraySource
   ? Source[number]
@@ -33,12 +89,27 @@ const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
 
 /**
  * Accepts one of a fixed set of values, sourced from either an `as const`
- * enum object or an array of string literals. Membership is a `Set` lookup
- * rather than a scan, so the check stays O(1) however large the set is.
+ * enum object or an array of string literals. Build one with
+ * `pvl.enum(source)`. Membership is a `Set` lookup, so the check stays O(1)
+ * however large the set is.
  *
- * `.coerce()` is inherited but has no enum-specific conversion: a source can
- * mix string and number members, so there is no single target type to convert
- * an input to. A consumer who needs one converts before calling `.validate()`.
+ * `.coerce()` is inherited but does nothing here: a source may mix string and
+ * number members, so there is no single target type to convert an input to.
+ * Convert before calling `.validate()` if you need that.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const;
+ * const role = pvl.enum(SYSTEM_ROLE);
+ *
+ * role.validate('OWNER'); // { value: 'OWNER' }
+ * role.validate('GUEST'); // { issues: [{ code: 'INVALID_VALUE', ... }] }
+ *
+ * // Or without a named enum object:
+ * pvl.enum(['small', 'medium', 'large']).validate('medium'); // { value: 'medium' }
+ * ```
  */
 export class EnumSchema<Source extends EnumSource> extends Schema<
   EnumOutput<Source>,
@@ -47,6 +118,7 @@ export class EnumSchema<Source extends EnumSource> extends Schema<
   private readonly _members: ReadonlySet<EnumMember>;
   private readonly _message: string;
 
+  /** @internal */
   constructor(source: Source, options?: SchemaOptions) {
     super();
     const members = toMembers(source);
@@ -54,6 +126,7 @@ export class EnumSchema<Source extends EnumSource> extends Schema<
     this._message = options?.message ?? `Expected one of ${formatMembers(members)}`;
   }
 
+  /** @internal */
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<EnumOutput<Source>> {
     if (!this._members.has(value as EnumMember)) {
       return {

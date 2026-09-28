@@ -1,0 +1,18 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    // The VitePress config is type-checked but never emitted here — VitePress
+    // compiles it itself at dev/build time.
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    // The VitePress config runs in Node: it reads the generated API sidebar
+    // off disk before handing the config to VitePress.
+    "types": ["node"]
+  },
+  // TypeScript skips dot-directories when expanding a directory into a
+  // wildcard, so `content/.vitepress` on its own matches nothing — the files
+  // are listed through globs whose literal prefix reaches past the dot.
+  "include": ["content/.vitepress/*.ts", "content/.vitepress/theme/**/*.ts"],
+  "exclude": ["node_modules", "content/.vitepress/dist", "content/.vitepress/cache"]
+}

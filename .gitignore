@@ -36,3 +36,11 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Generated API reference (TypeDoc writes it on every docs build)
+apps/docs/content/api
+
+# VitePress (patterns containing a slash are anchored to this file, so the
+# leading `**/` is what makes them match at any depth)
+**/.vitepress/cache
+**/.vitepress/dist

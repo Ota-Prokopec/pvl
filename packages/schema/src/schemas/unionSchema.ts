@@ -3,15 +3,24 @@ import { buildIssue, ISSUE_CODE, type Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import { Schema, type SchemaOptions } from './baseSchema.js';
 
-/** The alternative schemas a `UnionSchema` tries, in the order given. */
+/**
+ * The alternative schemas a union tries, in the order given. The first member
+ * that accepts the value wins, so order matters where two members overlap.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type UnionMembers } from '@pvl/schema';
+ *
+ * const members = [pvl.string(), pvl.number()] as const satisfies UnionMembers;
+ * const id = pvl.union(members);
+ * ```
+ */
 export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
 
-/**
- * Homomorphic mapped tuple types: mapping over `Members` (a tuple when the
- * `pvl.union()` factory infers it via `const`) preserves its tuple shape, so
- * indexing the result with `[number]` yields the true union of each member's
- * own input/output type rather than a single merged type.
- */
+// Homomorphic mapped tuple types: mapping over `Members` (a tuple when the
+// `pvl.union()` factory infers it via `const`) preserves its tuple shape, so
+// indexing the result with `[number]` yields the true union of each member's
+// own input/output type rather than a single merged type.
 type MemberInputs<Members extends UnionMembers> = {
   [Index in keyof Members]: StandardSchemaV1.InferInput<Members[Index]>;
 };
@@ -20,31 +29,66 @@ type MemberOutputs<Members extends UnionMembers> = {
   [Index in keyof Members]: StandardSchemaV1.InferOutput<Members[Index]>;
 };
 
+/**
+ * The union of every member's own input type — what a value must match going
+ * in.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type UnionInput } from '@pvl/schema';
+ *
+ * const members = [pvl.string(), pvl.number()] as const;
+ * const id: UnionInput<typeof members> = 42; // string | number
+ *
+ * pvl.union(members).validate(id);
+ * ```
+ */
 export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[number];
 
+/**
+ * The union of every member's own output type — what a successful validation
+ * hands back, after the winning member's own `.transform()` has run.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type UnionOutput } from '@pvl/schema';
+ *
+ * const members = [pvl.string(), pvl.number().transform(String)] as const;
+ * const out: UnionOutput<typeof members> = 'either way a string';
+ * ```
+ */
 export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number];
 
 /**
- * Plain union only, per v1 scope: tries each member schema in order and
- * succeeds on the first one that accepts the value. There is no
- * discriminated-union fast path/dispatch on a shared key — every member is
- * attempted regardless of shape.
+ * Tries each member schema in the order given and succeeds on the first that
+ * accepts the value. Build one with `pvl.union(members)`.
  *
- * Each member is validated through its own full pipeline (its own
- * `.optional()`/`.nullable()`/`.coerce()`/`.refine()`/`.transform()`), at the
- * same path as the union itself — a member isn't a nested field, so no path
- * segment is appended the way `object`/`array` append a key/index.
+ * Every member is attempted — there is no discriminated-union fast path that
+ * dispatches on a shared key. Each member runs through its own full pipeline
+ * at the same path as the union itself, since a member is an alternative, not
+ * a nested field.
  *
- * `.coerce()` is inherited but has no union-specific conversion: the members
- * can be unrelated types, so there is no single target type to convert an
- * input to. A member that needs coercion opts into it on its own schema.
+ * When no member accepts the value, the issues are every member's own
+ * rejection, collected rather than replaced by one generic message. Pass
+ * `{ message }` to replace them with a single `INVALID_UNION` issue where the
+ * per-member detail would be noise.
  *
- * A failing value's `Issue`s are every member's own rejection, collected
- * rather than replaced by one generic "no alternative matched" message — see
- * docs/adr/0012-composite-schemas-collect-every-issue.md, which earmarks
- * union for reporting what every member rejected. `{ message }` still
- * overrides this with a single custom `Issue` when the per-member detail
- * would be noise for a given union.
+ * `.coerce()` is inherited but does nothing here — the members can be
+ * unrelated types, so there is no single conversion target. A member that
+ * needs coercion opts into it on its own schema.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const id = pvl.union([pvl.string(), pvl.number().int()]);
+ *
+ * id.validate('a1'); // { value: 'a1' }
+ * id.validate(true); // { issues: [...] } — one issue per rejecting member
+ *
+ * const quiet = pvl.union([pvl.string(), pvl.number()], { message: 'expected an id' });
+ * quiet.validate(true); // { issues: [{ code: 'INVALID_UNION', message: 'expected an id' }] }
+ * ```
  */
 export class UnionSchema<Members extends UnionMembers> extends Schema<
   UnionInput<Members>,
@@ -53,12 +97,14 @@ export class UnionSchema<Members extends UnionMembers> extends Schema<
   private readonly _members: Members;
   private readonly _message: string | undefined;
 
+  /** @internal */
   constructor(members: Members, options?: SchemaOptions) {
     super();
     this._members = members;
     this._message = options?.message;
   }
 
+  /** @internal */
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<UnionOutput<Members>> {
     const rejections: Issue[] = [];
     for (const member of this._members) {

@@ -9,16 +9,61 @@ type BigintCheck = {
   readonly test: (value: bigint) => boolean;
 };
 
+/**
+ * Accepts a real JavaScript `bigint` and nothing else — a `number` is never
+ * silently accepted, so this schema never overlaps with `pvl.number()`. Build
+ * one with `pvl.bigint()`.
+ *
+ * Bounds are compared with real `bigint` operators against real `bigint`
+ * arguments; mixing in a `number` bound is a type error. There is no
+ * `.int()`, because a `bigint` has no fractional form for it to reject. The
+ * output is always a `bigint`, never downgraded to a `number` — the precision
+ * loss that would cause is exactly what `bigint` exists to avoid.
+ *
+ * Chain these constraints **before** the shared modifiers (`.optional()`,
+ * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
+ * method rebuilds the schema from its constraints alone, so a modifier
+ * applied earlier in the chain is silently dropped. This is a defect, not a
+ * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
+ * fixed.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const fileSize = pvl.bigint().min(0n);
+ *
+ * fileSize.validate(9007199254740993n); // { value: 9007199254740993n }
+ * fileSize.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+ *
+ * // `.coerce()` accepts strings and whole numbers:
+ * pvl.bigint().coerce().validate('42'); // { value: 42n }
+ * ```
+ */
 export class BigintSchema extends Schema<bigint, bigint> {
   private readonly _typeMessage: string;
   private readonly _checks: ReadonlyArray<BigintCheck>;
 
+  /** @internal */
   constructor(options?: SchemaOptions, checks: ReadonlyArray<BigintCheck> = []) {
     super();
     this._typeMessage = options?.message ?? 'Expected bigint';
     this._checks = checks;
   }
 
+  /**
+   * Requires a value greater than or equal to `bound` — inclusive, and itself
+   * a `bigint`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const positive = pvl.bigint().min(1n);
+   *
+   * positive.validate(0n); // { issues: [{ code: 'TOO_SMALL', ... }] }
+   * ```
+   */
   min(bound: bigint, options?: SchemaOptions): BigintSchema {
     return this._withCheck({
       code: ISSUE_CODE.TOO_SMALL,
@@ -27,6 +72,19 @@ export class BigintSchema extends Schema<bigint, bigint> {
     });
   }
 
+  /**
+   * Requires a value less than or equal to `bound` — inclusive, and itself a
+   * `bigint`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const int64 = pvl.bigint().max(9223372036854775807n);
+   *
+   * int64.validate(9223372036854775808n); // { issues: [{ code: 'TOO_BIG', ... }] }
+   * ```
+   */
   max(bound: bigint, options?: SchemaOptions): BigintSchema {
     return this._withCheck({
       code: ISSUE_CODE.TOO_BIG,
@@ -35,10 +93,12 @@ export class BigintSchema extends Schema<bigint, bigint> {
     });
   }
 
+  /** @internal */
   override _coerceInput(value: unknown): unknown {
     return coerceToBigint(value);
   }
 
+  /** @internal */
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
     if (typeof value !== 'bigint') {
       return {

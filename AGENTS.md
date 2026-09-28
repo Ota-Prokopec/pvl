@@ -14,11 +14,13 @@
 
 Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); neither has any implementation yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
 
-The default `create-turbo` starter apps (`apps/web`, `apps/docs`) have been removed. `apps/` now holds one entry:
+The `apps/` holds two entries:
 
 - **[`apps/playground`](./apps/playground/AGENTS.md)** (`playground`, private) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so `@pvl/schema` can be watched working without writing a throwaway test. It has no tests on purpose, and requires `@pvl/schema` to have been built before it runs; its own `AGENTS.md` explains why.
 
-`packages/eslint-config` and `packages/typescript-config` remain as generic shared config, reusable by `@pvl/schema`/`@pvl/schema-compiler`. `packages/ui` also remains, but it has no current consumer now that `apps/web`/`apps/docs` are gone; it's kept intentionally for a future app rather than repurposed or removed — treat it as unused-but-deliberate scaffolding, not project code.
+- **[`apps/docs`](./apps/docs/AGENTS.md)** (`docs`, private) — the user-facing documentation site for `@pvl/schema`: a VitePress site whose guide pages are hand-written and whose API reference is generated from the library's source by TypeDoc into a gitignored `content/api/`. Run it with `pnpm docs:dev` and build it with `pnpm docs:build`. It pins its own `typescript: ~5.9.3` because TypeDoc does not accept the repo-wide 7.0.2 — see [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) before touching that. Deployment is not set up. It has no tests on purpose.
+
+`packages/eslint-config` and `packages/typescript-config` remain as generic shared config, reusable by `@pvl/schema`/`@pvl/schema-compiler`. `packages/ui` also remains, but it has no current consumer — neither `apps/playground` nor `apps/docs` renders React; it's kept intentionally for a future app rather than repurposed or removed — treat it as unused-but-deliberate scaffolding, not project code.
 
 ## Root Commands
 
@@ -30,6 +32,8 @@ Run from the repo root (executed across the workspace via Turborepo):
 - `pnpm format` — format the repo with Prettier
 - `pnpm check-types` — typecheck all apps and packages
 - `pnpm format:check` — check formatting without writing (non-writing Prettier check)
+- `pnpm docs:dev` — generate the API reference and serve the documentation site locally
+- `pnpm docs:build` — generate the API reference and build the documentation site
 
 > `pnpm test` is referenced by the Post-Modification Checklist below but is not yet defined in the root `package.json` — add it (fanned out via `turbo run test`, plus a corresponding `test` task in `turbo.json`) when the first package lands.
 
