@@ -13,6 +13,11 @@ node_modules
 # not committed, so Prettier must not fight it in `pnpm format:check`.
 apps/docs/content/api
 
+# Extracted documentation examples — generated from the guide pages and from
+# `@pvl/schema`'s TSDoc on every docs `check-types`, and not committed, so
+# Prettier must not fight them in `pnpm format:check`.
+apps/docs/examples
+
 # Build output
 dist
 build

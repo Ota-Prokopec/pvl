@@ -108,4 +108,11 @@ Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the
 
 An internal-only module deliberately excluded from the barrel (`schemas/schemaState.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
 
-Examples are not yet verified by the build. Making them typecheck is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60); until then, check a changed snippet by hand.
+**Every `@example` in this package is compiled by the build.** `apps/docs`'s `check-types` extracts each one into a standalone TypeScript file and typechecks it, so a snippet that no longer matches the API fails `pnpm check-types` instead of shipping. They are compiled, not executed — see [ADR-0015](../../docs/adr/0015-documentation-examples-are-typechecked-not-executed.md).
+
+Two consequences for writing one:
+
+- **An `@example` must stand on its own**, imports included. Every snippet here becomes its own module, so it cannot lean on a neighbouring example's variables the way a guide page's snippets can.
+- **It must import from `'@pvl/schema'`**, not by relative path — the extracted file is compiled as a consumer of the built package, which is also what a reader will write.
+
+A snippet that is deliberately invalid — pseudo-code, or a chain shown because the compiler rejects it — opts out with ` ```ts docs-check-skip `. Reach for that only when the snippet is _meant_ not to compile.
