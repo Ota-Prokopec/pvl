@@ -1,38 +1,51 @@
 # `@pvl/schema-compiler`
 
-The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Validator`: a plain-JS function built from `Instruction`s instead of one that walks the schema tree at runtime. This directory is currently empty except for this file — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for how this package relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Validator`, `Instruction`) referenced throughout this file.
+The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. This directory is currently empty except for this file — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for how this package relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`, `Standalone Key`) referenced throughout this file.
 
 ## Technology
 
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). Depends on `@pvl/schema` and [ts-morph](https://github.com/dsherret/ts-morph) (see the `ts-morph-analyzer` skill).
+- TypeScript, ESM source (see root `AGENTS.md` Core Rules). Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md).
 
 ## Architecture
 
 ### Discovery: static AST analysis, not dynamic import
 
-This package never runs or imports the user's schema code. It statically parses the TS/JS source of files under directories declared in the user's `pvlconfig.json`, using ts-morph, looking for `pvl.compile(...)` call expressions. See [ADR-0002](../../docs/adr/0002-static-ast-compilation-via-ts-morph.md) for why (never executing user code; the trade-off is that only statically-resolvable schema expressions are compilable).
+This package never runs or imports the user's schema code. It statically parses the TS/JS source of the files matched by `include` in the user's `pvlconfig.json`, using ts-morph, looking for `pvl.compile(...)` call expressions. See [ADR-0002](../../docs/adr/0002-static-ast-compilation-via-ts-morph.md) for why (never executing user code; the trade-off is that only statically-resolvable schema expressions are compilable, and marking one that isn't is an error rather than a silent fallback).
 
 ### Compilation unit: exactly what `pvl.compile()` wraps
 
-`pvl.compile()` is per-call-site: each call produces its own standalone `Compiled Validator` for exactly the schema it wraps, whether that's a whole top-level schema (`pvl.compile(pvl.object({...}))`) or one nested field (`pvl.object({ key: pvl.compile(pvl.object({...})) })`). It only accepts a composite schema (`object`/`array`) — `@pvl/schema` rejects wrapping a bare primitive at the type level, since compiling a single primitive has no tree to flatten. Compiling a nested field does **not** reach up and compile its containing schema — the parent stays an ordinary interpreted `Schema` regardless; if a fully-compiled top-level schema is wanted, wrap the top-level schema itself. `Refinement`/`Transform` functions attached to a compiled schema are arbitrary user code this package can't turn into `Instruction`s by inlining their logic: the compiler inlines only the _structural_ checks (type guards, required-field checks, array iteration) as `Instruction`s, and emits a call to the original refinement/transform function, imported by reference into the generated code, wherever one is attached.
+`pvl.compile()` is per-call-site: each call produces its own `Compiled Schema` for exactly the schema it wraps, whether that's a whole top-level schema (`pvl.compile(pvl.object({...}))`) or one nested field (`pvl.object({ key: pvl.compile(pvl.object({...})) })`). It only accepts a composite schema (`object`/`array`) — `@pvl/schema` rejects wrapping a bare primitive at the type level, since compiling a single primitive has no tree to flatten. Compiling a nested field does **not** reach up and compile its containing schema — the parent stays an ordinary interpreted `Schema` regardless; if a fully-compiled top-level schema is wanted, wrap the top-level schema itself.
 
-### Output: dev vs. production, gated by `pvlconfig.json`'s `production` flag
+Every modifier is applied **before** compiling and baked into the emitted code: `.optional()`, `.nullable()` and `.coerce()` become leading checks, and `.refine()`/`.transform()` become calls to the user's own functions, imported by reference into the `Destination File`. Those functions are arbitrary user code and are never inlined or compiled — only the _structural_ checks (type guards, required-field checks, array iteration) become `Instruction`s. Nothing can be attached to a `Compiled Schema` afterwards; see [ADR-0016](../../docs/adr/0016-compiled-schemas-are-terminal.md).
 
-For each `pvl.compile(...)` call site, this package always emits a **separate generated file** (e.g. `<name>.generated.ts`) exporting the corresponding `Compiled Validator`. What else it does depends on the `production` flag in `pvlconfig.json`:
+### Output: one `Destination File`, and nothing is ever rewritten
 
-- **`production: false`** (dev, default): that's it. Tracked source is never touched; a compiled export is something the consumer opts into explicitly by importing it.
-- **`production: true`** (CI/build): the compiler additionally rewrites `pvl.compile(...)` call sites to reference the compiled output — but only in the app's **build output** (e.g. its `dist/`, or whatever its bundler consumes), never in its tracked `.ts` source. This is how a shipped app ends up with zero-import-friction fast validation without the compiler ever risking a developer's actual repository state. See [ADR-0005](../../docs/adr/0005-production-mode-gates-build-output-rewrite.md).
+This package writes a single **`Destination File`** and modifies nothing else — not the developer's tracked source, not their build output, in any mode. There is no `production` flag. Adopting a `Compiled Schema` is one import-path change the developer makes by hand (`from './schemas/user.js'` → `from '@pvl/compiled-schemas'`). See [ADR-0005](../../docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md).
 
-### Every `Compiled Validator` conforms to `StandardSchemaV1`
+The `Destination File` is a **complete mirror** of the scanned set — see ADR-0005 for why. What that costs this package: ts-morph rewrites imports and re-exports so they resolve from the new location; an import whose target is itself in the scanned set collapses into a direct in-file reference and its import statement is dropped. Modules are emitted in sorted path order under a banner naming each source file, behind a `@generated` header, and output is byte-stable across runs with unchanged input. Because the mirror also carries ordinary interpreted schemas, `@pvl/schema` stays a runtime dependency of the `Destination File` — "dependency-free" is a property of an individual `Compiled Schema`'s emitted instruction sequence, never of the file as a whole.
 
-Per [ADR-0003](../../docs/adr/0003-compiled-validators-conform-to-standard-schema.md): a `Compiled Validator` exposes its own `"~standard"`, reporting `vendor: "@pvl/schema"` (not `"@pvl/schema-compiler"` — it represents the same schema, just executed differently; see [`docs/specification/standard-schema.md`](../../docs/specification/standard-schema.md)). The underlying `validate` is still the fast `Instruction` sequence; conformance is a thin wrapper, not a performance cost.
+Where the file lands is [ADR-0015](../../docs/adr/0015-compiled-schema-destination-resolution.md): with `destination` unset it goes to `<anchor>/node_modules/.pvl/compiled-schemas/` as ESM + CJS + declarations built with tsup, plus a `@pvl/compiled-schemas` symlink beside it; with `destination` set it is one plain TypeScript file and the consuming build owns compilation. `<anchor>` is the directory holding `pvlconfig.json` (or the working directory for a flags-only run), which is what keeps two applications in one workspace from overwriting each other. Read that ADR before proposing to expose the output through `@pvl/schema`'s own `exports` — three Node resolution rules make it impossible.
+
+### Emitted code: inline within a node, delegate at composite boundaries
+
+Straight-line JavaScript: literal `if`/`for` statements, no interpreter loop and no `new Function`. Primitive checks are inlined within a node; at a composite boundary the parent calls that child's own emitted validator rather than re-inlining its body, so output size stays linear in schema size instead of multiplying with nesting depth. `Issue`s are emitted as plain object literals matching `Issue` ([ADR-0011](../../docs/adr/0011-result-failure-branch-carries-pvl-issue.md)), importing nothing — which is why the differential test against the interpreted path is load-bearing, not optional. See [ADR-0017](../../docs/adr/0017-inline-with-delegation-code-generation.md).
+
+### Every `Compiled Schema` conforms to `StandardSchemaV1`
+
+Per [ADR-0003](../../docs/adr/0003-compiled-schemas-conform-to-standard-schema.md): a `Compiled Schema` exposes its own `"~standard"`, reporting `vendor: "@pvl/schema"` (not `"@pvl/schema-compiler"` — it represents the same schema, just executed differently; see [`docs/specification/standard-schema.md`](../../docs/specification/standard-schema.md)). Its entire surface is `"~standard"`, `validate()`, `shape` and `element` — nothing else. `shape` carries only the keys marked `.standalone()` (`Standalone Key`s), absent at both type and runtime otherwise, so a missing marker is a compile error rather than a runtime `undefined`; nested composites stay reachable through `shape`/`element` without any marking, since the emitted code already needs their validators. This is the one place the import swap is deliberately not a drop-in — the interpreted `shape` carries every key — and it belongs in user-facing documentation.
+
+Because a `Compiled Schema` is a Standard Schema object rather than a `@pvl/schema` class instance, it can be used as a field of an interpreted schema: `ObjectSchema`/`ArraySchema` accept any `StandardSchemaV1` and re-prefix the child's `Issue` paths with the parent key, per [ADR-0018](../../docs/adr/0018-composites-accept-any-standard-schema-field.md).
+
+### Configuration and CLI
+
+`pvlconfig.json` carries `$schema`, `include` (default `["src/schemas/**/*.ts"]`), `destination`, `withTypes` and `watch`. Its own schema is defined with `@pvl/schema` and the shipped `json-schema.json` is generated from that definition and exported under `./json-schema`, so the runtime check and the editor schema cannot drift. The destination path and `node_modules` are always excluded from `include`, so the compiler cannot read its own output. Relative paths resolve against the directory holding the config.
+
+The CLI is `pvl compile`, built with yargs (see the `cli-developer` skill). Every setting is also a flag, plus `--config`, `--watch`, `--strict` and `--json`; precedence is flags, then config file, then defaults. **Nothing is written when any error fired** — a partially written `Destination File` that still typechecks is worse than no output.
+
+Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text.
 
 ## Coding style / best practices
 
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
-- Generated output is a build artifact: keep the templates/codegen that produce it easy to diff and reason about, since it's the thing users will actually read when debugging a compiled validator.
-
-## Open questions
-
-- **`pvlconfig.json`'s full shape**: known so far — directories to scan for `pvl.compile()` call sites, and a `production: boolean` flag (see above). Output directory for generated files and any other settings aren't defined yet.
+- Generated output is a build artifact: keep the templates/codegen that produce it easy to diff and reason about, since it's the thing users will actually read when debugging a `Compiled Schema`.

@@ -10,9 +10,9 @@
 
 - **[`packages/schema`](./packages/schema/AGENTS.md)** (npm: `@pvl/schema`) — a standalone schema-validation library in the spirit of [Zod](https://zod.dev): compose schemas and validate values against them at runtime. See the Zod skill.
 
-- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm: `@pvl/schema-compiler`) — the "ahead-of-time" compiler. Statically parses schema source (via ts-morph) for `pvl.compile(...)` markers and compiles those schemas into a plain, dependency-free set of instructions instead of walking the schema tree at runtime.
+- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm: `@pvl/schema-compiler`) — the "ahead-of-time" compiler. Statically parses schema source (via ts-morph) for `pvl.compile(...)` markers and emits a single `Destination File` in which each marked schema is a `Compiled Schema` running straight-line instructions instead of walking the schema tree at runtime.
 
-Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); neither has any implementation yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
+Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); `schema` is implemented, `schema-compiler` is not yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
 
 The `apps/` holds two entries:
 
@@ -34,8 +34,7 @@ Run from the repo root (executed across the workspace via Turborepo):
 - `pnpm format:check` — check formatting without writing (non-writing Prettier check)
 - `pnpm docs:dev` — generate the API reference and serve the documentation site locally
 - `pnpm docs:build` — generate the API reference and build the documentation site
-
-> `pnpm test` is referenced by the Post-Modification Checklist below but is not yet defined in the root `package.json` — add it (fanned out via `turbo run test`, plus a corresponding `test` task in `turbo.json`) when the first package lands.
+- `pnpm test` — run every package's test suite
 
 ## Issue Tracker
 
