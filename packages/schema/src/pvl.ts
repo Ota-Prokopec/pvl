@@ -26,7 +26,13 @@ import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
  * pvl.compile(pvl.string());
  * ```
  */
-export type CompileCandidate = ObjectSchema<ObjectShape, UnknownKeys> | ArraySchema<ArrayItem>;
+// `unknown` for both `Input` and `Output` rather than the types either
+// composite derives from its shape: a modifier widens those (`.optional()`
+// adds `undefined`, `.transform()` replaces the output entirely), and a
+// modified composite is still a candidate.
+export type CompileCandidate =
+  | ObjectSchema<ObjectShape, UnknownKeys, unknown, unknown>
+  | ArraySchema<ArrayItem, unknown, unknown>;
 
 /**
  * The single entry point of `@pvl/schema`. Every schema factory hangs off

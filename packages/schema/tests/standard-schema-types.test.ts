@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { pvl } from '../src/index.js';
+import { pvl, type StringSchema } from '../src/index.js';
 
 const SYSTEM_ROLE = {
   OWNER: 'OWNER',
@@ -216,5 +216,83 @@ describe('type inference', () => {
   it("infers an array of arrays' nested element type", () => {
     const schema = pvl.array(pvl.array(pvl.number()));
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number[][]>();
+  });
+
+  it("leaves a refined object schema's input/output untouched", () => {
+    const schema = pvl.object({ name: pvl.string() }).refine((value) => value.name.length > 0);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+  });
+
+  it("widens an optional object schema's input/output with undefined", () => {
+    const schema = pvl.object({ name: pvl.string() }).optional();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+  });
+
+  it('keeps an earlier widening through a later .strict()', () => {
+    const schema = pvl.object({ name: pvl.string() }).optional().strict();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+  });
+
+  it('keeps an earlier widening through a later .passthrough()', () => {
+    const schema = pvl.object({ name: pvl.string() }).optional().passthrough();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      ({ name: string } & Record<string, unknown>) | undefined
+    >();
+  });
+
+  it("widens a nullable object schema's input/output with null", () => {
+    const schema = pvl.object({ name: pvl.string() }).nullable();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+    } | null>();
+  });
+
+  it("infers a transformed object schema's differing input/output", () => {
+    const schema = pvl.object({ name: pvl.string() }).transform((value) => value.name.length);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
+  });
+
+  it("widens an optional array schema's input/output with undefined", () => {
+    const schema = pvl.array(pvl.string()).optional();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      string[] | undefined
+    >();
+  });
+
+  it("infers a transformed array schema's differing input/output", () => {
+    const schema = pvl.array(pvl.string()).transform((value) => value.length);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string[]>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
+  });
+
+  it('infers an .optional() composite field as an optional key', () => {
+    const schema = pvl.object({
+      name: pvl.string(),
+      address: pvl.object({ city: pvl.string() }).optional(),
+      tags: pvl.array(pvl.string()).optional(),
+    });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+      address?: { city: string } | undefined;
+      tags?: string[] | undefined;
+    }>();
+  });
+
+  it("keeps a refined string schema's own constraint methods reachable", () => {
+    const schema = pvl.string().refine((value) => value !== 'root');
+    expectTypeOf(schema.min(1)).toEqualTypeOf<StringSchema>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
   });
 });

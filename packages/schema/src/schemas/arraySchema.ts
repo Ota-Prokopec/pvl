@@ -71,12 +71,10 @@ export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<I
  * alongside element issues. `.coerce()` is inherited but does nothing here —
  * there is no unambiguous way to read an array out of a non-array.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * `.optional()`, `.nullable()`, `.refine()` and `.transform()` hand back an
+ * array schema rather than the base `Schema`, so a modified array schema is
+ * still something `pvl.compile()` accepts — and the length constraints stay
+ * chainable in either order.
  *
  * @example
  * ```ts
@@ -89,20 +87,22 @@ export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<I
  * // { issues: [{ path: [1], ... }, { path: [2], ... }] } — every failing element
  * ```
  */
-export class ArraySchema<Item extends ArrayItem> extends Schema<
-  ArrayInput<Item>,
-  ArrayOutput<Item>
-> {
+export class ArraySchema<
+  Item extends ArrayItem,
+  Input = ArrayInput<Item>,
+  Output = ArrayOutput<Item>,
+> extends Schema<Input, Output> {
   private readonly _item: Item;
   private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<ArrayCheck>;
+  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
+  private _checks: ReadonlyArray<ArrayCheck>;
 
   /** @internal */
-  constructor(item: Item, options?: SchemaOptions, checks: ReadonlyArray<ArrayCheck> = []) {
+  constructor(item: Item, options?: SchemaOptions) {
     super();
     this._item = item;
     this._typeMessage = options?.message ?? 'Expected array';
-    this._checks = checks;
+    this._checks = [];
   }
 
   /**
@@ -117,7 +117,7 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * tags.validate([]); // { issues: [{ code: 'TOO_SMALL', message: 'pick at least one tag' }] }
    * ```
    */
-  min(length: number, options?: SchemaOptions): ArraySchema<Item> {
+  min(length: number, options?: SchemaOptions): ArraySchema<Item, Input, Output> {
     return this._withCheck({
       code: ISSUE_CODE.TOO_SMALL,
       message: options?.message ?? `Array must contain at least ${length} element(s)`,
@@ -137,7 +137,7 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * tags.validate(['a', 'b', 'c', 'd', 'e', 'f']); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(length: number, options?: SchemaOptions): ArraySchema<Item> {
+  max(length: number, options?: SchemaOptions): ArraySchema<Item, Input, Output> {
     return this._withCheck({
       code: ISSUE_CODE.TOO_BIG,
       message: options?.message ?? `Array must contain at most ${length} element(s)`,
@@ -158,7 +158,7 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * rgb.validate([12, 34]); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(length: number, options?: SchemaOptions): ArraySchema<Item> {
+  length(length: number, options?: SchemaOptions): ArraySchema<Item, Input, Output> {
     return this._withCheck({
       code: ISSUE_CODE.INVALID_LENGTH,
       message: options?.message ?? `Array must contain exactly ${length} element(s)`,
@@ -166,8 +166,68 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
     });
   }
 
+  // The three overrides below only re-state a type: the base modifier
+  // already hands back this instance's prototype-preserving clone, so the
+  // value is an `ArraySchema` — the compiler just cannot follow the clone
+  // back to this class, and the base signature widens to `Schema`.
+  /**
+   * Accepts `undefined` in addition to the array this schema describes,
+   * keeping it an array schema — so it can still be handed to
+   * `pvl.compile()` and still carries `.min()`/`.max()`/`.length()`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const tags = pvl.array(pvl.string()).optional();
+   *
+   * tags.validate(undefined); // { value: undefined }
+   * pvl.compile(tags); // still a composite schema
+   * ```
+   */
+  override optional(): ArraySchema<Item, Input | undefined, Output | undefined> {
+    return super.optional() as ArraySchema<Item, Input | undefined, Output | undefined>;
+  }
+
+  /**
+   * Accepts `null` in addition to the array this schema describes, keeping it
+   * an array schema.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const tags = pvl.array(pvl.string()).nullable();
+   *
+   * tags.validate(null); // { value: null }
+   * ```
+   */
+  override nullable(): ArraySchema<Item, Input | null, Output | null> {
+    return super.nullable() as ArraySchema<Item, Input | null, Output | null>;
+  }
+
+  /**
+   * Converts the accepted array into a different value, changing what
+   * `.validate()` hands back while leaving this an array schema — the shape
+   * it validates going in is unchanged, so `pvl.compile()` still accepts it.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const tagCount = pvl.array(pvl.string()).transform((value) => value.length);
+   *
+   * tagCount.validate(['a', 'b']); // { value: 2 }
+   * ```
+   */
+  override transform<NewOutput>(
+    fn: (value: Output) => NewOutput,
+  ): ArraySchema<Item, Input, NewOutput> {
+    return super.transform(fn) as ArraySchema<Item, Input, NewOutput>;
+  }
+
   /** @internal */
-  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<ArrayOutput<Item>> {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (!Array.isArray(value)) {
       return {
         issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
@@ -194,11 +254,17 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
       return { issues };
     }
     // Built element by element from each item's own result, which the type
-    // system can't follow back to the composed array type.
-    return { value: output as ArrayOutput<Item> };
+    // system can't follow back to the composed array type. `Output` is a free
+    // type parameter — a modifier may have widened it past the composed type
+    // — so the assertion goes through `unknown`.
+    return { value: output as unknown as Output };
   }
 
-  private _withCheck(check: ArrayCheck): ArraySchema<Item> {
-    return new ArraySchema(this._item, { message: this._typeMessage }, [...this._checks, check]);
+  // Clones rather than rebuilding, so a modifier already chained onto this
+  // instance survives the added check — see ADR-0006's amendment.
+  private _withCheck(check: ArrayCheck): ArraySchema<Item, Input, Output> {
+    const clone = this._withState({});
+    clone._checks = [...this._checks, check];
+    return clone;
   }
 }

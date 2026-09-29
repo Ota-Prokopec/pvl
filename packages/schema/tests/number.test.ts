@@ -112,6 +112,16 @@ describe('pvl.number()', () => {
       });
       expect(() => schema.validate('x')).not.toThrow();
     });
+
+    it('survives a constraint chained after it', () => {
+      const schema = pvl
+        .number()
+        .refine((value) => value % 2 === 0, { message: 'must be even' })
+        .int();
+      expect(schema.validate(3).issues?.[0]?.message).toBe('must be even');
+      expect(schema.validate(2.5).issues?.[0]?.code).toBe('NOT_INTEGER');
+      expect(schema.validate(4).issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {

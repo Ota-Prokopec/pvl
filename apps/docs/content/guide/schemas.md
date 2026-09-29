@@ -265,28 +265,17 @@ These five are on **every** schema, primitive or composite, because they are ort
 
 Within one `validate()` call they are _evaluated_ in a fixed order, whatever order you chained them in: `.coerce()` first, then the `.optional()`/`.nullable()` short-circuit, then the schema's own type and constraint checks, and finally the `.refine()`/`.transform()` steps — those in the order they were chained.
 
-::: danger Chain a type's own constraints first
-Where you chain a modifier relative to `.min()`, `.max()`, `.length()` or `.int()` **does** matter, and getting it wrong fails silently.
+::: tip Where you chain a modifier changes what compiles, not what runs
+Chaining order never changes what a schema validates: `.min()`, `.max()`, `.length()` and `.int()` keep whatever modifiers were already applied, and the modifiers keep the constraints. So do `object`'s `.strict()` and `.passthrough()`.
 
-Those four constraint methods rebuild the schema from its constraints alone, which discards any modifier applied before them:
+It does change what the type system lets you write next. On a **primitive**, `.optional()`, `.nullable()`, `.coerce()` and `.transform()` widen the schema's types and hand back the base `Schema`, which does not carry that type's own constraints:
 
 ```ts
-pvl.string().optional().min(3).validate(undefined);
-// { issues: [{ code: 'INVALID_TYPE' }] } — `.optional()` was dropped
-
-pvl.string().min(3).optional().validate(undefined);
-// { value: undefined } — correct
-
-pvl.number().coerce().int().validate('8');
-// { issues: [{ code: 'INVALID_TYPE' }] } — `.coerce()` was dropped
-
-pvl.number().int().coerce().validate('8');
-// { value: 8 } — correct
+pvl.string().min(3).optional(); // fine
+pvl.string().optional().min(3); // compile error — `.min()` is not on `Schema`
 ```
 
-So: **constraints first, then modifiers.** The same applies on `array`, whose `.min()`/`.max()`/`.length()` behave the same way. `object`'s `.strict()` and `.passthrough()` are not affected — they preserve modifiers correctly.
-
-This is a defect in the library, not a deliberate design, and the guidance here will be withdrawn when it is fixed.
+`.refine()` is the exception everywhere: it hands the same schema back, so constraints stay chainable after it. On `object` and `array`, `.optional()`, `.nullable()` and `.transform()` also hand back an object or array schema rather than the base — which is what lets a modified composite still be passed to `pvl.compile()`.
 :::
 
 ### `.optional()`

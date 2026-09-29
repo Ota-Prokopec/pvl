@@ -17,12 +17,8 @@ type StringCheck = {
  * at the first one that fails, so a single `Issue` comes back rather than
  * one per constraint.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * Constraints and the shared modifiers chain in either order — a constraint
+ * keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -37,13 +33,14 @@ type StringCheck = {
  */
 export class StringSchema extends Schema<string, string> {
   private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<StringCheck>;
+  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
+  private _checks: ReadonlyArray<StringCheck>;
 
   /** @internal */
-  constructor(options?: SchemaOptions, checks: ReadonlyArray<StringCheck> = []) {
+  constructor(options?: SchemaOptions) {
     super();
     this._typeMessage = options?.message ?? 'Expected string';
-    this._checks = checks;
+    this._checks = [];
   }
 
   /**
@@ -128,7 +125,11 @@ export class StringSchema extends Schema<string, string> {
     return { value };
   }
 
+  // Clones rather than rebuilding, so a modifier already chained onto this
+  // instance survives the added check — see ADR-0006's amendment.
   private _withCheck(check: StringCheck): StringSchema {
-    return new StringSchema({ message: this._typeMessage }, [...this._checks, check]);
+    const clone = this._withState({});
+    clone._checks = [...this._checks, check];
+    return clone;
   }
 }

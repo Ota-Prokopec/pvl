@@ -35,8 +35,9 @@ export type SchemaOptions = {
 /**
  * The base every schema in this library extends. You never construct one
  * directly — `pvl.string()`, `pvl.object()` and the rest hand you a subclass
- * — but you meet it as a return type, because the modifiers below widen a
- * concrete schema back to this base.
+ * — but you meet it as a return type, because a modifier that widens a
+ * primitive's types (`.optional()`, `.nullable()`, `.coerce()`,
+ * `.transform()`) hands back this base rather than the primitive class.
  *
  * `Input` is what a value must look like going in; `Output` is what a
  * successful `.validate()` hands back, which differs from `Input` once a
@@ -184,6 +185,10 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * `Issue` with code `CUSTOM`. This is where constraints the library has no
    * built-in for — a regex, a cross-field rule — belong.
    *
+   * The schema comes back as the same type it went in as, so a refined
+   * `object` or `array` schema is still one — and still something
+   * `pvl.compile()` accepts.
+   *
    * @example
    * ```ts
    * import { pvl } from '@pvl/schema';
@@ -193,9 +198,19 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    *   .refine((value) => value % 2 === 0, { message: 'must be even' });
    *
    * evenNumber.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' }] }
+   *
+   * // Still an object schema, so `pvl.compile()` accepts it.
+   * const range = pvl
+   *   .object({ min: pvl.number(), max: pvl.number() })
+   *   .refine((value) => value.min <= value.max);
+   * pvl.compile(range);
    * ```
    */
-  refine(predicate: (value: Output) => boolean, options?: SchemaOptions): Schema<Input, Output> {
+  // Returns `this` rather than `Schema<Input, Output>`: a Refinement leaves
+  // both types alone, so there is nothing to widen, and keeping the concrete
+  // class is what lets a refined composite still be a `pvl.compile()`
+  // candidate.
+  refine(predicate: (value: Output) => boolean, options?: SchemaOptions): this {
     const step: RefineStep = {
       kind: 'refine',
       predicate: predicate as (value: unknown) => boolean,

@@ -102,6 +102,16 @@ describe('pvl.string()', () => {
       });
       expect(() => schema.validate(42)).not.toThrow();
     });
+
+    it('survives a constraint chained after it', () => {
+      const schema = pvl
+        .string()
+        .refine((value) => value !== 'root', { message: 'reserved name' })
+        .max(10);
+      expect(schema.validate('root').issues?.[0]?.message).toBe('reserved name');
+      expect(schema.validate('x'.repeat(11)).issues?.[0]?.code).toBe('TOO_BIG');
+      expect(schema.validate('ada').issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {
