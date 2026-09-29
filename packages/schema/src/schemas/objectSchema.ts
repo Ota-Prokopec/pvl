@@ -432,13 +432,13 @@ export class ObjectSchema<
   }
 
   // Clones through the base class's prototype-preserving clone, so any
-  // modifier already chained onto this instance survives, then re-points the
-  // unknown-key fields. Constructing a fresh `ObjectSchema` instead would
-  // reset the base `Schema` state and silently drop those modifiers. The two
+  // Shared Modifier already chained onto this instance survives, then re-points
+  // the unknown-key fields. Constructing a fresh `ObjectSchema` instead would
+  // reset the base `Schema`'s Shared Modifiers and silently drop them. The two
   // callers re-state the mode and, for `.passthrough()`, the output — `Mode`
   // is a type-level marker the runtime has no equivalent of.
   private _withUnknownKeys(unknownKeys: UnknownKeys, unknownKeyMessage?: string): this {
-    const clone = this._withState({});
+    const clone = this._withModifiers({});
     clone._unknownKeys = unknownKeys;
     clone._unknownKeyMessage = unknownKeyMessage;
     return clone;

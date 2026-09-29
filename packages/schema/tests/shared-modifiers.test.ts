@@ -1,45 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_STATE, resolveShortCircuit, runSteps } from '../src/schemas/schemaState.js';
-import type { RefineStep, SchemaState, TransformStep } from '../src/schemas/schemaState.js';
+import {
+  DEFAULT_MODIFIERS,
+  resolveShortCircuit,
+  runSteps,
+} from '../src/schemas/sharedModifiers.js';
+import type { RefineStep, SharedModifiers, TransformStep } from '../src/schemas/sharedModifiers.js';
 import { assertSuccess } from './helpers.js';
 
 describe('resolveShortCircuit()', () => {
   it('short-circuits on undefined input when isOptional is true', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isOptional: true };
-    const result = resolveShortCircuit({ state, input: undefined });
+    const modifiers: SharedModifiers = { ...DEFAULT_MODIFIERS, isOptional: true };
+    const result = resolveShortCircuit({ modifiers, input: undefined });
     expect(result).toBeDefined();
     assertSuccess(result!);
     expect(result!.value).toBeUndefined();
   });
 
   it('short-circuits on null input when isNullable is true', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isNullable: true };
-    const result = resolveShortCircuit({ state, input: null });
+    const modifiers: SharedModifiers = { ...DEFAULT_MODIFIERS, isNullable: true };
+    const result = resolveShortCircuit({ modifiers, input: null });
     expect(result).toBeDefined();
     assertSuccess(result!);
     expect(result!.value).toBeNull();
   });
 
   it('falls through (returns undefined) when neither applies', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isOptional: true, isNullable: true };
-    expect(resolveShortCircuit({ state, input: 'hello' })).toBeUndefined();
+    const modifiers: SharedModifiers = { ...DEFAULT_MODIFIERS, isOptional: true, isNullable: true };
+    expect(resolveShortCircuit({ modifiers, input: 'hello' })).toBeUndefined();
   });
 
   it('does not short-circuit undefined when isOptional is false', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isNullable: true };
-    expect(resolveShortCircuit({ state, input: undefined })).toBeUndefined();
+    const modifiers: SharedModifiers = { ...DEFAULT_MODIFIERS, isNullable: true };
+    expect(resolveShortCircuit({ modifiers, input: undefined })).toBeUndefined();
   });
 
   it('does not short-circuit null when isNullable is false', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isOptional: true };
-    expect(resolveShortCircuit({ state, input: null })).toBeUndefined();
+    const modifiers: SharedModifiers = { ...DEFAULT_MODIFIERS, isOptional: true };
+    expect(resolveShortCircuit({ modifiers, input: null })).toBeUndefined();
   });
 
   it('resolves against the post-coercion value, since coercion runs before this is called', () => {
-    const state: SchemaState = { ...DEFAULT_STATE, isNullable: true, shouldCoerce: true };
+    const modifiers: SharedModifiers = {
+      ...DEFAULT_MODIFIERS,
+      isNullable: true,
+      shouldCoerce: true,
+    };
     const coerce = (value: unknown): unknown => (value === '' ? null : value);
     const coerced = coerce('');
-    const result = resolveShortCircuit({ state, input: coerced });
+    const result = resolveShortCircuit({ modifiers, input: coerced });
     expect(result).toBeDefined();
     assertSuccess(result!);
     expect(result!.value).toBeNull();

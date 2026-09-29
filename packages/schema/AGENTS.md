@@ -116,6 +116,6 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the schema class constructors that the `pvl.*` factories exist to hide) stays documented — a maintainer still needs it — but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. **Adding a new public member without an `@example` silently ships an empty entry in the reference.**
 
-An internal-only module deliberately excluded from the barrel (`schemas/schemaState.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
+An internal-only module deliberately excluded from the barrel (`schemas/sharedModifiers.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
 
 Examples are not yet verified by the build. Making them typecheck is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60); until then, check a changed snippet by hand.
