@@ -85,6 +85,16 @@ describe('pvl.bigint()', () => {
       });
       expect(() => schema.validate('x')).not.toThrow();
     });
+
+    it('survives a constraint chained after it', () => {
+      const schema = pvl
+        .bigint()
+        .refine((value) => value % 2n === 0n, { message: 'must be even' })
+        .min(10n);
+      expect(schema.validate(11n).issues?.[0]?.message).toBe('must be even');
+      expect(schema.validate(4n).issues?.[0]?.code).toBe('TOO_SMALL');
+      expect(schema.validate(12n).issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {

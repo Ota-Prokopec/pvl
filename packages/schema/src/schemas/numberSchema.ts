@@ -19,12 +19,8 @@ type NumberCheck = {
  * built-in finiteness constraint. Arbitrary-precision integers belong to
  * `pvl.bigint()`, and this schema never accepts or produces one.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * Constraints and the shared modifiers chain in either order — a constraint
+ * keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -39,13 +35,14 @@ type NumberCheck = {
  */
 export class NumberSchema extends Schema<number, number> {
   private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<NumberCheck>;
+  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
+  private _checks: ReadonlyArray<NumberCheck>;
 
   /** @internal */
-  constructor(options?: SchemaOptions, checks: ReadonlyArray<NumberCheck> = []) {
+  constructor(options?: SchemaOptions) {
     super();
     this._typeMessage = options?.message ?? 'Expected number';
-    this._checks = checks;
+    this._checks = [];
   }
 
   /**
@@ -132,7 +129,11 @@ export class NumberSchema extends Schema<number, number> {
     return { value };
   }
 
+  // Clones rather than rebuilding, so a modifier already chained onto this
+  // instance survives the added check — see ADR-0006's amendment.
   private _withCheck(check: NumberCheck): NumberSchema {
-    return new NumberSchema({ message: this._typeMessage }, [...this._checks, check]);
+    const clone = this._withState({});
+    clone._checks = [...this._checks, check];
+    return clone;
   }
 }

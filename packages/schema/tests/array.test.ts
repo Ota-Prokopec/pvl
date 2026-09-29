@@ -135,6 +135,24 @@ describe('pvl.array()', () => {
       expect(schema.validate('["a"]').issues).toBeDefined();
     });
 
+    it('keeps .optional() through a constraint chained after it', () => {
+      const schema = pvl.array(pvl.string()).optional().min(1);
+      const result = schema.validate(undefined);
+      assertSuccess(result);
+      expect(result.value).toBeUndefined();
+      expect(schema.validate([]).issues?.[0]?.code).toBe('TOO_SMALL');
+    });
+
+    it('keeps .refine() through a constraint chained after it', () => {
+      const schema = pvl
+        .array(pvl.string())
+        .refine((value) => value.length % 2 === 0, { message: 'must have an even count' })
+        .max(4);
+      expect(schema.validate(['a']).issues?.[0]?.message).toBe('must have an even count');
+      expect(schema.validate(['a', 'b', 'c', 'd', 'e']).issues?.[0]?.code).toBe('TOO_BIG');
+      expect(schema.validate(['a', 'b']).issues).toBeUndefined();
+    });
+
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.array(pvl.string());
       expect(schema['~standard'].version).toBe(1);

@@ -20,12 +20,8 @@ type BigintCheck = {
  * output is always a `bigint`, never downgraded to a `number` — the precision
  * loss that would cause is exactly what `bigint` exists to avoid.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * Constraints and the shared modifiers chain in either order — a constraint
+ * keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -42,13 +38,14 @@ type BigintCheck = {
  */
 export class BigintSchema extends Schema<bigint, bigint> {
   private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<BigintCheck>;
+  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
+  private _checks: ReadonlyArray<BigintCheck>;
 
   /** @internal */
-  constructor(options?: SchemaOptions, checks: ReadonlyArray<BigintCheck> = []) {
+  constructor(options?: SchemaOptions) {
     super();
     this._typeMessage = options?.message ?? 'Expected bigint';
-    this._checks = checks;
+    this._checks = [];
   }
 
   /**
@@ -113,7 +110,11 @@ export class BigintSchema extends Schema<bigint, bigint> {
     return { value };
   }
 
+  // Clones rather than rebuilding, so a modifier already chained onto this
+  // instance survives the added check — see ADR-0006's amendment.
   private _withCheck(check: BigintCheck): BigintSchema {
-    return new BigintSchema({ message: this._typeMessage }, [...this._checks, check]);
+    const clone = this._withState({});
+    clone._checks = [...this._checks, check];
+    return clone;
   }
 }

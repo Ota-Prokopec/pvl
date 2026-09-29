@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { pvl } from '../src/index.js';
+import { ObjectSchema, pvl } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.object()', () => {
@@ -204,6 +204,34 @@ describe('pvl.object()', () => {
       assertSuccess(accepted);
       expect(accepted.value).toEqual({ name: 'ada' });
       expect(schema.validate('{"name":"ada"}').issues).toBeDefined();
+    });
+
+    it('keeps .optional() through a later .strict()', () => {
+      const schema = pvl.object({ name: pvl.string() }).optional().strict();
+      const result = schema.validate(undefined);
+      assertSuccess(result);
+      expect(result.value).toBeUndefined();
+      expect(schema.validate({ name: 'ada', extra: 1 }).issues?.[0]?.code).toBe('UNRECOGNIZED_KEY');
+    });
+
+    it('hands back a distinct, prototype-preserving clone', () => {
+      const schema = pvl.object({ name: pvl.string() });
+      const refined = schema.refine(() => true);
+      expect(refined).not.toBe(schema);
+      expect(refined).toBeInstanceOf(ObjectSchema);
+      expect(schema.optional().nullable()).toBeInstanceOf(ObjectSchema);
+      // The original is untouched — a modifier never mutates in place.
+      expect(schema.validate(undefined).issues).toBeDefined();
+    });
+
+    it('keeps .refine() through a later .strict()', () => {
+      const schema = pvl
+        .object({ name: pvl.string() })
+        .refine((value) => value.name !== 'root', { message: 'reserved name' })
+        .strict();
+      expect(schema.validate({ name: 'root' }).issues?.[0]?.message).toBe('reserved name');
+      expect(schema.validate({ name: 'ada', extra: 1 }).issues?.[0]?.code).toBe('UNRECOGNIZED_KEY');
+      expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
     });
 
     it('exposes Standard Schema conformance', () => {
