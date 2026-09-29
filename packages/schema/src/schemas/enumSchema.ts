@@ -81,11 +81,8 @@ export type EnumOutput<Source extends EnumSource> = Source extends EnumArraySour
   ? Source[number]
   : ValueOfEnum<Source>;
 
-const toMembers = (source: EnumSource): ReadonlyArray<EnumMember> =>
+const toEnumMembers = (source: EnumSource): ReadonlyArray<EnumMember> =>
   Array.isArray(source) ? source : Object.values(source);
-
-const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
-  members.map(formatIssueMessageValue).join(', ');
 
 /**
  * Accepts one of a fixed set of values, sourced from either an `as const`
@@ -121,9 +118,11 @@ export class EnumSchema<Source extends EnumSource> extends Schema<
   /** @internal */
   constructor(source: Source, options?: SchemaOptions) {
     super();
-    const members = toMembers(source);
+    const members = toEnumMembers(source);
     this._members = new Set(members);
-    this._message = options?.message ?? `Expected one of ${formatMembers(members)}`;
+    this._message =
+      options?.message ??
+      `Expected one of ${members.map((enumMember) => formatIssueMessageValue(enumMember)).join(', ')}`;
   }
 
   /** @internal */
