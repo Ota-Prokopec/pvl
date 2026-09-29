@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { pvl, type StringSchema } from '../src/index.js';
+import { pvl, type NumberSchema, type StringSchema } from '../src/index.js';
 
 const SYSTEM_ROLE = {
   OWNER: 'OWNER',
@@ -294,5 +294,64 @@ describe('type inference', () => {
     const schema = pvl.string().refine((value) => value !== 'root');
     expectTypeOf(schema.min(1)).toEqualTypeOf<StringSchema>();
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
+  });
+
+  it("types shape as each declared key's own schema class", () => {
+    const schema = pvl.object({ name: pvl.string(), age: pvl.number() });
+    expectTypeOf(schema.shape).toEqualTypeOf<Readonly<{ name: StringSchema; age: NumberSchema }>>();
+    expectTypeOf(schema.shape.name).toEqualTypeOf<StringSchema>();
+  });
+
+  it('types every key of shape as read-only, not just the accessor', () => {
+    const schema = pvl.object({ name: pvl.string() });
+    expectTypeOf(schema.shape).toEqualTypeOf<{ readonly name: StringSchema }>();
+    expectTypeOf(schema.shape).not.toEqualTypeOf<{ name: StringSchema }>();
+  });
+
+  it("infers a field's own input/output through shape", () => {
+    const schema = pvl.object({ name: pvl.string().transform((value) => value.length) });
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema.shape.name>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema.shape.name>>().toEqualTypeOf<number>();
+  });
+
+  it('types a nested composite reached through shape as its own composite class', () => {
+    const schema = pvl.object({
+      user: pvl.object({ city: pvl.string() }),
+      tags: pvl.array(pvl.number()),
+    });
+    expectTypeOf(schema.shape.user.shape.city).toEqualTypeOf<StringSchema>();
+    expectTypeOf(schema.shape.tags.element).toEqualTypeOf<NumberSchema>();
+  });
+
+  it('keeps shape typed through .strict(), .passthrough() and the base modifiers', () => {
+    const base = pvl.object({ name: pvl.string() });
+    expectTypeOf(base.strict().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.passthrough().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.optional().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.nullable().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.refine(() => true).shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.transform((value) => value.name).shape.name).toEqualTypeOf<StringSchema>();
+  });
+
+  it("types element as the item's own schema class", () => {
+    const schema = pvl.array(pvl.string());
+    expectTypeOf(schema.element).toEqualTypeOf<StringSchema>();
+  });
+
+  it("infers the item's own input/output through element", () => {
+    const schema = pvl.array(pvl.string().transform((value) => value.length));
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema.element>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema.element>>().toEqualTypeOf<number>();
+  });
+
+  it('keeps element typed through the length constraints and the base modifiers', () => {
+    const base = pvl.array(pvl.string());
+    expectTypeOf(base.min(1).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.max(5).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.length(2).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.optional().element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.nullable().element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.refine(() => true).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.transform((value) => value.length).element).toEqualTypeOf<StringSchema>();
   });
 });

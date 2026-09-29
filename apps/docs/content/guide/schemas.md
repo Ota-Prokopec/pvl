@@ -174,6 +174,25 @@ The length constraints above are checks on the array itself, so — unlike the e
 
 `.coerce()` is inherited but does nothing: there is no unambiguous way to read an array out of a non-array, so a value that is not one is rejected rather than guessed at.
 
+### Reaching the item schema with `element`
+
+`element` hands back the item schema an array schema was built with, so one item can be validated on its own without building a whole array around it:
+
+```ts
+const users = pvl.array(pvl.object({ name: pvl.string() }));
+
+users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
+```
+
+It is the schema instance you declared, not a copy, so its own modifiers come with it, and it stays reachable through the length constraints and the modifiers (`pvl.array(item).min(1).element` is still `item`). It is read-only — it cannot be replaced — and reading it never affects how the array schema validates.
+
+Because a composite item carries its own `element` or [`shape`](#reaching-a-field-schema-with-shape), nested structure is reachable all the way down:
+
+```ts
+users.element.shape.name.validate(42);
+// { issues: [{ code: 'INVALID_TYPE', ... }] }
+```
+
 ## `object`
 
 Validates each declared key against its own field schema.
@@ -225,6 +244,29 @@ envelope.validate({ id: 'a1', meta: { source: 'api' } });
 ```
 
 `.coerce()` is inherited but does nothing on an object: there is no unambiguous way to read an object out of a non-object. A field that needs coercion opts into it on its own schema.
+
+### Reaching a field schema with `shape`
+
+`shape` hands back the schema declared for each key, so a single field can be validated on its own without validating the whole object:
+
+```ts
+user.shape.name.validate('Ada'); // { value: 'Ada' }
+user.shape.name.validate(''); // { issues: [{ code: 'TOO_SMALL', ... }] }
+```
+
+Each field is the schema instance you declared, not a copy, so its own modifiers come with it, and the shape stays reachable through `.strict()`, `.passthrough()` and the modifiers (`user.strict().shape.name` is still `user.shape.name`). It is read-only — neither the shape nor any one field can be replaced — and reading a field never affects how the object schema validates. Swapping a field out would not change validation anyway: the fields are fixed when the schema is built, so the type system stops the write rather than letting `shape` drift from what `validate()` checks.
+
+Because a composite field carries its own `shape` or [`element`](#reaching-the-item-schema-with-element), nested structure is reachable all the way down:
+
+```ts
+const order = pvl.object({
+  customer: pvl.object({ city: pvl.string() }),
+  items: pvl.array(pvl.string()),
+});
+
+order.shape.customer.shape.city.validate('London'); // { value: 'London' }
+order.shape.items.element.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+```
 
 ## `union`
 

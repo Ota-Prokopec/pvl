@@ -205,13 +205,56 @@ export class ObjectSchema<
   // call, since both sit on the validation hot path.
   private readonly _fields: ReadonlyArray<readonly [string, Schema<unknown, unknown>]>;
   private readonly _declaredKeys: ReadonlySet<string>;
+  // Its own copy of the argument, for the same reason the two derived fields
+  // above are snapshots: the caller still holds the object literal they passed
+  // in, and mutating it after construction must not make `shape` report a
+  // field `_fields` will never validate against.
+  private readonly _shape: Shape;
 
   /** @internal */
   constructor(shape: Shape, options?: SchemaOptions) {
     super();
     this._typeMessage = options?.message ?? 'Expected object';
+    // Spreading a generic widens to its constraint, which is what the
+    // assertion restores; the copy is per-construction, not per-`.validate()`.
+    this._shape = { ...shape } as Shape;
     this._fields = Object.entries(shape);
     this._declaredKeys = new Set(Object.keys(shape));
+  }
+
+  // An accessor with no setter, returning `Readonly<Shape>`, so neither the
+  // shape nor any one key can be written — a per-key write would otherwise
+  // typecheck and then silently do nothing, since `_fields` is already fixed.
+  // Per the parent spec nothing is frozen at runtime: immutability below the
+  // accessor is the type system's job. The schemas handed back are the very
+  // instances the caller declared, so their own modifiers come with them, and
+  // `@pvl/schema-compiler`'s Compiled Schemas expose `shape` too, so a call
+  // site written against an interpreted schema survives the import swap.
+  /**
+   * The schema declared for each key of this object schema, so a single field
+   * can be reached and validated on its own without validating the whole
+   * object. A composite field carries its own `shape` or `element`, so nested
+   * structure is reachable all the way down.
+   *
+   * Read-only: neither the shape nor any one field can be replaced, and
+   * reading a field never affects how this schema validates.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({
+   *   name: pvl.string().min(1),
+   *   address: pvl.object({ city: pvl.string() }),
+   * });
+   *
+   * user.shape.name.validate('Ada'); // { value: 'Ada' }
+   * user.shape.name.validate(''); // { issues: [{ code: 'TOO_SMALL', ... }] }
+   * user.shape.address.shape.city.validate('London'); // { value: 'London' }
+   * ```
+   */
+  get shape(): Readonly<Shape> {
+    return this._shape;
   }
 
   /**
