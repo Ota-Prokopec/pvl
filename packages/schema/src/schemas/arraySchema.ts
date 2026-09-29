@@ -105,6 +105,35 @@ export class ArraySchema<
     this._checks = [];
   }
 
+  // An accessor with no setter, so the property cannot be written. One schema
+  // rather than a keyed collection, so — unlike `ObjectSchema`'s `shape` —
+  // there is nothing below it to make read-only. The schema handed back is the
+  // very instance the caller declared, so its own modifiers come with it, and
+  // `@pvl/schema-compiler`'s Compiled Schemas expose `element` too, so a call
+  // site written against an interpreted schema survives the import swap.
+  /**
+   * The schema every element of this array is validated against, so a single
+   * item can be reached and validated on its own without validating a whole
+   * array. A composite item carries its own `shape` or `element`, so nested
+   * structure is reachable all the way down.
+   *
+   * Read-only: reading the item schema never affects how this schema
+   * validates, and it cannot be replaced.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const users = pvl.array(pvl.object({ name: pvl.string() }));
+   *
+   * users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
+   * users.element.shape.name.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * ```
+   */
+  get element(): Item {
+    return this._item;
+  }
+
   /**
    * Requires at least `length` elements.
    *

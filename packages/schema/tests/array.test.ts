@@ -213,6 +213,82 @@ describe('pvl.array()', () => {
     });
   });
 
+  describe('element', () => {
+    it('exposes the item schema instance it was built with', () => {
+      const item = pvl.string();
+      expect(pvl.array(item).element).toBe(item);
+    });
+
+    it('validates one item on its own, accepting a valid value', () => {
+      const schema = pvl.array(pvl.string().min(2));
+      const result = schema.element.validate('ada');
+      assertSuccess(result);
+      expect(result.value).toBe('ada');
+    });
+
+    it('validates one item on its own, rejecting an invalid value', () => {
+      const schema = pvl.array(pvl.string().min(2));
+      expect(schema.element.validate('a').issues).toEqual([
+        { code: 'TOO_SMALL', message: 'String must contain at least 2 character(s)' },
+      ]);
+      expect(schema.element.validate(42).issues).toEqual([
+        { code: 'INVALID_TYPE', message: 'Expected string' },
+      ]);
+    });
+
+    it("carries the item's own modifiers when validated on its own", () => {
+      const schema = pvl.array(pvl.number().coerce());
+      const result = schema.element.validate('42');
+      assertSuccess(result);
+      expect(result.value).toBe(42);
+    });
+
+    it('reaches a nested array item through its own element', () => {
+      const inner = pvl.number();
+      const schema = pvl.array(pvl.array(inner));
+      expect(schema.element.element).toBe(inner);
+    });
+
+    it('reaches an object item through its shape', () => {
+      const name = pvl.string();
+      const schema = pvl.array(pvl.object({ name }));
+      expect(schema.element.shape.name).toBe(name);
+    });
+
+    it('survives the length constraints and the base modifiers', () => {
+      const item = pvl.string();
+      const base = pvl.array(item);
+
+      expect(base.min(1).element).toBe(item);
+      expect(base.max(5).element).toBe(item);
+      expect(base.length(2).element).toBe(item);
+      expect(base.optional().element).toBe(item);
+      expect(base.nullable().element).toBe(item);
+      expect(base.refine(() => true).element).toBe(item);
+      expect(base.transform((value) => value.length).element).toBe(item);
+    });
+
+    it('leaves validation behaviour untouched', () => {
+      const schema = pvl.array(pvl.string());
+      const before = schema.validate(['a', 42]);
+
+      schema.element.validate(42);
+
+      expect(schema.validate(['a', 42])).toEqual(before);
+    });
+
+    it('rejects a replacement element, at the type level and at runtime', () => {
+      const schema = pvl.array(pvl.string());
+      const replaceElement = (): void => {
+        // @ts-expect-error `element` is read-only
+        schema.element = pvl.number();
+      };
+
+      expect(replaceElement).toThrow(TypeError);
+      expect(schema.validate(['a']).issues).toBeUndefined();
+    });
+  });
+
   describe('nested Issue shape (seam 4)', () => {
     it("reports a failing element's numeric index as its path", () => {
       const schema = pvl.array(pvl.string());
