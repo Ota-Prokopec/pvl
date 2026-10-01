@@ -6,6 +6,10 @@ Skills under `.agents/skills/` (symlinked into `.claude/skills/`) are installed 
 
 The session itself writes nothing. Once it concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes with type `docs` (e.g. `CLAUDE(docs): record ADR-0026`), so ADR-only commits are distinguishable in history.
 
+## `/grilling`
+
+The deliverable is a GitHub issue capturing the agreed design. Until the interview is over and the user asks for implementation, the repository stays untouched, including glossary or doc content the user just settled in an answer: record settled decisions in the issue body instead. Read-only exploration is expected. When the question frontier is empty and the user confirms shared understanding, write the issue and stop.
+
 ## `/to-spec`
 
 A spec is a parent issue, not something implemented directly — the whole spec is too large to land as one change. Label it `spec` (in addition to whatever the skill's own instructions say), and never `ready-for-agent`: that label means "grabbable and implementable as-is," which a spec is not until `/to-tickets` has broken it down.

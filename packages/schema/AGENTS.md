@@ -101,6 +101,8 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 - **Primitive validators must be written for raw speed** — no regex or other comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
+- **A `Local Modifier`'s state lives in its own class.** Each class declares a module-local, unexported check type and holds it in a private property (`type StringCheck` plus `private _checks: ReadonlyArray<StringCheck>`, with a private `_withCheck` cloning through the base class). The near-identical `{ code, message, test }` shapes across classes are duplicated on purpose: keep them per class, with no shared `Check<T>`/`Constraint`/`Modifier<T>` type or modifier registry over them. Adding a modifier costs one method plus one check literal. The single exported exception is `ObjectSchema`'s `UnknownKeys`/`UNKNOWN_KEYS`, because `.strict()`/`.passthrough()` surface the mode in the class's type parameters.
+- **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pvl/schema-compiler` (see its `AGENTS.md`).
 
 ### TSDoc is user-facing documentation, not contributor rationale
 

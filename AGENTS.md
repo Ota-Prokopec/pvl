@@ -48,6 +48,9 @@ This repo uses the default canonical five-label vocabulary: `needs-triage`, `nee
 - Scope every non-global `.env` into its app as `.env.production` or `.env.development`.
 - A change that is an architectural decision gets an ADR in [`docs/adr/`](docs/adr/).
 - **[`CONTEXT.md`](CONTEXT.md) is the living glossary and domain model.** Read it before working on unfamiliar domain code, and update a term's entry in the same change that coins, renames or redefines it. Each entry cross-links the ADR or spec doc that owns it.
+- **Tests cover every error and warning path**, not only the happy path: enumerate every diagnostic a component (CLI included) can produce and write a case per diagnostic. Where a reference implementation exists (the interpreted `@pvl/schema` path for the compiler), compare output against it rather than asserting it is non-empty.
+- **Supporting tooling stays proportionate** to the library and compiler it serves (docs harnesses, codegen steps, check scripts). Reach for an off-the-shelf mechanism first, measure the real cases before generalising, and prefer a dumber mechanism that fails loudly over a bespoke parser. Being asked to justify a file's size is the signal to shrink it.
+- **Persist knowledge in the repo.** A workflow, convention or correction meant to outlive the session goes into an agentic `*.md` file here (an `AGENTS.md`, or a doc under `docs/agents/` with a pointer from one), never into the agent's internal memory.
 - **No "Source Layout" sections in any `AGENTS.md`.** A file tree with per-file descriptions goes stale the moment a file moves, and duplicates what belongs next to the code. Document a file's purpose in a short comment at the top of that file (or, for a directory, its barrel).
 - **Skills under `.agents/skills/` (and their `.claude/skills` symlinks) are installed from an external source — raise a needed behavior change with the user instead of editing the file.** A hand edit is silently lost on the next install. Repo-specific layers on top of a skill live in [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
 
@@ -68,7 +71,8 @@ All GitHub activity by Claude Code must be identifiable as such:
 
 - Branch off `main` as `issue/<number>-<slug>` (e.g. `issue/5-fix-flag-cache-eviction`), commit the fix there, push, and open a PR into `main` whose body says `Closes #<number>`. Then post a `CLAUDE: ` comment on the issue linking the PR.
 - Every solved issue — parent or sub-issue — gets its own dedicated commit; never bundle two issues into one commit.
-- Before starting an issue, look up its sub-issues (`gh issue view <int> --json subIssues`, falling back to `gh api` on older `gh`). A parent with sub-issues is an orchestration issue: solve and commit each sub-issue individually first, then verify the sub-issues together satisfy the parent and complete only the parent-level work they don't cover — running the relevant tests, typechecks, linting and integration checks. Already-implemented sub-issue work is never re-implemented or duplicated; report any that are still pending instead. Once every sub-issue is done, post a `CLAUDE: ` comment on the parent linking all of their PRs.
+- Before starting an issue, look up its sub-issues (`gh issue view <int> --json subIssues`, falling back to `gh api` on older `gh`). A parent with sub-issues is an orchestration issue: sub-issues have to be solved individually first. Already-implemented sub-issue work is never re-implemented or duplicated; report any that are still pending instead. Once every sub-issue is done, post a `CLAUDE: ` comment on the parent linking all of their PRs.
+- **Sub-issues** branch and PR through a parent branch rather than `main` — follow [docs/agents/sub-issue-workflow.md](docs/agents/sub-issue-workflow.md).
 
 Spec and ticket issues from the `/to-spec` → `/to-tickets` pipeline branch differently — see [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
 

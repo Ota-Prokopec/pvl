@@ -2,6 +2,8 @@
 
 What lives in this pnpm + Turborepo workspace and why. Each entry's own `AGENTS.md` owns its technology, architecture and coding style; [`AGENTS.md`](./AGENTS.md) at the root owns the repo-wide conventions and [`CONTEXT.md`](./CONTEXT.md) the domain glossary.
 
+This file is an **inventory**: the entries under `apps/*` and `packages/*`, a brief purpose for each, the dependency direction between them, and the workspace wiring. How a single package _behaves_ (e.g. `pvl.compile()` semantics, `Destination File` rules, `pvlconfig.json` contents) belongs in that package's own `AGENTS.md`. When such material turns up here, move it there, carrying over only what the package doc lacks.
+
 ```
 apps/
 ├── docs/              (docs, private)       — documentation site for @pvl/schema
