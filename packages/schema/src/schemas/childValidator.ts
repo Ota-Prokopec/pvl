@@ -2,9 +2,9 @@
 // field, an array element) at that child's path. Deliberately left out of the
 // `schemas/` barrel — no consumer imports it.
 import type { Issue } from '../issue.js';
-import type { PvlStandardSchema } from '../pvlStandardSchema.js';
+import type { StandartSchema } from '../standartSchema.js';
 import type { Result } from '../result.js';
-import { Schema } from './baseSchema.js';
+import { Schema } from './schema.js';
 
 /**
  * Validates one child value, reporting any `Issue` at `path` — the composite's
@@ -24,7 +24,7 @@ export type ChildValidator = (value: unknown, path: ReadonlyArray<PropertyKey>) 
  *
  * @internal
  */
-export const toChildValidator = (child: PvlStandardSchema): ChildValidator => {
+export const toChildValidator = (child: StandartSchema): ChildValidator => {
   if (child instanceof Schema) {
     return (value, path) => child._validate(value, path);
   }

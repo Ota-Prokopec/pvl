@@ -1,13 +1,11 @@
 import { coerceToString } from '../coercions.js';
-import { buildIssue, ISSUE_CODE, type IssueCode } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type SchemaKind } from './schema.js';
 
-type StringCheck = {
-  readonly code: IssueCode;
-  readonly message: string;
-  readonly test: (value: string) => boolean;
-};
+interface StringSchemaKind extends SchemaKind {
+  readonly type: StringSchema<this['Input'], this['Output']>;
+}
 
 /**
  * Accepts a JavaScript `string`, with optional length constraints. Build one
@@ -31,20 +29,18 @@ type StringCheck = {
  * username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class StringSchema extends Schema<string, string> {
+export class StringSchema<Input = string, Output = string> extends Schema<Input, Output> {
+  declare readonly '~kind': StringSchemaKind;
   private readonly _typeMessage: string;
-  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
-  private _checks: ReadonlyArray<StringCheck>;
 
   /** @internal */
-  constructor(options?: SchemaOptions) {
+  constructor(options?: IssueEditableProps) {
     super();
     this._typeMessage = options?.message ?? 'Expected string';
-    this._checks = [];
   }
 
   /**
-   * Requires at least `length` characters. The comparison is on
+   * Requires at least `minLength` characters. The comparison is on
    * `String.prototype.length`, i.e. UTF-16 code units.
    *
    * @example
@@ -56,16 +52,26 @@ export class StringSchema extends Schema<string, string> {
    * password.validate('hunter2'); // { issues: [{ code: 'TOO_SMALL', message: 'too short' }] }
    * ```
    */
-  min(length: number, options?: SchemaOptions): StringSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_SMALL,
-      message: options?.message ?? `String must contain at least ${length} character(s)`,
-      test: (value) => value.length >= length,
+  min(minLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<string, string>({
+      fn: (value, path) => {
+        return value.length >= minLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_SMALL,
+                  path,
+                  options?.message ?? `String must contain at least ${minLength} character(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /**
-   * Requires at most `length` characters.
+   * Requires at most `maxLength` characters.
    *
    * @example
    * ```ts
@@ -76,16 +82,26 @@ export class StringSchema extends Schema<string, string> {
    * tweet.validate('x'.repeat(281)); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(length: number, options?: SchemaOptions): StringSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_BIG,
-      message: options?.message ?? `String must contain at most ${length} character(s)`,
-      test: (value) => value.length <= length,
+  max(maxLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<string, string>({
+      fn: (value, path) => {
+        return value.length <= maxLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_BIG,
+                  path,
+                  options?.message ?? `String must contain at most ${maxLength} character(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /**
-   * Requires exactly `length` characters.
+   * Requires exactly `exactLength` characters.
    *
    * @example
    * ```ts
@@ -97,11 +113,21 @@ export class StringSchema extends Schema<string, string> {
    * countryCode.validate('CZE'); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(length: number, options?: SchemaOptions): StringSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.INVALID_LENGTH,
-      message: options?.message ?? `String must contain exactly ${length} character(s)`,
-      test: (value) => value.length === length,
+  length(exactLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<string, string>({
+      fn: (value, path) => {
+        return value.length === exactLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.INVALID_LENGTH,
+                  path,
+                  options?.message ?? `String must contain exactly ${exactLength} character(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
@@ -114,22 +140,9 @@ export class StringSchema extends Schema<string, string> {
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
     if (typeof value !== 'string') {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
       };
     }
-    for (const check of this._checks) {
-      if (!check.test(value)) {
-        return { issues: [buildIssue(check.code, check.message, path)] };
-      }
-    }
     return { value };
-  }
-
-  // Clones rather than rebuilding, so a Shared Modifier already chained onto
-  // this instance survives the added check — see ADR-0006's amendment.
-  private _withCheck(check: StringCheck): StringSchema {
-    const clone = this._withModifiers({});
-    clone._checks = [...this._checks, check];
-    return clone;
   }
 }

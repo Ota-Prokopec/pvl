@@ -1,13 +1,11 @@
 import { coerceToBigint } from '../coercions.js';
-import { buildIssue, ISSUE_CODE, type IssueCode } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type SchemaKind } from './schema.js';
 
-type BigintCheck = {
-  readonly code: IssueCode;
-  readonly message: string;
-  readonly test: (value: bigint) => boolean;
-};
+interface BigintSchemaKind extends SchemaKind {
+  readonly type: BigintSchema<this['Input'], this['Output']>;
+}
 
 /**
  * Accepts a real JavaScript `bigint` and nothing else — a `number` is never
@@ -36,21 +34,19 @@ type BigintCheck = {
  * pvl.bigint().coerce().validate('42'); // { value: 42n }
  * ```
  */
-export class BigintSchema extends Schema<bigint, bigint> {
+export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input, Output> {
+  declare readonly '~kind': BigintSchemaKind;
   private readonly _typeMessage: string;
-  // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
-  private _checks: ReadonlyArray<BigintCheck>;
 
   /** @internal */
-  constructor(options?: SchemaOptions) {
+  constructor(options?: IssueEditableProps) {
     super();
     this._typeMessage = options?.message ?? 'Expected bigint';
-    this._checks = [];
   }
 
   /**
-   * Requires a value greater than or equal to `bound` — inclusive, and itself
-   * a `bigint`.
+   * Requires a value greater than or equal to `minValue` — inclusive, and
+   * itself a `bigint`.
    *
    * @example
    * ```ts
@@ -61,17 +57,27 @@ export class BigintSchema extends Schema<bigint, bigint> {
    * positive.validate(0n); // { issues: [{ code: 'TOO_SMALL', ... }] }
    * ```
    */
-  min(bound: bigint, options?: SchemaOptions): BigintSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_SMALL,
-      message: options?.message ?? `Bigint must be greater than or equal to ${bound}`,
-      test: (current) => current >= bound,
+  min(minValue: bigint, options?: IssueEditableProps): this {
+    return this._withPostModifier<bigint, bigint>({
+      fn: (value, path) => {
+        return value >= minValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_SMALL,
+                  path,
+                  options?.message ?? `Bigint must be greater than or equal to ${minValue}`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /**
-   * Requires a value less than or equal to `bound` — inclusive, and itself a
-   * `bigint`.
+   * Requires a value less than or equal to `maxValue` — inclusive, and itself
+   * a `bigint`.
    *
    * @example
    * ```ts
@@ -82,11 +88,21 @@ export class BigintSchema extends Schema<bigint, bigint> {
    * int64.validate(9223372036854775808n); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(bound: bigint, options?: SchemaOptions): BigintSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_BIG,
-      message: options?.message ?? `Bigint must be less than or equal to ${bound}`,
-      test: (current) => current <= bound,
+  max(maxValue: bigint, options?: IssueEditableProps): this {
+    return this._withPostModifier<bigint, bigint>({
+      fn: (value, path) => {
+        return value <= maxValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_BIG,
+                  path,
+                  options?.message ?? `Bigint must be less than or equal to ${maxValue}`,
+                ),
+              ],
+            };
+      },
     });
   }
 
@@ -99,22 +115,9 @@ export class BigintSchema extends Schema<bigint, bigint> {
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
     if (typeof value !== 'bigint') {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
       };
     }
-    for (const check of this._checks) {
-      if (!check.test(value)) {
-        return { issues: [buildIssue(check.code, check.message, path)] };
-      }
-    }
     return { value };
-  }
-
-  // Clones rather than rebuilding, so a Shared Modifier already chained onto
-  // this instance survives the added check — see ADR-0006's amendment.
-  private _withCheck(check: BigintCheck): BigintSchema {
-    const clone = this._withModifiers({});
-    clone._checks = [...this._checks, check];
-    return clone;
   }
 }

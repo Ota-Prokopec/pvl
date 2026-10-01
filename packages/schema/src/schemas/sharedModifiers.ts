@@ -1,6 +1,5 @@
-import { buildIssue, ISSUE_CODE } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaOptions } from './baseSchema.js';
 
 /**
  * Internal-only module: the record of Shared Modifiers every `Schema` carries
@@ -17,7 +16,7 @@ import type { SchemaOptions } from './baseSchema.js';
 export type RefineStep = {
   readonly kind: 'refine';
   readonly predicate: (value: unknown) => boolean;
-  readonly options?: SchemaOptions;
+  readonly options?: IssueEditableProps;
 };
 
 export type TransformStep = {
@@ -86,7 +85,7 @@ export const runSteps = <Output>({ steps, value, path }: RunStepsArgs): Result<O
     if (step.kind === 'refine') {
       if (!step.predicate(current)) {
         return {
-          issues: [buildIssue(ISSUE_CODE.CUSTOM, step.options?.message ?? 'Invalid value', path)],
+          issues: [new Issue(ISSUE_CODE.CUSTOM, path, step.options?.message ?? 'Invalid value')],
         };
       }
     } else {

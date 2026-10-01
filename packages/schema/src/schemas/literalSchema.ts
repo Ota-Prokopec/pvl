@@ -1,7 +1,7 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
-import { buildIssue, formatIssueMessageValue, ISSUE_CODE } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type SchemaKind } from './schema.js';
 
 /**
  * Every primitive type `pvl.literal()` can pin a schema to. Objects, arrays
@@ -16,23 +16,11 @@ import { Schema, type SchemaOptions } from './baseSchema.js';
  * const owner = pvl.literal(pinned);
  * ```
  */
-export type LiteralValue = string | number | boolean | bigint;
+export type PossibleLiteralValue = string | number | boolean | bigint;
 
-// The `.coerce()` conversion matching a literal's own type, resolved once at
-// construction rather than re-dispatched on every `.validate()` call, since
-// coercion sits on the validation hot path.
-const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
-  switch (typeof value) {
-    case 'string':
-      return coerceToString;
-    case 'number':
-      return coerceToNumber;
-    case 'boolean':
-      return coerceToBoolean;
-    default:
-      return coerceToBigint;
-  }
-};
+interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends SchemaKind {
+  readonly type: LiteralSchema<LiteralValue, this['Input'], this['Output']>;
+}
 
 /**
  * Matches exactly one constant value. Build one with `pvl.literal(value)`.
@@ -60,17 +48,18 @@ const coercionFor = (value: LiteralValue): ((value: unknown) => unknown) => {
  * ]);
  * ```
  */
-export class LiteralSchema<Value extends LiteralValue> extends Schema<Value, Value> {
-  private readonly _value: Value;
-  private readonly _message: string;
-  private readonly _coerce: (value: unknown) => unknown;
+export class LiteralSchema<
+  LiteralValue extends PossibleLiteralValue,
+  Input = LiteralValue,
+  Output = LiteralValue,
+> extends Schema<Input, Output> {
+  declare readonly '~kind': LiteralSchemaKind<LiteralValue>;
+  private readonly literalValue: LiteralValue;
 
   /** @internal */
-  constructor(value: Value, options?: SchemaOptions) {
+  constructor(literalValue: LiteralValue, options?: IssueEditableProps) {
     super();
-    this._value = value;
-    this._message = options?.message ?? `Expected ${formatIssueMessageValue(value)}`;
-    this._coerce = coercionFor(value);
+    this.literalValue = literalValue;
   }
 
   /**
@@ -82,16 +71,31 @@ export class LiteralSchema<Value extends LiteralValue> extends Schema<Value, Val
    * @internal
    */
   override _coerceInput(value: unknown): unknown {
-    return this._coerce(value);
+    switch (typeof value) {
+      case 'string':
+        return coerceToString;
+      case 'number':
+        return coerceToNumber;
+      case 'boolean':
+        return coerceToBoolean;
+      default:
+        return coerceToBigint;
+    }
   }
 
   /** @internal */
-  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Value> {
-    if (!Object.is(value, this._value)) {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<LiteralValue> {
+    if (!Object.is(value, this.literalValue)) {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_VALUE, this._message, path)],
+        issues: [
+          new Issue(
+            ISSUE_CODE.INVALID_VALUE,
+            path,
+            `Expected ${Issue.formatIssueMessageValue(this.literalValue)}`,
+          ),
+        ],
       };
     }
-    return { value: this._value };
+    return { value } as Result<LiteralValue>;
   }
 }

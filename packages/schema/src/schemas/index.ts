@@ -1,5 +1,5 @@
 export * from './arraySchema.js';
-export * from './baseSchema.js';
+export * from './schema.js';
 export * from './bigintSchema.js';
 export * from './booleanSchema.js';
 // childValidator.ts is deliberately omitted: internal-only, see its top-of-file comment.

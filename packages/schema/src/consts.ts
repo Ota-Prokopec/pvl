@@ -12,4 +12,4 @@
  * schema['~standard'].vendor === VENDOR; // true
  * ```
  */
-export const VENDOR = '@pvl/schema';
+export const VENDOR = '@pvl/schema' as const;

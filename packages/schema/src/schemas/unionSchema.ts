@@ -1,7 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { buildIssue, ISSUE_CODE, type Issue } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type SchemaKind } from './schema.js';
 
 /**
  * The alternative schemas a union tries, in the order given. The first member
@@ -59,6 +59,10 @@ export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[num
  */
 export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number];
 
+interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
+  readonly type: UnionSchema<Members, this['Input'], this['Output']>;
+}
+
 /**
  * Tries each member schema in the order given and succeeds on the first that
  * accepts the value. Build one with `pvl.union(members)`.
@@ -90,15 +94,17 @@ export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[n
  * quiet.validate(true); // { issues: [{ code: 'INVALID_UNION', message: 'expected an id' }] }
  * ```
  */
-export class UnionSchema<Members extends UnionMembers> extends Schema<
-  UnionInput<Members>,
-  UnionOutput<Members>
-> {
+export class UnionSchema<
+  Members extends UnionMembers,
+  Input = UnionInput<Members>,
+  Output = UnionOutput<Members>,
+> extends Schema<Input, Output> {
+  declare readonly '~kind': UnionSchemaKind<Members>;
   private readonly _members: Members;
   private readonly _message: string | undefined;
 
   /** @internal */
-  constructor(members: Members, options?: SchemaOptions) {
+  constructor(members: Members, options?: IssueEditableProps) {
     super();
     this._members = members;
     this._message = options?.message;
@@ -116,7 +122,7 @@ export class UnionSchema<Members extends UnionMembers> extends Schema<
     }
     if (this._message !== undefined) {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_UNION, this._message, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_UNION, path, this._message)],
       };
     }
     return { issues: rejections };

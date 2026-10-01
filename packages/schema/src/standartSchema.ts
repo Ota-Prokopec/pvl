@@ -16,14 +16,14 @@ import type { Result } from './result.js';
  *
  * @example
  * ```ts
- * import { pvl, type PvlStandardProps } from '@pvl/schema';
+ * import { pvl, type StandartSchemaProps } from '@pvl/schema';
  *
- * const props: PvlStandardProps<string, string> = pvl.string()['~standard'];
+ * const props: StandartSchemaProps<string, string> = pvl.string()['~standard'];
  * props.vendor; // '@pvl/schema'
  * props.validate('hello'); // { value: 'hello' }
  * ```
  */
-export type PvlStandardProps<Input = unknown, Output = Input> = Omit<
+export type StandartSchemaProps<Input = unknown, Output = Input> = Omit<
   StandardSchemaV1.Props<Input, Output>,
   'vendor' | 'validate'
 > & {
@@ -40,14 +40,14 @@ export type PvlStandardProps<Input = unknown, Output = Input> = Omit<
  *
  * @example
  * ```ts
- * import { pvl, type PvlStandardSchema } from '@pvl/schema';
+ * import { pvl, type StandartSchema } from '@pvl/schema';
  *
- * const name: PvlStandardSchema<string> = pvl.string().min(1);
+ * const name: StandartSchema<string> = pvl.string().min(1);
  * const user = pvl.object({ name });
  *
  * user.validate({ name: '' }); // { issues: [{ code: 'TOO_SMALL', path: ['name'], ... }] }
  * ```
  */
-export type PvlStandardSchema<Input = unknown, Output = Input> = {
-  readonly '~standard': PvlStandardProps<Input, Output>;
+export type StandartSchema<Input = unknown, Output = Input> = {
+  readonly '~standard': StandartSchemaProps<Input, Output>;
 };

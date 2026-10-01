@@ -1,5 +1,6 @@
-import { ArraySchema, type ArrayItem } from './schemas/arraySchema.js';
-import type { SchemaOptions } from './schemas/baseSchema.js';
+import type { IssueEditableProps } from './issue.js';
+import { ArraySchema } from './schemas/arraySchema.js';
+import type { Schema } from './schemas/schema.js';
 import { BigintSchema } from './schemas/bigintSchema.js';
 import { BooleanSchema } from './schemas/booleanSchema.js';
 import { EnumSchema, type EnumSource } from './schemas/enumSchema.js';
@@ -28,11 +29,10 @@ import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
  */
 // `unknown` for both `Input` and `Output` rather than the types either
 // composite derives from its shape: a modifier widens those (`.optional()`
-// adds `undefined`, `.transform()` replaces the output entirely), and a
-// modified composite is still a candidate.
+// adds `undefined`), and a modified composite is still a candidate.
 export type CompileCandidate =
   | ObjectSchema<ObjectShape, UnknownKeys, unknown, unknown>
-  | ArraySchema<ArrayItem, unknown, unknown>;
+  | ArraySchema<Schema<unknown, unknown>, unknown, unknown>;
 
 /**
  * The single entry point of `@pvl/schema`. Every schema factory hangs off
@@ -65,7 +65,7 @@ export const pvl = {
    * pvl.string({ message: 'name must be text' }).validate(42);
    * ```
    */
-  string: (options?: SchemaOptions): StringSchema => new StringSchema(options),
+  string: (options?: IssueEditableProps): StringSchema => new StringSchema(options),
 
   /**
    * A schema accepting a JavaScript `number` — floats and integers alike,
@@ -80,7 +80,7 @@ export const pvl = {
    * pvl.number().int().min(0).validate(-1); // { issues: [{ code: 'TOO_SMALL', ... }] }
    * ```
    */
-  number: (options?: SchemaOptions): NumberSchema => new NumberSchema(options),
+  number: (options?: IssueEditableProps): NumberSchema => new NumberSchema(options),
 
   /**
    * A schema accepting a JavaScript `boolean`. Use `pvl.literal(true)` when
@@ -94,7 +94,7 @@ export const pvl = {
    * pvl.boolean().validate('false'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
    * ```
    */
-  boolean: (options?: SchemaOptions): BooleanSchema => new BooleanSchema(options),
+  boolean: (options?: IssueEditableProps): BooleanSchema => new BooleanSchema(options),
 
   /**
    * A schema accepting a real JavaScript `bigint`, with optional `.min()` and
@@ -109,7 +109,7 @@ export const pvl = {
    * pvl.bigint().coerce().validate('42'); // { value: 42n }
    * ```
    */
-  bigint: (options?: SchemaOptions): BigintSchema => new BigintSchema(options),
+  bigint: (options?: IssueEditableProps): BigintSchema => new BigintSchema(options),
 
   /**
    * A schema matching exactly one constant value, compared with `Object.is`.
@@ -125,7 +125,7 @@ export const pvl = {
    */
   literal: <Value extends LiteralValue>(
     value: Value,
-    options?: SchemaOptions,
+    options?: IssueEditableProps,
   ): LiteralSchema<Value> => new LiteralSchema(value, options),
 
   /**
@@ -144,8 +144,10 @@ export const pvl = {
    * // { value: { name: 'Ada', age: 36 } }
    * ```
    */
-  object: <Shape extends ObjectShape>(shape: Shape, options?: SchemaOptions): ObjectSchema<Shape> =>
-    new ObjectSchema(shape, options),
+  object: <Shape extends ObjectShape>(
+    shape: Shape,
+    options?: IssueEditableProps,
+  ): ObjectSchema<Shape> => new ObjectSchema(shape, options),
 
   /**
    * A schema validating every element against one shared item schema, with
@@ -161,8 +163,10 @@ export const pvl = {
    * tags.validate(['a', 2]); // { issues: [{ path: [1], code: 'INVALID_TYPE', ... }] }
    * ```
    */
-  array: <Item extends ArrayItem>(item: Item, options?: SchemaOptions): ArraySchema<Item> =>
-    new ArraySchema(item, options),
+  array: <Item extends Schema<unknown, unknown>>(
+    item: Item,
+    options?: IssueEditableProps,
+  ): ArraySchema<Item> => new ArraySchema(item, options),
 
   /**
    * A schema accepting one of a fixed set of values, from either an `as
@@ -182,7 +186,7 @@ export const pvl = {
   // readonly tuple of literals rather than widening to `string[]`.
   enum: <const Source extends EnumSource>(
     source: Source,
-    options?: SchemaOptions,
+    options?: IssueEditableProps,
   ): EnumSchema<Source> => new EnumSchema(source, options),
 
   /**
@@ -204,7 +208,7 @@ export const pvl = {
   // readonly tuple of member schemas rather than widening to their union.
   union: <const Members extends UnionMembers>(
     members: Members,
-    options?: SchemaOptions,
+    options?: IssueEditableProps,
   ): UnionSchema<Members> => new UnionSchema(members, options),
 
   /**
