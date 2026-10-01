@@ -1,13 +1,11 @@
 # `@pvl/schema-compiler`
 
-The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. This directory is currently empty except for this file — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for how this package relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`, `Standalone Key`) referenced throughout this file.
+The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. This directory is currently empty except for this file — implementation hasn't started yet; this documents the conventions it will be built under. See the root [`MONOREPO.md`](../../MONOREPO.md) for how this package relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`, `Standalone Key`) referenced throughout this file.
 
 ## Technology
 
 - TypeScript, ESM source (see root `AGENTS.md` Core Rules). Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md).
-
-## Architecture
 
 ### Discovery: static AST analysis, not dynamic import
 
