@@ -18,6 +18,10 @@ _Avoid_: Error, Violation.
 The outcome of validating a value against a Schema: either the accepted value (possibly transformed) or the list of Issues that failed it. The term is the name of the type `@pvl/schema`'s validation call returns, and the one used by the [Standard Schema](./docs/specification/standard-schema.md) specification the package conforms to.
 _Avoid_: Validation Result, Parse Result.
 
+**pvl Standard Schema**:
+A [Standard Schema](./docs/specification/standard-schema.md) that `@pvl/schema` itself produces — an interpreted Schema or a Compiled Schema — told apart by its `vendor` being exactly `'@pvl/schema'`. It is the only kind of Standard Schema a `pvl.object` field or `pvl.array` element may be; another library's Standard Schema is rejected at the type level ([ADR-0018](./docs/adr/0018-composites-accept-pvl-standard-schema-fields.md)). Typed as `PvlStandardSchema`.
+_Avoid_: Foreign schema, any Standard Schema.
+
 **Modifier**:
 Any chainable method on a Schema that returns a Schema, as opposed to one that validates or reads it. The umbrella term over Shared Modifier and Local Modifier; every Modifier is one or the other. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
 _Avoid_: Combinator, wrapper.
