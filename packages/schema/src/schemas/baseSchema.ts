@@ -27,6 +27,53 @@ export type SchemaOptions = {
   readonly message?: string;
 };
 
+// Derived from the spec's own `Props` rather than re-declared, narrowing the
+// two members this library pins down: the vendor literal, and a `validate`
+// that is always synchronous and returns this library's own `Result`.
+/**
+ * The `"~standard"` property of a Standard Schema produced by this library —
+ * an interpreted schema built with a `pvl.*` factory, or a Compiled Schema
+ * produced by `@pvl/schema-compiler`. `vendor` is always `'@pvl/schema'`, and
+ * `validate` is always synchronous.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type PvlStandardProps } from '@pvl/schema';
+ *
+ * const props: PvlStandardProps<string> = pvl.string()['~standard'];
+ * props.vendor; // '@pvl/schema'
+ * props.validate('hello'); // { value: 'hello' }
+ * ```
+ */
+export type PvlStandardProps<Input = unknown, Output = Input> = Omit<
+  StandardSchemaV1.Props<Input, Output>,
+  'vendor' | 'validate'
+> & {
+  readonly vendor: typeof VENDOR;
+  readonly validate: (value: unknown, options?: StandardSchemaV1.Options) => Result<Output>;
+};
+
+/**
+ * A Standard Schema this library produced: any schema built with a `pvl.*`
+ * factory, or a Compiled Schema produced by `@pvl/schema-compiler`. This is
+ * what `pvl.object()` accepts as a field, `pvl.array()` as an element and
+ * `pvl.union()` as a member. Schemas from other Standard Schema libraries are
+ * not accepted.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type PvlStandardSchema } from '@pvl/schema';
+ *
+ * const name: PvlStandardSchema<string> = pvl.string();
+ * const user = pvl.object({ name });
+ *
+ * user.validate({ name: 42 }); // { issues: [{ path: ['name'], ... }] }
+ * ```
+ */
+export type PvlStandardSchema<Input = unknown, Output = Input> = {
+  readonly '~standard': PvlStandardProps<Input, Output>;
+};
+
 // `.optional()`/`.nullable()`/`.refine()`/`.transform()`/`.coerce()` — the
 // Shared Modifiers — are recorded in one field on this class (flags plus one
 // ordered step list) rather than as wrapper subclasses — see
@@ -55,10 +102,9 @@ export type SchemaOptions = {
  * result.issues; // undefined — an absent value is accepted
  * ```
  */
-export abstract class Schema<Input = unknown, Output = Input> implements StandardSchemaV1<
-  Input,
-  Output
-> {
+export abstract class Schema<Input = unknown, Output = Input>
+  implements StandardSchemaV1<Input, Output>, PvlStandardSchema<Input, Output>
+{
   private _modifiers: SharedModifiers = DEFAULT_MODIFIERS;
 
   /**
@@ -68,7 +114,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    *
    * @internal
    */
-  get '~standard'(): StandardSchemaV1.Props<Input, Output> {
+  get '~standard'(): PvlStandardProps<Input, Output> {
     return {
       version: 1,
       vendor: VENDOR,

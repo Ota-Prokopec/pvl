@@ -1,7 +1,8 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssue, ISSUE_CODE, type Issue, type IssueCode } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type PvlStandardSchema, type SchemaOptions } from './baseSchema.js';
+import { toChildValidator, type ChildValidator } from './childValidator.js';
 
 type ArrayCheck = {
   readonly code: IssueCode;
@@ -10,8 +11,9 @@ type ArrayCheck = {
 };
 
 /**
- * The element schema an array schema validates every item against. Any schema
- * qualifies, including another array schema or an object schema.
+ * The element schema an array schema validates every item against. Any
+ * Standard Schema this library produced qualifies — another array schema, an
+ * object schema, a Compiled Schema — but never one from another library.
  *
  * @example
  * ```ts
@@ -21,7 +23,7 @@ type ArrayCheck = {
  * const tags = pvl.array(item);
  * ```
  */
-export type ArrayItem = Schema<unknown, unknown>;
+export type ArrayItem = PvlStandardSchema<unknown, unknown>;
 
 /**
  * The array type a value must match going in, composed from the item
@@ -93,6 +95,8 @@ export class ArraySchema<
   Output = ArrayOutput<Item>,
 > extends Schema<Input, Output> {
   private readonly _item: Item;
+  // Resolved once at construction, since it sits on the validation hot path.
+  private readonly _validateItem: ChildValidator;
   private readonly _typeMessage: string;
   // Not `readonly`: `_withCheck` re-points it on a clone of this instance.
   private _checks: ReadonlyArray<ArrayCheck>;
@@ -101,6 +105,7 @@ export class ArraySchema<
   constructor(item: Item, options?: SchemaOptions) {
     super();
     this._item = item;
+    this._validateItem = toChildValidator(item);
     this._typeMessage = options?.message ?? 'Expected array';
     this._checks = [];
   }
@@ -271,7 +276,7 @@ export class ArraySchema<
     const output: unknown[] = [];
     const issues: Issue[] = [];
     for (let index = 0; index < value.length; index += 1) {
-      const result = this._item._validate(value[index], [...path, index]);
+      const result = this._validateItem(value[index], [...path, index]);
       if (result.issues) {
         issues.push(...result.issues);
         continue;

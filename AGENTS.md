@@ -115,6 +115,6 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) — the Destination File defaults into the application's own `node_modules`
 - [ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md) — `Compiled Schema`s are terminal; no modifier attaches after compilation
 - [ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md) — generated code inlines within a node and delegates at composite boundaries
-- [ADR-0018](./docs/adr/0018-composites-accept-any-standard-schema-field.md) — composites accept any Standard Schema as a field, re-prefixing `Issue` paths
+- [ADR-0018](./docs/adr/0018-composites-accept-pvl-standard-schema-fields.md) — composites accept any Standard Schema `@pvl/schema` produced as a field, re-prefixing `Issue` paths
 
 Domain documentation is single-context: one root [`CONTEXT.md`](CONTEXT.md) plus [`docs/adr/`](docs/adr/), no per-package `CONTEXT.md` — see [docs/agents/domain.md](docs/agents/domain.md) for how the engineering skills consume it.
