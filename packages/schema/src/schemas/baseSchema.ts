@@ -1,5 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
+import type { PvlStandardProps } from '../pvlStandardSchema.js';
 import type { Result } from '../result.js';
 import {
   DEFAULT_MODIFIERS,
@@ -68,7 +69,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    *
    * @internal
    */
-  get '~standard'(): StandardSchemaV1.Props<Input, Output> {
+  get '~standard'(): PvlStandardProps<Input, Output> {
     return {
       version: 1,
       vendor: VENDOR,

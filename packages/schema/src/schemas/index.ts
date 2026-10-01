@@ -2,6 +2,7 @@ export * from './arraySchema.js';
 export * from './baseSchema.js';
 export * from './bigintSchema.js';
 export * from './booleanSchema.js';
+// childValidator.ts is deliberately omitted: internal-only, see its top-of-file comment.
 export * from './enumSchema.js';
 export * from './literalSchema.js';
 export * from './numberSchema.js';
