@@ -1,11 +1,14 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssue, ISSUE_CODE, type Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type PvlStandardSchema, type SchemaOptions } from './baseSchema.js';
+import { toChildValidator, type ChildValidator } from './childValidator.js';
 
 /**
  * The alternative schemas a union tries, in the order given. The first member
  * that accepts the value wins, so order matters where two members overlap.
+ * A member is any Standard Schema this library produced — a `pvl.*` schema or
+ * a Compiled Schema — but never one from another library.
  *
  * @example
  * ```ts
@@ -15,7 +18,7 @@ import { Schema, type SchemaOptions } from './baseSchema.js';
  * const id = pvl.union(members);
  * ```
  */
-export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
+export type UnionMembers = ReadonlyArray<PvlStandardSchema<unknown, unknown>>;
 
 // Homomorphic mapped tuple types: mapping over `Members` (a tuple when the
 // `pvl.union()` factory infers it via `const`) preserves its tuple shape, so
@@ -94,21 +97,22 @@ export class UnionSchema<Members extends UnionMembers> extends Schema<
   UnionInput<Members>,
   UnionOutput<Members>
 > {
-  private readonly _members: Members;
+  // Resolved once at construction, since they sit on the validation hot path.
+  private readonly _members: ReadonlyArray<ChildValidator>;
   private readonly _message: string | undefined;
 
   /** @internal */
   constructor(members: Members, options?: SchemaOptions) {
     super();
-    this._members = members;
+    this._members = members.map(toChildValidator);
     this._message = options?.message;
   }
 
   /** @internal */
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<UnionOutput<Members>> {
     const rejections: Issue[] = [];
-    for (const member of this._members) {
-      const result = member._validate(value, path);
+    for (const validateMember of this._members) {
+      const result = validateMember(value, path);
       if (!result.issues) {
         return { value: result.value as UnionOutput<Members> };
       }

@@ -53,7 +53,7 @@ Turning a Schema into a Compiled Schema before the program runs, as opposed to v
 _Avoid_: JIT, runtime compilation.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a [Standard Schema](./docs/specification/standard-schema.md)-conformant object — `~standard`, `validate`, `shape`, `element` — backed by emitted Instructions rather than by the Schema tree. It is terminal, so no modifier attaches to it ([ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md)).
+The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a [Standard Schema](./docs/specification/standard-schema.md)-conformant object — `~standard`, `validate`, `shape`, `element` — backed by emitted Instructions rather than by the Schema tree. It is terminal, so no modifier attaches to it ([ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md)). It reports the same `vendor` as an interpreted Schema, which is what lets it sit as a field of an interpreted composite — composites accept any Standard Schema this library produced, and no other library's ([ADR-0018](./docs/adr/0018-composites-accept-pvl-standard-schema-fields.md)).
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Instruction**:

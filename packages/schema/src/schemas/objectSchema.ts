@@ -2,7 +2,8 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
 import { buildIssue, ISSUE_CODE, type Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import { Schema, type PvlStandardSchema, type SchemaOptions } from './baseSchema.js';
+import { toChildValidator, type ChildValidator } from './childValidator.js';
 
 /**
  * What an object schema does with keys its shape does not declare. Exactly
@@ -41,7 +42,9 @@ export const UNKNOWN_KEYS = {
 export type UnknownKeys = ValueOfEnum<typeof UNKNOWN_KEYS>;
 
 /**
- * The field schemas an object schema composes, one per declared key.
+ * The field schemas an object schema composes, one per declared key. A field
+ * is any Standard Schema this library produced — a `pvl.*` schema or a
+ * Compiled Schema — but never one from another library.
  *
  * @example
  * ```ts
@@ -55,7 +58,7 @@ export type UnknownKeys = ValueOfEnum<typeof UNKNOWN_KEYS>;
  * const user = pvl.object(shape);
  * ```
  */
-export type ObjectShape = Readonly<Record<string, Schema<unknown, unknown>>>;
+export type ObjectShape = Readonly<Record<string, PvlStandardSchema<unknown, unknown>>>;
 
 type ShapeInput<Shape extends ObjectShape> = {
   [Key in keyof Shape]: StandardSchemaV1.InferInput<Shape[Key]>;
@@ -203,7 +206,7 @@ export class ObjectSchema<
   private _unknownKeyMessage: string | undefined;
   // Derived from the shape once at construction rather than per `.validate()`
   // call, since both sit on the validation hot path.
-  private readonly _fields: ReadonlyArray<readonly [string, Schema<unknown, unknown>]>;
+  private readonly _fields: ReadonlyArray<readonly [string, ChildValidator]>;
   private readonly _declaredKeys: ReadonlySet<string>;
   // Its own copy of the argument, for the same reason the two derived fields
   // above are snapshots: the caller still holds the object literal they passed
@@ -218,7 +221,7 @@ export class ObjectSchema<
     // Spreading a generic widens to its constraint, which is what the
     // assertion restores; the copy is per-construction, not per-`.validate()`.
     this._shape = { ...shape } as Shape;
-    this._fields = Object.entries(shape);
+    this._fields = Object.entries(shape).map(([key, field]) => [key, toChildValidator(field)]);
     this._declaredKeys = new Set(Object.keys(shape));
   }
 
@@ -388,8 +391,8 @@ export class ObjectSchema<
     const output: Record<string, unknown> = {};
     const issues: Issue[] = [];
 
-    for (const [key, field] of this._fields) {
-      const result = field._validate(input[key], [...path, key]);
+    for (const [key, validateField] of this._fields) {
+      const result = validateField(input[key], [...path, key]);
       if (result.issues) {
         issues.push(...result.issues);
         continue;
