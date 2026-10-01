@@ -1,11 +1,10 @@
 # TypeScript Best Practices for Coding Agents
 
-This guide outlines the core rules and standards that coding agents must follow when writing TypeScript code to ensure optimal type safety, maintainability, and clarity.
+The rules coding agents follow when writing TypeScript in this repo. JavaScript is prohibited.
 
-## Core Rules
+## Types
 
-- **Always use types, never use interfaces**
-  Use the `type` keyword for all object definitions and contract declarations to ensure a unified approach and leverage advanced type features.
+- **Always use `type`, never `interface`** — for object definitions and contract declarations alike, so the approach is uniform and advanced type features stay available.
 
 ```typescript
 type User = {
@@ -14,8 +13,9 @@ type User = {
 };
 ```
 
-- **Use Args suffix for function arguments**
-  Name function argument types using the `Args` suffix, wrapping multiple parameters into a single descriptive object.
+- **`Args` suffix for function arguments**: wrap multiple parameters into one descriptive object type.
+- **`Options` suffix for class configurations**: constructor or initialization options.
+- **`Payload` suffix for a complex return type.**
 
 ```typescript
 type RegisterUserArgs = {
@@ -23,15 +23,6 @@ type RegisterUserArgs = {
   username: string;
 };
 
-const registerUser = (args: RegisterUserArgs) => {
-  // implementation
-};
-```
-
-- **Use Options suffix for class configurations**
-  Name class constructor configurations or initialization options using the `Options` suffix.
-
-```typescript
 type LoggerOptions = {
   level: string;
   silent: boolean;
@@ -40,49 +31,16 @@ type LoggerOptions = {
 class Logger {
   constructor(options: LoggerOptions) {}
 }
-```
 
-- **Always export type when exporting class or function**
-
-- **Always use arrow functions**
-
-```typescript
-const calculateTotal = (args: CalculateTotalArgs): number => {
-  return args.count * 2;
-};
-```
-
-- **Enable strict mode**
-  Always ensure `strict: true` is enabled in the configuration to catch potential null or undefined errors.
-
-- **Avoid the any type**
-  Do not use `any` under any circumstances. If a type is genuinely unknown, use `unknown` and implement type guards.
-
-- **Define explicit return types**
-  Always declare the return types of functions and methods explicitly to make the API boundaries clear.
-
-```typescript
-const calculateTotal = (args: CalculateTotalArgs): number => {
-  return args.count * 2;
-};
-```
-
-- **Define payload type for complex return type**
-
-```typescript
 type CalculateTotalPayload = {
   result: number;
 };
-
-const calculateTotal = (args: CalculateTotalArgs): CalculateTotalPayload => {
-  return {
-    result: args.count * 2,
-  };
-};
 ```
 
-- **Prefer type guards and type predicates**
-  Use type predicates to narrow down types safely instead of forcing types via type assertions.
+- **Always export the type when exporting a class or function.**
+- **Enable strict mode** — `strict: true`, always, to catch potential null/undefined errors.
+- **Avoid `any` entirely.** Where a type is genuinely unknown use `unknown` and implement type guards.
+- **Prefer type guards and type predicates** over forcing a type with an assertion.
 
 ```typescript
 type Admin = { role: 'admin' };
@@ -93,20 +51,27 @@ const isAdmin = (user: Admin | Guest): user is Admin => {
 };
 ```
 
-- **Use const assertions for literal types**
-  Use `as const` to create immutable literal types instead of standard enums.
+- **Keep types clean and concise** — no deep nesting or unnecessary generics where a simple definition suffices.
+
+## Functions
+
+- **Always use arrow functions**, with an **explicit return type**, so API boundaries stay clear.
 
 ```typescript
-const Roles = {
-  Admin: 'admin',
-  User: 'user',
-} as const;
+const calculateTotal = (args: CalculateTotalArgs): number => {
+  return args.count * 2;
+};
 ```
 
-- **Use const assertions for enums — never use the `enum` keyword**
-  Never use the TypeScript `enum` keyword. Instead, use `as const` objects where both the keys and values are UPPER_SNAKE_CASE. When values are externally dictated (e.g. `NODE_ENV`, HTTP status codes), they may differ from the key format. Always derive the value union type using the `ValueOfEnum` utility type.
+## Enums: `as const` objects plus `ValueOfEnum`
+
+**Never use the TypeScript `enum` keyword.** Declare a fixed set of related named values as an `as const` object with UPPER_SNAKE_CASE keys and values, then derive the value union with `ValueOfEnum`, imported from `@repo/types`. Externally dictated values (e.g. `NODE_ENV`, HTTP status codes) may differ from the key format.
+
+Never write `typeof X[keyof typeof X]` inline, a hand-written union, or a local copy of `ValueOfEnum` — every package that needs it takes `@repo/types` as a `workspace:*` dependency.
 
 ```typescript
+import type { ValueOfEnum } from '@repo/types';
+
 export const SYSTEM_ROLE = {
   OWNER: 'OWNER',
   MEMBER: 'MEMBER',
@@ -129,40 +94,20 @@ export const NODE_ENV = {
 } as const;
 
 export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
-```
 
-- **Keep types clean and concise**
-  Avoid over-engineering types with deep nesting or unnecessary generics when a simple type definition suffices.
-
-- **Always use ES modules**
-
-- **Never use "as" during importing if it is not required**
-
-- **Use ValueOfEnum for extracting enum value types**
-  Always use the `ValueOfEnum` utility type, imported from `@repo/types`, to extract the union of values from a `const` enum object. Never use `typeof X[keyof typeof X]` inline, a manual union, or a locally re-declared copy of `ValueOfEnum` — every package that needs it takes `@repo/types` as a `workspace:*` dependency.
-
-```typescript
-// Correct
-import type { ValueOfEnum } from '@repo/types';
-
-const ROLES = {
-  ADMIN: 'ADMIN',
-  USER: 'USER',
-} as const;
-
-type Role = ValueOfEnum<typeof ROLES>; // 'ADMIN' | 'USER'
-
-// Incorrect — inline typeof/keyof
-type Role = (typeof ROLES)[keyof typeof ROLES];
-
-// Incorrect — local re-declaration instead of importing from @repo/types
+// Incorrect — inline typeof/keyof, or a local re-declaration:
+type Role = (typeof SYSTEM_ROLE)[keyof typeof SYSTEM_ROLE];
 type ValueOfEnum<T> = T[keyof T];
 ```
 
-- **Barrel files always use `export * from '...'`**
-  In `index.ts` barrel files, re-export every sibling module with `export * from './module.js';`. Never cherry-pick named or type-only exports (`export { x } from ...`, `export type { X } from ...`) in a barrel — a source module either belongs in the barrel or it doesn't. This keeps barrels mechanically regenerable (see `pnpm barrels`) and consistent regardless of what a module happens to export today.
+Where a constant is a single value rather than part of an enum set, see [`docs/specification/enums-and-constants.md`](../specification/enums-and-constants.md).
 
-  **Exception: deliberately internal-only modules.** A sibling module whose exports are not part of the package's public API (e.g. `schemas/sharedModifiers.ts` in `@pvl/schema` — internal modifier-decision logic, not something a consumer of the package imports) is omitted from the barrel on purpose. Mark the omission with a one-line comment at the barrel's usual alphabetical slot for that module, so its absence reads as intentional rather than something a future agent should "fix" by adding it back. This is a narrow, explicitly-called-out carve-out, not a general license to cherry-pick — every other sibling module still belongs in the barrel unconditionally.
+## Modules
+
+- **Always use ES modules**, and never `as` in an import unless it is required.
+- **Barrel files always use `export * from '...'`.** In an `index.ts` barrel, re-export every sibling with `export * from './module.js';`. Never cherry-pick named or type-only exports (`export { x } from ...`, `export type { X } from ...`) — a source module either belongs in the barrel or it doesn't. This keeps barrels mechanically regenerable (see `pnpm barrels`) and consistent regardless of what a module happens to export today.
+
+  **Exception: deliberately internal-only modules.** A sibling whose exports are not part of the package's public API (e.g. `schemas/sharedModifiers.ts` in `@pvl/schema` — internal modifier-decision logic no consumer imports) is omitted on purpose. Mark the omission with a one-line comment at the barrel's usual alphabetical slot for that module, so its absence reads as intentional rather than as something a future agent should "fix". This is a narrow carve-out, not a general license to cherry-pick.
 
 ```typescript
 // Correct
@@ -174,7 +119,9 @@ export { Exception } from './Exception.js';
 export type { AnyException } from './Exception.js';
 ```
 
-- **Define env schema using createEnv from @repo/utils package**
+## Environment variables
+
+Define an env schema with `createEnv` from `@repo/utils`:
 
 ```typescript
 import { createEnv } from '@repo/utils';

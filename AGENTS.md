@@ -1,40 +1,37 @@
 # AGENTS.md
 
-## Architecture
+`PVL` (Precompiled Validation Library) is a validation library that can compile schemas into optimized code (e.g. `if`/`for`) for fast runtime validation.
+Project is a pnpm + Turborepo TypeScript monorepo. Two packages define the project:
 
-- main architecture: turborepo monorepo
-- package manager: pnpm
-- programming language: TypeScript
+- **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pvl/schema`) — a schema-validation library in the spirit of [Zod](https://zod.dev): compose schemas and validate values against them at runtime. Implemented; see the `zod` skill.
+- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`) — the ahead-of-time compiler. Statically parses schema source (ts-morph) for `pvl.compile(...)` markers and emits a single `Destination File` in which each marked schema is a `Compiled Schema` running straight-line instructions instead of walking the schema tree at runtime. Not implemented yet.
 
-  `pvl` is split into two pieces:
+Supporting entries, each with its own `AGENTS.md`: [`apps/playground`](./apps/playground/AGENTS.md) (private scratch app for watching `@pvl/schema` work), [`apps/docs`](./apps/docs/AGENTS.md) (VitePress guide pages plus a TypeDoc-generated API reference; deployment not set up), [`packages/types`](./packages/types/AGENTS.md) (shared TypeScript types). `packages/eslint-config` and `packages/typescript-config` are the shared lint/type-check config packages.
 
-- **[`packages/schema`](./packages/schema/AGENTS.md)** (npm: `@pvl/schema`) — a standalone schema-validation library in the spirit of [Zod](https://zod.dev): compose schemas and validate values against them at runtime. See the Zod skill.
+Read an entry's own `AGENTS.md` before working inside it — full technology, architecture and coding-style detail lives there, not here. [`MONOREPO.md`](./MONOREPO.md) inventories the workspace; [`CONTEXT.md`](./CONTEXT.md) is the domain glossary.
 
-- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm: `@pvl/schema-compiler`) — the "ahead-of-time" compiler. Statically parses schema source (via ts-morph) for `pvl.compile(...)` markers and emits a single `Destination File` in which each marked schema is a `Compiled Schema` running straight-line instructions instead of walking the schema tree at runtime.
+## Commands
 
-Both directories exist with their own `AGENTS.md` (full technology/architecture/coding-style detail lives there, not here); `schema` is implemented, `schema-compiler` is not yet. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the cross-package shape and [CONTEXT.md](./CONTEXT.md) for the domain glossary.
+Run from the repo root; Turborepo fans each one out across the workspace.
 
-The `apps/` holds two entries:
+- `pnpm dev` — watch/dev mode for every app and package
+- `pnpm docs:dev` / `pnpm docs:build` — generate the API reference, then serve or build the documentation site
+- The six checklist commands below
 
-- **[`apps/playground`](./apps/playground/AGENTS.md)** (`playground`, private) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so `@pvl/schema` can be watched working without writing a throwaway test. It has no tests on purpose, and requires `@pvl/schema` to have been built before it runs; its own `AGENTS.md` explains why.
+## Post-Modification Checklist
 
-- **[`apps/docs`](./apps/docs/AGENTS.md)** (`docs`, private) — the user-facing documentation site for `@pvl/schema`: a VitePress site whose guide pages are hand-written and whose API reference is generated from the library's source by TypeDoc into a gitignored `content/api/`. Run it with `pnpm docs:dev` and build it with `pnpm docs:build`. It pins its own `typescript: ~5.9.3` because TypeDoc does not accept the repo-wide 7.0.2 — see [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) before touching that. Deployment is not set up. It has no tests on purpose.
+After **every** code change — no exceptions — run these and fix any failure before considering the task done:
 
-`packages/eslint-config` and `packages/typescript-config` remain as generic shared config, reusable by `@pvl/schema`/`@pvl/schema-compiler`. `packages/ui` also remains, but it has no current consumer — neither `apps/playground` nor `apps/docs` renders React; it's kept intentionally for a future app rather than repurposed or removed — treat it as unused-but-deliberate scaffolding, not project code.
+```bash
+pnpm format        # auto-fixes; the rest must each exit zero
+pnpm format:check
+pnpm lint
+pnpm check-types   # typechecks every app and package
+pnpm test          # every package's unit + integration suites
+pnpm build         # builds every app and package
+```
 
-## Root Commands
-
-Run from the repo root (executed across the workspace via Turborepo):
-
-- `pnpm build` — build all apps and packages
-- `pnpm dev` — run all apps and packages in watch/dev mode
-- `pnpm lint` — lint all apps and packages
-- `pnpm format` — format the repo with Prettier
-- `pnpm check-types` — typecheck all apps and packages
-- `pnpm format:check` — check formatting without writing (non-writing Prettier check)
-- `pnpm docs:dev` — generate the API reference and serve the documentation site locally
-- `pnpm docs:build` — generate the API reference and build the documentation site
-- `pnpm test` — run every package's test suite
+Do not report a task as complete if any of these commands exit with a non-zero status. Fix the root cause; do not suppress errors with ignore comments or skip flags.
 
 ## Issue Tracker
 
@@ -44,88 +41,80 @@ Issues live as GitHub issues on `Ota-Prokopec/pvl`, managed via the `gh` CLI. Se
 
 This repo uses the default canonical five-label vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
 
-## Domain Docs
-
-Single-context layout: one `CONTEXT.md` and `docs/adr/` at the repo root (no per-package `CONTEXT.md`). See [docs/agents/domain.md](docs/agents/domain.md).
-
 ## Core Rules
 
-- Package manager: pnpm
-- Modules: ESM
-- Always scope non-global .env into particular app as .env.production for production or .env.development for development
-- node_modules are stored in root node_modules/ folder
-- Prefer an existing NPM package over implementing functionality from scratch.
-- All GitHub activity performed by Claude Code must be identifiable as such. **Subject lines — commit messages, issue titles, and PR titles — use the conventional-commit-style format `CLAUDE(<type>): <short description>`**, where `<type>` is one of `feat` (new capability), `fix` (bug fix), `docs` (documentation only, e.g. an ADR), `refactor` (no behavior change), `test` (test-only change), or `chore` (tooling/config/deps) — e.g. `CLAUDE(feat): add combined self-hosted image`. Everything else posted to GitHub (issue comments, PR descriptions/bodies, close descriptions) is prose, not a subject line, and keeps the plain `CLAUDE: ` prefix instead.
-- **Every PR body must state which issue(s) it addresses.** If the PR targets the repo's default branch (`main`), use a GitHub closing keyword (`Closes #<n>` / `Resolves #<n>`) so merging auto-closes the issue — the agent still never closes an issue directly, but letting the user's merge trigger the auto-close is fine. If the PR targets an intermediate branch instead (e.g. a spec integration branch, not `main`), a closing keyword won't actually fire on that merge — state the relationship in plain prose instead (e.g. "Part of #14, resolves #16") and let the eventual PR into `main` carry the real closing keyword.
-- **All finished work must land through a pull request — never commit directly to `main`.** Branch, commit, push, and open a PR (title/description prefixed `CLAUDE: `) for the user to review and merge; the agent never merges its own PR. This applies to every piece of done work, not just the issue-driven and spec/ticket pipeline flows below.
-- **No "Source Layout" sections in any `AGENTS.md`.** A file tree with per-file/per-directory descriptions goes stale the moment a file is added, renamed, or moved, and duplicates what belongs next to the code. Document a file's purpose as a short comment at the top of that file (or, for a directory, its barrel/index file) instead.
-- **[`CONTEXT.md`](CONTEXT.md) (root) is the living glossary and domain model for this project.** It defines precise domain terms — services, entities, auth/role vocabulary, flag-evaluation concepts, contract/schema terminology — each cross-linked to the ADR or spec doc that's the source of truth for it, so AI coding agents don't drift on project jargon. Read it before working on unfamiliar domain code. Whenever a term is coined, renamed, or redefined, update its entry there in the same change.
-- **Never write into the `skills/` folder under `.agents/` (or its `.claude/skills` symlinks).** Those skills are installed from an external source — hand edits get silently lost on the next install/sync and don't reflect anywhere the source manages them. If a skill's behavior needs to change, raise it with the user instead of editing the file directly.
-- Every entry under `apps/*` and `packages/*` has its own `AGENTS.md` describing its technology, architecture, best practices, and coding style. Read the relevant one before working inside that app/package — in addition to, not instead of, this file.
-- If you make a change that is an architectural decision, create or edit an architectural decision record (ADR) in `docs/adr`.
+- Package manager pnpm, ESM modules, node_modules hoisted to the root `node_modules/`.
+- Prefer an existing npm package over implementing functionality from scratch.
+- Scope every non-global `.env` into its app as `.env.production` or `.env.development`.
+- A change that is an architectural decision gets an ADR in [`docs/adr/`](docs/adr/).
+- **[`CONTEXT.md`](CONTEXT.md) is the living glossary and domain model.** Read it before working on unfamiliar domain code, and update a term's entry in the same change that coins, renames or redefines it. Each entry cross-links the ADR or spec doc that owns it.
+- **No "Source Layout" sections in any `AGENTS.md`.** A file tree with per-file descriptions goes stale the moment a file moves, and duplicates what belongs next to the code. Document a file's purpose in a short comment at the top of that file (or, for a directory, its barrel).
+- **Skills under `.agents/skills/` (and their `.claude/skills` symlinks) are installed from an external source — raise a needed behavior change with the user instead of editing the file.** A hand edit is silently lost on the next install. Repo-specific layers on top of a skill live in [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
+
+## GitHub
+
+Issues and specs live as GitHub issues on `Ota-Prokopec/pvl`, driven through the `gh` CLI — see [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md) for the concrete commands and the wayfinding operations, and [docs/agents/triage-labels.md](docs/agents/triage-labels.md) for the triage label vocabulary.
+
+All GitHub activity by Claude Code must be identifiable as such:
+
+- **Subject lines — commit messages, issue titles, PR titles — use `CLAUDE(<type>): <short description>`**, where `<type>` is `feat`, `fix`, `docs`, `refactor`, `test` or `chore` (e.g. `CLAUDE(feat): add combined self-hosted image`).
+- Everything else posted to GitHub (issue comments, PR bodies, close descriptions) is prose and takes the plain `CLAUDE: ` prefix.
+- **All finished work lands through a pull request — never a commit straight to `main`.** Branch, commit, push, open the PR, and leave the merge to the user; the agent never merges its own PR.
+- **Every PR body states the issue(s) it addresses.** Targeting `main`, use a closing keyword (`Closes #<n>`) so the user's merge auto-closes the issue — the agent still never closes an issue itself. Targeting an intermediate branch (e.g. a spec integration branch), a keyword won't fire, so state the relationship in prose (`Part of #14, resolves #16`) and let the eventual PR into `main` carry the closing keyword.
+
+### Issue Resolution Workflow
+
+`#<int>` (e.g. `#5`) means issue number `<int>` in this repo.
+
+- Branch off `main` as `issue/<number>-<slug>` (e.g. `issue/5-fix-flag-cache-eviction`), commit the fix there, push, and open a PR into `main` whose body says `Closes #<number>`. Then post a `CLAUDE: ` comment on the issue linking the PR.
+- Every solved issue — parent or sub-issue — gets its own dedicated commit; never bundle two issues into one commit.
+- Before starting an issue, look up its sub-issues (`gh issue view <int> --json subIssues`, falling back to `gh api` on older `gh`). A parent with sub-issues is an orchestration issue: solve and commit each sub-issue individually first, then verify the sub-issues together satisfy the parent and complete only the parent-level work they don't cover — running the relevant tests, typechecks, linting and integration checks. Already-implemented sub-issue work is never re-implemented or duplicated; report any that are still pending instead. Once every sub-issue is done, post a `CLAUDE: ` comment on the parent linking all of their PRs.
+
+Spec and ticket issues from the `/to-spec` → `/to-tickets` pipeline branch differently — see [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
 
 ## Required Context Loading
 
-You have access to specific local documentation files for this project. Before writing, refactoring, or reviewing any code, you must use your file-reading tool to read the relevant documentation file from the list below based on the technology you are working with:
+Before writing, refactoring or reviewing code, read the standards file for the technology involved and follow it strictly:
 
-- For TypeScript use: [docs/standards/typescript.md](docs/standards/typescript.md) (Strict TypeScript development standards, JavaScript is prohibited)
-- For React use: [docs/standards/react.md](docs/standards/react.md) (React architectural patterns and state management)
-- For Turborepo use: [docs/standards/turborepo.md](docs/standards/turborepo.md) (Turborepo workspace management and build orchestration)
-- For Dotenvx use: [docs/standards/dotenvx.md](docs/standards/dotenvx.md) (Dotenvx multi-environment configuration and vault encryption)
-- For Shadcn UI use: [docs/standards/shadcnui.md](docs/standards/shadcnui.md) (Shadcn UI design system and primitive configurations)
-- For TanStack Query use: [docs/standards/tanstack-query.md](docs/standards/tanstack-query.md) (Data fetching and mutation patterns in the dashboard)
-- For Typescript config files use: [docs/standards/tsconfig.json.md](docs/standards/tsconfig.json.md)
-
-Strictly follow the guidelines found inside these files for every task.
+| Technology      | File                                                                                                       |
+| --------------- | ---------------------------------------------------------------------------------------------------------- |
+| TypeScript      | [docs/standards/typescript.md](docs/standards/typescript.md) (strict TypeScript; JavaScript is prohibited) |
+| `tsconfig.json` | [docs/standards/tsconfig.json.md](docs/standards/tsconfig.json.md)                                         |
+| Turborepo       | [docs/standards/turborepo.md](docs/standards/turborepo.md)                                                 |
+| React           | [docs/standards/react.md](docs/standards/react.md)                                                         |
+| TanStack Query  | [docs/standards/tanstack-query.md](docs/standards/tanstack-query.md)                                       |
+| Shadcn UI       | [docs/standards/shadcnui.md](docs/standards/shadcnui.md)                                                   |
+| Dotenvx         | [docs/standards/dotenvx.md](docs/standards/dotenvx.md)                                                     |
 
 ## Specification
 
-Repo-wide conventions live in `docs/specification/`. Read the relevant file before touching the area it covers:
+Repo-wide conventions live in `docs/specification/`. Read the relevant one before touching the area it covers:
 
 - [Enums and Constants](docs/specification/enums-and-constants.md)
 - [Skill Extensions](docs/specification/skill-extensions.md)
 - [Standard Schema](docs/specification/standard-schema.md)
 
-Decision history lives in [`docs/adr/`](docs/adr/)
+## Decision history
 
-## Post-Modification Checklist
+Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 
-After **every** code change — no exceptions — run all of the following and fix any failures before considering the task done:
+- [ADR-0001](./docs/adr/0001-adopt-standard-schema.md) — adopt Standard Schema for `@pvl/schema`
+- [ADR-0002](./docs/adr/0002-static-ast-compilation-via-ts-morph.md) — compile schemas via static AST analysis, not runtime introspection
+- [ADR-0003](./docs/adr/0003-compiled-schemas-conform-to-standard-schema.md) — `Compiled Schema`s conform to StandardSchemaV1
+- [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md) — publish `@pvl/schema` and `@pvl/schema-compiler` as dual ESM+CJS
+- [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) — the compiler emits one Destination File and rewrites nothing
+- [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) — chained-instance-method API via a shared base `Schema` class
+- [ADR-0007](./docs/adr/0007-object-strips-unknown-keys-by-default.md) — `object()` strips unknown keys by default
+- [ADR-0008](./docs/adr/0008-no-regex-backed-constraints-in-v1.md) — no regex-backed constraint helpers in v1
+- [ADR-0009](./docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md) — `enum()` accepts either an `as const` object or a string-literal array
+- [ADR-0010](./docs/adr/0010-schema-modifier-ordered-step-list.md) — `.refine()`/`.transform()` are recorded as one ordered step list
+- [ADR-0011](./docs/adr/0011-result-failure-branch-carries-pvl-issue.md) — `Result`'s failure branch carries `@pvl/schema`'s own `Issue`
+- [ADR-0012](./docs/adr/0012-composite-schemas-collect-every-issue.md) — composite schemas collect every field's `Issue` rather than failing fast
+- [ADR-0013](./docs/adr/0013-pin-formatting-rules-via-root-prettierrc.md) — pin formatting rules via a root `.prettierrc.json`
+- [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) — TypeDoc runs against TypeScript 5.9 in `apps/docs`
+- [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) — the Destination File defaults into the application's own `node_modules`
+- [ADR-0016](./docs/adr/0016-compiled-schemas-are-terminal.md) — `Compiled Schema`s are terminal; no modifier attaches after compilation
+- [ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md) — generated code inlines within a node and delegates at composite boundaries
+- [ADR-0018](./docs/adr/0018-composites-accept-any-standard-schema-field.md) — composites accept any Standard Schema as a field, re-prefixing `Issue` paths
 
-```bash
-pnpm format        # auto-fix formatting
-pnpm format:check  # must pass with zero errors
-pnpm lint          # must pass with zero errors
-pnpm check-types   # must pass with zero errors
-pnpm test          # all unit + integration tests must pass
-pnpm build         # build all applications
-```
-
-Do not report a task as complete if any of these commands exit with a non-zero status. Fix the root cause; do not suppress errors with ignore comments or skip flags.
-
-## Issue Resolution Workflow
-
-- A reference like `#<int>` (e.g. `#5`) means issue number `<int>` on GitHub in this repo.
-- When a referenced issue has subissues, use the `gh` CLI to look up its subissues before starting work (e.g. `gh issue view <int> --json subIssues`, falling back to `gh api` if the field isn't available in the installed `gh` version).
-- Every issue that gets solved — parent or subissue — must have its own dedicated commit; do not bundle fixes for multiple issues into one commit.
-- For a parent issue with subissues, solve and commit each subissue individually first, one commit per subissue immediately after it's solved.
-- Every commit produced by this workflow must use the `CLAUDE(<type>): <description>` format per the GitHub activity rule above.
-- Per the pull-request rule above, never commit an issue's fix straight to `main`. Branch off `main` named `issue/<issue-number>-<slug>` (e.g. `issue/5-fix-flag-cache-eviction`), commit the fix there, push the branch, and open a PR into `main` — title `CLAUDE(<type>): <description>`, body stating `Closes #<issue-number>` (this PR targets `main` directly, so the closing keyword fires on merge).
-- Once the PR is open, post a `CLAUDE: ` comment on the issue linking to the PR — do not close the issue yourself; the `Closes #<n>` keyword in the PR body handles that automatically once the user merges. Once every subissue of a parent is done this way, post the same kind of comment on the parent linking to all of its subissues' PRs.
-- The agent never merges a PR — every merge is the user's action, performed on GitHub.
-
-### Parent issues and sub-issues
-
-When implementing an issue that has sub-issues:
-
-- Treat the parent issue as an orchestration/integration issue.
-- Before implementing a parent issue, inspect its sub-issues.
-- If all required sub-issues are already implemented, do not re-implement their work.
-- Instead, verify that the sub-issue implementations together satisfy the parent issue.
-- Run relevant tests, typechecks, linting, and integration checks.
-- Complete any remaining parent-level work that is not covered by the sub-issues.
-- If required sub-issues are not implemented yet, do not duplicate their work. Report which sub-issues are still pending.
-
-## Skills
-
-- When using `/grill-with-docs` skill, do not implement or edit any files.
+Domain documentation is single-context: one root [`CONTEXT.md`](CONTEXT.md) plus [`docs/adr/`](docs/adr/), no per-package `CONTEXT.md` — see [docs/agents/domain.md](docs/agents/domain.md) for how the engineering skills consume it.
