@@ -110,6 +110,6 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 **Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments immediately above the declaration, which TypeDoc never picks up.
 
-Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. An internal-only module deliberately excluded from the barrel (`schemas/schemaState.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
+Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. An internal-only module deliberately excluded from the barrel (`schemas/sharedModifiers.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
 
 Examples are not yet verified by the build ([issue #60](https://github.com/Ota-Prokopec/pvl/issues/60)); until then, check a changed snippet by hand.

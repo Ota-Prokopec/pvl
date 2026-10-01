@@ -303,12 +303,14 @@ Each member is validated at the same path as the union itself — a member is an
 
 ## Modifiers
 
+This section documents the **shared** modifiers — the five below. `object`'s `.strict()` and `.passthrough()` are modifiers too, but they belong to `object` alone and are documented [with it](#unknown-keys).
+
 These five are on **every** schema, primitive or composite, because they are orthogonal to what a schema's own shape check does.
 
 Within one `validate()` call they are _evaluated_ in a fixed order, whatever order you chained them in: `.coerce()` first, then the `.optional()`/`.nullable()` short-circuit, then the schema's own type and constraint checks, and finally the `.refine()`/`.transform()` steps — those in the order they were chained.
 
 ::: tip Where you chain a modifier changes what compiles, not what runs
-Chaining order never changes what a schema validates: `.min()`, `.max()`, `.length()` and `.int()` keep whatever modifiers were already applied, and the modifiers keep the constraints. So do `object`'s `.strict()` and `.passthrough()`.
+Chaining order never changes what a schema validates: `.min()`, `.max()`, `.length()` and `.int()` keep whatever shared modifiers were already applied, and the shared modifiers keep those constraints. `object`'s `.strict()` and `.passthrough()` preserve the shared modifiers the same way.
 
 It does change what the type system lets you write next. On a **primitive**, `.optional()`, `.nullable()`, `.coerce()` and `.transform()` widen the schema's types and hand back the base `Schema`, which does not carry that type's own constraints:
 

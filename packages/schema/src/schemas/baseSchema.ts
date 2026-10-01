@@ -2,13 +2,13 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
 import type { Result } from '../result.js';
 import {
-  DEFAULT_STATE,
+  DEFAULT_MODIFIERS,
   resolveShortCircuit,
   runSteps,
   type RefineStep,
-  type SchemaState,
+  type SharedModifiers,
   type TransformStep,
-} from './schemaState.js';
+} from './sharedModifiers.js';
 
 /**
  * The trailing options object every schema factory and constraint method
@@ -27,9 +27,10 @@ export type SchemaOptions = {
   readonly message?: string;
 };
 
-// `.optional()`/`.nullable()`/`.refine()`/`.transform()`/`.coerce()` are
-// instance state on this class (flags plus one ordered step list) rather than
-// wrapper subclasses — see docs/adr/0010-schema-modifier-ordered-step-list.md.
+// `.optional()`/`.nullable()`/`.refine()`/`.transform()`/`.coerce()` — the
+// Shared Modifiers — are recorded in one field on this class (flags plus one
+// ordered step list) rather than as wrapper subclasses — see
+// docs/adr/0010-schema-modifier-ordered-step-list.md.
 // This avoids a circular ESM import that wrapper classes extending `Schema`
 // while `Schema` constructs them would otherwise create.
 /**
@@ -58,7 +59,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   Input,
   Output
 > {
-  private _state: SchemaState = DEFAULT_STATE;
+  private _modifiers: SharedModifiers = DEFAULT_MODIFIERS;
 
   /**
    * The Standard Schema protocol property. Consumers reach for
@@ -108,9 +109,9 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * @internal
    */
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
-    const input = this._state.shouldCoerce ? this._coerceInput(value) : value;
+    const input = this._modifiers.shouldCoerce ? this._coerceInput(value) : value;
 
-    const shortCircuited = resolveShortCircuit<Output>({ state: this._state, input });
+    const shortCircuited = resolveShortCircuit<Output>({ modifiers: this._modifiers, input });
     if (shortCircuited) {
       return shortCircuited;
     }
@@ -120,7 +121,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       return result;
     }
 
-    return runSteps<Output>({ steps: this._state.steps, value: result.value, path });
+    return runSteps<Output>({ steps: this._modifiers.steps, value: result.value, path });
   }
 
   /**
@@ -157,7 +158,10 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * ```
    */
   optional(): Schema<Input | undefined, Output | undefined> {
-    return this._withState({ isOptional: true }) as Schema<Input | undefined, Output | undefined>;
+    return this._withModifiers({ isOptional: true }) as Schema<
+      Input | undefined,
+      Output | undefined
+    >;
   }
 
   /**
@@ -176,7 +180,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * ```
    */
   nullable(): Schema<Input | null, Output | null> {
-    return this._withState({ isNullable: true }) as Schema<Input | null, Output | null>;
+    return this._withModifiers({ isNullable: true }) as Schema<Input | null, Output | null>;
   }
 
   /**
@@ -216,7 +220,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       predicate: predicate as (value: unknown) => boolean,
       options,
     };
-    return this._withState({ steps: [...this._state.steps, step] });
+    return this._withModifiers({ steps: [...this._modifiers.steps, step] });
   }
 
   /**
@@ -240,8 +244,8 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       kind: 'transform',
       fn: fn as (value: unknown) => unknown,
     };
-    return this._withState({
-      steps: [...this._state.steps, step],
+    return this._withModifiers({
+      steps: [...this._modifiers.steps, step],
     }) as unknown as Schema<Input, NewOutput>;
   }
 
@@ -263,21 +267,22 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * ```
    */
   coerce(): Schema<unknown, Output> {
-    return this._withState({ shouldCoerce: true }) as Schema<unknown, Output>;
+    return this._withModifiers({ shouldCoerce: true }) as Schema<unknown, Output>;
   }
 
   /**
    * Generic, prototype-preserving clone used by every modifier above, so a
    * new concrete schema class never has to implement its own clone/modifier
-   * plumbing beyond `_checkType` and (optionally) `_coerceInput`. `_state` is
-   * the single grouped field every modifier patches, rather than each flag
-   * being cloned independently.
+   * plumbing beyond `_checkType` and (optionally) `_coerceInput`. `_modifiers`
+   * is the single grouped field every Shared Modifier patches, rather than each
+   * flag being cloned independently. A concrete class also borrows this helper
+   * to clone before re-pointing its own Local Modifier state.
    *
    * @internal
    */
-  protected _withState(patch: Partial<SchemaState>): this {
+  protected _withModifiers(patch: Partial<SharedModifiers>): this {
     const clone = Object.create(Object.getPrototypeOf(this) as object) as this;
-    Object.assign(clone, this, { _state: { ...this._state, ...patch } });
+    Object.assign(clone, this, { _modifiers: { ...this._modifiers, ...patch } });
     return clone;
   }
 }

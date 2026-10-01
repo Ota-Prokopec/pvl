@@ -289,10 +289,10 @@ export class ArraySchema<
     return { value: output as unknown as Output };
   }
 
-  // Clones rather than rebuilding, so a modifier already chained onto this
-  // instance survives the added check — see ADR-0006's amendment.
+  // Clones rather than rebuilding, so a Shared Modifier already chained onto
+  // this instance survives the added check — see ADR-0006's amendment.
   private _withCheck(check: ArrayCheck): ArraySchema<Item, Input, Output> {
-    const clone = this._withState({});
+    const clone = this._withModifiers({});
     clone._checks = [...this._checks, check];
     return clone;
   }
