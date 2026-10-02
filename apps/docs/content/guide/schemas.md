@@ -8,7 +8,7 @@ import { pvl } from '@pvl/schema';
 
 The constraint methods below are deliberately cheap and structural — plain numeric and length comparisons. There is no built-in `.email()`, `.url()` or `.regex()`; a check like that is yours to attach with [`.refine()`](#refine).
 
-Constraints on a single schema are checked in the order they were chained and **stop at the first failure**, so one schema produces at most one `Issue`. Composites are different: `object` and `array` check every field and element and report all of them.
+Constraints are checked in the order they were chained, once the value has passed the schema's type check, and **every one that fails is reported**: `pvl.string().min(5).length(3)` given `'ab'` reports both `TOO_SMALL` and `INVALID_LENGTH`. A value of the wrong type reports only the type issue, since its constraints would have nothing meaningful to check. `object` and `array` likewise check every field and element and report all of them.
 
 ## `string`
 
@@ -28,7 +28,7 @@ username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 | `.max(n)`    | `TOO_BIG`        | At most `n` characters.  |
 | `.length(n)` | `INVALID_LENGTH` | Exactly `n` characters.  |
 
-Lengths are `String.prototype.length`, i.e. UTF-16 code units. `.coerce()` converts a `number`, `boolean` or `bigint` input with `String()`.
+Lengths are `String.prototype.length`, i.e. UTF-16 code units. `.coerce()` converts any input with `String()` — `undefined` becomes `'undefined'` — so chain `.optional()` or `.nullable()` before it to keep those as they are.
 
 ## `number`
 
@@ -170,7 +170,7 @@ const result = tags.validate(['a', 2, 3]);
 // { issues: [{ path: [1], ... }, { path: [2], ... }] }
 ```
 
-The length constraints above are checks on the array itself, so — unlike the element checks — they stop at the first failure and are reported instead of, not alongside, element issues.
+The length constraints above are checks on the array itself, so they run only once every element has passed: an array with a failing element reports the element issues, never a length issue alongside them.
 
 `.coerce()` is inherited but does nothing: there is no unambiguous way to read an array out of a non-array, so a value that is not one is rejected rather than guessed at.
 
@@ -223,7 +223,7 @@ user.validate({ name: 'Ada', age: 36, extra: true });
 // { value: { name: 'Ada', age: 36 } }
 ```
 
-Two modifiers change that, and exactly one mode is active per schema — the last one applied wins.
+Two modifiers change that, and exactly one mode is active per schema — the last one chained wins. There is no `.strip()`: stripping is what you get without either.
 
 `.strict()` reports each undeclared key as an `UNRECOGNIZED_KEY` issue pathed to that key. Use it where an unexpected key means a typo or a stale caller rather than harmless extra data.
 
@@ -234,6 +234,8 @@ config.validate({ port: 80, prot: 443 });
 // { issues: [{ code: 'UNRECOGNIZED_KEY', path: ['prot'], ... }] }
 ```
 
+Undeclared keys are reported only once every declared field passed; an object with a failing field reports the field issues alone.
+
 `.passthrough()` keeps undeclared keys, untyped. The output type gains an `unknown`-valued index signature, so reading one still forces a narrowing step.
 
 ```ts
@@ -241,6 +243,21 @@ const envelope = pvl.object({ id: pvl.string() }).passthrough();
 
 envelope.validate({ id: 'a1', meta: { source: 'api' } });
 // { value: { id: 'a1', meta: { source: 'api' } } }
+```
+
+Both run where they are chained, like every modifier, so a [`.refine()`](#refine) chained after `.passthrough()` sees the undeclared keys and one chained before it sees the stripped value:
+
+```ts
+const tagged = pvl.object({ id: pvl.string() });
+
+tagged
+  .passthrough()
+  .refine((value) => 'meta' in value)
+  .validate({ id: 'a', meta: 1 }); // passes
+tagged
+  .refine((value) => 'meta' in value)
+  .passthrough()
+  .validate({ id: 'a', meta: 1 }); // CUSTOM issue
 ```
 
 `.coerce()` is inherited but does nothing on an object: there is no unambiguous way to read an object out of a non-object. A field that needs coercion opts into it on its own schema.
@@ -283,20 +300,15 @@ Order matters where two members overlap: the first match wins, and its output is
 
 Every member is attempted — there is no discriminated-union fast path that dispatches on a shared key, so a `type`-tagged union works but is not optimised as one.
 
-When no member accepts the value, the issues are **every member's own rejection**, collected rather than replaced with one generic message:
+When no member accepts the value, the issues are one `INVALID_UNION` issue for the union as a whole, followed by **every member's own rejection**, in member order:
 
 ```ts
 id.validate(true);
-// { issues: [{ code: 'INVALID_TYPE', message: 'Expected string' }, { ... 'Expected number' }] }
-```
-
-Where that detail would be noise, `{ message }` collapses it into a single `INVALID_UNION` issue:
-
-```ts
-const quiet = pvl.union([pvl.string(), pvl.number()], { message: 'expected an id' });
-
-quiet.validate(true);
-// { issues: [{ code: 'INVALID_UNION', message: 'expected an id' }] }
+// { issues: [
+//   { code: 'INVALID_UNION', message: 'Value matches no union member' },
+//   { code: 'INVALID_TYPE', message: 'Expected string' },
+//   { code: 'INVALID_TYPE', message: 'Expected number' },
+// ] }
 ```
 
 Each member is validated at the same path as the union itself — a member is an alternative, not a nested field, so no path segment is appended the way `object` and `array` append a key or index. `.coerce()` is inherited but does nothing: the members may be unrelated types, so there is no single conversion target.
@@ -307,20 +319,16 @@ This section documents the **shared** modifiers — the five below. `object`'s `
 
 These five are on **every** schema, primitive or composite, because they are orthogonal to what a schema's own shape check does.
 
-Within one `validate()` call they are _evaluated_ in a fixed order, whatever order you chained them in: `.coerce()` first, then the `.optional()`/`.nullable()` short-circuit, then the schema's own type and constraint checks, and finally the `.refine()`/`.transform()` steps — those in the order they were chained.
+**Modifiers run in the order you chain them**, on either side of the schema's type check: `.optional()`, `.nullable()` and `.coerce()` run before it, the constraints, `.refine()`, `.strict()`/`.passthrough()` and `.transform()` after it. So where you chain one can change what a schema does — see [`.coerce()`](#coerce) and [unknown keys](#unknown-keys) for the two places it shows.
 
-::: tip Where you chain a modifier changes what compiles, not what runs
-Chaining order never changes what a schema validates: `.min()`, `.max()`, `.length()` and `.int()` keep whatever shared modifiers were already applied, and the shared modifiers keep those constraints. `object`'s `.strict()` and `.passthrough()` preserve the shared modifiers the same way.
-
-It does change what the type system lets you write next. On a **primitive**, `.optional()`, `.nullable()`, `.coerce()` and `.transform()` widen the schema's types and hand back the base `Schema`, which does not carry that type's own constraints:
+Every schema keeps its own type through every modifier, so a type's own constraints stay chainable in any position:
 
 ```ts
 pvl.string().min(3).optional(); // fine
-pvl.string().optional().min(3); // compile error — `.min()` is not on `Schema`
+pvl.string().optional().min(3); // also fine — still a string schema
 ```
 
-`.refine()` is the exception everywhere: it hands the same schema back, so constraints stay chainable after it. On `object` and `array`, `.optional()`, `.nullable()` and `.transform()` also hand back an object or array schema rather than the base — which is what lets a modified composite still be passed to `pvl.compile()`.
-:::
+`.transform()` is the one exception: it ends the chain (see [below](#transform)).
 
 ### `.optional()`
 
@@ -345,7 +353,7 @@ const eitherWay = pvl.string().nullable().optional();
 
 ### `.refine()`
 
-Attaches a custom check that runs **after** the schema's own checks pass, so the predicate only ever sees a value this schema accepted. It never changes the value; returning `false` produces a `CUSTOM` issue.
+Attaches a custom check that runs **after** the schema's type check passes, so the predicate only ever sees a value of the right type. It never changes the value; returning `false` produces a `CUSTOM` issue. It is skipped for a value `.optional()` or `.nullable()` accepted.
 
 This is where a constraint the library has no built-in for belongs — a regex, a finiteness check, a rule spanning two fields.
 
@@ -357,11 +365,11 @@ evenNumber.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' 
 const email = pvl.string().refine((value) => value.includes('@'), { message: 'not an email' });
 ```
 
-A failing refinement short-circuits the remaining steps. It never throws — a rejection is an `Issue`, as everywhere else.
+It runs in chain order among the constraints, and a failing refinement does not stop the ones after it — every failing check is reported. It never throws — a rejection is an `Issue`, as everywhere else.
 
 ### `.transform()`
 
-Converts an accepted value into a different one, changing the schema's `Output` type to whatever the function returns. It also runs after validation passes, so like `.refine()` it never sees a value the schema rejected.
+Converts an accepted value into a different one, changing the schema's `Output` type to whatever the function returns. It is the last thing to run, and only once nothing has failed, so it never sees a value the schema rejected.
 
 ```ts
 const trimmedLength = pvl.string().transform((value) => value.trim().length);
@@ -370,18 +378,31 @@ trimmedLength.validate('  hello  '); // { value: 5 }
 trimmedLength.validate(42); // { issues: [...] } — never reaches the transform
 ```
 
-Refinements and transforms run in exactly the order they were chained, so a later `.refine()` observes an earlier `.transform()`'s output:
+A value `.optional()` or `.nullable()` accepted still reaches it, so the function's parameter includes `undefined` or `null` when those are chained first:
+
+```ts
+const label = pvl
+  .string()
+  .nullable()
+  .transform((value) => value ?? 'none');
+
+label.validate(null); // { value: 'none' }
+```
+
+`.transform()` **ends the chain**. It returns a read-only schema, which can validate and can be a field, element or union member of another schema, but takes no further modifier — a transformed value can be anything, so nothing the schema knew about its type still holds. Chain constraints and refinements before it:
 
 ```ts
 const shortSlug = pvl
   .string()
-  .transform((value) => value.trim().toLowerCase())
-  .refine((value) => value.length <= 20, { message: 'slug too long' });
+  .refine((value) => value.trim().length <= 20, { message: 'slug too long' })
+  .transform((value) => value.trim().toLowerCase());
 ```
+
+A transformed `object` or `array` likewise has no `shape` or `element`.
 
 ### `.coerce()`
 
-Converts the raw input to the schema's type **before** any check runs, so `'42'` can satisfy a number schema. This is the one modifier that runs first rather than last — which is why a coercion failure and a check failure compose predictably: coercion always resolves before the check sees anything.
+Converts the raw input to the schema's type **before** the type check runs, so `'42'` can satisfy a number schema. Constraints always run after the type check, so it does not matter whether you chain it before or after them.
 
 ```ts
 const port = pvl.number().int().min(1).coerce();
@@ -392,11 +413,18 @@ port.validate('nope'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 
 A coercion never produces an `Issue` of its own. An input it cannot convert is handed through unchanged, and the schema's normal check is what rejects it.
 
+Where it sits against `.optional()` and `.nullable()` does matter, since those run before the type check too. Chained first, `.coerce()` converts `undefined` before `.optional()` sees it; chained after, `.optional()` accepts `undefined` as it is:
+
+```ts
+pvl.string().coerce().optional().validate(undefined); // { value: 'undefined' }
+pvl.string().optional().coerce().validate(undefined); // { value: undefined }
+```
+
 Only the four primitives and `literal` have a conversion. On `object`, `array`, `union` and `enum` there is no unambiguous target type, so `.coerce()` is a no-op — it is available for uniformity, not because it does something there.
 
 | Schema    | `.coerce()` accepts           | Via                                  |
 | --------- | ----------------------------- | ------------------------------------ |
-| `string`  | `number`, `boolean`, `bigint` | `String(value)`                      |
+| `string`  | anything                      | `String(value)`                      |
 | `number`  | `string`, `boolean`           | `Number(value)`                      |
 | `boolean` | `string`, `number`, `bigint`  | `Boolean(value)` — plain truthiness  |
 | `bigint`  | `string`, `number`            | `BigInt(value)`, with a throw caught |

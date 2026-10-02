@@ -2,8 +2,8 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { StandartSchemaProps } from '../standartSchema.js';
-import type { Modifier, ModifierShape } from '../types.js';
+import type { StandardSchemaProps } from '../standardSchema.js';
+import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../types.js';
 
 /**
  * How a schema class is rebuilt with new `Input`/`Output` types. A subclass
@@ -30,32 +30,48 @@ export type Rebind<S, Input, Output> = S extends { readonly '~kind': infer Kind 
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
   : Schema<Input, Output>;
 
+// `_validate` is in the pick even though it is internal: it is what a
+// composite calls on each field or element, and requiring it is what keeps a
+// Standard Schema from another library from being one (ADR-0018).
 /**
- * What `.transform()` hands back. It only validates: no constraint or
- * modifier chains onto it, so nothing can run against the transformed value.
- * It is still a Standard Schema, so it can be an object field or an array
- * element.
+ * A schema no modifier can be chained onto: what `.transform()` and
+ * `pvl.compile()` hand back. It can still validate a value, and it can still
+ * be a field of an object schema, an element of an array schema or a member
+ * of a union — but no constraint, `.optional()` or `.refine()` attaches to
+ * it, so chain those first.
  *
  * @example
  * ```ts
- * import { pvl, type TransformedSchema } from '@pvl/schema';
+ * import { pvl, type ReadOnlySchema } from '@pvl/schema';
  *
- * const length: TransformedSchema<string, number> = pvl.string().transform((value) => value.length);
+ * const length: ReadOnlySchema<string, number> = pvl.string().transform((value) => value.length);
  *
  * length.validate('abc'); // { value: 3 }
+ * pvl.object({ name: length }).validate({ name: 'Ada' }); // { value: { name: 3 } }
  * ```
  */
-export type TransformedSchema<Input, Output> = Pick<
-  Schema,
-  'nullable' | 'optional' | 'refine' | 'transform' | 'validate' | '~standard'
+export type ReadOnlySchema<Input = unknown, Output = Input> = Pick<
+  Schema<Input, Output>,
+  'validate' | '~standard' | '_validate'
 >;
+
+// What `.transform()` hands back. A transformed object or array is still a
+// `pvl.compile()` candidate, so the type-only `'~compileCandidate'` marker
+// carries over; its `shape`/`element` do not.
+type Transformed<S, Input, Output> = S extends { readonly '~compileCandidate': true }
+  ? ReadOnlySchema<Input, Output> & { readonly '~compileCandidate': true }
+  : ReadOnlySchema<Input, Output>;
 
 /**
  * The base every schema in this library extends. You never construct one
  * directly — `pvl.string()`, `pvl.object()` and the rest hand you a subclass
- * — and a modifier that widens the types (`.optional()`, `.nullable()`,
- * `.coerce()`) hands back that same subclass, so its own methods stay
- * chainable. `.transform()` is the exception: it ends the chain.
+ * — and every modifier hands back that same subclass, so its own methods stay
+ * chainable whatever order you chain them in. `.transform()` is the
+ * exception: it ends the chain with a {@link ReadOnlySchema}.
+ *
+ * Modifiers run in the order you chain them, so the order can matter:
+ * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
+ * while `pvl.string().optional().coerce()` accepts it as `undefined`.
  *
  * `Input` is what a value must look like going in; `Output` is what a
  * successful `.validate()` hands back, which differs from `Input` once a
@@ -77,22 +93,10 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   Input,
   Output
 > {
-  private preModifiers: Modifier<unknown, unknown>[] = [];
-  private postModifiers: Modifier<unknown, unknown>[];
-
-  /**
-   * The modifiers a schema type runs by default, before any chained by the
-   * caller.
-   *
-   * @internal
-   */
-  constructor(
-    preModifiers: readonly Modifier<unknown, unknown>[] = [],
-    postModifiers: readonly Modifier<unknown, unknown>[] = [],
-  ) {
-    this.preModifiers = [...preModifiers];
-    this.postModifiers = [...postModifiers];
-  }
+  // Each runs in chain order, the pre-modifiers before `_checkType` and the
+  // post-modifiers after it — see `_validate` and ADR-0010.
+  private _preModifiers: ReadonlyArray<Modifier<unknown, unknown>> = [];
+  private _postModifiers: ReadonlyArray<Modifier<unknown, unknown>> = [];
 
   /**
    * The Standard Schema protocol property. Consumers reach for
@@ -101,7 +105,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    *
    * @internal
    */
-  get '~standard'(): StandartSchemaProps<Input, Output> {
+  get '~standard'(): StandardSchemaProps<Input, Output> {
     return {
       version: 1,
       vendor: VENDOR,
@@ -136,33 +140,68 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
 
   /**
    * Full-pipeline validation, path-aware so a composite schema can call it on
-   * a nested field's schema and get that field's own
-   * optional/nullable/coerce/refine/transform behavior applied.
+   * a nested field's schema and get that field's own modifiers applied.
    *
    * @internal
    */
+  // The steps are ADR-0010's: pre-modifiers, `_checkType`, post-modifiers,
+  // each in chain order. With no tag, a modifier's `null` means continue,
+  // `{ issues }` collect and continue, `{ value }` replace and continue; a
+  // `MODIFIER_TAG` is how a modifier departs from that.
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
-    // A loop rather than `forEach`, so a modifier's Result can return from
-    // `_validate` itself.
-    for (const modifier of this.preModifiers) {
-      const modifierResult = modifier.fn(value, path);
+    const issues: Issue[] = [];
+    let current = value;
+    let shortCircuited = false;
 
-      if (modifierResult) {
-        return modifierResult as Result<Output>;
+    for (const modifier of this._preModifiers) {
+      const result = modifier.fn(current, path, current);
+      if (result === null) {
+        continue;
+      }
+      if (result.issues) {
+        issues.push(...result.issues);
+        continue;
+      }
+      current = result.value;
+      if (modifier.tags?.includes(MODIFIER_TAG.SHORT_CIRCUIT)) {
+        shortCircuited = true;
+        break;
       }
     }
 
-    const result = this._checkType(value, path);
-    if (result.issues) {
-      return result as Result<Output>;
+    // What `_checkType` received, before it built its own output from it.
+    const input = current;
+
+    if (!shortCircuited) {
+      const checked = this._checkType(current, path);
+      // A failed type check leaves nothing for a post-modifier to check.
+      if (checked.issues) {
+        return { issues: [...issues, ...checked.issues] };
+      }
+      current = checked.value;
     }
 
-    return this.postModifiers.reduce<Result<unknown>>((current, modifier) => {
-      if (current.issues) {
-        return current;
+    for (const modifier of this._postModifiers) {
+      if (shortCircuited && !modifier.tags?.includes(MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT)) {
+        continue;
       }
-      return modifier.fn(current.value, path) ?? current;
-    }, result) as Result<Output>;
+      if (issues.length > 0 && modifier.tags?.includes(MODIFIER_TAG.REQUIRES_ALL_PASSED)) {
+        continue;
+      }
+      const result = modifier.fn(current, path, input);
+      if (result === null) {
+        continue;
+      }
+      if (result.issues) {
+        issues.push(...result.issues);
+        continue;
+      }
+      current = result.value;
+    }
+
+    // `Output` is a free type parameter the modifiers' own types can't be
+    // followed back to.
+    return issues.length > 0 ? { issues } : { value: current as Output };
   }
 
   /**
@@ -203,6 +242,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    */
   optional(): Rebind<this, Input | undefined, Output | undefined> {
     return this._withPreModifier<Input, Output | undefined>({
+      tags: [MODIFIER_TAG.SHORT_CIRCUIT],
       fn: (value) => {
         return value === undefined ? { value: undefined } : null;
       },
@@ -226,6 +266,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    */
   nullable(): Rebind<this, Input | null, Output | null> {
     return this._withPreModifier<Input, Output | null>({
+      tags: [MODIFIER_TAG.SHORT_CIRCUIT],
       fn: (value) => {
         return value === null ? { value: null } : null;
       },
@@ -233,10 +274,14 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   }
 
   /**
-   * Attaches a custom check that runs after this schema's own checks pass.
-   * The predicate never changes the value; returning `false` produces an
-   * `Issue` with code `CUSTOM`. This is where constraints the library has no
-   * built-in for — a regex, a cross-field rule — belong.
+   * Attaches a custom check. The predicate never changes the value; returning
+   * `false` produces an `Issue` with code `CUSTOM`. This is where constraints
+   * the library has no built-in for — a regex, a cross-field rule — belong.
+   *
+   * It runs once the value has passed this schema's type check, in the order
+   * it was chained among the constraints, so a failing constraint before it
+   * does not stop it and both issues are reported. It is skipped for a value
+   * `.optional()` or `.nullable()` accepted.
    *
    * The schema comes back as the same type it went in as, so a refined
    * `object` or `array` schema is still one — and still something
@@ -259,33 +304,31 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * pvl.compile(range);
    * ```
    */
-  // Returns `this` rather than `Schema<Input, Output>`: a Refinement leaves
-  // both types alone, so there is nothing to widen, and keeping the concrete
-  // class is what lets a refined composite still be a `pvl.compile()`
-  // candidate.
+  // `Output` is wider than the predicate ever sees after `.nullable()` or
+  // `.optional()`, since a short-circuited value skips it, which is harmless.
   refine(
     predicate: (value: Output) => boolean,
     issueProps?: IssueEditableProps,
   ): Rebind<this, Input, Output> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
-        const refineResult = predicate(value);
-
-        return !refineResult
-          ? { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] }
-          : null;
+        return predicate(value)
+          ? null
+          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] };
       },
     }) as unknown as Rebind<this, Input, Output>;
   }
 
   /**
    * Converts an accepted value into a different one, changing the `Output`
-   * type to whatever the function returns. It runs after validation passes,
-   * so the function only ever sees a value this schema accepted — unlike
-   * `.coerce()`, which runs before.
+   * type to whatever the function returns. It is the last thing to run, and
+   * only once nothing has failed, so the function only ever sees a value
+   * this schema accepted — unlike `.coerce()`, which runs before the type
+   * check. A value `.optional()` or `.nullable()` accepted still reaches it,
+   * so the function is typed to receive `undefined` or `null` too.
    *
-   * It ends the chain: the result is a {@link TransformedSchema}, which can
-   * validate but carries no constraints or modifiers, so chain those before
+   * It ends the chain: the result is a {@link ReadOnlySchema}, which can
+   * validate but takes no further modifier, so chain those before
    * transforming.
    *
    * @example
@@ -296,22 +339,32 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    *
    * trimmedLength.validate('  hello  '); // { value: 5 }
    * trimmedLength.validate(42); // { issues: [...] } — never reaches the transform
+   *
+   * const label = pvl.string().nullable().transform((value) => value ?? 'none');
+   * label.validate(null); // { value: 'none' }
    * ```
    */
-  transform<NewOutput>(fn: (value: Output) => NewOutput): TransformedSchema<Input, NewOutput> {
+  transform<NewOutput>(fn: (value: Output) => NewOutput): Transformed<this, Input, NewOutput> {
     return this._withPostModifier<Output, NewOutput>({
+      tags: [MODIFIER_TAG.REQUIRES_ALL_PASSED, MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT],
       fn: (value) => {
         return { value: fn(value) };
       },
-    }) as unknown as TransformedSchema<Input, NewOutput>;
+    }) as unknown as Transformed<this, Input, NewOutput>;
   }
 
   /**
-   * Converts the raw input to this schema's type before any check runs, so
+   * Converts the raw input to this schema's type before the type check, so
    * `'42'` can satisfy a number schema. Only the primitives and `literal`
    * have a conversion; on `object`, `array`, `union` and `enum` there is no
    * unambiguous target type, so this is a no-op and a wrong-shaped value is
    * still rejected.
+   *
+   * It runs where it is chained among `.optional()` and `.nullable()`:
+   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
+   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
+   * Constraints always run after the type check, so chaining it after them is
+   * fine.
    *
    * @example
    * ```ts
@@ -324,11 +377,11 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
    * ```
    */
   coerce(): Rebind<this, unknown, Output> {
-    return this.transform((value) => this._coerceInput(value) as Output) as unknown as Rebind<
-      this,
-      unknown,
-      Output
-    >;
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: this._coerceInput(value) };
+      },
+    }) as unknown as Rebind<this, unknown, Output>;
   }
 
   /**
@@ -343,26 +396,47 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
     return clone;
   }
 
-  protected _withPreModifier<Input, Output>(newModifier: Modifier<Input, Output>): this {
+  /**
+   * A copy of this schema with `modifier` appended to the pre-modifiers,
+   * which run before the type check.
+   *
+   * @internal
+   */
+  protected _withPreModifier<ModifierInput, ModifierOutput>(
+    modifier: Modifier<ModifierInput, ModifierOutput>,
+  ): this {
     const clone = this._clone();
-    clone.preModifiers = [...this.preModifiers, newModifier as Modifier<unknown, unknown>];
+    clone._preModifiers = [...this._preModifiers, modifier as Modifier<unknown, unknown>];
     return clone;
   }
 
-  protected _withPostModifier<Input, Output>(newModifier: Modifier<Input, Output>): this {
+  /**
+   * A copy of this schema with `modifier` appended to the post-modifiers,
+   * which run once the type check has passed.
+   *
+   * @internal
+   */
+  protected _withPostModifier<ModifierInput, ModifierOutput>(
+    modifier: Modifier<ModifierInput, ModifierOutput>,
+  ): this {
     const clone = this._clone();
-    clone.postModifiers = [...this.postModifiers, newModifier as Modifier<unknown, unknown>];
+    clone._postModifiers = [...this._postModifiers, modifier as Modifier<unknown, unknown>];
     return clone;
   }
 
   // Matched by shape rather than identity, so a caller can remove a modifier
   // without holding on to the instance it added.
-  protected _withoutModifiers(shapes: readonly ModifierShape[]): this {
+  /**
+   * A copy of this schema without any modifier built by one of `shapes`.
+   *
+   * @internal
+   */
+  protected _withoutModifiers(shapes: ReadonlyArray<ModifierShape>): this {
     const keep = (modifier: Modifier<unknown, unknown>): boolean =>
       modifier.shape === undefined || !shapes.includes(modifier.shape);
     const clone = this._clone();
-    clone.preModifiers = this.preModifiers.filter(keep);
-    clone.postModifiers = this.postModifiers.filter(keep);
+    clone._preModifiers = this._preModifiers.filter(keep);
+    clone._postModifiers = this._postModifiers.filter(keep);
     return clone;
   }
 }

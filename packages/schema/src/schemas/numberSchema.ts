@@ -17,8 +17,9 @@ interface NumberSchemaKind extends SchemaKind {
  * built-in finiteness constraint. Arbitrary-precision integers belong to
  * `pvl.bigint()`, and this schema never accepts or produces one.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
- * keeps whatever modifiers were already applied.
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -35,7 +36,7 @@ export class NumberSchema<Input = number, Output = number> extends Schema<Input,
   declare readonly '~kind': NumberSchemaKind;
 
   /** @internal */
-  constructor(options?: IssueEditableProps) {
+  constructor() {
     super();
   }
 

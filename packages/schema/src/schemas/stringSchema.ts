@@ -11,11 +11,10 @@ interface StringSchemaKind extends SchemaKind {
  * Accepts a JavaScript `string`, with optional length constraints. Build one
  * with `pvl.string()`.
  *
- * Constraints are checked in the order they were chained, and checking stops
- * at the first one that fails, so a single `Issue` comes back rather than
- * one per constraint.
+ * Constraints are checked in the order they were chained, once the value is a
+ * string, and every one that fails is reported — not just the first.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
+ * Constraints and the shared modifiers chain in any order — a constraint
  * keeps whatever modifiers were already applied.
  *
  * @example

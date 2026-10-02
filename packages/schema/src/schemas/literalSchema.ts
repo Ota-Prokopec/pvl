@@ -1,5 +1,5 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import { Schema, type SchemaKind } from './schema.js';
 
@@ -10,9 +10,9 @@ import { Schema, type SchemaKind } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type LiteralValue } from '@pvl/schema';
+ * import { pvl, type PossibleLiteralValue } from '@pvl/schema';
  *
- * const pinned: LiteralValue = 'OWNER';
+ * const pinned: PossibleLiteralValue = 'OWNER';
  * const owner = pvl.literal(pinned);
  * ```
  */
@@ -57,7 +57,7 @@ export class LiteralSchema<
   private readonly literalValue: LiteralValue;
 
   /** @internal */
-  constructor(literalValue: LiteralValue, options?: IssueEditableProps) {
+  constructor(literalValue: LiteralValue) {
     super();
     this.literalValue = literalValue;
   }
@@ -71,15 +71,15 @@ export class LiteralSchema<
    * @internal
    */
   override _coerceInput(value: unknown): unknown {
-    switch (typeof value) {
+    switch (typeof this.literalValue) {
       case 'string':
-        return coerceToString;
+        return coerceToString(value);
       case 'number':
-        return coerceToNumber;
+        return coerceToNumber(value);
       case 'boolean':
-        return coerceToBoolean;
+        return coerceToBoolean(value);
       default:
-        return coerceToBigint;
+        return coerceToBigint(value);
     }
   }
 

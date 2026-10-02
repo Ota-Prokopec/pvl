@@ -1,6 +1,6 @@
 # `@pvl/schema`
 
-A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. This file documents the conventions the package is built under. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Compiled Schema`, `Standalone Key`) used throughout, and [`TESTS.md`](./TESTS.md) for the testing strategy.
+A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. This file documents the conventions the package is built under. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Read-only Schema`, `Compiled Schema`, `Standalone Key`) used throughout, and [`TESTS.md`](./TESTS.md) for the testing strategy.
 
 ## Technology
 
@@ -19,13 +19,26 @@ The single public entry point is a `pvl` namespace object (`import { pvl } from 
 Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends one abstract base `Schema`, which implements exactly once:
 
 - **Standard Schema conformance** — the `"~standard"` property and its `validate`.
-- **The common chained modifiers** — `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`. Every schema has them, primitive or composite, because they're orthogonal to what a schema's own shape checks.
+- **The Shared Modifiers** — `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`.
+- **The validation pipeline** — `_validate`, and the two ordered `Modifier` arrays it runs.
 
-A concrete subclass adds only its own constructor logic, checks and extra methods — `object`'s `.strict()`/`.passthrough()`, the cheap structural constraints below — never a second copy of `"~standard"` or of a base modifier.
+A concrete subclass adds only its constructor, its `_checkType` (the type guard, plus every child on a composite), an optional `_coerceInput`, and its Local Modifiers — never a second copy of `"~standard"`, of a Shared Modifier or of the pipeline.
 
-### Chained-instance-method API
+### Chained-instance-method API and the pipeline
 
-Every modifier is a method on the instance returning a (possibly differently-typed) schema, not a wrapping function or static combinator — `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))` — so modifiers compose left-to-right in the order applied. [ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) records why this shape over standalone modifier functions.
+Every Modifier is a method on the instance returning a schema, not a wrapping function or static combinator — `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))` ([ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md)). Every class keeps its own type through every Modifier, primitives included, via its type-only `'~kind'` and `Rebind<this, Input, Output>`; `.transform()` is the one exception (see Transformation).
+
+Each Modifier method builds one `Modifier` value (`src/types.ts`) and appends it, on a clone, to one of two arrays through `_withPreModifier`/`_withPostModifier`:
+
+| Modifier                                                             | Array                  | Tags                                              |
+| -------------------------------------------------------------------- | ---------------------- | ------------------------------------------------- |
+| `.optional()`, `.nullable()`                                         | pre                    | `SHORT_CIRCUIT`                                   |
+| `.coerce()`                                                          | pre                    | none                                              |
+| Constraints (`.min()`, `.max()`, `.length()`, `.int()`), `.refine()` | post                   | none                                              |
+| `object`'s `.strict()`, `.passthrough()`                             | post                   | none                                              |
+| `.transform()`                                                       | post (always the last) | `REQUIRES_ALL_PASSED`, `RUNS_AFTER_SHORT_CIRCUIT` |
+
+`_validate(value, path)` runs the pre-modifiers in chain order, then `_checkType`, then the post-modifiers in chain order, collecting every `Issue` ([ADR-0010](../../docs/adr/0010-modifiers-run-in-chain-order-around-the-type-check.md) holds the six exact steps). An untagged `fn` result reads as: `null` continue, `{ issues }` collect and continue, `{ value }` replace and continue. The tags are the only departures: `SHORT_CIRCUIT` accepts the value and skips everything but `RUNS_AFTER_SHORT_CIRCUIT` steps; `REQUIRES_ALL_PASSED` skips a step once anything failed. A failed `_checkType` returns at once, so no post-modifier ever sees a wrongly typed value. A post-modifier's `fn` also receives the value `_checkType` was given, for a step that has to read back what `_checkType` dropped (`.passthrough()`).
 
 ```ts
 pvl.string().min(1).max(100).optional();
@@ -40,8 +53,8 @@ Primitives (`string`, `number`, `boolean`, `bigint`), `object`, `array` (includi
 
 - **`number`** accepts any JS `number` (`typeof value === "number"`) — floats, integers and large values alike. It rejects `NaN` explicitly, since an accepted `NaN` would silently fail every `.min()`/`.max()` comparison instead of surfacing a clear "not a number" `Issue`. It accepts `Infinity`/`-Infinity`: there is no finiteness constraint in v1. It has no `bigint` involvement at all, bare or via `.coerce()` — arbitrary-precision integers are `pvl.bigint()`'s job.
 - **`bigint`** accepts only a real JS `bigint`, never overlapping `number`'s accepted shapes. `.coerce()` additionally accepts `string` and `number` via native `BigInt(value)`; a throw from `BigInt()` (a malformed string like `"12.5"`, a non-integer number like `1.5`) is caught in `_coerceInput` and surfaces as the normal base-type `Issue` rather than propagating — no custom parsing grammar is layered on `BigInt()`'s own. `.min()`/`.max()` compare real `bigint` operators against real `bigint` bounds; cross-type comparison isn't supported. There is no `.int()` — a `bigint` has no fractional representation, so the constraint could never reject anything. Output stays a real `bigint`, never converted to `number` (reintroducing the precision loss `bigint` exists to avoid) or `string`.
-- **`object`** keeps unknown keys by default — `_checkType` copies every key into the output — though the default output type lists only the declared keys. This departs from [ADR-0007](../../docs/adr/0007-object-strips-unknown-keys-by-default.md). `.strict()` adds a post-modifier reporting unexpected keys as `Issue`s, `.strip()` one dropping them from the output, and `.passthrough()` adds them to the output type as an `unknown` index signature. Each first removes the other unknown-key modifiers by shape (`_withoutModifiers`), so the last one applied wins. Every declared field is validated even after an earlier one fails, so one `Result` carries an `Issue` per failing field rather than only the first — [ADR-0012](../../docs/adr/0012-composite-schemas-collect-every-issue.md). Under `.strict()` the unrecognized keys (one `Issue` each, pathed to that key) are reported only once every field passes, so they never collect alongside field issues. A field whose schema is `.optional()` becomes an optional key in the composed type, and an omitted one stays omitted from the output rather than becoming an explicit `undefined` property.
-- **`union`** is **plain-only** in v1: `pvl.union([schemaA, schemaB, ...])` tries every member and succeeds if any accepts. `pvl.discriminatedUnion` is deferred, so there is no fast-path dispatch on a shared discriminant key yet.
+- **`object`** strips unknown keys by default ([ADR-0007](../../docs/adr/0007-object-strips-unknown-keys-by-default.md)): `_checkType` builds its output from the declared keys only. `.strict()` is a post-modifier reporting one `UNRECOGNIZED_KEY` per undeclared key, pathed to that key; `.passthrough()` is a post-modifier putting the undeclared keys back from the raw input, and widens `Output` with an `unknown` index signature. There is no `.strip()`. Both follow chain order — a `.refine()` chained after `.passthrough()` sees the extra keys, one chained before does not — and each first removes the other by shape (`_withoutModifiers`), so the last one chained wins. Every declared field is validated even after an earlier one fails, and unknown keys are reported only once every field passed, since a failed `_checkType` runs no post-modifier ([ADR-0012](../../docs/adr/0012-composite-schemas-collect-every-issue.md)). A field whose schema is `.optional()` becomes an optional key in the composed type, and an omitted one stays omitted from the output rather than becoming an explicit `undefined` property.
+- **`union`** is **plain-only** in v1: `pvl.union([schemaA, schemaB, ...])` tries every member in order and succeeds on the first that accepts. `pvl.discriminatedUnion` is deferred, so there is no fast-path dispatch on a shared discriminant key yet. When no member accepts, it returns one `INVALID_UNION` issue (`"Value matches no union member"`, at the union's path) followed by every member's own rejection, in member order.
 - **`literal`** matches exactly one constant value (`pvl.literal('OWNER')`, `pvl.literal(42)`, `pvl.literal(true)`, `pvl.literal(7n)`), so a right-shaped value of the wrong type (`'42'` for `pvl.literal(42)`) is rejected like a wrong value. The comparison is `Object.is`, not `===`, which matters for exactly the two values they disagree about: `pvl.literal(0)` rejects `-0` rather than accepting it and handing back `0`, and `pvl.literal(NaN)` matches `NaN` rather than being a schema that can never accept anything. Because a literal pins the schema to a single primitive type, `.coerce()` has an unambiguous target: it converts the input exactly as the matching primitive schema would, then applies the equality check.
 - **`enum`** accepts two source forms, both producing the same kind of `EnumSchema` — only the factory's accepted input differs ([ADR-0009](../../docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md)):
   - this repo's mandated `as const` enum object (see [`docs/specification/enums-and-constants.md`](../../docs/specification/enums-and-constants.md)): `pvl.enum(SYSTEM_ROLE)` validates against `ValueOfEnum<typeof SYSTEM_ROLE>`;
@@ -53,23 +66,27 @@ Primitives (`string`, `number`, `boolean`, `bigint`), `object`, `array` (includi
 
 The relevant primitives/composites get **cheap structural constraint** methods — `.min()`, `.max()`, `.length()`, `.int()`, plain numeric/length comparisons. Regex-backed helpers (`.email()`, `.url()`, `.regex()`) are **not** built into any schema type in v1; a consumer who needs one attaches their own `.refine()`. This keeps every built-in check on the fast, non-regex hot path (see Coding style) — not a claim that regex validation is useless, just that it doesn't belong in the built-in surface yet. [ADR-0008](../../docs/adr/0008-no-regex-backed-constraints-in-v1.md).
 
-### Trailing-options-object custom messages
+### Custom messages only on Modifiers that report an `Issue`
 
-Every schema-affecting call — factories and constraint methods alike — takes an optional trailing options object whose `message` overrides the default `Issue` message. This is the _only_ mechanism for a custom message; there is no global error map in v1.
+No factory and no schema constructor takes options; every type-check message is a fixed default ([ADR-0019](../../docs/adr/0019-factories-take-no-options.md)). A trailing `{ message }` (`IssueEditableProps`) exists only on the Modifiers that report an `Issue` of their own — the Constraints, `.refine()` and `object`'s `.strict()` — and is the only custom-message mechanism; there is no global error map in v1.
 
 ```ts
-pvl.string({ message: 'must be a string' });
 pvl.string().min(3, { message: 'must be at least 3 characters' });
-pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
+pvl.number().refine((value) => value % 2 === 0, { message: 'must be even' });
+pvl.object({ name: pvl.string() }).strict({ message: 'no extra keys' });
 ```
 
 ### Refinements, Transforms, Coercion
 
-All three are supported in v1 (`CONTEXT.md` has the precise distinction):
+All three are supported in v1 (`CONTEXT.md` has the precise distinction), and each runs where it is chained:
 
-- **Refinement**: `(data) => boolean` predicates attached via `.refine(predicate, options?)`. Never change the value; a failing Refinement produces a `Result` `Issue` and never throws.
-- **Transform**: functions attached via `.transform(fn)` converting an accepted value into a different `Output` (`Input !== Output`), run as part of producing the `Result`. The schema's inferred `Output` reflects the transform's return type, distinct from its `Input`.
-- **Coercion**: opt-in conversion of the raw input to the schema's target type via `.coerce()`, run strictly _before_ the schema's own checks, so a coercion failure and a base-check failure compose predictably.
+- **Refinement**: `(data) => boolean` predicates attached via `.refine(predicate, options?)`, a post-modifier. Never change the value; a failing Refinement produces a `CUSTOM` `Issue`, never throws, and does not stop the post-modifiers after it. Skipped for a value `.optional()`/`.nullable()` short-circuited.
+- **Coercion**: opt-in conversion of the raw input via `.coerce()`, a pre-modifier replacing the value **before** the type check, so a coerced value is checked like any other and a coercion never produces an `Issue` of its own. Its position against `.optional()`/`.nullable()` matters: `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`, `pvl.string().optional().coerce()` keeps it. A no-op (identity `_coerceInput`) on `object`, `array`, `union` and `enum`.
+- **Transform**: see Transformation below.
+
+### Transformation
+
+`.transform(fn)` converts an accepted value into a different `Output`. It ends the chain: it returns a Read-only Schema (`ReadOnlySchema<Input, ReturnType<fn>>`, `validate()` and `~standard` only, no `shape`/`element`), so every other Modifier is chained before it ([ADR-0016](../../docs/adr/0016-transform-and-compile-return-read-only-schemas.md)). It is therefore always the last post-modifier, and the last thing to run: tagged `REQUIRES_ALL_PASSED`, it runs only if nothing failed, and tagged `RUNS_AFTER_SHORT_CIRCUIT`, it still runs after `.optional()`/`.nullable()` accepted the value — so `fn`'s parameter type includes `undefined`/`null` once those are chained.
 
 ### Standard Schema conformance
 
@@ -85,15 +102,15 @@ The internal validation result representation and `StandardSchemaV1.Result` are 
 
 ### `pvl.compile()` and the compiler-facing surface
 
-`compile()` marks a schema as a candidate for ahead-of-time compilation, e.g. `pvl.object({ key: pvl.compile(pvl.object({ ... })) })`. It accepts only a **composite schema** (`object` or `array`): compiling a bare primitive has no tree to flatten, so `pvl.compile(pvl.string())` is rejected at the type level here and flagged defensively by `@pvl/schema-compiler` too. At runtime, before compilation, it is an identity function — a schema file that uses it but hasn't been through the compiler still validates correctly through the interpreted path.
+`compile()` marks a schema as a candidate for ahead-of-time compilation, e.g. `pvl.object({ key: pvl.compile(pvl.object({ ... })) })`. It accepts only an **object or array schema** (`CompileCandidate`), transformed or not: compiling a bare primitive has no tree to flatten, so `pvl.compile(pvl.string())` is rejected at the type level here and flagged defensively by `@pvl/schema-compiler` too. At runtime, before compilation, it is an identity function — a schema file that uses it but hasn't been through the compiler still validates correctly through the interpreted path.
 
-At the type level it does **not** return its argument's type: it narrows to a terminal `Compiled Schema` whose surface is `"~standard"`, `validate()`, `shape` and `element`, with no modifier or structural edit attachable. `pvl.compile(x).optional()` and `pvl.compile(x).strict()` are compile errors; the supported spelling is `pvl.compile(x.optional())`, so every modifier is applied before compiling and there is exactly one correct place to put one ([ADR-0016](../../docs/adr/0016-compiled-schemas-are-terminal.md)). An uncompiled schema stays fully editable, primitive or composite alike — the restriction applies only where it's earned.
+At the type level it returns a `CompiledSchema`: a Read-only Schema, plus the read-only `shape`/`element` of an untransformed `object`/`array`. `pvl.compile(x).optional()` and `pvl.compile(x).strict()` are compile errors; the supported spelling is `pvl.compile(x.optional())` ([ADR-0016](../../docs/adr/0016-transform-and-compile-return-read-only-schemas.md)). A Compiled Schema is a `Schema` subclass instance at runtime, whose `_checkType` is the emitted code. An uncompiled schema stays fully editable.
 
-Three pieces of this package's surface exist to make that swap work, and must stay aligned with `@pvl/schema-compiler`:
+What keeps that swap working, and must stay aligned with `@pvl/schema-compiler`:
 
 - **`shape` on `ObjectSchema` and `element` on `ArraySchema`**, so the interpreted schema and the `Compiled Schema` present the same reachable structure. A `.standalone()` marker on a key is what puts it in a `Compiled Schema`'s `shape` (a `Standalone Key`); it is a **no-op on an uncompiled schema**, so adding or removing `pvl.compile(...)` never breaks a source file that uses it.
-- **Class-preserving modifiers.** `.refine()` returns `this` on every schema — a Refinement changes neither `Input` nor `Output`, so there is nothing to widen. `.optional()`, `.nullable()` and `.transform()` do change them, so `ObjectSchema`/`ArraySchema` carry `Input` and `Output` as trailing type parameters (defaulted to what they derive from their shape/item) and override those three to return themselves with the parameters widened — a refined, optional, nullable or transformed composite is still an `ObjectSchema`/`ArraySchema` and still a valid argument to `compile()`. On a primitive those three still widen to `Schema<Input, Output>`: a primitive is never a `compile()` candidate, and the base return type is what keeps `.min()`-style constraints off a schema whose accepted types have moved on. See [ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md)'s amendment, which also records why the constraint methods had to start cloning instead of rebuilding.
-- **Any pvl-produced Standard Schema (`PvlStandardSchema`) is accepted as a field or element** of `ObjectSchema`/`ArraySchema`, validated through its `~standard.validate` with the child's `Issue` paths re-prefixed by the parent key. This is what lets a nested `Compiled Schema` — a plain Standard Schema object, not a subclass of this package's `Schema` — sit inside an interpreted parent and still satisfy [ADR-0012](../../docs/adr/0012-composite-schemas-collect-every-issue.md). A schema from another library is rejected, at the type level only: `PvlStandardSchema` requires `~standard.vendor` to be the literal `'@pvl/schema'` (which every `Schema` types it as) and a synchronous, coded `Result` from `validate` ([ADR-0018](../../docs/adr/0018-composites-accept-pvl-standard-schema-fields.md)).
+- **Class-preserving Modifiers.** Every Modifier but `.transform()` returns its schema's own class ([ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md)), so a refined, optional or strict composite is still an `ObjectSchema`/`ArraySchema` and still a candidate. The type-only `'~compileCandidate'` marker on those two classes, carried over by `.transform()`, is what lets a transformed composite be one too.
+- **Fields, elements and union members are `@pvl/schema` Schemas only**, typed as Read-only Schemas so a transformed or compiled child fits, and called through their own `_validate` with the parent's path extended. A Standard Schema from another library is rejected at the type level ([ADR-0018](../../docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
 
 See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a marked schema.
 
@@ -101,7 +118,7 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 - **Primitive validators must be written for raw speed** — no regex or other comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
-- **A `Local Modifier`'s state lives in its own class.** Each class declares a module-local, unexported check type and holds it in a private property (`type StringCheck` plus `private _checks: ReadonlyArray<StringCheck>`, with a private `_withCheck` cloning through the base class). The near-identical `{ code, message, test }` shapes across classes are duplicated on purpose: keep them per class, with no shared `Check<T>`/`Constraint`/`Modifier<T>` type or modifier registry over them. Adding a modifier costs one method plus one check literal. The unknown-key mode is not a type parameter of `ObjectSchema`: only `.passthrough()` changes the output type, so `.strict()`/`.strip()` return `this` and `.passthrough()` widens `Output`.
+- **One `Modifier` type for every Modifier.** A Modifier is a method that builds a `Modifier` literal and calls `_withPreModifier` (before the type check) or `_withPostModifier` (after it). Tag it with `MODIFIER_TAG` only where its behaviour departs from the default reading of its result, and give it a `shape` (the factory that built it) only where a later Modifier must remove it through `_withoutModifiers`. The unknown-key mode is not a type parameter of `ObjectSchema`: only `.passthrough()` changes the output type, so `.strict()` returns `this` and `.passthrough()` widens `Output`.
 - **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pvl/schema-compiler` (see its `AGENTS.md`).
 
 ### TSDoc is user-facing documentation, not contributor rationale
@@ -112,6 +129,6 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 **Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments immediately above the declaration, which TypeDoc never picks up.
 
-Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. An internal-only module deliberately excluded from the barrel (`schemas/sharedModifiers.ts`) is outside all of this: TypeDoc never sees it, so its TSDoc is for maintainers.
+Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. `src/types.ts` (`Modifier`, `MODIFIER_TAG`) is outside the barrel: TypeDoc never sees it, so its comments are for maintainers.
 
 Examples are not yet verified by the build ([issue #60](https://github.com/Ota-Prokopec/pvl/issues/60)); until then, check a changed snippet by hand.

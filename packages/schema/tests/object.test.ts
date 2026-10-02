@@ -46,12 +46,6 @@ describe('pvl.object()', () => {
     expect(result.issues).toBeDefined();
   });
 
-  it('uses a custom message for the base type check', () => {
-    const schema = pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
-    const result = schema.validate(42);
-    expect(result.issues?.[0]?.message).toBe('invalid payload');
-  });
-
   it('reports one issue per failing field rather than stopping at the first', () => {
     const schema = pvl.object({ name: pvl.string(), age: pvl.number() });
     const result = schema.validate({ name: 42, age: 'old' });
@@ -98,6 +92,20 @@ describe('pvl.object()', () => {
       const result = schema.validate({ name: 'ada', extra: true });
       assertSuccess(result);
       expect(result.value).toEqual({ name: 'ada', extra: true });
+    });
+
+    it('lets a later .strict() undo an earlier .passthrough()', () => {
+      const schema = pvl.object({ name: pvl.string() }).passthrough().strict();
+      expect(schema.validate({ name: 'ada', extra: true }).issues?.[0]?.code).toBe(
+        'UNRECOGNIZED_KEY',
+      );
+    });
+
+    it('does not mutate the input it strips or passes through', () => {
+      const input = { name: 'ada', extra: true };
+      pvl.object({ name: pvl.string() }).validate(input);
+      pvl.object({ name: pvl.string() }).passthrough().validate(input);
+      expect(input).toEqual({ name: 'ada', extra: true });
     });
 
     it("does not let a passed-through `__proto__` key change the output's prototype", () => {
@@ -302,7 +310,6 @@ describe('pvl.object()', () => {
       expect(base.optional().shape.name).toBe(name);
       expect(base.nullable().shape.name).toBe(name);
       expect(base.refine(() => true).shape.name).toBe(name);
-      expect(base.transform((value) => value.name).shape.name).toBe(name);
     });
 
     it('leaves validation behaviour untouched', () => {

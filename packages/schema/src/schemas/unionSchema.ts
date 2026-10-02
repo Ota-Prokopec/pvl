@@ -1,7 +1,7 @@
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput } from '../types.js';
-import { Schema, type SchemaKind } from './schema.js';
+import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
 
 /**
  * The alternative schemas a union tries, in the order given. The first member
@@ -15,7 +15,7 @@ import { Schema, type SchemaKind } from './schema.js';
  * const id = pvl.union(members);
  * ```
  */
-export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
+export type UnionMembers = ReadonlyArray<ReadOnlySchema<unknown, unknown>>;
 
 // `Members[number]` is the union of the member schemas, and inferring through
 // a union of schemas yields the union of each member's own type.
@@ -63,10 +63,9 @@ interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
  * at the same path as the union itself, since a member is an alternative, not
  * a nested field.
  *
- * When no member accepts the value, the issues are every member's own
- * rejection, collected rather than replaced by one generic message. Pass
- * `{ message }` to replace them with a single `INVALID_UNION` issue where the
- * per-member detail would be noise.
+ * When no member accepts the value, the issues are one `INVALID_UNION` issue
+ * at the union's own path, followed by every member's own rejection in
+ * member order, so the detail of why each alternative failed is kept.
  *
  * `.coerce()` is inherited but does nothing here — the members can be
  * unrelated types, so there is no single conversion target. A member that
@@ -79,10 +78,12 @@ interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
  * const id = pvl.union([pvl.string(), pvl.number().int()]);
  *
  * id.validate('a1'); // { value: 'a1' }
- * id.validate(true); // { issues: [...] } — one issue per rejecting member
- *
- * const quiet = pvl.union([pvl.string(), pvl.number()], { message: 'expected an id' });
- * quiet.validate(true); // { issues: [{ code: 'INVALID_UNION', message: 'expected an id' }] }
+ * id.validate(true);
+ * // { issues: [
+ * //   { code: 'INVALID_UNION', message: 'Value matches no union member' },
+ * //   { code: 'INVALID_TYPE', message: 'Expected string' },
+ * //   { code: 'INVALID_TYPE', message: 'Expected number' },
+ * // ] }
  * ```
  */
 export class UnionSchema<
@@ -111,7 +112,10 @@ export class UnionSchema<
       rejections.push(...result.issues);
     }
     return {
-      issues: [new Issue(ISSUE_CODE.INVALID_UNION, path, 'Invalid type')],
+      issues: [
+        new Issue(ISSUE_CODE.INVALID_UNION, path, 'Value matches no union member'),
+        ...rejections,
+      ],
     };
   }
 }

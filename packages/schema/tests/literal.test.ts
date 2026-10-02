@@ -69,11 +69,6 @@ describe('pvl.literal()', () => {
     expect(result.issues).toBeDefined();
   });
 
-  it('uses a custom message for the literal check', () => {
-    const result = pvl.literal('OWNER', { message: 'must be OWNER' }).validate('MEMBER');
-    expect(result.issues?.[0]?.message).toBe('must be OWNER');
-  });
-
   it('reports a top-level Issue with no path for a bare literal failure', () => {
     const result = pvl.literal('OWNER').validate('MEMBER');
     expect(result.issues?.[0]?.message).toBeTypeOf('string');

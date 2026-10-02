@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { pvl, type NumberSchema, type StringSchema } from '../src/index.js';
+import { pvl, type NumberSchema, type ReadOnlySchema, type StringSchema } from '../src/index.js';
 
 const SYSTEM_ROLE = {
   OWNER: 'OWNER',
@@ -330,7 +330,6 @@ describe('type inference', () => {
     expectTypeOf(base.optional().shape.name).toEqualTypeOf<StringSchema>();
     expectTypeOf(base.nullable().shape.name).toEqualTypeOf<StringSchema>();
     expectTypeOf(base.refine(() => true).shape.name).toEqualTypeOf<StringSchema>();
-    expectTypeOf(base.transform((value) => value.name).shape.name).toEqualTypeOf<StringSchema>();
   });
 
   it("types element as the item's own schema class", () => {
@@ -352,6 +351,42 @@ describe('type inference', () => {
     expectTypeOf(base.optional().element).toEqualTypeOf<StringSchema>();
     expectTypeOf(base.nullable().element).toEqualTypeOf<StringSchema>();
     expectTypeOf(base.refine(() => true).element).toEqualTypeOf<StringSchema>();
-    expectTypeOf(base.transform((value) => value.length).element).toEqualTypeOf<StringSchema>();
+  });
+
+  it('makes a transformed schema read-only: no modifier, shape or element', () => {
+    const string = pvl.string().transform((value) => value.length);
+    const object = pvl.object({ name: pvl.string() }).transform((value) => value.name);
+    const array = pvl.array(pvl.string()).transform((value) => value.length);
+
+    expectTypeOf(string).toEqualTypeOf<ReadOnlySchema<string, number>>();
+    expectTypeOf(object).not.toHaveProperty('shape');
+    expectTypeOf(array).not.toHaveProperty('element');
+    for (const modifier of ['optional', 'nullable', 'refine', 'transform', 'coerce'] as const) {
+      expectTypeOf(string).not.toHaveProperty(modifier);
+      expectTypeOf(object).not.toHaveProperty(modifier);
+    }
+    expectTypeOf(object).not.toHaveProperty('strict');
+    expectTypeOf(array).not.toHaveProperty('min');
+  });
+
+  it('types a .transform() chained after .nullable()/.optional() with null/undefined', () => {
+    pvl
+      .string()
+      .nullable()
+      .optional()
+      .transform((value) => {
+        expectTypeOf(value).toEqualTypeOf<string | null | undefined>();
+        return value;
+      });
+  });
+
+  it('keeps a primitive schema class through .optional(), .nullable() and .coerce()', () => {
+    expectTypeOf(pvl.string().optional().min(2)).toEqualTypeOf<
+      StringSchema<string | undefined, string | undefined>
+    >();
+    expectTypeOf(pvl.number().nullable().int()).toEqualTypeOf<
+      NumberSchema<number | null, number | null>
+    >();
+    expectTypeOf(pvl.number().coerce().min(1)).toEqualTypeOf<NumberSchema<unknown, number>>();
   });
 });

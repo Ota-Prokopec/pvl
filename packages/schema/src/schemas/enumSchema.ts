@@ -1,5 +1,5 @@
 import type { ValueOfEnum } from '@repo/types';
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import { Schema, type SchemaKind } from './schema.js';
 
@@ -73,7 +73,7 @@ export class EnumSchema<
   private readonly members: ReadonlySet<EnumMember>;
 
   /** @internal */
-  constructor(source: Source, options?: IssueEditableProps) {
+  constructor(source: Source) {
     super();
     const members = Array.isArray(source) ? source : Object.values(source);
     this.members = new Set(members);

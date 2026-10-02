@@ -18,8 +18,9 @@ interface BigintSchemaKind extends SchemaKind {
  * output is always a `bigint`, never downgraded to a `number` — the precision
  * loss that would cause is exactly what `bigint` exists to avoid.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
- * keeps whatever modifiers were already applied.
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -36,12 +37,10 @@ interface BigintSchemaKind extends SchemaKind {
  */
 export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input, Output> {
   declare readonly '~kind': BigintSchemaKind;
-  private readonly _typeMessage: string;
 
   /** @internal */
-  constructor(options?: IssueEditableProps) {
+  constructor() {
     super();
-    this._typeMessage = options?.message ?? 'Expected bigint';
   }
 
   /**
@@ -115,7 +114,7 @@ export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input,
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
     if (typeof value !== 'bigint') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected bigint')],
       };
     }
     return { value };

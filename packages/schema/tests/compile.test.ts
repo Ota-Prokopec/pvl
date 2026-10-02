@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { pvl } from '../src/index.js';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { pvl, type ReadOnlySchema, type StringSchema } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
@@ -114,6 +114,53 @@ describe('pvl.compile()', () => {
       expect(compiled).toBe(schema);
       expect(compiled.validate(null).issues).toBeUndefined();
       expect(compiled.validate({ name: 'root' }).issues).toBeDefined();
+    });
+  });
+
+  // ADR-0016: a Compiled Schema is a Read-only Schema, plus `shape`/`element`
+  // when nothing was transformed.
+  describe('the type it hands back', () => {
+    it('chains no modifier onto a compiled schema', () => {
+      const compiled = pvl.compile(pvl.object({ name: pvl.string() }));
+      // @ts-expect-error a Compiled Schema takes no modifier
+      compiled.optional();
+      // @ts-expect-error a Compiled Schema takes no modifier
+      compiled.strict();
+      // @ts-expect-error a Compiled Schema takes no modifier
+      pvl.compile(pvl.array(pvl.string())).min(1);
+    });
+
+    it("keeps an untransformed object schema's shape and input/output", () => {
+      const compiled = pvl.compile(pvl.object({ name: pvl.string() }).optional());
+      expectTypeOf(compiled.shape.name).toEqualTypeOf<StringSchema>();
+      expectTypeOf(compiled).toExtend<
+        ReadOnlySchema<{ name: string } | undefined, { name: string } | undefined>
+      >();
+    });
+
+    it("keeps an untransformed array schema's element", () => {
+      const compiled = pvl.compile(pvl.array(pvl.string()).min(1));
+      expectTypeOf(compiled.element).toEqualTypeOf<StringSchema>();
+    });
+
+    it('drops shape and element from a transformed composite', () => {
+      const object = pvl.compile(
+        pvl.object({ name: pvl.string() }).transform((value) => value.name),
+      );
+      const array = pvl.compile(pvl.array(pvl.string()).transform((value) => value.length));
+      expectTypeOf(object).not.toHaveProperty('shape');
+      expectTypeOf(array).not.toHaveProperty('element');
+      expectTypeOf(object).toEqualTypeOf<ReadOnlySchema<{ name: string }, string>>();
+    });
+
+    it('rejects a transformed primitive', () => {
+      // @ts-expect-error a primitive has no tree to compile, transformed or not
+      pvl.compile(pvl.string().transform((value) => value.length));
+    });
+
+    it('rejects a union, which is not an object or array schema', () => {
+      // @ts-expect-error pvl.compile() only accepts an object or array schema
+      pvl.compile(pvl.union([pvl.object({ a: pvl.string() })]));
     });
   });
 });

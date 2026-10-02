@@ -124,6 +124,28 @@ describe('nested Issue paths', () => {
 });
 ```
 
+### Required coverage: the modifier pipeline
+
+`tests/pipeline.test.ts` pins down [ADR-0010](../../docs/adr/0010-modifiers-run-in-chain-order-around-the-type-check.md)'s steps through seam 1. Each row below is a required case; a change to `_validate` keeps every one passing, and a new tag or Modifier adds its own row.
+
+| Schema / input                                                                                        | Result                                                                     |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `pvl.string().min(5).length(3)` on `'ab'`                                                             | `TOO_SMALL`, `INVALID_LENGTH` (post-modifiers collect)                     |
+| `pvl.string().min(5)` on `42`                                                                         | `INVALID_TYPE` only (no post-modifier after a failed type check)           |
+| `pvl.array(pvl.string()).max(2)` on `['a', 2, 3]`                                                     | `[1] INVALID_TYPE`, `[2] INVALID_TYPE` (children failed, `.max()` skipped) |
+| `pvl.object({ a: pvl.string() }).strict()` on `{ a: 1, b: 2 }`                                        | `['a'] INVALID_TYPE` only                                                  |
+| `pvl.object({ a: pvl.string() }).strict()` on `{ a: 'x', b: 2 }`                                      | `['b'] UNRECOGNIZED_KEY`                                                   |
+| `pvl.number().refine(isEven, { message: 'must be even' }).int()` on `2.5`                             | `CUSTOM 'must be even'`, `NOT_INTEGER`, in chain order                     |
+| `pvl.string().coerce().optional()` on `undefined`                                                     | `{ value: 'undefined' }` (coerce runs first)                               |
+| `pvl.string().optional().coerce()` on `undefined`                                                     | `{ value: undefined }` (optional short-circuits first)                     |
+| `pvl.string().nullable().transform(f)` on `null`                                                      | `f(null)` is called, and its return value is the output                    |
+| `pvl.string().nullable().refine(p)` on `null`                                                         | `{ value: null }`, `p` is not called                                       |
+| `pvl.object({ id: pvl.string() }).passthrough().refine((v) => 'meta' in v)` on `{ id: 'a', meta: 1 }` | passes: `.refine()` sees `meta`                                            |
+| the same with `.refine(...)` chained before `.passthrough()`                                          | `CUSTOM`: `.refine()` ran on the stripped value                            |
+| `pvl.string().min(5).transform(f)` on `'ab'`                                                          | `TOO_SMALL`, `f` is not called                                             |
+
+Where an assertion lists several issues' codes, read them with `issueCodes(result)` from `tests/helpers.ts`: `result.issues?.map(...)` resolves to the spec's `Issue`, which has no `code`.
+
 ## Property-based testing (fast-check)
 
 `fast-check` is used for **primitives and composite combinators** specifically — hand-written examples tend to miss the boundary/edge-case bugs this library exists to catch (off-by-one boundaries on `.min()`/`.max()`, unusual-but-valid strings/numbers, deeply nested `object`/`array` shapes). It isn't required for every schema type; reach for it where an arbitrary-input generator materially strengthens coverage over hand-picked examples, e.g.:

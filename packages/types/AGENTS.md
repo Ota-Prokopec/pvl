@@ -3,8 +3,10 @@
 A minimal internal package with a single purpose: exporting `ValueOfEnum<T>`, the utility type [`docs/standards/typescript.md`](../../docs/standards/typescript.md) mandates every `as const` enum consumer in this monorepo import, instead of re-declaring a copy or inlining `typeof X[keyof typeof X]`.
 
 ```ts
-export type ValueOfEnum<T> = T[keyof T];
+export type ValueOfEnum<T> = T extends ReadonlyArray<unknown> ? T[number] : T[keyof T];
 ```
+
+The array branch exists for `@pvl/schema`'s `pvl.enum(['A', 'B'])`, whose source is a readonly tuple of literals: `T[keyof T]` on an array would also yield `length` and every array method. `ReadonlyArray` rather than `any[]`, since a `const`-inferred tuple is readonly and `any[]` does not match it.
 
 That standards file's "Use ValueOfEnum for extracting enum value types" section holds the consuming-package usage example.
 

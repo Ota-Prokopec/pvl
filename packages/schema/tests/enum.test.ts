@@ -65,11 +65,6 @@ describe('pvl.enum()', () => {
     });
   });
 
-  it('uses a custom message for the enum check', () => {
-    const result = pvl.enum(SYSTEM_ROLE, { message: 'unknown role' }).validate('ADMIN');
-    expect(result.issues?.[0]?.message).toBe('unknown role');
-  });
-
   it('reports a top-level Issue with no path for a bare enum failure', () => {
     const result = pvl.enum(SYSTEM_ROLE).validate('ADMIN');
     expect(result.issues?.[0]?.message).toBeTypeOf('string');
