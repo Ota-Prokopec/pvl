@@ -74,8 +74,6 @@ All GitHub activity by Claude Code must be identifiable as such:
 - Before starting an issue, look up its sub-issues (`gh issue view <int> --json subIssues`, falling back to `gh api` on older `gh`). A parent with sub-issues is an orchestration issue: sub-issues have to be solved individually first. Already-implemented sub-issue work is never re-implemented or duplicated; report any that are still pending instead. Once every sub-issue is done, post a `CLAUDE: ` comment on the parent linking all of their PRs.
 - **Sub-issues** branch and PR through a parent branch rather than `main` — follow [docs/agents/sub-issue-workflow.md](docs/agents/sub-issue-workflow.md).
 
-Spec and ticket issues from the `/to-spec` → `/to-tickets` pipeline branch differently — see [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
-
 ## Required Context Loading
 
 Before writing, refactoring or reviewing code, read the standards file for the technology involved and follow it strictly:
@@ -122,3 +120,5 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0018](./docs/adr/0018-composites-accept-pvl-standard-schema-fields.md) — composites accept any pvl-produced Standard Schema as a field, re-prefixing `Issue` paths
 
 Domain documentation is single-context: one root [`CONTEXT.md`](CONTEXT.md) plus [`docs/adr/`](docs/adr/), no per-package `CONTEXT.md` — see [docs/agents/domain.md](docs/agents/domain.md) for how the engineering skills consume it.
+
+When using any skill, follow this extended skills specification if the used skill is included: [docs/specification/skill-extensions.md](docs/specification/skill-extensions.md).
