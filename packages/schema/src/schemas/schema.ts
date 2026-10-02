@@ -104,8 +104,23 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
 > {
   // Each runs in chain order, the pre-modifiers before `_checkType` and the
   // post-modifiers after it — see `_validate` and ADR-0010.
-  private _preModifiers: ReadonlyArray<Modifier<unknown, unknown>> = [];
-  private _postModifiers: ReadonlyArray<Modifier<unknown, unknown>> = [];
+  private _preModifiers: ReadonlyArray<Modifier<unknown, unknown>>;
+  private _postModifiers: ReadonlyArray<Modifier<unknown, unknown>>;
+
+  // A schema type whose default behaviour is itself a Modifier (`object`'s
+  // stripping, a post-modifier) starts with it, so a later Modifier removes it
+  // by shape like any other.
+  /** @internal */
+  constructor({
+    preModifiers = [],
+    postModifiers = [],
+  }: {
+    readonly preModifiers?: ReadonlyArray<Modifier<unknown, unknown>>;
+    readonly postModifiers?: ReadonlyArray<Modifier<unknown, unknown>>;
+  } = {}) {
+    this._preModifiers = preModifiers;
+    this._postModifiers = postModifiers;
+  }
 
   /**
    * The Standard Schema protocol property. Consumers reach for

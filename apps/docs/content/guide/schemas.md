@@ -245,19 +245,16 @@ envelope.validate({ id: 'a1', meta: { source: 'api' } });
 // { value: { id: 'a1', meta: { source: 'api' } } }
 ```
 
-Both run where they are chained, like every modifier, so a [`.refine()`](#refine) chained after `.passthrough()` sees the undeclared keys and one chained before it sees the stripped value:
+Unlike every other modifier, these two set the mode for the whole schema rather than acting where they are chained, so a [`.refine()`](#refine) sees the value in the schema's mode wherever it sits in the chain:
 
 ```ts
 const tagged = pvl.object({ id: pvl.string() });
 
+tagged.refine((value) => 'meta' in value).validate({ id: 'a', meta: 1 }); // CUSTOM issue: `meta` was stripped
 tagged
-  .passthrough()
   .refine((value) => 'meta' in value)
+  .passthrough()
   .validate({ id: 'a', meta: 1 }); // passes
-tagged
-  .refine((value) => 'meta' in value)
-  .passthrough()
-  .validate({ id: 'a', meta: 1 }); // CUSTOM issue
 ```
 
 `.coerce()` is inherited but does nothing on an object: there is no unambiguous way to read an object out of a non-object. A field that needs coercion opts into it on its own schema.
@@ -319,7 +316,7 @@ This section documents the **shared** modifiers — the five below. `object`'s `
 
 These five are on **every** schema, primitive or composite, because they are orthogonal to what a schema's own shape check does.
 
-**Modifiers run in the order you chain them**, on either side of the schema's type check: `.optional()`, `.nullable()` and `.coerce()` run before it, the constraints, `.refine()`, `.strict()`/`.passthrough()` and `.transform()` after it. So where you chain one can change what a schema does — see [`.coerce()`](#coerce) and [unknown keys](#unknown-keys) for the two places it shows.
+**Modifiers run in the order you chain them**, on either side of the schema's type check: `.optional()`, `.nullable()` and `.coerce()` run before it, the constraints, `.refine()`, `.strict()`/`.passthrough()` and `.transform()` after it. So where you chain one can change what a schema does — see [`.coerce()`](#coerce). `object`'s `.strict()`/`.passthrough()` are the exception: they set the mode for the whole schema ([unknown keys](#unknown-keys)).
 
 Every schema keeps its own type through every modifier, so a type's own constraints stay chainable in any position:
 

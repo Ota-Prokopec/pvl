@@ -83,11 +83,16 @@ describe('the modifier pipeline', () => {
     expect(schema.validate({ id: 'a', meta: 1 }).issues).toBeUndefined();
   });
 
-  it('runs a .refine() chained before .passthrough() on the stripped value', () => {
+  it('lets a .refine() chained before .passthrough() see the undeclared keys too', () => {
     const schema = pvl
       .object({ id: pvl.string() })
       .refine((value) => 'meta' in value)
       .passthrough();
+    expect(schema.validate({ id: 'a', meta: 1 }).issues).toBeUndefined();
+  });
+
+  it('runs a .refine() on the stripped value by default', () => {
+    const schema = pvl.object({ id: pvl.string() }).refine((value) => 'meta' in value);
     expect(issueCodes(schema.validate({ id: 'a', meta: 1 }))).toEqual(['CUSTOM']);
   });
 

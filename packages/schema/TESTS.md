@@ -141,7 +141,8 @@ describe('nested Issue paths', () => {
 | `pvl.string().nullable().transform(f)` on `null`                                                      | `f(null)` is called, and its return value is the output                    |
 | `pvl.string().nullable().refine(p)` on `null`                                                         | `{ value: null }`, `p` is not called                                       |
 | `pvl.object({ id: pvl.string() }).passthrough().refine((v) => 'meta' in v)` on `{ id: 'a', meta: 1 }` | passes: `.refine()` sees `meta`                                            |
-| the same with `.refine(...)` chained before `.passthrough()`                                          | `CUSTOM`: `.refine()` ran on the stripped value                            |
+| the same with `.refine(...)` chained before `.passthrough()`                                          | passes: the mode applies to the whole chain                                |
+| `pvl.object({ id: pvl.string() }).refine((v) => 'meta' in v)` on `{ id: 'a', meta: 1 }`               | `CUSTOM`: `.refine()` ran on the stripped value                            |
 | `pvl.string().min(5).transform(f)` on `'ab'`                                                          | `TOO_SMALL`, `f` is not called                                             |
 
 Where an assertion lists several issues' codes, read them with `issueCodes(result)` from `tests/helpers.ts`: `result.issues?.map(...)` resolves to the spec's `Issue`, which has no `code`.
