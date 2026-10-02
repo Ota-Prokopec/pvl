@@ -2,7 +2,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { StandartSchema, StandartSchemaProps } from '../standartSchema.js';
+import type { StandartSchemaProps } from '../standartSchema.js';
 import type { Modifier, ModifierShape } from '../types.js';
 
 /**
