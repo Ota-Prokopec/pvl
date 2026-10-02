@@ -5,6 +5,15 @@ import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../types.js';
 
+// What the pre-modifiers hand on to `_checkType` and the post-modifiers: the
+// current value, every Issue collected so far, and whether a `SHORT_CIRCUIT`
+// step accepted the value.
+type PipelineState = {
+  readonly value: unknown;
+  readonly issues: ReadonlyArray<Issue>;
+  readonly shortCircuited: boolean;
+};
+
 /**
  * How a schema class is rebuilt with new `Input`/`Output` types. A subclass
  * declares a `'~kind'` extending this, whose `type` is the subclass itself
@@ -149,12 +158,35 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   // `{ issues }` collect and continue, `{ value }` replace and continue; a
   // `MODIFIER_TAG` is how a modifier departs from that.
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
+    const preModifiersResult = this._runPreModifiers(value, path);
+    // `_checkType`'s output, or the accepted value after a short-circuit.
+    let checkTypeValue = preModifiersResult.value;
+
+    if (!preModifiersResult.shortCircuited) {
+      const checked = this._checkType(checkTypeValue, path);
+      // A failed type check leaves nothing for a post-modifier to check.
+      if (checked.issues) {
+        return { issues: [...preModifiersResult.issues, ...checked.issues] };
+      }
+      checkTypeValue = checked.value;
+    }
+
+    // `Output` is a free type parameter the modifiers' own types can't be
+    // followed back to.
+    return this._runPostModifiers(
+      { ...preModifiersResult, value: checkTypeValue },
+      path,
+    ) as Result<Output>;
+  }
+
+  // ADR-0010 step 2: every pre-modifier in chain order, until a
+  // `SHORT_CIRCUIT` step accepts the value.
+  private _runPreModifiers(value: unknown, path: ReadonlyArray<PropertyKey>): PipelineState {
     const issues: Issue[] = [];
     let current = value;
-    let shortCircuited = false;
 
     for (const modifier of this._preModifiers) {
-      const result = modifier.fn(current, path, current);
+      const result = modifier.fn(current, path);
       if (result === null) {
         continue;
       }
@@ -164,31 +196,30 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       }
       current = result.value;
       if (modifier.tags?.includes(MODIFIER_TAG.SHORT_CIRCUIT)) {
-        shortCircuited = true;
-        break;
+        return { value: current, issues, shortCircuited: true };
       }
     }
 
-    // What `_checkType` received, before it built its own output from it.
-    const input = current;
+    return { value: current, issues, shortCircuited: false };
+  }
 
-    if (!shortCircuited) {
-      const checked = this._checkType(current, path);
-      // A failed type check leaves nothing for a post-modifier to check.
-      if (checked.issues) {
-        return { issues: [...issues, ...checked.issues] };
-      }
-      current = checked.value;
-    }
+  // ADR-0010 steps 4–6: every post-modifier in chain order, collecting every
+  // Issue — after a short-circuit, only the `RUNS_AFTER_SHORT_CIRCUIT` ones.
+  private _runPostModifiers(
+    state: PipelineState,
+    path: ReadonlyArray<PropertyKey>,
+  ): Result<unknown> {
+    const issues = [...state.issues];
+    let current = state.value;
 
     for (const modifier of this._postModifiers) {
-      if (shortCircuited && !modifier.tags?.includes(MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT)) {
+      if (state.shortCircuited && !modifier.tags?.includes(MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT)) {
         continue;
       }
       if (issues.length > 0 && modifier.tags?.includes(MODIFIER_TAG.REQUIRES_ALL_PASSED)) {
         continue;
       }
-      const result = modifier.fn(current, path, input);
+      const result = modifier.fn(current, path);
       if (result === null) {
         continue;
       }
@@ -199,9 +230,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
       current = result.value;
     }
 
-    // `Output` is a free type parameter the modifiers' own types can't be
-    // followed back to.
-    return issues.length > 0 ? { issues } : { value: current as Output };
+    return issues.length > 0 ? { issues } : { value: current };
   }
 
   /**

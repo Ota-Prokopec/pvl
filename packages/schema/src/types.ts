@@ -19,10 +19,7 @@ export const MODIFIER_TAG = {
 export type ModifierTag = ValueOfEnum<typeof MODIFIER_TAG>;
 
 export type Modifier<Input, Output> = {
-  // `input` is the value the type check received, before any post-modifier
-  // replaced it, for a post-modifier that has to read back what `_checkType`
-  // dropped (`object`'s `.passthrough()`).
-  fn: (value: Input, path: ReadonlyArray<PropertyKey>, input: unknown) => Result<Output> | null;
+  fn: (value: Input, path: ReadonlyArray<PropertyKey>) => Result<Output> | null;
   tags?: ReadonlyArray<ModifierTag>;
   // The factory that built this modifier, so `_withoutModifiers` can remove
   // every modifier of that shape whichever instance a schema holds. Left out

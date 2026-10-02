@@ -99,20 +99,32 @@ const assignKey = (target: Record<string, unknown>, key: string, value: unknown)
 // signature on the object branch and leaves the `undefined` branch alone.
 type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
 
+// The raw object each `_checkType` output was built from, so the unknown-key
+// modifiers can read back the keys `_checkType` dropped. Keyed by the output
+// rather than stored on the schema: a modifier is shared by every clone of the
+// schema it was chained on, so it can't reach the instance validating, and an
+// entry is collected with its output.
+const checkedInputs = new WeakMap<object, Record<string, unknown>>();
+
 // The unknown-key modifiers run as post-modifiers, once `_checkType` has
-// accepted the value, so `input` (what it received) is a plain object by then.
-// They read the undeclared keys from `input`: `_checkType`'s own output has
-// already dropped them.
-const unknownKeysOf = (input: unknown, declaredKeys: ReadonlySet<string>): string[] =>
-  Object.keys(input as Record<string, unknown>).filter((key) => !declaredKeys.has(key));
+// accepted the value. No post-modifier before them replaces the value
+// (`.refine()` and `.strict()` only report), so `value` is still
+// `_checkType`'s output.
+const unknownKeysOf = (value: unknown, declaredKeys: ReadonlySet<string>) => {
+  const input = checkedInputs.get(value as object) ?? (value as Record<string, unknown>);
+  return {
+    input,
+    keys: Object.keys(input).filter((key) => !declaredKeys.has(key)),
+  };
+};
 
 const unknownKeysStrictModifier = (
   declaredKeys: ReadonlySet<string>,
   options?: IssueEditableProps,
 ): Modifier<unknown, unknown> => ({
   shape: unknownKeysStrictModifier,
-  fn: (_value, path, input) => {
-    const issues = unknownKeysOf(input, declaredKeys).map(
+  fn: (value, path) => {
+    const issues = unknownKeysOf(value, declaredKeys).keys.map(
       (key) =>
         new Issue(
           ISSUE_CODE.UNRECOGNIZED_KEY,
@@ -128,8 +140,8 @@ const unknownKeysPassthroughModifier = (
   declaredKeys: ReadonlySet<string>,
 ): Modifier<unknown, unknown> => ({
   shape: unknownKeysPassthroughModifier,
-  fn: (value, _path, input) => {
-    const keys = unknownKeysOf(input, declaredKeys);
+  fn: (value) => {
+    const { input, keys } = unknownKeysOf(value, declaredKeys);
     if (keys.length === 0) {
       return null;
     }
@@ -137,7 +149,7 @@ const unknownKeysPassthroughModifier = (
     // on is never mutated.
     const output: Record<string, unknown> = { ...(value as Record<string, unknown>) };
     for (const key of keys) {
-      assignKey(output, key, (input as Record<string, unknown>)[key]);
+      assignKey(output, key, input[key]);
     }
     return { value: output };
   },
@@ -332,6 +344,7 @@ export class ObjectSchema<
       return { issues };
     }
 
+    checkedInputs.set(output, input);
     // The loop above wrote each field's own result, which the type system
     // can't follow back to the composed object type.
     // `Output` is a free type parameter — a modifier may have widened it past
