@@ -2,7 +2,6 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import { Schema, type SchemaKind } from './schema.js';
-import { toChildValidator, type ChildValidator } from './childValidator.js';
 
 interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind {
   readonly type: ArraySchema<ItemSchema, this['Input'], this['Output']>;
@@ -49,14 +48,12 @@ export class ArraySchema<
   private readonly itemSchema: ItemSchema;
   // Resolved from `_item` once at construction, since it runs per element on
   // the validation hot path.
-  //private readonly _validateItem: ChildValidator;
   private readonly _typeMessage: string;
 
   /** @internal */
   constructor(itemSchema: ItemSchema, options?: IssueEditableProps) {
     super();
     this.itemSchema = itemSchema;
-    //this._validateItem = toChildValidator(item);
     this._typeMessage = options?.message ?? 'Expected array';
   }
 

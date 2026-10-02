@@ -3,7 +3,7 @@ import { VENDOR } from '../consts.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { StandartSchema, StandartSchemaProps } from '../standartSchema.js';
-import type { Modifier } from '../types.js';
+import type { Modifier, ModifierShape } from '../types.js';
 
 /**
  * How a schema class is rebuilt with new `Input`/`Output` types. A subclass
@@ -17,7 +17,7 @@ import type { Modifier } from '../types.js';
 export interface SchemaKind {
   readonly Input: unknown;
   readonly Output: unknown;
-  readonly type: unknown;
+  readonly type: Schema;
 }
 
 /**
@@ -45,9 +45,10 @@ export type Rebind<S, Input, Output> = S extends { readonly '~kind': infer Kind 
  * length.validate('abc'); // { value: 3 }
  * ```
  */
-export type TransformedSchema<Input, Output> = StandartSchema<Input, Output> & {
-  validate(value: unknown): Result<Output>;
-};
+export type TransformedSchema<Input, Output> = Pick<
+  Schema,
+  'nullable' | 'optional' | 'refine' | 'transform' | 'validate' | '~standard'
+>;
 
 /**
  * The base every schema in this library extends. You never construct one
@@ -77,7 +78,21 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   Output
 > {
   private preModifiers: Modifier<unknown, unknown>[] = [];
-  private postModifiers: Modifier<unknown, unknown>[] = [];
+  private postModifiers: Modifier<unknown, unknown>[];
+
+  /**
+   * The modifiers a schema type runs by default, before any chained by the
+   * caller.
+   *
+   * @internal
+   */
+  constructor(
+    preModifiers: readonly Modifier<unknown, unknown>[] = [],
+    postModifiers: readonly Modifier<unknown, unknown>[] = [],
+  ) {
+    this.preModifiers = [...preModifiers];
+    this.postModifiers = [...postModifiers];
+  }
 
   /**
    * The Standard Schema protocol property. Consumers reach for
@@ -248,7 +263,10 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   // both types alone, so there is nothing to widen, and keeping the concrete
   // class is what lets a refined composite still be a `pvl.compile()`
   // candidate.
-  refine(predicate: (value: Output) => boolean, issueProps?: IssueEditableProps): this {
+  refine(
+    predicate: (value: Output) => boolean,
+    issueProps?: IssueEditableProps,
+  ): Rebind<this, Input, Output> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
         const refineResult = predicate(value);
@@ -257,7 +275,7 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
           ? { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] }
           : null;
       },
-    });
+    }) as unknown as Rebind<this, Input, Output>;
   }
 
   /**
@@ -334,6 +352,17 @@ export abstract class Schema<Input = unknown, Output = Input> implements Standar
   protected _withPostModifier<Input, Output>(newModifier: Modifier<Input, Output>): this {
     const clone = this._clone();
     clone.postModifiers = [...this.postModifiers, newModifier as Modifier<unknown, unknown>];
+    return clone;
+  }
+
+  // Matched by shape rather than identity, so a caller can remove a modifier
+  // without holding on to the instance it added.
+  protected _withoutModifiers(shapes: readonly ModifierShape[]): this {
+    const keep = (modifier: Modifier<unknown, unknown>): boolean =>
+      modifier.shape === undefined || !shapes.includes(modifier.shape);
+    const clone = this._clone();
+    clone.preModifiers = this.preModifiers.filter(keep);
+    clone.postModifiers = this.postModifiers.filter(keep);
     return clone;
   }
 }

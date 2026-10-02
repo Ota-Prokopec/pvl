@@ -31,12 +31,10 @@ interface StringSchemaKind extends SchemaKind {
  */
 export class StringSchema<Input = string, Output = string> extends Schema<Input, Output> {
   declare readonly '~kind': StringSchemaKind;
-  private readonly _typeMessage: string;
 
   /** @internal */
-  constructor(options?: IssueEditableProps) {
+  constructor() {
     super();
-    this._typeMessage = options?.message ?? 'Expected string';
   }
 
   /**
@@ -140,7 +138,7 @@ export class StringSchema<Input = string, Output = string> extends Schema<Input,
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
     if (typeof value !== 'string') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected string')],
       };
     }
     return { value };

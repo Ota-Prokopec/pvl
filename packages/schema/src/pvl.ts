@@ -4,9 +4,9 @@ import type { Schema } from './schemas/schema.js';
 import { BigintSchema } from './schemas/bigintSchema.js';
 import { BooleanSchema } from './schemas/booleanSchema.js';
 import { EnumSchema, type EnumSource } from './schemas/enumSchema.js';
-import { LiteralSchema, type LiteralValue } from './schemas/literalSchema.js';
+import { LiteralSchema, type PossibleLiteralValue } from './schemas/literalSchema.js';
 import { NumberSchema } from './schemas/numberSchema.js';
-import { ObjectSchema, type ObjectShape, type UnknownKeys } from './schemas/objectSchema.js';
+import { ObjectSchema, type ObjectShape } from './schemas/objectSchema.js';
 import { StringSchema } from './schemas/stringSchema.js';
 import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
 
@@ -31,7 +31,7 @@ import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
 // composite derives from its shape: a modifier widens those (`.optional()`
 // adds `undefined`), and a modified composite is still a candidate.
 export type CompileCandidate =
-  | ObjectSchema<ObjectShape, UnknownKeys, unknown, unknown>
+  | ObjectSchema<ObjectShape, unknown, unknown>
   | ArraySchema<Schema<unknown, unknown>, unknown, unknown>;
 
 /**
@@ -123,7 +123,7 @@ export const pvl = {
    * pvl.literal(42).validate('42'); // { issues: [{ code: 'INVALID_VALUE', ... }] }
    * ```
    */
-  literal: <Value extends LiteralValue>(
+  literal: <Value extends PossibleLiteralValue>(
     value: Value,
     options?: IssueEditableProps,
   ): LiteralSchema<Value> => new LiteralSchema(value, options),

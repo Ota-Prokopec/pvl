@@ -1,46 +1,7 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { ValueOfEnum } from '@repo/types';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { StandartSchema } from '../standartSchema.js';
+import type { InferInput, InferOutput, Modifier } from '../types.js';
 import { Schema, type SchemaKind } from './schema.js';
-import { toChildValidator, type ChildValidator } from './childValidator.js';
-
-/**
- * What an object schema does with keys its shape does not declare. Exactly
- * one mode is active per schema: `STRIP` (the default) drops them, `STRICT`
- * reports them as `Issue`s, `PASSTHROUGH` keeps them untyped.
- *
- * @example
- * ```ts
- * import { pvl, UNKNOWN_KEYS } from '@pvl/schema';
- *
- * const strict = pvl.object({ name: pvl.string() }).strict();
- *
- * strict.validate({ name: 'Ada', extra: 1 });
- * // { issues: [{ code: 'UNRECOGNIZED_KEY', path: ['extra'], ... }] }
- *
- * UNKNOWN_KEYS.STRICT; // 'STRICT'
- * ```
- */
-export const UNKNOWN_KEYS_MODE = {
-  STRIP: 'STRIP',
-  STRICT: 'STRICT',
-  PASSTHROUGH: 'PASSTHROUGH',
-} as const;
-
-/**
- * The union of {@link UNKNOWN_KEYS}' values — the mode an object schema
- * carries as its second type parameter.
- *
- * @example
- * ```ts
- * import { UNKNOWN_KEYS, type UnknownKeys } from '@pvl/schema';
- *
- * const keepsExtras = (mode: UnknownKeys): boolean => mode === UNKNOWN_KEYS.PASSTHROUGH;
- * ```
- */
-export type UnknownKeysMode = ValueOfEnum<typeof UNKNOWN_KEYS_MODE>;
 
 /**
  * The field schemas an object schema composes, one per declared key. A field
@@ -61,33 +22,19 @@ export type UnknownKeysMode = ValueOfEnum<typeof UNKNOWN_KEYS_MODE>;
  */
 export type ObjectShape = Readonly<Record<string, Schema<unknown, unknown>>>;
 
-type ShapeInput<Shape extends ObjectShape> = {
-  [Key in keyof Shape]: StandardSchemaV1.InferInput<Shape[Key]>;
-};
-
-type ShapeOutput<Shape extends ObjectShape> = {
-  [Key in keyof Shape]: StandardSchemaV1.InferOutput<Shape[Key]>;
-};
-
-// The keys a caller may leave out entirely. A field whose schema is
-// `.optional()` widens to include `undefined`, which is the only signal the
-// composed type has that the key itself is optional rather than required and
-// possibly undefined.
-type OptionalFieldKeys<Fields> = {
-  [Key in keyof Fields]-?: undefined extends Fields[Key] ? Key : never;
-}[keyof Fields];
-
-// Re-maps an intersection into one flat object type, preserving `?` modifiers.
-type Flatten<Fields> = { [Key in keyof Fields]: Fields[Key] };
-
-// The per-field types composed into a single object type, `?` applied.
-type ComposeObject<Fields> = Flatten<
-  {
-    [Key in Exclude<keyof Fields, OptionalFieldKeys<Fields>>]: Fields[Key];
+// The per-field types composed into a single object type. A field whose type
+// admits `undefined` (its schema is `.optional()`) becomes a `?` key — the
+// only signal the composed type has that the key itself may be left out.
+// `Composed` is a local, not a parameter: re-mapping it flattens the
+// intersection into one object type while keeping each `?`.
+type ComposeObject<
+  Fields,
+  Composed = {
+    [Key in keyof Fields as undefined extends Fields[Key] ? never : Key]: Fields[Key];
   } & {
-    [Key in OptionalFieldKeys<Fields>]?: Fields[Key];
-  }
->;
+    [Key in keyof Fields as undefined extends Fields[Key] ? Key : never]?: Fields[Key];
+  },
+> = { [Key in keyof Composed]: Composed[Key] };
 
 /**
  * The object type a value must match going in, composed from each field
@@ -108,36 +55,27 @@ type ComposeObject<Fields> = Flatten<
  * pvl.object(shape).validate(input);
  * ```
  */
-export type ObjectInput<Shape extends ObjectShape> = ComposeObject<ShapeInput<Shape>>;
+export type ObjectInput<Shape extends ObjectShape> = ComposeObject<{
+  [Key in keyof Shape]: InferInput<Shape[Key]>;
+}>;
 
 /**
- * The object type a successful validation hands back. `.passthrough()` adds
- * an `unknown`-valued index signature alongside the declared keys, because
- * unrecognized keys survive into the output; the other two modes output the
- * declared keys only.
+ * The object type a successful validation hands back, composed from each
+ * field schema's own output type. It lists the declared keys only;
+ * `.passthrough()` adds an `unknown`-valued index signature alongside them.
  *
  * @example
  * ```ts
- * import { pvl, UNKNOWN_KEYS, type ObjectOutput } from '@pvl/schema';
+ * import { pvl, type ObjectOutput } from '@pvl/schema';
  *
- * const shape = { name: pvl.string() };
+ * const shape = { name: pvl.string(), age: pvl.string().transform(Number) };
  *
- * type Stripped = ObjectOutput<typeof shape, typeof UNKNOWN_KEYS.STRIP>; // { name: string }
- * type Kept = ObjectOutput<typeof shape, typeof UNKNOWN_KEYS.PASSTHROUGH>;
- * // { name: string } & Record<string, unknown>
+ * type User = ObjectOutput<typeof shape>; // { name: string; age: number }
  * ```
  */
-export type ObjectOutput<
-  Shape extends ObjectShape,
-  Mode extends UnknownKeysMode,
-> = Mode extends typeof UNKNOWN_KEYS_MODE.PASSTHROUGH
-  ? ComposeObject<ShapeOutput<Shape>> & Record<string, unknown>
-  : ComposeObject<ShapeOutput<Shape>>;
-
-// What `.passthrough()` does to an output type that a modifier may already
-// have widened. Distributive, so `{ … } | undefined` gains the index
-// signature on the object branch and leaves the `undefined` branch alone.
-type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
+export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
+  [Key in keyof Shape]: InferOutput<Shape[Key]>;
+}>;
 
 // Plain `target[key] = value` would hit `Object.prototype`'s `__proto__`
 // setter for that one key name — which `JSON.parse('{"__proto__":{}}')`
@@ -156,11 +94,52 @@ const assignKey = (target: Record<string, unknown>, key: string, value: unknown)
   target[key] = value;
 };
 
-interface ObjectSchemaKind<
-  Shape extends ObjectShape,
-  Mode extends UnknownKeysMode,
-> extends SchemaKind {
-  readonly type: ObjectSchema<Shape, Mode, this['Input'], this['Output']>;
+// The unknown-key modifiers run as post-modifiers, once `_checkType` has
+// accepted the value, so it is a plain object by then.
+const unknownKeysOf = (value: unknown, declaredKeys: ReadonlySet<string>): string[] =>
+  Object.keys(value as Record<string, unknown>).filter((key) => !declaredKeys.has(key));
+
+const unknownKeysStrictModifier = (
+  declaredKeys: ReadonlySet<string>,
+  options?: IssueEditableProps,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStrictModifier,
+  fn: (value, path) => {
+    const issues = unknownKeysOf(value, declaredKeys).map(
+      (key) =>
+        new Issue(
+          ISSUE_CODE.UNRECOGNIZED_KEY,
+          [...path, key],
+          options?.message ?? `Unrecognized key "${key}"`,
+        ),
+    );
+    return issues.length > 0 ? { issues } : null;
+  },
+});
+
+const unknownKeysStripModifier = (
+  declaredKeys: ReadonlySet<string>,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStripModifier,
+  fn: (value) => {
+    // Copied rather than edited in place, since the value may be one the
+    // caller still holds. Spread defines each key as an own property, so
+    // `__proto__` is copied, not set.
+    const output: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+    for (const key of unknownKeysOf(value, declaredKeys)) {
+      delete output[key];
+    }
+    return { value: output };
+  },
+});
+
+// Every unknown-key modifier, removed before `.strict()`, `.strip()` or
+// `.passthrough()` applies its own so the last one chained wins. There is no
+// passthrough modifier: `_checkType` already keeps every key.
+const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStrictModifier, unknownKeysStripModifier];
+
+interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind {
+  readonly type: ObjectSchema<Shape, this['Input'], this['Output']>;
 }
 
 /**
@@ -173,16 +152,16 @@ interface ObjectSchemaKind<
  * `.optional()`, `.nullable()`, `.coerce()`, `.refine()`, `.transform()` —
  * with the field's key appended to the path.
  *
- * Unknown keys are stripped by default; `.strict()` and `.passthrough()`
- * change that. `.coerce()` is inherited but does nothing here — there is no
+ * Unknown keys are kept by default, though the output type lists only the
+ * declared keys; `.strict()` rejects them, `.strip()` drops them and
+ * `.passthrough()` adds them to the type. `.coerce()` is inherited but does nothing here — there is no
  * unambiguous way to read an object out of a non-object. A field that needs
  * coercion opts into it on its own schema.
  *
  * `.optional()`, `.nullable()` and `.refine()` hand back an object schema
  * rather than the base `Schema`, so a modified object schema is still
  * something `pvl.compile()` accepts, and `.strict()`/`.passthrough()` carry
- * an earlier modifier's types through. Chaining order is free in both
- * directions. `.transform()` ends the chain.
+ * an earlier modifier's types through. `.transform()` ends the chain.
  *
  * @example
  * ```ts
@@ -195,7 +174,7 @@ interface ObjectSchemaKind<
  * });
  *
  * user.validate({ name: 'Ada', age: 36, extra: true });
- * // { value: { name: 'Ada', age: 36 } } — `extra` is stripped
+ * // { value: { name: 'Ada', age: 36, extra: true } } — `extra` is kept
  *
  * user.validate({ name: '', age: 1.5 });
  * // { issues: [{ path: ['name'], ... }, { path: ['age'], ... }] } — both fields reported
@@ -203,32 +182,21 @@ interface ObjectSchemaKind<
  */
 export class ObjectSchema<
   Shape extends ObjectShape,
-  TUnknownKeysMode extends UnknownKeysMode = typeof UNKNOWN_KEYS_MODE.STRIP,
   Input = ObjectInput<Shape>,
-  Output = ObjectOutput<Shape, TUnknownKeysMode>,
+  Output = ObjectOutput<Shape>,
 > extends Schema<Input, Output> {
-  declare readonly '~kind': ObjectSchemaKind<Shape, TUnknownKeysMode>;
-  // `Mode` is a type-level marker for the output type only; the runtime field
-  // is the plain union, so the clone below can re-point it without a cast.
-  private _unknownKeysMode: UnknownKeysMode = UNKNOWN_KEYS_MODE.STRIP;
-
+  declare readonly '~kind': ObjectSchemaKind<Shape>;
   // Derived from the shape once at construction rather than per `.validate()`
-  // call, since both sit on the validation hot path.
-  private readonly _fields: ReadonlyArray<readonly [string, ChildValidator]>;
   private readonly _declaredKeys: ReadonlySet<string>;
-  // Its own copy of the argument, for the same reason the two derived fields
-  // above are snapshots: the caller still holds the object literal they passed
-  // in, and mutating it after construction must not make `shape` report a
-  // field `_fields` will never validate against.
+
   private readonly _shape: Shape;
 
   /** @internal */
-  constructor(shape: Shape, options?: IssueEditableProps) {
+  constructor(shape: Shape) {
     super();
     // Spreading a generic widens to its constraint, which is what the
     // assertion restores; the copy is per-construction, not per-`.validate()`.
     this._shape = { ...shape } as Shape;
-
     this._declaredKeys = new Set(Object.keys(shape));
   }
 
@@ -268,13 +236,15 @@ export class ObjectSchema<
   }
 
   /**
-   * Reports keys the shape does not declare as `Issue`s instead of stripping
+   * Reports keys the shape does not declare as `Issue`s instead of keeping
    * them — one `UNRECOGNIZED_KEY` issue per extra key, pathed to that key.
    * Use it where an unexpected key means a typo or a stale caller rather than
    * harmless extra data.
    *
-   * `.strict()` and `.passthrough()` are mutually exclusive; the last one
-   * applied wins.
+   * It runs after the fields are checked, so an object with a failing field
+   * reports only the field issues; its unknown keys are reported once every
+   * field passes. `.strict()`, `.strip()` and `.passthrough()` are mutually
+   * exclusive; the last one applied wins.
    *
    * @example
    * ```ts
@@ -286,21 +256,37 @@ export class ObjectSchema<
    * // { issues: [{ code: 'UNRECOGNIZED_KEY', path: ['prot'], ... }] }
    * ```
    */
-  strict(
-    options?: IssueEditableProps,
-  ): ObjectSchema<Shape, typeof UNKNOWN_KEYS_MODE.STRICT, Input, Output> {
-    return this._withUnknownKeys(UNKNOWN_KEYS_MODE.STRICT, options?.message) as ObjectSchema<
-      Shape,
-      typeof UNKNOWN_KEYS_MODE.STRICT,
-      Input,
-      Output
-    >;
+  strict(options?: IssueEditableProps): this {
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS)._withPostModifier(
+      unknownKeysStrictModifier(this._declaredKeys, options),
+    );
   }
 
   /**
-   * Keeps keys the shape does not declare, untyped, instead of stripping
-   * them. The output type gains an `unknown`-valued index signature, so
-   * reading an undeclared key still forces a narrowing step.
+   * Drops the keys the shape does not declare from the output instead of
+   * keeping them, so the value matches what its type lists. It undoes an
+   * earlier `.strict()` or `.passthrough()`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({ name: pvl.string() }).strip();
+   *
+   * user.validate({ name: 'Ada', extra: true }); // { value: { name: 'Ada' } }
+   * ```
+   */
+  strip(): this {
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS)._withPostModifier(
+      unknownKeysStripModifier(this._declaredKeys),
+    );
+  }
+
+  /**
+   * Adds the keys the shape does not declare to the output type, as an
+   * `unknown`-valued index signature, so reading one still forces a narrowing
+   * step. They are kept at runtime anyway; this also undoes an earlier
+   * `.strict()` or `.strip()`.
    *
    * @example
    * ```ts
@@ -312,17 +298,13 @@ export class ObjectSchema<
    * // { value: { id: 'a1', meta: { source: 'api' } } }
    * ```
    */
-  passthrough(): ObjectSchema<
-    Shape,
-    typeof UNKNOWN_KEYS.PASSTHROUGH,
-    Input,
-    WithUnknownKeys<Output>
-  > {
-    return this._withUnknownKeys(UNKNOWN_KEYS.PASSTHROUGH) as ObjectSchema<
+  passthrough(): ObjectSchema<Shape, Input, Output> {
+    // `_checkType` already keeps every key, so passing them through is just
+    // removing a `.strict()` or `.strip()` chained earlier.
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS) as unknown as ObjectSchema<
       Shape,
-      typeof UNKNOWN_KEYS.PASSTHROUGH,
       Input,
-      WithUnknownKeys<Output>
+      Output
     >;
   }
 
@@ -330,67 +312,40 @@ export class ObjectSchema<
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected object')],
       };
     }
 
     const input = value as Record<string, unknown>;
-    const output: Record<string, unknown> = {};
+    // Starts as a copy of the whole input, so unknown keys are kept by default
+    // and `.strict()`/`.strip()` see them as a post-modifier. Spread defines
+    // each key as an own property, so `__proto__` is copied, not set.
+    const output: Record<string, unknown> = { ...input };
     const issues: Issue[] = [];
 
-    for (const [key, validateField] of this._fields) {
-      const result = validateField(input[key], [...path, key]);
+    for (const [childKey, childSchema] of Object.entries(this._shape)) {
+      const result = childSchema._validate(input[childKey], [...path, childKey]);
       if (result.issues) {
         issues.push(...result.issues);
         continue;
       }
       // An omitted optional field stays omitted rather than becoming an
       // explicit `undefined` property of the output.
-      if (result.value === undefined && !Object.hasOwn(input, key)) {
+      if (result.value === undefined && !Object.hasOwn(input, childKey)) {
         continue;
       }
-      assignKey(output, key, result.value);
-    }
 
-    if (this._unknownKeys !== UNKNOWN_KEYS.STRIP) {
-      for (const key of Object.keys(input)) {
-        if (this._declaredKeys.has(key)) {
-          continue;
-        }
-        if (this._unknownKeys === UNKNOWN_KEYS.STRICT) {
-          issues.push(
-            new Issue(
-              ISSUE_CODE.UNRECOGNIZED_KEY,
-              [...path, key],
-              this._unknownKeyMessage ?? `Unrecognized key "${key}"`,
-            ),
-          );
-          continue;
-        }
-        assignKey(output, key, input[key]);
-      }
+      assignKey(output, childKey, result.value);
     }
 
     if (issues.length > 0) {
       return { issues };
     }
-    // The loops above built `output` key by key from each field's own result,
-    // which the type system can't follow back to the composed object type.
+
+    // The loop above wrote each field's own result over the copy, which the
+    // type system can't follow back to the composed object type.
     // `Output` is a free type parameter — a modifier may have widened it past
     // the composed type — so the assertion goes through `unknown`.
     return { value: output as unknown as Output };
-  }
-
-  // Clones through the base class's prototype-preserving clone, so any
-  // modifier already chained onto this instance survives, then re-points the
-  // unknown-key fields. Constructing a fresh `ObjectSchema` instead would reset
-  // the base `Schema`'s modifiers and silently drop them. The two callers
-  // re-state the mode and, for `.passthrough()`, the output — `Mode` is a
-  // type-level marker the runtime has no equivalent of.
-  private _withUnknownKeys(unknownKeys: UnknownKeys, unknownKeyMessage?: string): this {
-    const clone = this._clone();
-    clone._unknownKeys = unknownKeys;
-    clone._unknownKeyMessage = unknownKeyMessage;
-    return clone;
   }
 }

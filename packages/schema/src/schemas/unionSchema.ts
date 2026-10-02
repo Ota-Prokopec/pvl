@@ -1,6 +1,6 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
+import type { InferInput, InferOutput } from '../types.js';
 import { Schema, type SchemaKind } from './schema.js';
 
 /**
@@ -17,17 +17,8 @@ import { Schema, type SchemaKind } from './schema.js';
  */
 export type UnionMembers = ReadonlyArray<Schema<unknown, unknown>>;
 
-// Homomorphic mapped tuple types: mapping over `Members` (a tuple when the
-// `pvl.union()` factory infers it via `const`) preserves its tuple shape, so
-// indexing the result with `[number]` yields the true union of each member's
-// own input/output type rather than a single merged type.
-type MemberInputs<Members extends UnionMembers> = {
-  [Index in keyof Members]: StandardSchemaV1.InferInput<Members[Index]>;
-};
-
-type MemberOutputs<Members extends UnionMembers> = {
-  [Index in keyof Members]: StandardSchemaV1.InferOutput<Members[Index]>;
-};
+// `Members[number]` is the union of the member schemas, and inferring through
+// a union of schemas yields the union of each member's own type.
 
 /**
  * The union of every member's own input type — what a value must match going
@@ -43,7 +34,7 @@ type MemberOutputs<Members extends UnionMembers> = {
  * pvl.union(members).validate(id);
  * ```
  */
-export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[number];
+export type UnionInput<Members extends UnionMembers> = InferInput<Members[number]>;
 
 /**
  * The union of every member's own output type — what a successful validation
@@ -57,7 +48,7 @@ export type UnionInput<Members extends UnionMembers> = MemberInputs<Members>[num
  * const out: UnionOutput<typeof members> = 'either way a string';
  * ```
  */
-export type UnionOutput<Members extends UnionMembers> = MemberOutputs<Members>[number];
+export type UnionOutput<Members extends UnionMembers> = InferOutput<Members[number]>;
 
 interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
   readonly type: UnionSchema<Members, this['Input'], this['Output']>;
@@ -101,30 +92,26 @@ export class UnionSchema<
 > extends Schema<Input, Output> {
   declare readonly '~kind': UnionSchemaKind<Members>;
   private readonly _members: Members;
-  private readonly _message: string | undefined;
 
   /** @internal */
-  constructor(members: Members, options?: IssueEditableProps) {
+  constructor(members: Members) {
     super();
     this._members = members;
-    this._message = options?.message;
   }
 
   /** @internal */
-  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<UnionOutput<Members>> {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     const rejections: Issue[] = [];
+
     for (const member of this._members) {
       const result = member._validate(value, path);
       if (!result.issues) {
-        return { value: result.value as UnionOutput<Members> };
+        return { value: result.value as Output };
       }
       rejections.push(...result.issues);
     }
-    if (this._message !== undefined) {
-      return {
-        issues: [new Issue(ISSUE_CODE.INVALID_UNION, path, this._message)],
-      };
-    }
-    return { issues: rejections };
+    return {
+      issues: [new Issue(ISSUE_CODE.INVALID_UNION, path, 'Invalid type')],
+    };
   }
 }

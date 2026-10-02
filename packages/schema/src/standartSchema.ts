@@ -30,24 +30,3 @@ export type StandartSchemaProps<Input = unknown, Output = Input> = Omit<
   readonly vendor: typeof VENDOR;
   readonly validate: (value: unknown) => Result<Output>;
 };
-
-/**
- * A Standard Schema produced by `@pvl/schema` itself — any `pvl.*` schema, or
- * a Compiled Schema from `@pvl/schema-compiler`. It is what an object schema
- * accepts as a field and an array schema as its element. A schema from
- * another library is rejected as one, even though it implements Standard
- * Schema too.
- *
- * @example
- * ```ts
- * import { pvl, type StandartSchema } from '@pvl/schema';
- *
- * const name: StandartSchema<string> = pvl.string().min(1);
- * const user = pvl.object({ name });
- *
- * user.validate({ name: '' }); // { issues: [{ code: 'TOO_SMALL', path: ['name'], ... }] }
- * ```
- */
-export type StandartSchema<Input = unknown, Output = Input> = {
-  readonly '~standard': StandartSchemaProps<Input, Output>;
-};
