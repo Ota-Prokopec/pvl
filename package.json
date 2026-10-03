@@ -13,6 +13,7 @@
     "test": "turbo run test"
   },
   "devDependencies": {
+    "lefthook": "^2.1.16",
     "prettier": "3.9.6",
     "turbo": "^2.10.13",
     "typescript": "7.0.2"
