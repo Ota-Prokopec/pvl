@@ -6,7 +6,7 @@ Project is a pnpm + Turborepo TypeScript monorepo. Two packages define the proje
 - **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pvl/schema`) — a schema-validation library in the spirit of [Zod](https://zod.dev): compose schemas and validate values against them at runtime. Implemented; see the `zod` skill.
 - **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`) — the ahead-of-time compiler. Statically parses schema source (ts-morph) for `pvl.compile(...)` markers and emits a single `Destination File` in which each marked schema is a `Compiled Schema` running straight-line instructions instead of walking the schema tree at runtime. Not implemented yet.
 
-Supporting entries, each with its own `AGENTS.md`: [`apps/playground`](./apps/playground/AGENTS.md) (private scratch app for watching `@pvl/schema` work), [`apps/docs`](./apps/docs/AGENTS.md) (VitePress guide pages plus a TypeDoc-generated API reference; deployment not set up), [`scripts/claude`](./scripts/claude/AGENTS.md) (the `pnpm claude` developer script; `scripts/` holds one package folder per script), [`packages/types`](./packages/types/AGENTS.md) (shared TypeScript types). `packages/eslint-config` and `packages/typescript-config` are the shared lint/type-check config packages.
+Supporting entries, each with its own `AGENTS.md`: [`apps/playground`](./apps/playground/AGENTS.md) (private scratch app for watching `@pvl/schema` work), [`apps/docs`](./apps/docs/AGENTS.md) (VitePress guide pages plus a TypeDoc-generated API reference; deployment not set up), [`scripts/claude`](./scripts/claude/AGENTS.md) and [`scripts/claude-list`](./scripts/claude-list/AGENTS.md) (the `pnpm claude` and `pnpm claude-list` developer scripts; `scripts/` holds one package folder per script), [`packages/git-worktrees`](./packages/git-worktrees/AGENTS.md) (the worktree reader both scripts share), [`packages/types`](./packages/types/AGENTS.md) (shared TypeScript types). `packages/eslint-config` and `packages/typescript-config` are the shared lint/type-check config packages.
 
 Read an entry's own `AGENTS.md` before working inside it — full technology, architecture and coding-style detail lives there, not here. [`MONOREPO.md`](./MONOREPO.md) inventories the workspace; [`CONTEXT.md`](./CONTEXT.md) is the domain glossary.
 
@@ -17,6 +17,7 @@ Run from the repo root; Turborepo fans each one out across the workspace.
 - `pnpm dev` — watch/dev mode for every app and package
 - `pnpm docs:dev` / `pnpm docs:build` — generate the API reference, then serve or build the documentation site
 - `pnpm claude [claude args]` — pick a git worktree (or create one) from a menu and start Claude Code there with `--dangerously-skip-permissions`
+- `pnpm claude-list` — pick git worktrees from a menu and remove them, together with their branches
 - The six checklist commands below
 - Before every commit, lefthook's `pre-commit` hook ([`lefthook.yml`](./lefthook.yml)) runs `pnpm format` (re-adding its fixes to the commit), then `pnpm lint` and `pnpm check-types`
 

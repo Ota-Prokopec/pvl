@@ -119,6 +119,24 @@ importers:
         specifier: 17.12.0
         version: 17.12.0
 
+  packages/git-worktrees:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(supports-color@5.5.0)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/schema:
     dependencies:
       '@repo/types':
@@ -203,6 +221,34 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@repo/git-worktrees':
+        specifier: workspace:*
+        version: link:../../packages/git-worktrees
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(supports-color@5.5.0)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  scripts/claude-list:
+    dependencies:
+      '@clack/prompts':
+        specifier: ^1.8.1
+        version: 1.8.1
+      '@repo/git-worktrees':
+        specifier: workspace:*
+        version: link:../../packages/git-worktrees
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
