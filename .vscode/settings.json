@@ -1,1 +1,4 @@
-{}
+{
+  "git.detectWorktrees": true,
+  "scm.alwaysShowRepositories": true
+}
