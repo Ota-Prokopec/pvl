@@ -26,7 +26,7 @@ const user = pvl.object({
 
 Each factory returns a schema, and each method on a schema returns a new schema. Nothing is mutated — `pvl.string()` and `pvl.string().min(1)` are two separate schemas.
 
-Chaining order never changes what a schema validates, but on a primitive it does decide what you can chain next: `.optional()`, `.nullable()`, `.coerce()` and `.transform()` hand back the base `Schema`, so put a type's own constraints (`.min()`, `.max()`, `.length()`, `.int()`) before them. See [the note under Modifiers](./schemas#modifiers).
+Modifiers run in the order you chain them, so order can matter — `pvl.string().coerce().optional()` and `pvl.string().optional().coerce()` treat `undefined` differently. Every schema keeps its own type through every modifier, so `pvl.string().optional().min(2)` works just like `pvl.string().min(2).optional()`. The one exception is `.transform()`, which ends the chain. See [Modifiers](./schemas#modifiers).
 
 See [Schema types](./schemas) for the full set of factories and modifiers.
 
@@ -57,10 +57,10 @@ Check `issues` first. TypeScript narrows on it, so inside the `else` branch `res
 | Field     | What it is                                                                                                |
 | --------- | --------------------------------------------------------------------------------------------------------- |
 | `code`    | A stable [`IssueCode`](/api/type-aliases/IssueCode) such as `INVALID_TYPE` or `TOO_SMALL`. Match on this. |
-| `message` | Human-readable prose. Replaceable per call site, so never match on it.                                    |
+| `message` | Human-readable prose. Some checks let you replace it, so never match on it.                               |
 | `path`    | Where the failure happened, as an array of keys and indices. Omitted entirely for a failure at the root.  |
 
-Objects and arrays check **every** field and element rather than stopping at the first failure, so one round-trip tells you everything that is wrong:
+Objects and arrays check **every** field and element, and every constraint is checked rather than stopping at the first that fails, so one round-trip tells you everything that is wrong:
 
 ```ts
 const result = user.validate({ name: '', age: 1.5 });
@@ -76,12 +76,12 @@ Nested structures compose their paths, so a bad element inside an array inside a
 
 ### Custom messages
 
-Every factory and every constraint method takes an optional trailing options object. Its `message` replaces the default message for that one check — it is the only way to customise a message.
+The modifiers that report an issue of their own — the constraints (`.min()`, `.max()`, `.length()`, `.int()`), `.refine()` and `object`'s `.strict()` — take an optional trailing options object. Its `message` replaces the default message for that one check — it is the only way to customise a message. The factories take no options: a type check's message is fixed, so map it by `code` where you display it.
 
 ```ts
-pvl.string({ message: 'name must be text' });
 pvl.string().min(3, { message: 'must be at least 3 characters' });
-pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
+pvl.number().refine((value) => value % 2 === 0, { message: 'must be even' });
+pvl.object({ name: pvl.string() }).strict({ message: 'no extra keys' });
 ```
 
 ## Type inference

@@ -1,7 +1,12 @@
 import { coerceToBoolean } from '../coercions.js';
-import { buildIssue, ISSUE_CODE } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
+
+interface BooleanSchemaKind extends SchemaKind<BooleanSchema<unknown, unknown>> {
+  readonly type: BooleanSchema<this['Input'], this['Output']>;
+}
 
 /**
  * Accepts a JavaScript `boolean`. Build one with `pvl.boolean()`.
@@ -24,13 +29,15 @@ import { Schema, type SchemaOptions } from './baseSchema.js';
  * const mustAccept = pvl.literal(true);
  * ```
  */
-export class BooleanSchema extends Schema<boolean, boolean> {
-  private readonly _typeMessage: string;
+export class BooleanSchema<Input = boolean, Output = boolean> extends ChainableSchema<
+  Input,
+  Output
+> {
+  declare readonly '~kind': BooleanSchemaKind;
 
   /** @internal */
-  constructor(options?: SchemaOptions) {
+  constructor() {
     super();
-    this._typeMessage = options?.message ?? 'Expected boolean';
   }
 
   /** @internal */
@@ -42,7 +49,7 @@ export class BooleanSchema extends Schema<boolean, boolean> {
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<boolean> {
     if (typeof value !== 'boolean') {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected boolean')],
       };
     }
     return { value };

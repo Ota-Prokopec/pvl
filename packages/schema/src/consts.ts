@@ -1,6 +1,6 @@
 /**
  * The `vendor` string every schema in this library reports through its
- * Standard Schema properties. Compiled validators produced by
+ * Standard Schema properties. Compiled Schemas produced by
  * `@pvl/schema-compiler` report the same value, so a consumer cannot tell
  * the two apart by vendor.
  *
@@ -12,4 +12,4 @@
  * schema['~standard'].vendor === VENDOR; // true
  * ```
  */
-export const VENDOR = '@pvl/schema';
+export const VENDOR = '@pvl/schema' as const;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { pvl } from '../src/index.js';
-import { assertSuccess } from './helpers.js';
+import { pvl, type Issue } from '../src/index.js';
+import { assertSuccess, issueCodes } from './helpers.js';
 
 describe('pvl.array()', () => {
   it('accepts an array whose every element matches the item schema', () => {
@@ -38,12 +38,6 @@ describe('pvl.array()', () => {
   it('rejects a plain object', () => {
     const result = pvl.array(pvl.string()).validate({ 0: 'a', length: 1 });
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const schema = pvl.array(pvl.string(), { message: 'invalid list' });
-    const result = schema.validate(42);
-    expect(result.issues?.[0]?.message).toBe('invalid list');
   });
 
   it('reports one issue per failing element rather than stopping at the first', () => {
@@ -89,11 +83,17 @@ describe('pvl.array()', () => {
       expect(result.issues?.[0]?.message).toBe('too few items');
     });
 
-    it('does not validate elements once a length check has already failed', () => {
+    it('runs no length check once an element has failed', () => {
       const schema = pvl.array(pvl.string()).length(2);
       const result = schema.validate([42]);
-      expect(result.issues).toHaveLength(1);
-      expect(result.issues?.[0]?.code).toBe('INVALID_LENGTH');
+      expect(result.issues?.map((issue: Issue) => [issue.path, issue.code])).toEqual([
+        [[0], 'INVALID_TYPE'],
+      ]);
+    });
+
+    it('runs the length check once every element passed', () => {
+      const result = pvl.array(pvl.string()).length(2).validate(['a']);
+      expect(issueCodes(result)).toEqual(['INVALID_LENGTH']);
     });
   });
 
@@ -143,13 +143,15 @@ describe('pvl.array()', () => {
       expect(schema.validate([]).issues?.[0]?.code).toBe('TOO_SMALL');
     });
 
-    it('keeps .refine() through a constraint chained after it', () => {
+    it('collects .refine() and a constraint chained after it, in chain order', () => {
       const schema = pvl
         .array(pvl.string())
         .refine((value) => value.length % 2 === 0, { message: 'must have an even count' })
         .max(4);
-      expect(schema.validate(['a']).issues?.[0]?.message).toBe('must have an even count');
-      expect(schema.validate(['a', 'b', 'c', 'd', 'e']).issues?.[0]?.code).toBe('TOO_BIG');
+      expect(schema.validate(['a']).issues?.map((issue) => issue.message)).toEqual([
+        'must have an even count',
+      ]);
+      expect(issueCodes(schema.validate(['a', 'b', 'c', 'd', 'e']))).toEqual(['CUSTOM', 'TOO_BIG']);
       expect(schema.validate(['a', 'b']).issues).toBeUndefined();
     });
 
@@ -265,7 +267,6 @@ describe('pvl.array()', () => {
       expect(base.optional().element).toBe(item);
       expect(base.nullable().element).toBe(item);
       expect(base.refine(() => true).element).toBe(item);
-      expect(base.transform((value) => value.length).element).toBe(item);
     });
 
     it('leaves validation behaviour untouched', () => {

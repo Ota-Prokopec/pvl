@@ -12,7 +12,7 @@ apps/
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler
-├── types/             (@repo/types)               — the shared ValueOfEnum utility type
+├── types/             (@repo/types)               — the shared ValueOfEnum utility type (enum objects and literal arrays)
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 ├── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
 └── ui/                                            — untouched create-turbo starter
@@ -29,7 +29,7 @@ packages/
 
 - [**`apps/docs`**](./apps/docs/AGENTS.md) — the user-facing documentation site for `@pvl/schema`: hand-written VitePress guide pages plus an API reference generated from the library's source by TypeDoc. Deployment is not set up.
 - [**`apps/playground`**](./apps/playground/AGENTS.md) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so the library can be watched working without writing a throwaway test.
-- [**`packages/types`**](./packages/types/AGENTS.md) — supplies the `ValueOfEnum<T>` utility type [`docs/standards/typescript.md`](./docs/standards/typescript.md) mandates every `as const` enum consumer import rather than re-declare. `@pvl/schema` depends on it for its own internal enums.
+- [**`packages/types`**](./packages/types/AGENTS.md) — supplies the `ValueOfEnum<T>` utility type [`docs/standards/typescript.md`](./docs/standards/typescript.md) mandates every `as const` enum consumer import rather than re-declare; it reads the values of an `as const` object and the elements of a literal array alike, the latter for `pvl.enum(['A', 'B'])`. `@pvl/schema` depends on it for its own internal enums.
 - **`packages/eslint-config`** and **`packages/typescript-config`** are **real, adopted dependencies**, not create-turbo leftovers: `@pvl/schema`, `@repo/types` and both apps take them as `workspace:*` devDependencies instead of standing up bespoke config. Treat them as part of the architecture.
 - **`apps/web`** (starter Next.js app) and **`packages/ui`** (starter React component package) are untouched `create-turbo` scaffolding with no consumer and no `AGENTS.md` — a known gap against the Core Rule that every `apps/*`/`packages/*` entry has one. Decide whether to repurpose, document or remove them before treating either as project code (see GitHub issue #1, closed without being executed).
 
