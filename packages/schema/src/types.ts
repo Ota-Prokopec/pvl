@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
-import type { ChainableSchema, Schema } from './schemas/schema.js';
+import type { ChainableSchema } from './schemas/chainableSchema.js';
 
 /**
  * The type a schema accepts as input — what a value must look like going in.
@@ -67,31 +67,3 @@ export type RetypedSchema<TSchema, Input, Output> = TSchema extends {
 }
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
   : ChainableSchema<Input, Output>;
-
-/**
- * What `pvl.compile()` hands back: a plain {@link Schema}, plus the
- * read-only `shape` of an object schema or `element` of an array schema
- * when no `.transform()` was chained — a transformed value can be anything,
- * so it has neither. Any other schema, primitive or union, compiles to the
- * plain Schema alone.
- *
- * @example
- * ```ts
- * import { pvl, type CompiledSchema } from '@pvl/schema';
- *
- * const user = pvl.object({ name: pvl.string() });
- * const compiled: CompiledSchema<typeof user> = pvl.compile(user);
- *
- * compiled.shape.name.validate('Ada'); // { value: 'Ada' }
- * compiled.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
- * ```
- */
-export type CompiledSchema<TSchema extends Schema<unknown, unknown>> = Schema<
-  InferInput<TSchema>,
-  InferOutput<TSchema>
-> &
-  (TSchema extends { readonly shape: infer Shape }
-    ? { readonly shape: Shape }
-    : TSchema extends { readonly element: infer Element }
-      ? { readonly element: Element }
-      : unknown);

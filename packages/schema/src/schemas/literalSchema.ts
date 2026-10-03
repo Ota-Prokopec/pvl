@@ -2,7 +2,7 @@ import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from 
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 /**
  * Every primitive type `pvl.literal()` can pin a schema to. Objects, arrays

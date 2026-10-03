@@ -1,6 +1,6 @@
 # `@pvl/schema`
 
-A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. This file documents the conventions the package is built under. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`, `Standalone Key`) used throughout, and [`TESTS.md`](./TESTS.md) for the testing strategy.
+A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. This file documents the conventions the package is built under. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`) used throughout, and [`TESTS.md`](./TESTS.md) for the testing strategy.
 
 ## Technology
 
@@ -14,17 +14,14 @@ A Zod-style schema validation library: compose `Schema`s and validate values aga
 
 The single public entry point is a `pvl` namespace object (`import { pvl } from '@pvl/schema'`), not a set of flat named exports. Every factory hangs off it: `pvl.string()`, `pvl.number()`, `pvl.boolean()`, `pvl.bigint()`, `pvl.object(shape)`, `pvl.array(item)`, `pvl.union(schemas)`, `pvl.literal(value)`, `pvl.enum(source)`, `pvl.compile(schema)`.
 
-### `Schema` and the shared base `ChainableSchema` class
+### `Schema` and `ChainableSchema`: two abstract classes, one per file
 
-`Schema<Input, Output>` is the minimal type every schema satisfies: `validate()`, `"~standard"` and the internal `_validate`. It is what fields, elements, union members and `pvl.compile()`'s argument are typed as, and what `.transform()` and `pvl.compile()` return.
+[ADR-0020](../../docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md) splits the base into two classes:
 
-Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends one abstract base class, `ChainableSchema`, which implements `Schema` and, exactly once:
+- **`Schema<Input, Output>`** (`src/schemas/schema.ts`) is everything a schema needs to validate, with no Modifier on it: the two ordered `Modifier` arrays and the constructor that seeds them, `validate()`, `"~standard"`, `_validate` with the runners that execute both arrays, the abstract `_checkType`, and every internal method a Modifier is built with (`_coerceInput`, `_clone`, `_withPreModifier`, `_withPostModifier`, `_withoutModifiers`). It is what fields, elements, union members and `pvl.compile()`'s argument are typed as, and what `.transform()` and `pvl.compile()` return. Its private and protected members mean only its own subclasses satisfy it ([ADR-0018](../../docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
+- **`ChainableSchema<Input, Output>`** (`src/schemas/chainableSchema.ts`) extends `Schema` with the five Shared Modifiers and nothing else: `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`. Anything that is not a Shared Modifier goes into `Schema`.
 
-- **Standard Schema conformance** — the `"~standard"` property and its `validate`.
-- **The Shared Modifiers** — `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`.
-- **The validation pipeline** — `_validate`, and the two ordered `Modifier` arrays it runs.
-
-A concrete subclass adds only its constructor, its `_checkType` (the type guard, plus every child on a composite), an optional `_coerceInput`, and its Local Modifiers — never a second copy of `"~standard"`, of a Shared Modifier or of the pipeline.
+Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends `ChainableSchema`. A concrete subclass adds only its constructor, its `_checkType` (the type guard, plus every child on a composite), an optional `_coerceInput` override, and its Local Modifiers, built on the inherited `protected` helpers. It never adds a second copy of `"~standard"`, of a Shared Modifier or of the pipeline.
 
 ### Chained-instance-method API and the pipeline
 
@@ -106,13 +103,12 @@ The internal validation result representation and `StandardSchemaV1.Result` are 
 
 `compile()` marks a schema for ahead-of-time compilation, e.g. `pvl.object({ key: pvl.compile(pvl.object({ ... })) })`. It accepts **any schema** — primitive or composite, with any Modifier chained, `.transform()` included — so there is no candidate marker to keep in step with the Modifiers. At runtime, before compilation, it is an identity function — a schema file that uses it but hasn't been through the compiler still validates correctly through the interpreted path.
 
-At the type level it returns a `CompiledSchema`: a plain `Schema`, plus the read-only `shape`/`element` of an untransformed `object`/`array`. `pvl.compile(x).optional()` and `pvl.compile(x).strict()` are compile errors; the supported spelling is `pvl.compile(x.optional())` ([ADR-0016](../../docs/adr/0016-transform-and-compile-end-the-modifier-chain.md)). A Compiled Schema is a `ChainableSchema` subclass instance at runtime, whose `_checkType` is the emitted code. An uncompiled schema stays fully editable.
+At the type level it returns a plain `Schema<InferInput<x>, InferOutput<x>>`; there is no `CompiledSchema` type. So `pvl.compile(x).optional()`, `pvl.compile(x).strict()` and `pvl.compile(x).shape` are compile errors. The supported spelling is `pvl.compile(x.optional())`, and a caller who wants to validate one field on its own keeps a reference to that field's schema ([ADR-0016](../../docs/adr/0016-transform-and-compile-end-the-modifier-chain.md), [ADR-0020](../../docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)). At runtime a Compiled Schema is a `Schema` subclass instance, not a `ChainableSchema` one, whose `_checkType` is the emitted code. An uncompiled schema stays fully editable.
 
 What keeps that swap working, and must stay aligned with `@pvl/schema-compiler`:
 
-- **`shape` on `ObjectSchema` and `element` on `ArraySchema`**, so the interpreted schema and the `Compiled Schema` present the same reachable structure. A `.standalone()` marker on a key is what puts it in a `Compiled Schema`'s `shape` (a `Standalone Key`); it is a **no-op on an uncompiled schema**, so adding or removing `pvl.compile(...)` never breaks a source file that uses it.
-- **Class-preserving Modifiers.** Every Modifier but `.transform()` returns its schema's own class ([ADR-0006](../../docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md)), so a refined, optional or strict composite is still an `ObjectSchema`/`ArraySchema` and its Compiled Schema keeps `shape`/`element`.
 - **Fields, elements and union members are `@pvl/schema` Schemas only**, typed as `Schema` so a transformed or compiled child fits, and called through their own `_validate` with the parent's path extended. A Standard Schema from another library is rejected at the type level ([ADR-0018](../../docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
+- **`_checkType` is the one hook a Compiled Schema fills in.** Every Modifier is baked into the emitted code, so its modifier arrays stay empty and the `_validate` it inherits reduces to `_checkType`, which must report every `Issue` at the `path` it is handed.
 
 See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a marked schema.
 
@@ -131,6 +127,6 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 **Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments immediately above the declaration, which TypeDoc never picks up.
 
-Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. `src/modifiers.ts` (`Modifier`, `MODIFIER_TAG`, Modifiers not built inline by a method) and `src/utils.ts` are outside the barrel: TypeDoc never sees them, so their comments are for maintainers. `src/types.ts` holds the package's standalone types — the inference helpers, `CompiledSchema`, and the type plumbing behind the Modifiers (`SchemaKind`, `RetypedSchema`, `PreModifiersResult`) — and is in the barrel, so that plumbing is tagged `@internal`. `modifiers.ts` holds only Modifiers and what describes them; a general helper they use belongs in `utils.ts`.
+Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. `src/modifiers.ts` (`Modifier`, `MODIFIER_TAG`, Modifiers not built inline by a method) and `src/utils.ts` are outside the barrel: TypeDoc never sees them, so their comments are for maintainers. `src/types.ts` holds the package's standalone types — the inference helpers and the type plumbing behind the Modifiers (`SchemaKind`, `RetypedSchema`, `PreModifiersResult`) — and is in the barrel, so that plumbing is tagged `@internal`. `modifiers.ts` holds only Modifiers and what describes them; a general helper they use belongs in `utils.ts`.
 
 Examples are not yet verified by the build ([issue #60](https://github.com/Ota-Prokopec/pvl/issues/60)); until then, check a changed snippet by hand.

@@ -2,7 +2,7 @@ import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
   readonly type: StringSchema<this['Input'], this['Output']>;

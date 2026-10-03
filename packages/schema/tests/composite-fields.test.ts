@@ -54,6 +54,6 @@ describe('composite children', () => {
       { code: 'INVALID_TYPE', message: 'Expected string', path: ['address', 'city'] },
       { code: 'INVALID_TYPE', message: 'Expected string', path: ['history', 1, 'city'] },
     ]);
-    expectTypeOf(schema.shape.address.shape.city.validate).toBeFunction();
+    expectTypeOf(schema.shape.address).not.toHaveProperty('shape');
   });
 });

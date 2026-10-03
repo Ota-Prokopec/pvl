@@ -1,6 +1,6 @@
 # Modifiers run in chain order around the type check
 
-Every Modifier on a `@pvl/schema` Schema is one `Modifier` value pushed onto one of two ordered arrays on the base `ChainableSchema`: **pre-modifiers**, which run before the type check, and **post-modifiers**, which run after it. Each array runs in **chain order**, the order the calls were written. This supersedes this record's earlier decision, which kept `.refine()`/`.transform()` as one ordered step list beside a fixed evaluation order for everything else: the ordering guarantee now covers every Modifier, not just those two.
+Every Modifier on a `@pvl/schema` Schema is one `Modifier` value pushed onto one of two ordered arrays on the `Schema` base class ([ADR-0020](./0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)): **pre-modifiers**, which run before the type check, and **post-modifiers**, which run after it. Each array runs in **chain order**, the order the calls were written. This supersedes this record's earlier decision, which kept `.refine()`/`.transform()` as one ordered step list beside a fixed evaluation order for everything else: the ordering guarantee now covers every Modifier, not just those two.
 
 | Modifier                                                             | Array                  | Tags                                              |
 | -------------------------------------------------------------------- | ---------------------- | ------------------------------------------------- |

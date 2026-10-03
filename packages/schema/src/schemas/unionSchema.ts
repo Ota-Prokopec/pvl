@@ -1,7 +1,8 @@
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
-import { ChainableSchema, type Schema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
+import type { Schema } from './schema.js';
 
 export type UnionMember = Schema<unknown, unknown>;
 

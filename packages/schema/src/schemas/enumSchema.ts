@@ -2,7 +2,7 @@ import type { ValueOfEnum } from '@repo/types';
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 /**
  * A single accepted enum value, in either source form. Values may be strings

@@ -1,5 +1,6 @@
 export * from './arraySchema.js';
 export * from './schema.js';
+export * from './chainableSchema.js';
 export * from './bigintSchema.js';
 export * from './booleanSchema.js';
 export * from './enumSchema.js';

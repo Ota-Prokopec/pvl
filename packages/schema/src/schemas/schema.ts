@@ -1,10 +1,10 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR } from '../consts.js';
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import type { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../modifiers.js';
-import type { PreModifiersResult, RetypedSchema } from '../types.js';
+import type { PreModifiersResult } from '../types.js';
 
 /**
  * What every schema in this library is: something that validates a value.
@@ -13,6 +13,10 @@ import type { PreModifiersResult, RetypedSchema } from '../types.js';
  * what `.transform()` and `pvl.compile()` hand back, since no modifier can be
  * chained onto either: chain constraints, `.optional()` and `.refine()`
  * first.
+ *
+ * `Input` is what a value must look like going in; `Output` is what a
+ * successful `.validate()` hands back, which differs from `Input` once a
+ * `.transform()` is attached.
  *
  * @example
  * ```ts
@@ -24,68 +28,12 @@ import type { PreModifiersResult, RetypedSchema } from '../types.js';
  * pvl.object({ name: length }).validate({ name: 'Ada' }); // { value: { name: 3 } }
  * ```
  */
-// `_validate` is here even though it is internal: it is what a composite
-// calls on each field or element, and requiring it is what keeps a Standard
-// Schema from another library from being one (ADR-0018). Method syntax, as on
-// the class, so assignability between schemas stays what it is there.
-export type Schema<Input = unknown, Output = Input> = {
-  /**
-   * The Standard Schema protocol property.
-   *
-   * @internal
-   */
-  readonly '~standard': StandardSchemaProps<Input, Output>;
-
-  /**
-   * Checks a value against this schema and returns a {@link Result}
-   * synchronously, never throwing for an invalid value.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * pvl.string().validate('hello'); // { value: 'hello' }
-   * pvl.string().validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
-   * ```
-   */
-  validate(value: unknown): Result<Output>;
-
-  /** @internal */
-  _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output>;
-};
-
-/**
- * The base class every schema in this library extends: a {@link Schema}
- * modifiers can be chained onto. You never construct one directly —
- * `pvl.string()`, `pvl.object()` and the rest hand you a subclass — and every
- * modifier hands back that same subclass, so its own methods stay chainable
- * whatever order you chain them in. `.transform()` is the exception: it ends
- * the chain with a plain {@link Schema}.
- *
- * Modifiers run in the order you chain them, so the order can matter:
- * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
- * while `pvl.string().optional().coerce()` accepts it as `undefined`.
- *
- * `Input` is what a value must look like going in; `Output` is what a
- * successful `.validate()` hands back, which differs from `Input` once a
- * `.transform()` is attached.
- *
- * @example
- * ```ts
- * import { pvl, type ChainableSchema } from '@pvl/schema';
- *
- * // Still a `StringSchema`, so `.min()` is still there.
- * const nickname = pvl.string().optional().min(2);
- * const asBase: ChainableSchema<string | undefined, string | undefined> = nickname;
- *
- * const result = asBase.refine((value) => value !== 'admin').validate(undefined);
- * result.issues; // undefined — an absent value is accepted
- * ```
- */
-export abstract class ChainableSchema<Input = unknown, Output = Input> implements Schema<
-  Input,
-  Output
-> {
+// Everything a schema needs to validate, and the internal plumbing a
+// Modifier is built with; the Shared Modifiers themselves are on
+// `ChainableSchema`. A Compiled Schema extends this class directly (ADR-0020).
+// Its private and protected members make the class nominal, which is what
+// keeps a Standard Schema from another library from being a field (ADR-0018).
+export abstract class Schema<Input = unknown, Output = Input> {
   // Each runs in chain order, the pre-modifiers before `_checkType` and the
   // post-modifiers after it — see `_validate` and ADR-0010.
   private _preModifiers: ReadonlyArray<Modifier<unknown, unknown>>;
@@ -250,166 +198,6 @@ export abstract class ChainableSchema<Input = unknown, Output = Input> implement
    */
   _coerceInput(value: unknown): unknown {
     return value;
-  }
-
-  /**
-   * Accepts `undefined` in addition to whatever this schema already accepts.
-   * As an object field, it also makes the key itself optional: an omitted key
-   * stays omitted from the output rather than becoming an explicit
-   * `undefined` property.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const user = pvl.object({ name: pvl.string(), nickname: pvl.string().optional() });
-   *
-   * user.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
-   * user.validate({ name: 'Ada', nickname: 'Addie' }); // both keys kept
-   * ```
-   */
-  optional(): RetypedSchema<this, Input | undefined, Output | undefined> {
-    return this._withPreModifier<Input, Output | undefined>({
-      tags: [MODIFIER_TAG.SHORT_CIRCUIT],
-      fn: (value) => {
-        return value === undefined ? { value: undefined } : null;
-      },
-    }) as unknown as RetypedSchema<this, Input | undefined, Output | undefined>;
-  }
-
-  /**
-   * Accepts `null` in addition to whatever this schema already accepts.
-   * Unlike `.optional()`, the key stays required — `null` has to be passed
-   * explicitly. Chain both to accept either.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const deletedAt = pvl.string().nullable();
-   * deletedAt.validate(null); // { value: null }
-   *
-   * const eitherWay = pvl.string().nullable().optional();
-   * ```
-   */
-  nullable(): RetypedSchema<this, Input | null, Output | null> {
-    return this._withPreModifier<Input, Output | null>({
-      tags: [MODIFIER_TAG.SHORT_CIRCUIT],
-      fn: (value) => {
-        return value === null ? { value: null } : null;
-      },
-    }) as unknown as RetypedSchema<this, Input | null, Output | null>;
-  }
-
-  /**
-   * Attaches a custom check. The predicate never changes the value; returning
-   * `false` produces an `Issue` with code `CUSTOM`. This is where constraints
-   * the library has no built-in for — a regex, a cross-field rule — belong.
-   *
-   * It runs once the value has passed this schema's type check, in the order
-   * it was chained among the constraints, so a failing constraint before it
-   * does not stop it and both issues are reported. It is skipped for a value
-   * `.optional()` or `.nullable()` accepted.
-   *
-   * The schema comes back as the same type it went in as, so a refined
-   * `object` or `array` schema is still one — and still something
-   * `pvl.compile()` accepts.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const evenNumber = pvl
-   *   .number()
-   *   .refine((value) => value % 2 === 0, { message: 'must be even' });
-   *
-   * evenNumber.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' }] }
-   *
-   * // Still an object schema, so `pvl.compile()` accepts it.
-   * const range = pvl
-   *   .object({ min: pvl.number(), max: pvl.number() })
-   *   .refine((value) => value.min <= value.max);
-   * pvl.compile(range);
-   * ```
-   */
-  // `Output` is wider than the predicate ever sees after `.nullable()` or
-  // `.optional()`, since a short-circuited value skips it, which is harmless.
-  refine(
-    predicate: (value: Output) => boolean,
-    issueProps?: IssueEditableProps,
-  ): RetypedSchema<this, Input, Output> {
-    return this._withPostModifier<Output, Output>({
-      fn: (value, path) => {
-        return predicate(value)
-          ? null
-          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] };
-      },
-    }) as unknown as RetypedSchema<this, Input, Output>;
-  }
-
-  /**
-   * Converts an accepted value into a different one, changing the `Output`
-   * type to whatever the function returns. It is the last thing to run, and
-   * only once nothing has failed, so the function only ever sees a value
-   * this schema accepted — unlike `.coerce()`, which runs before the type
-   * check. A value `.optional()` or `.nullable()` accepted still reaches it,
-   * so the function is typed to receive `undefined` or `null` too.
-   *
-   * It ends the chain: the result is a plain {@link Schema}, which can
-   * validate but takes no further modifier, so chain those before
-   * transforming.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const trimmedLength = pvl.string().transform((value) => value.trim().length);
-   *
-   * trimmedLength.validate('  hello  '); // { value: 5 }
-   * trimmedLength.validate(42); // { issues: [...] } — never reaches the transform
-   *
-   * const label = pvl.string().nullable().transform((value) => value ?? 'none');
-   * label.validate(null); // { value: 'none' }
-   * ```
-   */
-  transform<NewOutput>(fn: (value: Output) => NewOutput): Schema<Input, NewOutput> {
-    return this._withPostModifier<Output, NewOutput>({
-      tags: [MODIFIER_TAG.REQUIRES_ALL_PASSED, MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT],
-      fn: (value) => {
-        return { value: fn(value) };
-      },
-    }) as unknown as Schema<Input, NewOutput>;
-  }
-
-  /**
-   * Converts the raw input to this schema's type before the type check, so
-   * `'42'` can satisfy a number schema. Only the primitives and `literal`
-   * have a conversion; on `object`, `array`, `union` and `enum` there is no
-   * unambiguous target type, so this is a no-op and a wrong-shaped value is
-   * still rejected.
-   *
-   * It runs where it is chained among `.optional()` and `.nullable()`:
-   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
-   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
-   * Constraints always run after the type check, so chaining it after them is
-   * fine.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const port = pvl.number().int().min(1).coerce();
-   *
-   * port.validate('8080'); // { value: 8080 }
-   * port.validate('nope'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
-   * ```
-   */
-  coerce(): RetypedSchema<this, unknown, Output> {
-    return this._withPreModifier<unknown, unknown>({
-      fn: (value) => {
-        return { value: this._coerceInput(value) };
-      },
-    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /**

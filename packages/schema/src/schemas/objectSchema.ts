@@ -7,7 +7,8 @@ import {
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
-import { ChainableSchema, type Schema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
+import type { Schema } from './schema.js';
 
 /**
  * The field schemas an object schema composes, one per declared key. A field

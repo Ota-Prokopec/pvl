@@ -7,7 +7,7 @@ A TypeScript validation stack: a Zod-style schema library, and a compiler that t
 ### Validation library
 
 **Schema**:
-A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
+A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. In code, `Schema` is the abstract base class that owns the validation pipeline every Schema runs ([ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)). A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
 _Avoid_: Type, Model, Standard Schema (for this library's own Schemas).
 
 **Issue**:
@@ -47,7 +47,7 @@ A user-supplied function that converts a Schema's accepted value into a differen
 _Avoid_: Mapper, Coercion.
 
 **Chainable Schema**:
-A Schema Modifiers can still be chained onto: what every factory such as `pvl.string()` hands back, until a Transform or `pvl.compile(...)` ends the chain. A Schema past that point is just a Schema: it still validates and can still be a field, element or union member of a composite Schema. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md).
+A Schema Modifiers can still be chained onto: what every factory such as `pvl.string()` hands back, until a Transform or `pvl.compile(...)` ends the chain. A Schema past that point is just a Schema: it still validates and can still be a field, element or union member of a composite Schema. In code, `ChainableSchema` extends `Schema` with the Shared Modifiers only. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Read-only Schema (for a Schema that is not chainable, which is just a Schema), editable schema, base schema.
 
 ### AOT compiler
@@ -57,7 +57,7 @@ Turning a Schema into a Compiled Schema before the program runs, as opposed to v
 _Avoid_: JIT, runtime compilation.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a Schema, no longer a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. A compiled `object` or `array` that ends in no Transform still exposes its fields or element for reading. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md).
+The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Instruction**:
@@ -67,7 +67,3 @@ _Avoid_: Opcode.
 **Destination File**:
 The single aggregate module `@pvl/schema-compiler` writes, mirroring every export of every scanned file — marked Schemas as Compiled Schemas, everything else copied through unchanged. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) for why it exists and [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands.
 _Avoid_: Generated file, output bundle, artifact directory.
-
-**Standalone Key**:
-A key of a compiled `pvl.object(...)` marked `.standalone()` — the only kind of key a Compiled Schema's `shape` carries, at both type and runtime. `.standalone()` is a no-op on an uncompiled Schema.
-_Avoid_: Exported key, public key.

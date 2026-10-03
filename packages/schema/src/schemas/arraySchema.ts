@@ -1,7 +1,8 @@
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
-import { ChainableSchema, type Schema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
+import type { Schema } from './schema.js';
 
 interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
   ArraySchema<ItemSchema, unknown, unknown>

@@ -1,4 +1,3 @@
-import type { CompiledSchema } from './types.js';
 import { ArraySchema } from './schemas/arraySchema.js';
 import type { Schema } from './schemas/schema.js';
 import { BigintSchema } from './schemas/bigintSchema.js';
@@ -9,6 +8,7 @@ import { NumberSchema } from './schemas/numberSchema.js';
 import { ObjectSchema, type ObjectShape } from './schemas/objectSchema.js';
 import { StringSchema } from './schemas/stringSchema.js';
 import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
+import type { InferInput, InferOutput } from './types.js';
 
 /**
  * The single entry point of `@pvl/schema`. Every schema factory hangs off
@@ -182,9 +182,11 @@ export const pvl = {
    * identity function, so a schema that uses it still validates normally
    * before the compiler has seen the call site.
    *
-   * It hands back a {@link CompiledSchema}: no modifier can be chained onto
-   * it, so chain every one before compiling — `pvl.compile(x.optional())`,
-   * not `pvl.compile(x).optional()`. It can still be a field or element of
+   * It hands back a plain {@link Schema}: no modifier can be chained onto it
+   * and no `shape` or `element` can be read from it, so chain every modifier
+   * before compiling — `pvl.compile(x.optional())`, not
+   * `pvl.compile(x).optional()` — and keep a reference to any field schema
+   * you want to validate on its own. It can still be a field or element of
    * another schema.
    *
    * @example
@@ -199,9 +201,11 @@ export const pvl = {
    * ```
    */
   // Identity function pre-compilation (see @pvl/schema-compiler's AGENTS.md
-  // for what happens once a call site has been through the compiler). The
-  // assertion only narrows the surface: `CompiledSchema` is a subset of what
-  // `schema` already has, which a deferred conditional type can't show.
-  compile: <TSchema extends Schema<unknown, unknown>>(schema: TSchema): CompiledSchema<TSchema> =>
-    schema as unknown as CompiledSchema<TSchema>,
+  // for what happens once a call site has been through the compiler, and
+  // ADR-0020 for why it hands back a plain Schema). The assertion only
+  // narrows the surface, which a deferred conditional type can't show.
+  compile: <TSchema extends Schema<unknown, unknown>>(
+    schema: TSchema,
+  ): Schema<InferInput<TSchema>, InferOutput<TSchema>> =>
+    schema as unknown as Schema<InferInput<TSchema>, InferOutput<TSchema>>,
 };

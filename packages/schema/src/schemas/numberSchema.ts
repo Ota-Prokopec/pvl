@@ -2,7 +2,7 @@ import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './schema.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
   readonly type: NumberSchema<this['Input'], this['Output']>;

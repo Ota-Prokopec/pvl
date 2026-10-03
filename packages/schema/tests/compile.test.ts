@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { pvl, type Schema, type StringSchema } from '../src/index.js';
+import { pvl, type Schema } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
@@ -119,8 +119,7 @@ describe('pvl.compile()', () => {
     });
   });
 
-  // ADR-0016: a Compiled Schema is a plain Schema, plus `shape`/`element`
-  // when nothing was transformed.
+  // ADR-0020: a Compiled Schema is a plain Schema, with no `shape`/`element`.
   describe('the type it hands back', () => {
     it('chains no modifier onto a compiled schema', () => {
       const compiled = pvl.compile(pvl.object({ name: pvl.string() }));
@@ -132,26 +131,24 @@ describe('pvl.compile()', () => {
       pvl.compile(pvl.array(pvl.string())).min(1);
     });
 
-    it("keeps an untransformed object schema's shape and input/output", () => {
+    it("hands back a plain Schema with an object schema's input/output and no shape", () => {
       const compiled = pvl.compile(pvl.object({ name: pvl.string() }).optional());
-      expectTypeOf(compiled.shape.name).toEqualTypeOf<StringSchema>();
-      expectTypeOf(compiled).toExtend<
+      expectTypeOf(compiled).not.toHaveProperty('shape');
+      expectTypeOf(compiled).toEqualTypeOf<
         Schema<{ name: string } | undefined, { name: string } | undefined>
       >();
     });
 
-    it("keeps an untransformed array schema's element", () => {
+    it('hands back a plain Schema with no element for an array schema', () => {
       const compiled = pvl.compile(pvl.array(pvl.string()).min(1));
-      expectTypeOf(compiled.element).toEqualTypeOf<StringSchema>();
+      expectTypeOf(compiled).not.toHaveProperty('element');
+      expectTypeOf(compiled).toEqualTypeOf<Schema<string[], string[]>>();
     });
 
-    it('drops shape and element from a transformed composite', () => {
+    it("carries a transformed composite's output type", () => {
       const object = pvl.compile(
         pvl.object({ name: pvl.string() }).transform((value) => value.name),
       );
-      const array = pvl.compile(pvl.array(pvl.string()).transform((value) => value.length));
-      expectTypeOf(object).not.toHaveProperty('shape');
-      expectTypeOf(array).not.toHaveProperty('element');
       expectTypeOf(object).toEqualTypeOf<Schema<{ name: string }, string>>();
     });
 

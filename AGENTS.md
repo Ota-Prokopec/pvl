@@ -115,10 +115,11 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0013](./docs/adr/0013-pin-formatting-rules-via-root-prettierrc.md) — pin formatting rules via a root `.prettierrc.json`
 - [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) — TypeDoc runs against TypeScript 5.9 in `apps/docs`
 - [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) — the Destination File defaults into the application's own `node_modules`
-- [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) — `.transform()` and `pvl.compile()` end the Modifier chain, returning a plain `Schema`; a Compiled Schema is a `ChainableSchema` instance at runtime
+- [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) — `.transform()` and `pvl.compile()` end the Modifier chain, returning a plain `Schema`
 - [ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md) — generated code inlines within a node and delegates at composite boundaries
 - [ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md) — composite fields and elements are `@pvl/schema` Schemas only
 - [ADR-0019](./docs/adr/0019-factories-take-no-options.md) — factories take no options; `{ message }` exists only on Modifiers that report an `Issue`
+- [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md) — `Schema` is the base class owning the pipeline and the internal Modifier helpers, `ChainableSchema` adds only the Shared Modifiers; `pvl.compile()` returns a plain `Schema` and a Compiled Schema is a `Schema` subclass
 
 Domain documentation is single-context: one root [`CONTEXT.md`](CONTEXT.md) plus [`docs/adr/`](docs/adr/), no per-package `CONTEXT.md` — see [docs/agents/domain.md](docs/agents/domain.md) for how the engineering skills consume it.
 
