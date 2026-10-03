@@ -386,7 +386,7 @@ const label = pvl
 label.validate(null); // { value: 'none' }
 ```
 
-`.transform()` **ends the chain**. It returns a read-only schema, which can validate and can be a field, element or union member of another schema, but takes no further modifier — a transformed value can be anything, so nothing the schema knew about its type still holds. Chain constraints and refinements before it:
+`.transform()` **ends the chain**. It returns a plain `Schema`, which can validate and can be a field, element or union member of another schema, but takes no further modifier — a transformed value can be anything, so nothing the schema knew about its type still holds. Chain constraints and refinements before it:
 
 ```ts
 const shortSlug = pvl

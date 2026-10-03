@@ -1,9 +1,10 @@
 import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './schema.js';
 
-interface NumberSchemaKind extends SchemaKind {
+interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
   readonly type: NumberSchema<this['Input'], this['Output']>;
 }
 
@@ -32,7 +33,7 @@ interface NumberSchemaKind extends SchemaKind {
  * age.validate(Number.NaN); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class NumberSchema<Input = number, Output = number> extends Schema<Input, Output> {
+export class NumberSchema<Input = number, Output = number> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': NumberSchemaKind;
 
   /** @internal */

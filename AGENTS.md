@@ -105,7 +105,7 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0003](./docs/adr/0003-compiled-schemas-conform-to-standard-schema.md) — `Compiled Schema`s conform to StandardSchemaV1
 - [ADR-0004](./docs/adr/0004-dual-esm-cjs-publish-via-tsup.md) — publish `@pvl/schema` and `@pvl/schema-compiler` as dual ESM+CJS
 - [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) — the compiler emits one Destination File and rewrites nothing
-- [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) — chained-instance-method API via a shared base `Schema` class
+- [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) — chained-instance-method API via a shared base `ChainableSchema` class
 - [ADR-0007](./docs/adr/0007-object-strips-unknown-keys-by-default.md) — `object()` strips unknown keys by default
 - [ADR-0008](./docs/adr/0008-no-regex-backed-constraints-in-v1.md) — no regex-backed constraint helpers in v1
 - [ADR-0009](./docs/adr/0009-enum-accepts-const-object-or-string-literal-array.md) — `enum()` accepts either an `as const` object or a string-literal array
@@ -115,7 +115,7 @@ Architectural decisions are recorded as ADRs in [`docs/adr/`](./docs/adr/):
 - [ADR-0013](./docs/adr/0013-pin-formatting-rules-via-root-prettierrc.md) — pin formatting rules via a root `.prettierrc.json`
 - [ADR-0014](./docs/adr/0014-typedoc-pinned-to-typescript-5-9.md) — TypeDoc runs against TypeScript 5.9 in `apps/docs`
 - [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) — the Destination File defaults into the application's own `node_modules`
-- [ADR-0016](./docs/adr/0016-transform-and-compile-return-read-only-schemas.md) — `.transform()` and `pvl.compile()` return Read-only Schemas; a Compiled Schema is a `Schema` instance at runtime
+- [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) — `.transform()` and `pvl.compile()` end the Modifier chain, returning a plain `Schema`; a Compiled Schema is a `ChainableSchema` instance at runtime
 - [ADR-0017](./docs/adr/0017-inline-with-delegation-code-generation.md) — generated code inlines within a node and delegates at composite boundaries
 - [ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md) — composite fields and elements are `@pvl/schema` Schemas only
 - [ADR-0019](./docs/adr/0019-factories-take-no-options.md) — factories take no options; `{ message }` exists only on Modifiers that report an `Issue`

@@ -7,7 +7,7 @@ A TypeScript validation stack: a Zod-style schema library, and a compiler that t
 ### Validation library
 
 **Schema**:
-A declarative description of the shape and constraints a value must satisfy. A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
+A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
 _Avoid_: Type, Model, Standard Schema (for this library's own Schemas).
 
 **Issue**:
@@ -19,11 +19,11 @@ The outcome of validating a value against a Schema: either the accepted value (p
 _Avoid_: Validation Result, Parse Result.
 
 **Modifier**:
-A chainable method on a Schema that returns a new Schema with one more step added to how it validates, as opposed to a method that validates or reads it. Steps run in the order the Modifiers were chained ([ADR-0010](./docs/adr/0010-modifiers-run-in-chain-order-around-the-type-check.md)). Every Modifier is either a Shared Modifier or a Local Modifier.
+A chainable method on a Chainable Schema that returns a new Schema with one more step added to how it validates, as opposed to a method that validates or reads it. Steps run in the order the Modifiers were chained ([ADR-0010](./docs/adr/0010-modifiers-run-in-chain-order-around-the-type-check.md)). Every Modifier is either a Shared Modifier or a Local Modifier.
 _Avoid_: Combinator, wrapper.
 
 **Shared Modifier**:
-A Modifier every Schema offers, primitive or composite: `.optional()`, `.nullable()`, `.coerce()`, `.refine()` and `.transform()`. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
+A Modifier every Chainable Schema offers, primitive or composite: `.optional()`, `.nullable()`, `.coerce()`, `.refine()` and `.transform()`. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
 _Avoid_: Common modifier, base modifier, global modifier.
 
 **Local Modifier**:
@@ -43,12 +43,12 @@ An explicit, opt-in conversion of an input value to a Schema's target type _befo
 _Avoid_: Cast, Transform.
 
 **Transform**:
-A user-supplied function that converts a Schema's accepted value into a different Output value as part of producing the Result — unlike Coercion, which runs before validation, a Transform runs as validation succeeds, and unlike a Refinement, it changes the value rather than only accepting or rejecting it. It is attached by `.transform()`, a Shared Modifier, and turns the Schema into a Read-only Schema.
+A user-supplied function that converts a Schema's accepted value into a different Output value as part of producing the Result — unlike Coercion, which runs before validation, a Transform runs as validation succeeds, and unlike a Refinement, it changes the value rather than only accepting or rejecting it. It is attached by `.transform()`, a Shared Modifier, and ends the chain: the result is a Schema that is no longer a Chainable Schema.
 _Avoid_: Mapper, Coercion.
 
-**Read-only Schema**:
-A Schema no Modifier can be chained onto: one that ends in a Transform, or a Compiled Schema. It can still validate a value and still be a field or element of a composite Schema. See [ADR-0016](./docs/adr/0016-transform-and-compile-return-read-only-schemas.md).
-_Avoid_: Terminal schema, frozen schema, Transformed Schema.
+**Chainable Schema**:
+A Schema Modifiers can still be chained onto: what every factory such as `pvl.string()` hands back, until a Transform or `pvl.compile(...)` ends the chain. A Schema past that point is just a Schema: it still validates and can still be a field, element or union member of a composite Schema. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md).
+_Avoid_: Read-only Schema (for a Schema that is not chainable, which is just a Schema), editable schema, base schema.
 
 ### AOT compiler
 
@@ -57,7 +57,7 @@ Turning a Schema into a Compiled Schema before the program runs, as opposed to v
 _Avoid_: JIT, runtime compilation.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a Read-only Schema backed by emitted Instructions rather than by walking the Schema tree. A compiled `object` or `array` that ends in no Transform still exposes its fields or element for reading. See [ADR-0016](./docs/adr/0016-transform-and-compile-return-read-only-schemas.md).
+The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a Schema, no longer a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. A compiled `object` or `array` that ends in no Transform still exposes its fields or element for reading. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md).
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Instruction**:

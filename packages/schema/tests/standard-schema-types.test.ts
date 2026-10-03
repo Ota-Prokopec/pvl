@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { pvl, type NumberSchema, type ReadOnlySchema, type StringSchema } from '../src/index.js';
+import { pvl, type NumberSchema, type Schema, type StringSchema } from '../src/index.js';
 
 const SYSTEM_ROLE = {
   OWNER: 'OWNER',
@@ -358,7 +358,7 @@ describe('type inference', () => {
     const object = pvl.object({ name: pvl.string() }).transform((value) => value.name);
     const array = pvl.array(pvl.string()).transform((value) => value.length);
 
-    expectTypeOf(string).toEqualTypeOf<ReadOnlySchema<string, number>>();
+    expectTypeOf(string).toEqualTypeOf<Schema<string, number>>();
     expectTypeOf(object).not.toHaveProperty('shape');
     expectTypeOf(array).not.toHaveProperty('element');
     for (const modifier of ['optional', 'nullable', 'refine', 'transform', 'coerce'] as const) {

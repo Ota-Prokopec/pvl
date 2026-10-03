@@ -24,7 +24,6 @@
     "ShapeOutput",
     "MemberInputs",
     "MemberOutputs",
-    "Transformed",
     "WithUnknownKeys"
   ]
 }

@@ -1,35 +1,97 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { ValueOfEnum } from '@repo/types';
-import type { Result } from './result.js';
+import type { Issue } from './issue.js';
+import type { ChainableSchema, Schema } from './schemas/schema.js';
 
-// How a Modifier departs from the default reading of its `fn` result (`null`
-// continue, `{ issues }` collect and continue, `{ value }` replace and
-// continue), declared where the Modifier is built rather than special-cased in
-// `Schema._validate` — see ADR-0010.
-export const MODIFIER_TAG = {
-  // A `{ value }` means "valid": accept it and skip every remaining
-  // pre-modifier, the type check and every post-modifier.
-  SHORT_CIRCUIT: 'SHORT_CIRCUIT',
-  // Runs only if no Issue has been collected so far.
-  REQUIRES_ALL_PASSED: 'REQUIRES_ALL_PASSED',
-  // Still runs after a SHORT_CIRCUIT step has accepted the value.
-  RUNS_AFTER_SHORT_CIRCUIT: 'RUNS_AFTER_SHORT_CIRCUIT',
-} as const;
+/**
+ * The type a schema accepts as input — what a value must look like going in.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type InferInput } from '@pvl/schema';
+ *
+ * const port = pvl.number().coerce();
+ * type PortInput = InferInput<typeof port>; // unknown — `.coerce()` accepts anything
+ * ```
+ */
+export type InferInput<TSchema extends StandardSchemaV1> = StandardSchemaV1.InferInput<TSchema>;
 
-export type ModifierTag = ValueOfEnum<typeof MODIFIER_TAG>;
+/**
+ * The type a successful `.validate()` hands back.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type InferOutput } from '@pvl/schema';
+ *
+ * const user = pvl.object({ name: pvl.string(), nickname: pvl.string().optional() });
+ * type User = InferOutput<typeof user>; // { name: string; nickname?: string | undefined }
+ * ```
+ */
+export type InferOutput<TSchema extends StandardSchemaV1> = StandardSchemaV1.InferOutput<TSchema>;
 
-export type Modifier<Input, Output> = {
-  fn: (value: Input, path: ReadonlyArray<PropertyKey>) => Result<Output> | null;
-  tags?: ReadonlyArray<ModifierTag>;
-  // The factory that built this modifier, so `_withoutModifiers` can remove
-  // every modifier of that shape whichever instance a schema holds. Left out
-  // on a modifier nothing ever removes.
-  shape?: ModifierShape;
+/**
+ * What the pre-modifiers hand on to `_checkType` and the post-modifiers: the
+ * current value, every Issue collected so far, and whether a `SHORT_CIRCUIT`
+ * step accepted the value.
+ *
+ * @internal
+ */
+export type PreModifiersResult = {
+  readonly value: unknown;
+  readonly issues: ReadonlyArray<Issue>;
+  readonly shortCircuited: boolean;
 };
 
-// A function that builds modifiers; its identity is the shape it stamps on
-// each one.
-export type ModifierShape = (...args: never[]) => Modifier<unknown, unknown>;
+/**
+ * How a schema class is rebuilt with new `Input`/`Output` types. A subclass
+ * declares a `'~kind'` extending `SchemaKind<ItsOwnClass<…, unknown, unknown>>`
+ * and overrides `type` with the subclass re-parameterized with
+ * `this['Input']` and `this['Output']`, so a modifier that widens the types
+ * still hands back that subclass. Type-only: nothing exists at runtime.
+ *
+ * @internal
+ */
+export interface SchemaKind<TSchema extends ChainableSchema> {
+  readonly Input: unknown;
+  readonly Output: unknown;
+  readonly type: TSchema;
+}
 
-export type InferInput<TSchema extends StandardSchemaV1> = StandardSchemaV1.InferInput<TSchema>;
-export type InferOutput<TSchema extends StandardSchemaV1> = StandardSchemaV1.InferOutput<TSchema>;
+/**
+ * `TSchema`'s own class re-typed with `Input` and `Output` through its
+ * `'~kind'`, or the base `ChainableSchema` for a class that declares none.
+ *
+ * @internal
+ */
+export type RetypedSchema<TSchema, Input, Output> = TSchema extends {
+  readonly '~kind': infer Kind extends SchemaKind<ChainableSchema>;
+}
+  ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
+  : ChainableSchema<Input, Output>;
+
+/**
+ * What `pvl.compile()` hands back: a plain {@link Schema}, plus the
+ * read-only `shape` of an object schema or `element` of an array schema
+ * when no `.transform()` was chained — a transformed value can be anything,
+ * so it has neither. Any other schema, primitive or union, compiles to the
+ * plain Schema alone.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type CompiledSchema } from '@pvl/schema';
+ *
+ * const user = pvl.object({ name: pvl.string() });
+ * const compiled: CompiledSchema<typeof user> = pvl.compile(user);
+ *
+ * compiled.shape.name.validate('Ada'); // { value: 'Ada' }
+ * compiled.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
+ * ```
+ */
+export type CompiledSchema<TSchema extends Schema<unknown, unknown>> = Schema<
+  InferInput<TSchema>,
+  InferOutput<TSchema>
+> &
+  (TSchema extends { readonly shape: infer Shape }
+    ? { readonly shape: Shape }
+    : TSchema extends { readonly element: infer Element }
+      ? { readonly element: Element }
+      : unknown);

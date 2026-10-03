@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { pvl, type ReadOnlySchema, type StringSchema } from '../src/index.js';
+import { pvl, type Schema, type StringSchema } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
@@ -23,14 +23,16 @@ describe('pvl.compile()', () => {
     expect(arraySchema.validate(['a', 42]).issues).toBeDefined();
   });
 
-  it('rejects a bare primitive schema at the type level', () => {
-    // @ts-expect-error pvl.compile() only accepts a composite (object/array) schema
-    pvl.compile(pvl.string());
+  it('returns the given primitive schema unchanged pre-compilation', () => {
+    const schema = pvl.string();
+    expect(pvl.compile(schema)).toBe(schema);
   });
 
-  // Each of these is as much a type-level assertion as a runtime one: a
-  // modifier that widened its schema back to the base `Schema` would make the
-  // `pvl.compile()` call itself a compile error.
+  it('returns the given union schema unchanged pre-compilation', () => {
+    const schema = pvl.union([pvl.string(), pvl.number()]);
+    expect(pvl.compile(schema)).toBe(schema);
+  });
+
   describe('a composite schema carrying a modifier', () => {
     it('accepts a refined object schema', () => {
       const schema = pvl
@@ -117,7 +119,7 @@ describe('pvl.compile()', () => {
     });
   });
 
-  // ADR-0016: a Compiled Schema is a Read-only Schema, plus `shape`/`element`
+  // ADR-0016: a Compiled Schema is a plain Schema, plus `shape`/`element`
   // when nothing was transformed.
   describe('the type it hands back', () => {
     it('chains no modifier onto a compiled schema', () => {
@@ -134,7 +136,7 @@ describe('pvl.compile()', () => {
       const compiled = pvl.compile(pvl.object({ name: pvl.string() }).optional());
       expectTypeOf(compiled.shape.name).toEqualTypeOf<StringSchema>();
       expectTypeOf(compiled).toExtend<
-        ReadOnlySchema<{ name: string } | undefined, { name: string } | undefined>
+        Schema<{ name: string } | undefined, { name: string } | undefined>
       >();
     });
 
@@ -150,17 +152,16 @@ describe('pvl.compile()', () => {
       const array = pvl.compile(pvl.array(pvl.string()).transform((value) => value.length));
       expectTypeOf(object).not.toHaveProperty('shape');
       expectTypeOf(array).not.toHaveProperty('element');
-      expectTypeOf(object).toEqualTypeOf<ReadOnlySchema<{ name: string }, string>>();
+      expectTypeOf(object).toEqualTypeOf<Schema<{ name: string }, string>>();
     });
 
-    it('rejects a transformed primitive', () => {
-      // @ts-expect-error a primitive has no tree to compile, transformed or not
-      pvl.compile(pvl.string().transform((value) => value.length));
-    });
-
-    it('rejects a union, which is not an object or array schema', () => {
-      // @ts-expect-error pvl.compile() only accepts an object or array schema
-      pvl.compile(pvl.union([pvl.object({ a: pvl.string() })]));
+    it('hands back a plain Schema for a primitive, transformed or not', () => {
+      const plain = pvl.compile(pvl.string().min(1));
+      const transformed = pvl.compile(pvl.string().transform((value) => value.length));
+      // @ts-expect-error a Compiled Schema takes no modifier
+      plain.max(5);
+      expectTypeOf(plain).toEqualTypeOf<Schema<string, string>>();
+      expectTypeOf(transformed).toEqualTypeOf<Schema<string, number>>();
     });
   });
 });

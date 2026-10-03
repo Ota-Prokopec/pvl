@@ -1,9 +1,10 @@
 import { coerceToBigint } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './schema.js';
 
-interface BigintSchemaKind extends SchemaKind {
+interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
   readonly type: BigintSchema<this['Input'], this['Output']>;
 }
 
@@ -35,7 +36,7 @@ interface BigintSchemaKind extends SchemaKind {
  * pvl.bigint().coerce().validate('42'); // { value: 42n }
  * ```
  */
-export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input, Output> {
+export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': BigintSchemaKind;
 
   /** @internal */

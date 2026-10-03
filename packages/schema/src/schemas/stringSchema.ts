@@ -1,9 +1,10 @@
 import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './schema.js';
 
-interface StringSchemaKind extends SchemaKind {
+interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
   readonly type: StringSchema<this['Input'], this['Output']>;
 }
 
@@ -28,7 +29,7 @@ interface StringSchemaKind extends SchemaKind {
  * username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class StringSchema<Input = string, Output = string> extends Schema<Input, Output> {
+export class StringSchema<Input = string, Output = string> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': StringSchemaKind;
 
   /** @internal */

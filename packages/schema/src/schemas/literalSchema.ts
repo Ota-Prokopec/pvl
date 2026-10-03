@@ -1,7 +1,8 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './schema.js';
 
 /**
  * Every primitive type `pvl.literal()` can pin a schema to. Objects, arrays
@@ -18,7 +19,9 @@ import { Schema, type SchemaKind } from './schema.js';
  */
 export type PossibleLiteralValue = string | number | boolean | bigint;
 
-interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends SchemaKind {
+interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends SchemaKind<
+  LiteralSchema<LiteralValue, unknown, unknown>
+> {
   readonly type: LiteralSchema<LiteralValue, this['Input'], this['Output']>;
 }
 
@@ -52,7 +55,7 @@ export class LiteralSchema<
   LiteralValue extends PossibleLiteralValue,
   Input = LiteralValue,
   Output = LiteralValue,
-> extends Schema<Input, Output> {
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': LiteralSchemaKind<LiteralValue>;
   private readonly literalValue: LiteralValue;
 

@@ -1,7 +1,9 @@
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput } from '../types.js';
-import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
+import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import { ChainableSchema, type Schema } from './schema.js';
+
+export type UnionMember = Schema<unknown, unknown>;
 
 /**
  * The alternative schemas a union tries, in the order given. The first member
@@ -15,42 +17,14 @@ import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
  * const id = pvl.union(members);
  * ```
  */
-export type UnionMembers = ReadonlyArray<ReadOnlySchema<unknown, unknown>>;
+export type UnionMembers = ReadonlyArray<UnionMember>;
 
 // `Members[number]` is the union of the member schemas, and inferring through
 // a union of schemas yields the union of each member's own type.
 
-/**
- * The union of every member's own input type — what a value must match going
- * in.
- *
- * @example
- * ```ts
- * import { pvl, type UnionInput } from '@pvl/schema';
- *
- * const members = [pvl.string(), pvl.number()] as const;
- * const id: UnionInput<typeof members> = 42; // string | number
- *
- * pvl.union(members).validate(id);
- * ```
- */
-export type UnionInput<Members extends UnionMembers> = InferInput<Members[number]>;
-
-/**
- * The union of every member's own output type — what a successful validation
- * hands back, after the winning member's own `.transform()` has run.
- *
- * @example
- * ```ts
- * import { pvl, type UnionOutput } from '@pvl/schema';
- *
- * const members = [pvl.string(), pvl.number().transform(String)] as const;
- * const out: UnionOutput<typeof members> = 'either way a string';
- * ```
- */
-export type UnionOutput<Members extends UnionMembers> = InferOutput<Members[number]>;
-
-interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
+interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind<
+  UnionSchema<Members, unknown, unknown>
+> {
   readonly type: UnionSchema<Members, this['Input'], this['Output']>;
 }
 
@@ -88,9 +62,9 @@ interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind {
  */
 export class UnionSchema<
   Members extends UnionMembers,
-  Input = UnionInput<Members>,
-  Output = UnionOutput<Members>,
-> extends Schema<Input, Output> {
+  Input = InferInput<Members[number]>,
+  Output = InferOutput<Members[number]>,
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': UnionSchemaKind<Members>;
   private readonly _members: Members;
 

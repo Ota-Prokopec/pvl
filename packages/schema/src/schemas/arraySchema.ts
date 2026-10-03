@@ -1,9 +1,11 @@
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput } from '../types.js';
-import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
+import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import { ChainableSchema, type Schema } from './schema.js';
 
-interface ArraySchemaKind<ItemSchema extends ReadOnlySchema<unknown, unknown>> extends SchemaKind {
+interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
+  ArraySchema<ItemSchema, unknown, unknown>
+> {
   readonly type: ArraySchema<ItemSchema, this['Input'], this['Output']>;
 }
 
@@ -23,7 +25,7 @@ interface ArraySchemaKind<ItemSchema extends ReadOnlySchema<unknown, unknown>> e
  * stopping at the first. `.coerce()` is inherited but does nothing here —
  * there is no unambiguous way to read an array out of a non-array.
  *
- * Every modifier hands back an array schema rather than the base `Schema`,
+ * Every modifier hands back an array schema rather than the base `ChainableSchema`,
  * so a modified array schema is still something `pvl.compile()` accepts and
  * the length constraints stay chainable. `.transform()` ends the chain.
  *
@@ -39,15 +41,11 @@ interface ArraySchemaKind<ItemSchema extends ReadOnlySchema<unknown, unknown>> e
  * ```
  */
 export class ArraySchema<
-  ItemSchema extends ReadOnlySchema<unknown, unknown>,
+  ItemSchema extends Schema<unknown, unknown>,
   Input = InferInput<ItemSchema>[],
   Output = InferOutput<ItemSchema>[],
-> extends Schema<Input, Output> {
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': ArraySchemaKind<ItemSchema>;
-  // Type-only: marks an array schema, transformed or not, as something
-  // `pvl.compile()` accepts.
-  /** @internal */
-  declare readonly '~compileCandidate': true;
   private readonly itemSchema: ItemSchema;
 
   /** @internal */

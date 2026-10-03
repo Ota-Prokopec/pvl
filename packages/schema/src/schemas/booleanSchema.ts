@@ -1,9 +1,10 @@
 import { coerceToBoolean } from '../coercions.js';
 import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './schema.js';
 
-interface BooleanSchemaKind extends SchemaKind {
+interface BooleanSchemaKind extends SchemaKind<BooleanSchema<unknown, unknown>> {
   readonly type: BooleanSchema<this['Input'], this['Output']>;
 }
 
@@ -28,7 +29,10 @@ interface BooleanSchemaKind extends SchemaKind {
  * const mustAccept = pvl.literal(true);
  * ```
  */
-export class BooleanSchema<Input = boolean, Output = boolean> extends Schema<Input, Output> {
+export class BooleanSchema<Input = boolean, Output = boolean> extends ChainableSchema<
+  Input,
+  Output
+> {
   declare readonly '~kind': BooleanSchemaKind;
 
   /** @internal */

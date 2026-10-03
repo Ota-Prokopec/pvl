@@ -1,7 +1,13 @@
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import {
+  UNKNOWN_KEYS_MODIFIERS,
+  unknownKeysStrictModifier,
+  unknownKeysStripModifier,
+} from '../modifiers.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, Modifier } from '../types.js';
-import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
+import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
+import { ChainableSchema, type Schema } from './schema.js';
 
 /**
  * The field schemas an object schema composes, one per declared key. A field
@@ -20,7 +26,7 @@ import { Schema, type ReadOnlySchema, type SchemaKind } from './schema.js';
  * const user = pvl.object(shape);
  * ```
  */
-export type ObjectShape = Readonly<Record<string, ReadOnlySchema<unknown, unknown>>>;
+export type ObjectShape = Readonly<Record<string, Schema<unknown, unknown>>>;
 
 // The per-field types composed into a single object type. A field whose type
 // admits `undefined` (its schema is `.optional()`) becomes a `?` key — the
@@ -77,82 +83,14 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
   [Key in keyof Shape]: InferOutput<Shape[Key]>;
 }>;
 
-// Plain `target[key] = value` would hit `Object.prototype`'s `__proto__`
-// setter for that one key name — which `JSON.parse('{"__proto__":{}}')`
-// produces as a real own property — silently reparenting the output instead of
-// copying the key. `defineProperty` writes it as the own data property it was.
-const assignKey = (target: Record<string, unknown>, key: string, value: unknown): void => {
-  if (key === '__proto__') {
-    Object.defineProperty(target, key, {
-      value,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
-    return;
-  }
-  target[key] = value;
-};
-
 // What `.passthrough()` does to an output type that a modifier may already
 // have widened. Distributive, so `{ … } | undefined` gains the index
 // signature on the object branch and leaves the `undefined` branch alone.
 type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
 
-// The unknown-key modifiers run as post-modifiers, once `_checkType` has
-// accepted the value. `_checkType` keeps every key, so the undeclared ones are
-// still on the value; no post-modifier replaces it before them (`.refine()`
-// and `.strict()` only report).
-const unknownKeysOf = (value: unknown, declaredKeys: ReadonlySet<string>): string[] =>
-  Object.keys(value as object).filter((key) => !declaredKeys.has(key));
-
-// The default: every object schema starts with it as its first post-modifier,
-// and `.strict()`/`.passthrough()` remove it.
-const unknownKeysStripModifier = (
-  declaredKeys: ReadonlySet<string>,
-): Modifier<unknown, unknown> => ({
-  shape: unknownKeysStripModifier,
-  fn: (value) => {
-    if (unknownKeysOf(value, declaredKeys).length === 0) {
-      return null;
-    }
-    const input = value as Record<string, unknown>;
-    // Copied rather than deleted in place, so a value an earlier step handed
-    // on is never mutated.
-    const output: Record<string, unknown> = {};
-    for (const key of Object.keys(input)) {
-      if (declaredKeys.has(key)) {
-        assignKey(output, key, input[key]);
-      }
-    }
-    return { value: output };
-  },
-});
-
-const unknownKeysStrictModifier = (
-  declaredKeys: ReadonlySet<string>,
-  options?: IssueEditableProps,
-): Modifier<unknown, unknown> => ({
-  shape: unknownKeysStrictModifier,
-  fn: (value, path) => {
-    const issues = unknownKeysOf(value, declaredKeys).map(
-      (key) =>
-        new Issue(
-          ISSUE_CODE.UNRECOGNIZED_KEY,
-          [...path, key],
-          options?.message ?? `Unrecognized key "${key}"`,
-        ),
-    );
-    return issues.length > 0 ? { issues } : null;
-  },
-});
-
-// Every unknown-key modifier, removed by `.strict()` and `.passthrough()` so
-// the last one chained wins. `.passthrough()` adds none of its own: without
-// the strip modifier, `_checkType`'s output already keeps every key.
-const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
-
-interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind {
+interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
+  ObjectSchema<Shape, unknown, unknown>
+> {
   readonly type: ObjectSchema<Shape, this['Input'], this['Output']>;
 }
 
@@ -172,7 +110,7 @@ interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind {
  * unambiguous way to read an object out of a non-object. A field that needs
  * coercion opts into it on its own schema.
  *
- * Every modifier hands back an object schema rather than the base `Schema`,
+ * Every modifier hands back an object schema rather than the base `ChainableSchema`,
  * so a modified object schema is still something `pvl.compile()` accepts,
  * and `.strict()`/`.passthrough()` carry an earlier modifier's types through.
  * `.transform()` ends the chain.
@@ -198,12 +136,8 @@ export class ObjectSchema<
   Shape extends ObjectShape,
   Input = ObjectInput<Shape>,
   Output = ObjectOutput<Shape>,
-> extends Schema<Input, Output> {
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': ObjectSchemaKind<Shape>;
-  // Type-only: marks an object schema, transformed or not, as something
-  // `pvl.compile()` accepts.
-  /** @internal */
-  declare readonly '~compileCandidate': true;
   // Derived from the shape once at construction rather than per `.validate()`
   private readonly _shapeKeys: ReadonlySet<string>;
 
@@ -335,15 +269,15 @@ export class ObjectSchema<
         continue;
       }
 
-      assignKey(output, childKey, result.value);
+      assignObjectProperty(output, childKey, result.value);
     }
 
     if (issues.length > 0) {
       return { issues };
     }
 
-    for (const key of unknownKeysOf(input, this._shapeKeys)) {
-      assignKey(output, key, input[key]);
+    for (const key of unknownKeysOfObject(input, this._shapeKeys)) {
+      assignObjectProperty(output, key, input[key]);
     }
 
     // The loops above wrote each field's own result, which the type system

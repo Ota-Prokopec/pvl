@@ -1,6 +1,6 @@
 # Modifiers run in chain order around the type check
 
-Every Modifier on a `@pvl/schema` Schema is one `Modifier` value pushed onto one of two ordered arrays on the base `Schema`: **pre-modifiers**, which run before the type check, and **post-modifiers**, which run after it. Each array runs in **chain order**, the order the calls were written. This supersedes this record's earlier decision, which kept `.refine()`/`.transform()` as one ordered step list beside a fixed evaluation order for everything else: the ordering guarantee now covers every Modifier, not just those two.
+Every Modifier on a `@pvl/schema` Schema is one `Modifier` value pushed onto one of two ordered arrays on the base `ChainableSchema`: **pre-modifiers**, which run before the type check, and **post-modifiers**, which run after it. Each array runs in **chain order**, the order the calls were written. This supersedes this record's earlier decision, which kept `.refine()`/`.transform()` as one ordered step list beside a fixed evaluation order for everything else: the ordering guarantee now covers every Modifier, not just those two.
 
 | Modifier                                                             | Array                  | Tags                                              |
 | -------------------------------------------------------------------- | ---------------------- | ------------------------------------------------- |
@@ -23,4 +23,4 @@ Tags rather than rules hard-coded in `_validate` keep a Modifier's special behav
 
 Chain order is the user's to choose, and it can change the result. `pvl.string().coerce().optional()` coerces `undefined` to `'undefined'` before `.optional()` sees it; `pvl.string().optional().coerce()` accepts `undefined` first. `object`'s unknown-key mode is the one exception: its default strip is the first post-modifier, and `.strict()`/`.passthrough()` remove it rather than acting at their place in the chain ([ADR-0007](./0007-object-strips-unknown-keys-by-default.md)). A fixed evaluation order was the alternative, and it was rejected: it is a hidden rule a user can only learn by reading the docs, while chain order is what the code already says. The type check stays fixed between the two arrays, so a Constraint can never run against a value of the wrong type, whatever its position in the chain.
 
-`.transform()` ends the chain ([ADR-0016](./0016-transform-and-compile-return-read-only-schemas.md)), so it is always the last post-modifier and the last thing to run, and only once nothing has failed.
+`.transform()` ends the chain ([ADR-0016](./0016-transform-and-compile-end-the-modifier-chain.md)), so it is always the last post-modifier and the last thing to run, and only once nothing has failed.
