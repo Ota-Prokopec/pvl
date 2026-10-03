@@ -1,9 +1,5 @@
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
-import {
-  UNKNOWN_KEYS_MODIFIERS,
-  unknownKeysStrictModifier,
-  unknownKeysStripModifier,
-} from '../modifiers.js';
+import type { Modifier } from '../modifiers.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
@@ -88,6 +84,58 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
 // have widened. Distributive, so `{ … } | undefined` gains the index
 // signature on the object branch and leaves the `undefined` branch alone.
 type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
+
+// The unknown-key modifiers run as post-modifiers, once `_checkType` has
+// accepted the value. `_checkType` keeps every key, so the undeclared ones are
+// still on the value; no post-modifier replaces it before them (`.refine()`
+// and `.strict()` only report). Not exported: this module is in the barrel,
+// and they are internal-only.
+
+// The default: every object schema starts with it as its first post-modifier,
+// and `.strict()`/`.passthrough()` remove it.
+const unknownKeysStripModifier = (
+  declaredKeys: ReadonlySet<string>,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStripModifier,
+  fn: (value) => {
+    if (unknownKeysOfObject(value, declaredKeys).length === 0) {
+      return null;
+    }
+    const input = value as Record<string, unknown>;
+    // Copied rather than deleted in place, so a value an earlier step handed
+    // on is never mutated.
+    const output: Record<string, unknown> = {};
+    for (const key of Object.keys(input)) {
+      if (declaredKeys.has(key)) {
+        assignObjectProperty(output, key, input[key]);
+      }
+    }
+    return { value: output };
+  },
+});
+
+const unknownKeysStrictModifier = (
+  declaredKeys: ReadonlySet<string>,
+  options?: IssueEditableProps,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStrictModifier,
+  fn: (value, path) => {
+    const issues = unknownKeysOfObject(value, declaredKeys).map(
+      (key) =>
+        new Issue(
+          ISSUE_CODE.UNRECOGNIZED_KEY,
+          [...path, key],
+          options?.message ?? `Unrecognized key "${key}"`,
+        ),
+    );
+    return issues.length > 0 ? { issues } : null;
+  },
+});
+
+// Every unknown-key modifier, removed by `.strict()` and `.passthrough()` so
+// the last one chained wins. `.passthrough()` adds none of its own: without
+// the strip modifier, `_checkType`'s output already keeps every key.
+const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
 
 interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
   ObjectSchema<Shape, unknown, unknown>

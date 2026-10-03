@@ -1,7 +1,7 @@
 export * from './coercions.js';
 export * from './consts.js';
 export * from './issue.js';
-// modifiers.ts is deliberately omitted: its `Modifier` type, `MODIFIER_TAG` and Modifiers are internal-only.
+// modifiers.ts is deliberately omitted: its `Modifier` type and `MODIFIER_TAG` are internal-only.
 export * from './standardSchema.js';
 export * from './result.js';
 export * from './schemas/index.js';
