@@ -63,32 +63,30 @@ export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
  * }
  * ```
  */
-export type Issue = StandardSchemaV1.Issue & {
-  readonly code: IssueCode;
-};
+export class Issue implements StandardSchemaV1.Issue {
+  public code: IssueCode;
+  public message: string = 'Invalid type';
+  public path: ReadonlyArray<PropertyKey> | undefined = undefined;
 
-/**
- * Renders a value for a default `Issue` message — strings quoted so an empty
- * or space-padded one is visible in the message. `JSON.stringify` is avoided
- * because it throws on `bigint`.
- *
- * @internal
- */
-export const formatIssueMessageValue = (value: string | number | boolean | bigint): string =>
-  typeof value === 'string' ? `"${value}"` : String(value);
+  constructor(code: IssueCode, path: ReadonlyArray<PropertyKey>, message?: string) {
+    this.code = code;
+    this.message = message ? message : this.message;
+    this.path = path.length > 0 ? path : undefined;
+  }
 
-/**
- * Builds one `Issue`, omitting `path` entirely at the root rather than
- * emitting an empty array.
- *
- * @internal
- */
-export const buildIssue = (
-  code: IssueCode,
-  message: string,
-  path: ReadonlyArray<PropertyKey>,
-): Issue => ({
-  code,
-  message,
-  ...(path.length > 0 ? { path: [...path] } : {}),
-});
+  // Static and pure: a schema renders its default message once at
+  // construction, before any `Issue` exists to call it on.
+  /**
+   * Renders a value for a default `Issue` message — strings quoted so an empty
+   * or space-padded one is visible in the message. `JSON.stringify` is avoided
+   * because it throws on `bigint`.
+   *
+   * @internal
+   */
+  static formatIssueMessageValue(value: string | number | boolean | bigint): string {
+    return typeof value === 'string' ? `"${value}"` : String(value);
+  }
+}
+
+export type IssueProps = Pick<Issue, 'code' | 'message' | 'path'>;
+export type IssueEditableProps = Partial<Pick<IssueProps, 'message'>>;

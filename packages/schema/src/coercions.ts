@@ -1,14 +1,15 @@
 // The per-primitive `.coerce()` conversions, shared by the primitive schemas
 // and by `LiteralSchema` (whose literal pins it to exactly one of them). Each
-// returns the input unchanged when it cannot convert, so the schema's own
-// check is what ultimately rejects it — a coercion never produces an `Issue`
-// of its own.
+// except `coerceToString` returns the input unchanged when it cannot convert,
+// so the schema's own check is what ultimately rejects it — a coercion never
+// produces an `Issue` of its own.
 
 /**
- * The conversion `pvl.string().coerce()` applies before its own check:
- * `number`, `boolean` and `bigint` inputs become their `String()` form, and
- * anything else is handed through untouched to be rejected by the string
- * check.
+ * The conversion `pvl.string().coerce()` applies before its own check: every
+ * input becomes its `String()` form, so the string check always passes —
+ * including for `undefined`, `null` and objects, which become `'undefined'`,
+ * `'null'` and `'[object Object]'`. Chain `.optional()` or `.nullable()`
+ * before `.coerce()` to keep `undefined` or `null` as they are.
  *
  * @example
  * ```ts
@@ -16,13 +17,12 @@
  *
  * coerceToString(42); // '42'
  * coerceToString(true); // 'true'
- * coerceToString({}); // {} — unchanged, and so still not a string
+ * coerceToString(undefined); // 'undefined'
  * ```
  */
-export const coerceToString = (value: unknown): unknown =>
-  typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'
-    ? String(value)
-    : value;
+// `String()` rather than a template literal: a template literal throws on a
+// `Symbol`, and `.validate()` never throws for an invalid value.
+export const coerceToString = (value: unknown): unknown => String(value);
 
 /**
  * The conversion `pvl.number().coerce()` applies before its own check:
