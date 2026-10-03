@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0021
+---
+
 # TypeDoc runs against TypeScript 5.9 in `apps/docs`, not the repo-wide 7.0.2
 
 The documentation site at [`apps/docs`](../../apps/docs/AGENTS.md) generates its API reference with TypeDoc, which reads `@pvl/schema`'s source and therefore needs a TypeScript compiler it accepts. TypeDoc `0.28.20` declares `peerDependencies.typescript: "5.0.x || … || 5.9.x || 6.0.x"`, and TypeScript 6.0.0 stable was never published — npm carries only `6.0.0-beta` — so the newest stable TypeScript TypeDoc accepts is `5.9.x`. This repo pins `typescript: 7.0.2` everywhere else, which TypeDoc will not run against at all.
