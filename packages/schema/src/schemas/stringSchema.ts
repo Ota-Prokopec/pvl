@@ -1,9 +1,10 @@
 import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
-interface StringSchemaKind extends SchemaKind {
+interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
   readonly type: StringSchema<this['Input'], this['Output']>;
 }
 
@@ -11,11 +12,10 @@ interface StringSchemaKind extends SchemaKind {
  * Accepts a JavaScript `string`, with optional length constraints. Build one
  * with `pvl.string()`.
  *
- * Constraints are checked in the order they were chained, and checking stops
- * at the first one that fails, so a single `Issue` comes back rather than
- * one per constraint.
+ * Constraints are checked in the order they were chained, once the value is a
+ * string, and every one that fails is reported — not just the first.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
+ * Constraints and the shared modifiers chain in any order — a constraint
  * keeps whatever modifiers were already applied.
  *
  * @example
@@ -29,7 +29,7 @@ interface StringSchemaKind extends SchemaKind {
  * username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class StringSchema<Input = string, Output = string> extends Schema<Input, Output> {
+export class StringSchema<Input = string, Output = string> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': StringSchemaKind;
 
   /** @internal */

@@ -1,9 +1,10 @@
 import { coerceToBigint } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
-interface BigintSchemaKind extends SchemaKind {
+interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
   readonly type: BigintSchema<this['Input'], this['Output']>;
 }
 
@@ -18,8 +19,9 @@ interface BigintSchemaKind extends SchemaKind {
  * output is always a `bigint`, never downgraded to a `number` — the precision
  * loss that would cause is exactly what `bigint` exists to avoid.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
- * keeps whatever modifiers were already applied.
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -34,14 +36,12 @@ interface BigintSchemaKind extends SchemaKind {
  * pvl.bigint().coerce().validate('42'); // { value: 42n }
  * ```
  */
-export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input, Output> {
+export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': BigintSchemaKind;
-  private readonly _typeMessage: string;
 
   /** @internal */
-  constructor(options?: IssueEditableProps) {
+  constructor() {
     super();
-    this._typeMessage = options?.message ?? 'Expected bigint';
   }
 
   /**
@@ -115,7 +115,7 @@ export class BigintSchema<Input = bigint, Output = bigint> extends Schema<Input,
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
     if (typeof value !== 'bigint') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected bigint')],
       };
     }
     return { value };

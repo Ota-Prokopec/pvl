@@ -1,9 +1,12 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
+import type { Schema } from './schema.js';
 
-interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind {
+interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
+  ArraySchema<ItemSchema, unknown, unknown>
+> {
   readonly type: ArraySchema<ItemSchema, this['Input'], this['Output']>;
 }
 
@@ -17,16 +20,15 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  * level appends its own path segment, so a failure deep inside reports
  * exactly where it happened.
  *
- * The length constraints are checks on the array itself and, like a
- * primitive's checks, stop at the first failure. They run only once every
- * element has passed, so they never collect alongside element issues.
- * `.coerce()` is inherited but does nothing here —
+ * The length constraints are checks on the array itself. They run, in the
+ * order chained, only once every element has passed, so they never report
+ * alongside element issues; between themselves they all report rather than
+ * stopping at the first. `.coerce()` is inherited but does nothing here —
  * there is no unambiguous way to read an array out of a non-array.
  *
- * `.optional()`, `.nullable()` and `.refine()` hand back an array schema
- * rather than the base `Schema`, so a modified array schema is still
- * something `pvl.compile()` accepts — and the length constraints stay
- * chainable in either order. `.transform()` ends the chain.
+ * Every modifier hands back an array schema rather than the base `ChainableSchema`,
+ * so a modified array schema is still something `pvl.compile()` accepts and
+ * the length constraints stay chainable. `.transform()` ends the chain.
  *
  * @example
  * ```ts
@@ -41,20 +43,16 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  */
 export class ArraySchema<
   ItemSchema extends Schema<unknown, unknown>,
-  Input = StandardSchemaV1.InferInput<ItemSchema>[],
-  Output = StandardSchemaV1.InferOutput<ItemSchema>[],
-> extends Schema<Input, Output> {
+  Input = InferInput<ItemSchema>[],
+  Output = InferOutput<ItemSchema>[],
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': ArraySchemaKind<ItemSchema>;
   private readonly itemSchema: ItemSchema;
-  // Resolved from `_item` once at construction, since it runs per element on
-  // the validation hot path.
-  private readonly _typeMessage: string;
 
   /** @internal */
-  constructor(itemSchema: ItemSchema, options?: IssueEditableProps) {
+  constructor(itemSchema: ItemSchema) {
     super();
     this.itemSchema = itemSchema;
-    this._typeMessage = options?.message ?? 'Expected array';
   }
 
   // An accessor with no setter, so the property cannot be written. One schema
@@ -181,7 +179,7 @@ export class ArraySchema<
   _checkType(array: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (!Array.isArray(array)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, this._typeMessage)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected array')],
       };
     }
 

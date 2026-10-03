@@ -1,7 +1,8 @@
 import type { ValueOfEnum } from '@repo/types';
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 /**
  * A single accepted enum value, in either source form. Values may be strings
@@ -36,7 +37,9 @@ type EnumArraySource = ReadonlyArray<string>;
  */
 export type EnumSource = EnumObjectSource | EnumArraySource;
 
-interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind {
+interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind<
+  EnumSchema<Source, unknown, unknown>
+> {
   readonly type: EnumSchema<Source, this['Input'], this['Output']>;
 }
 
@@ -68,12 +71,12 @@ export class EnumSchema<
   Source extends EnumSource,
   Input = ValueOfEnum<Source>,
   Output = ValueOfEnum<Source>,
-> extends Schema<Input, Output> {
+> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': EnumSchemaKind<Source>;
   private readonly members: ReadonlySet<EnumMember>;
 
   /** @internal */
-  constructor(source: Source, options?: IssueEditableProps) {
+  constructor(source: Source) {
     super();
     const members = Array.isArray(source) ? source : Object.values(source);
     this.members = new Set(members);

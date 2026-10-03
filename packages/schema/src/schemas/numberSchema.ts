@@ -1,9 +1,10 @@
 import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaKind } from './schema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
-interface NumberSchemaKind extends SchemaKind {
+interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
   readonly type: NumberSchema<this['Input'], this['Output']>;
 }
 
@@ -17,8 +18,9 @@ interface NumberSchemaKind extends SchemaKind {
  * built-in finiteness constraint. Arbitrary-precision integers belong to
  * `pvl.bigint()`, and this schema never accepts or produces one.
  *
- * Constraints and the shared modifiers chain in either order — a constraint
- * keeps whatever modifiers were already applied.
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -31,11 +33,11 @@ interface NumberSchemaKind extends SchemaKind {
  * age.validate(Number.NaN); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class NumberSchema<Input = number, Output = number> extends Schema<Input, Output> {
+export class NumberSchema<Input = number, Output = number> extends ChainableSchema<Input, Output> {
   declare readonly '~kind': NumberSchemaKind;
 
   /** @internal */
-  constructor(options?: IssueEditableProps) {
+  constructor() {
     super();
   }
 

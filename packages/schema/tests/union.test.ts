@@ -33,14 +33,6 @@ describe('pvl.union()', () => {
     expect(schema.validate({ kind: 'b', value: 'wrong type' }).issues).toBeDefined();
   });
 
-  it('uses a custom message when no alternative matches', () => {
-    const schema = pvl.union([pvl.string(), pvl.number()], {
-      message: 'must be a string or number',
-    });
-    const result = schema.validate(true);
-    expect(result.issues?.[0]?.message).toBe('must be a string or number');
-  });
-
   describe('inherited modifiers', () => {
     it('accepts undefined once .optional()', () => {
       const schema = pvl.union([pvl.string(), pvl.number()]).optional();
@@ -89,25 +81,13 @@ describe('pvl.union()', () => {
   });
 
   describe('nested Issue shape (seam 4)', () => {
-    it("collects every member's own rejection rather than one generic Issue", () => {
+    it("reports INVALID_UNION followed by every member's own rejection", () => {
       const schema = pvl.union([pvl.string(), pvl.number()]);
       const result = schema.validate(true);
       expect(result.issues).toEqual([
+        { code: 'INVALID_UNION', message: 'Value matches no union member' },
         { code: 'INVALID_TYPE', message: 'Expected string' },
         { code: 'INVALID_TYPE', message: 'Expected number' },
-      ]);
-    });
-
-    it('uses a single custom-message Issue instead of collected rejections', () => {
-      const schema = pvl.union([pvl.string(), pvl.number()], {
-        message: 'must be a string or number',
-      });
-      const result = schema.validate(true);
-      expect(result.issues).toEqual([
-        {
-          code: 'INVALID_UNION',
-          message: 'must be a string or number',
-        },
       ]);
     });
 
@@ -117,6 +97,7 @@ describe('pvl.union()', () => {
       });
       const result = schema.validate({ id: true });
       expect(result.issues).toEqual([
+        { code: 'INVALID_UNION', message: 'Value matches no union member', path: ['id'] },
         { code: 'INVALID_TYPE', message: 'Expected string', path: ['id'] },
         { code: 'INVALID_TYPE', message: 'Expected number', path: ['id'] },
       ]);

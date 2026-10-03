@@ -23,6 +23,7 @@ Each ticket must be small enough to implement as one self-contained unit of work
 ## `/implement`
 
 Scope: spec issues (labeled `spec`) and their child tickets (labeled `ready-for-agent`, with a `## Parent` link to a spec) — issues that came through the `/to-spec` → `/to-tickets` pipeline. Any other `#<int>` reference follows AGENTS.md's Issue Resolution Workflow instead: one `issue/<n>-<slug>` branch, one PR into `main`.
+After implementation run the `/code-review` skill, then push the changes to created branch and create a Pull Request.
 
 Pipeline work uses three branch levels:
 
@@ -33,3 +34,7 @@ Pipeline work uses three branch levels:
 - **Ticket PR**: once the ticket is done (checklist green, `/code-review` findings addressed), push and open a PR into the _spec branch_. A closing keyword won't fire on that merge, so state the relationship as prose (e.g. "Part of #14, resolves #16"), then comment on the ticket issue linking the PR — not a bare commit, since there's no `main` commit yet.
 
 - **Spec PR**: once at least one ticket has merged into the spec branch (a PR into `main` needs a diff), open a PR from the spec branch into `main` if one doesn't exist. This one does target `main`, so its body carries real closing keywords for the spec issue and every child ticket that landed in it (e.g. "Closes #14. Closes #16. Closes #17."). Open it as a **draft**: it represents the whole spec and should merge only once every child ticket is in, and draft status guards against an early merge. The user promotes and merges it.
+
+## `code-review`
+
+Within the code review run tests.
