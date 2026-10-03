@@ -1,15 +1,14 @@
 {
-  "name": "claude",
+  "name": "@repo/git-worktrees",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@clack/prompts": "^1.8.1",
-    "@repo/git-worktrees": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

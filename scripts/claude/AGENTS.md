@@ -2,7 +2,7 @@
 
 A developer script, not part of the library or the compiler; nothing depends on it. It shows a [`@clack/prompts`](https://bomb.sh/docs/clack/packages/prompts/) menu of the repo's git worktrees and starts Claude Code in the picked one with `--dangerously-skip-permissions`. Arguments are forwarded to `claude` (`pnpm claude --continue`, `pnpm claude "fix the flaky test"`). The header comment of `src/index.ts` covers what the menu shows.
 
-It is a private workspace package (`claude`, one of the `scripts/*` entries in `pnpm-workspace.yaml`), started from the repo root by the root `package.json` script `"claude": "node scripts/claude/src/index.ts"`. Being a package gives it its own dependencies and a place in the repo-wide `lint` and `check-types` tasks.
+It is a private workspace package (`claude`, one of the `scripts/*` entries in `pnpm-workspace.yaml`), started from the repo root by the root `package.json` script `"claude": "node scripts/claude/src/index.ts"`. Being a package gives it its own dependencies and a place in the repo-wide `lint` and `check-types` tasks. It reads worktrees through [`@repo/git-worktrees`](../../packages/git-worktrees/AGENTS.md), which it shares with [`pnpm claude-list`](../claude-list/AGENTS.md), the command that removes worktrees.
 
 ## How it runs
 

@@ -11,7 +11,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
-    "claude": "node scripts/claude/src/index.ts"
+    "claude": "node scripts/claude/src/index.ts",
+    "claude-list": "node scripts/claude-list/src/index.ts"
   },
   "devDependencies": {
     "lefthook": "^2.1.16",
