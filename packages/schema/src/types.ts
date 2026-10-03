@@ -1,6 +1,7 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
 import type { ChainableSchema } from './schemas/chainableSchema.js';
+import type { Schema } from './schemas/schema.js';
 
 /**
  * The type a schema accepts as input — what a value must look like going in.
@@ -50,7 +51,7 @@ export type PreModifiersResult = {
  *
  * @internal
  */
-export interface SchemaKind<TSchema extends ChainableSchema> {
+export interface SchemaKind<TSchema extends Schema> {
   readonly Input: unknown;
   readonly Output: unknown;
   readonly type: TSchema;
