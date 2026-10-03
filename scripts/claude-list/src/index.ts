@@ -12,6 +12,7 @@ import { basename } from 'node:path';
 import { styleText } from 'node:util';
 import { cancel, confirm, intro, isCancel, log, multiselect, outro } from '@clack/prompts';
 import {
+  countPrunableWorktrees,
   getCurrentWorktreePath,
   getMainCheckoutPath,
   git,
@@ -34,7 +35,23 @@ type Failure = {
   message: string;
 };
 
+type TryGitArgs = {
+  args: string[];
+  /** What the call does, completing "Could not …" in the summary. */
+  subject: string;
+};
+
+type CountNounArgs = {
+  count: number;
+  singular: string;
+  plural: string;
+};
+
 const MAIN_BRANCH = 'main';
+
+const countNoun = ({ count, singular, plural }: CountNounArgs): string => {
+  return `${count} ${count === 1 ? singular : plural}`;
+};
 
 const currentPath = getCurrentWorktreePath();
 const mainCheckoutPath = getMainCheckoutPath();
@@ -74,31 +91,19 @@ const hintEntry = (entry: Entry): string => {
     entry.branch !== undefined && !entry.isMerged && 'unmerged',
     entry.locked && 'locked',
     entry.changedFiles > 0 &&
-      `dirty (${entry.changedFiles} ${entry.changedFiles === 1 ? 'file' : 'files'})`,
+      `dirty (${countNoun({ count: entry.changedFiles, singular: 'file', plural: 'files' })})`,
   ];
   return tags.filter((tag) => tag !== false).join(' · ');
 };
 
 /** Runs `git`, turning a failure into a `Failure` for the summary instead of a throw. */
-const tryGit = (args: string[], subject: string): Failure | undefined => {
+const tryGit = ({ args, subject }: TryGitArgs): Failure | undefined => {
   try {
     git(args);
     return undefined;
   } catch (error) {
     return { subject, message: error instanceof Error ? error.message : String(error) };
   }
-};
-
-const deleteBranch = (branch: string): Failure | undefined => {
-  // `-D`: `-d` checks the branch against the current HEAD, not `main`.
-  return tryGit(['branch', '-D', branch], `delete branch ${branch}`);
-};
-
-/** How many worktrees `git worktree prune` will remove: those whose directory is gone. */
-const countPrunable = (): number => {
-  return git(['worktree', 'list', '--porcelain'])
-    .split('\n')
-    .filter((line) => line === 'prunable' || line.startsWith('prunable ')).length;
 };
 
 const allEntries = listWorktrees().map(toEntry);
@@ -137,7 +142,7 @@ log.message(
   picked.map((entry) => `${labelEntry(entry)}  ${styleText('dim', hintEntry(entry))}`).join('\n'),
 );
 const isConfirmed = await confirm({
-  message: `Remove ${picked.length === 1 ? 'this worktree' : `these ${picked.length} worktrees`}?`,
+  message: `Remove ${countNoun({ count: picked.length, singular: 'worktree', plural: 'worktrees' })}?`,
   initialValue: false,
 });
 
@@ -151,10 +156,10 @@ const removed: Entry[] = [];
 
 for (const entry of picked) {
   // Two `--force`s: one overrides uncommitted changes, the second the lock.
-  const failure = tryGit(
-    ['worktree', 'remove', '--force', '--force', entry.path],
-    `remove worktree ${entry.path}`,
-  );
+  const failure = tryGit({
+    args: ['worktree', 'remove', '--force', '--force', entry.path],
+    subject: `remove worktree ${entry.path}`,
+  });
   if (failure === undefined) removed.push(entry);
   else failures.push(failure);
 }
@@ -162,14 +167,18 @@ for (const entry of picked) {
 const deletedBranches: string[] = [];
 const deleteBranches = (branches: string[]): void => {
   for (const branch of branches) {
-    const failure = deleteBranch(branch);
+    // `-D`: `-d` checks the branch against the current HEAD, not `main`.
+    const failure = tryGit({ args: ['branch', '-D', branch], subject: `delete branch ${branch}` });
     if (failure === undefined) deletedBranches.push(branch);
     else failures.push(failure);
   }
 };
 
+// `main` itself is always merged into `main`; a removed worktree that had it checked out keeps it.
 const removedBranches = removed.flatMap((entry) =>
-  entry.branch === undefined ? [] : [{ branch: entry.branch, isMerged: entry.isMerged }],
+  entry.branch === undefined || entry.branch === MAIN_BRANCH
+    ? []
+    : [{ branch: entry.branch, isMerged: entry.isMerged }],
 );
 deleteBranches(removedBranches.filter(({ isMerged }) => isMerged).map(({ branch }) => branch));
 
@@ -188,8 +197,11 @@ if (unmergedBranches.length > 0) {
   deleteBranches(isCancel(pickedBranches) ? [] : pickedBranches);
 }
 
-const prunableCount = countPrunable();
-const pruneFailure = tryGit(['worktree', 'prune'], 'prune stale worktree entries');
+const prunableCount = countPrunableWorktrees();
+const pruneFailure = tryGit({
+  args: ['worktree', 'prune'],
+  subject: 'prune stale worktree entries',
+});
 if (pruneFailure !== undefined) failures.push(pruneFailure);
 
 const keptBranches = unmergedBranches.filter((branch) => !deletedBranches.includes(branch));
@@ -201,13 +213,18 @@ if (deletedBranches.length > 0) log.success(`Deleted branches: ${deletedBranches
 if (keptBranches.length > 0) log.info(`Kept unmerged branches: ${keptBranches.join(', ')}`);
 if (pruneFailure === undefined && prunableCount > 0) {
   log.success(
-    `Pruned ${prunableCount} stale worktree ${prunableCount === 1 ? 'entry' : 'entries'}`,
+    `Pruned ${countNoun({ count: prunableCount, singular: 'stale worktree entry', plural: 'stale worktree entries' })}`,
   );
 }
 for (const failure of failures) log.error(`Could not ${failure.subject}:\n${failure.message}`);
 
 if (failures.length > 0) {
-  outro(styleText('red', `${failures.length} ${failures.length === 1 ? 'step' : 'steps'} failed.`));
+  outro(
+    styleText(
+      'red',
+      `${countNoun({ count: failures.length, singular: 'step', plural: 'steps' })} failed.`,
+    ),
+  );
   process.exit(1);
 }
 outro('Done.');

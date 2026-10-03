@@ -4,7 +4,7 @@
  * the process's working directory.
  */
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 export type Worktree = {
@@ -30,22 +30,39 @@ const parseWorktreeBlock = (block: string): Map<string, string> => {
   );
 };
 
-/** Every worktree with files on disk: a bare repository has none, and a `prunable` worktree's directory is gone. */
+const readWorktreeBlocks = (): Map<string, string>[] => {
+  return git(['worktree', 'list', '--porcelain']).split('\n\n').map(parseWorktreeBlock);
+};
+
+/**
+ * Every worktree with files on disk: a bare repository has none, and a
+ * `prunable` worktree's directory is gone. A locked worktree whose directory is
+ * gone is never `prunable`, hence the separate existence check.
+ */
 export const listWorktrees = (): Worktree[] => {
-  return git(['worktree', 'list', '--porcelain'])
-    .split('\n\n')
-    .map(parseWorktreeBlock)
-    .flatMap((attributes): Worktree[] => {
-      const path = attributes.get('worktree');
-      if (path === undefined || attributes.has('bare') || attributes.has('prunable')) return [];
-      return [
-        {
-          path: realpathSync(path),
-          branch: attributes.get('branch')?.replace(/^refs\/heads\//, ''),
-          locked: attributes.has('locked'),
-        },
-      ];
-    });
+  return readWorktreeBlocks().flatMap((attributes): Worktree[] => {
+    const path = attributes.get('worktree');
+    if (
+      path === undefined ||
+      attributes.has('bare') ||
+      attributes.has('prunable') ||
+      !existsSync(path)
+    ) {
+      return [];
+    }
+    return [
+      {
+        path: realpathSync(path),
+        branch: attributes.get('branch')?.replace(/^refs\/heads\//, ''),
+        locked: attributes.has('locked'),
+      },
+    ];
+  });
+};
+
+/** How many entries `git worktree prune` will remove: the unlocked worktrees whose directory is gone. */
+export const countPrunableWorktrees = (): number => {
+  return readWorktreeBlocks().filter((attributes) => attributes.has('prunable')).length;
 };
 
 /** The worktree the process runs in. */
