@@ -17,6 +17,7 @@ Run from the repo root; Turborepo fans each one out across the workspace.
 - `pnpm dev` — watch/dev mode for every app and package
 - `pnpm docs:dev` / `pnpm docs:build` — generate the API reference, then serve or build the documentation site
 - The six checklist commands below
+- Before every commit, lefthook's `pre-commit` hook ([`lefthook.yml`](./lefthook.yml)) runs `pnpm format` (re-adding its fixes to the commit), then `pnpm lint` and `pnpm check-types`
 
 ## Post-Modification Checklist
 
@@ -44,6 +45,7 @@ This repo uses the default canonical five-label vocabulary: `needs-triage`, `nee
 ## Core Rules
 
 - Package manager pnpm, ESM modules, node_modules hoisted to the root `node_modules/`.
+- **Never skip the pre-commit hook** — no `git commit --no-verify`, no `LEFTHOOK=0`, nothing else that bypasses it. When it fails, fix the reported failure and commit again.
 - Prefer an existing npm package over implementing functionality from scratch.
 - Scope every non-global `.env` into its app as `.env.production` or `.env.development`.
 - A change that is an architectural decision gets an ADR in [`docs/adr/`](docs/adr/).
