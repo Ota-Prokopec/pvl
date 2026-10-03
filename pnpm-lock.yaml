@@ -198,7 +198,7 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  scripts:
+  scripts/claude:
     dependencies:
       '@clack/prompts':
         specifier: ^1.8.1
@@ -206,10 +206,10 @@ importers:
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
-        version: link:../packages/eslint-config
+        version: link:../../packages/eslint-config
       '@repo/typescript-config':
         specifier: workspace:*
-        version: link:../packages/typescript-config
+        version: link:../../packages/typescript-config
       '@types/node':
         specifier: ^26.4.1
         version: 26.4.1
