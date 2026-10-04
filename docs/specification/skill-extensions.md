@@ -1,10 +1,10 @@
 # Skill Extensions
 
-Skills under `.agents/skills/` (symlinked into `.claude/skills/`) are installed from an external source and are never edited — see [AGENTS.md](../../AGENTS.md). Repo-specific rules that layer onto a skill's behavior live here instead, one section per skill. Before running a skill listed below, apply its extension rules on top of the skill's own instructions. AGENTS.md's GitHub rules (the `CLAUDE(<type>): ` subject format, the `CLAUDE: ` prose prefix, never merging a PR yourself) apply throughout.
+Skills under `.agents/skills/` (symlinked into `.claude/skills/`) are installed from an external source and are never edited — see [AGENTS.md](../../AGENTS.md). Repo-specific rules that layer onto a skill's behavior live here instead, one section per skill. Before running a skill listed below, apply its extension rules on top of the skill's own instructions. [git-workflow.md](../agents/git-workflow.md) (naming, never merging a PR yourself) applies throughout.
 
 ## `/grill-with-docs`
 
-The session itself writes nothing. Once it concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes with type `docs` (e.g. `CLAUDE(docs): record ADR-0026`), so ADR-only commits are distinguishable in history.
+The session itself writes nothing. Once it concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes with type `docs` (e.g. `docs(adr): record ADR-0026`), so ADR-only commits are distinguishable in history.
 
 ## `/grilling`
 
@@ -22,14 +22,14 @@ Each ticket must be small enough to implement as one self-contained unit of work
 
 ## `/implement`
 
-Scope: spec issues (labeled `spec`) and their child tickets (labeled `ready-for-agent`, with a `## Parent` link to a spec) — issues that came through the `/to-spec` → `/to-tickets` pipeline. Any other `#<int>` reference follows AGENTS.md's Issue Resolution Workflow instead: one `issue/<n>-<slug>` branch, one PR into `main`.
+Scope: spec issues (labeled `spec`) and their child tickets (labeled `ready-for-agent`, with a `## Parent` link to a spec) — issues that came through the `/to-spec` → `/to-tickets` pipeline. Any other `#<int>` reference follows the "Resolving an issue" section of [git-workflow.md](../agents/git-workflow.md) instead: one `<type>/<slug>` branch, one PR into `main`.
 After implementation run the `/code-review` skill, then push the changes to created branch and create a Pull Request.
 
 Pipeline work uses three branch levels:
 
-- **Spec branch**: the first time any of a spec's tickets is implemented, create `spec/<issue-number>-<spec-slug>` off `main` (e.g. `spec/10-jwt-verified-trusted-proxy-identity`) if it doesn't exist. It is the integration branch every child ticket's PR targets.
+- **Spec branch**: the first time any of a spec's tickets is implemented, create `<type>/<spec-slug>` off `main` (e.g. `feat/jwt-verified-trusted-proxy-identity`) if it doesn't exist. It is the integration branch every child ticket's PR targets.
 
-- **Ticket branch**: for each ticket, branch `ticket/<issue-number>-<ticket-slug>` off the **spec branch**, not `main` (e.g. `ticket/11-jwt-verified-trusted-proxy-for-apps-bff`). Implementation, TDD and the full post-modification checklist happen there exactly as normal; branching off the spec branch is the only change from the non-pipeline flow.
+- **Ticket branch**: for each ticket, branch `<type>/<ticket-slug>` off the **spec branch**, not `main` (e.g. `feat/jwt-verified-trusted-proxy-for-apps-bff`). Implementation, TDD and the full post-modification checklist happen there exactly as normal; branching off the spec branch is the only change from the non-pipeline flow.
 
 - **Ticket PR**: once the ticket is done (checklist green, `/code-review` findings addressed), push and open a PR into the _spec branch_. A closing keyword won't fire on that merge, so state the relationship as prose (e.g. "Part of #14, resolves #16"), then comment on the ticket issue linking the PR — not a bare commit, since there's no `main` commit yet.
 

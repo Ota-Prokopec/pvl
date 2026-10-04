@@ -1,3 +1,5 @@
+# The post-modification checklist (README.md). Jobs run in order and each one
+# runs even when an earlier one failed, so a commit attempt reports every failure.
 pre-commit:
   jobs:
     - name: format
@@ -7,3 +9,7 @@ pre-commit:
       run: pnpm lint
     - name: check-types
       run: pnpm check-types
+    - name: test
+      run: pnpm test
+    - name: build
+      run: pnpm build
