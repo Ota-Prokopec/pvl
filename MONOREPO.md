@@ -13,7 +13,7 @@ packages/
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type (enum objects and literal arrays)
 ├── git-worktrees/     (@repo/git-worktrees)       — the git worktree reader the scripts share
-├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules
+├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 └── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
 scripts/
@@ -34,7 +34,7 @@ scripts/
 - [**`apps/playground`**](./apps/playground/AGENTS.md) — a committed scratch app that composes Schemas, validates a passing and a failing value against each, and prints the `Result`s, so the library can be watched working without writing a throwaway test.
 - **`scripts/*`** — private developer scripts. `scripts/` holds only folders: each script is its own workspace package `scripts/<name>/` (package name `<name>`) with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the repo root by a root `package.json` script `"<name>": "node scripts/<name>/src/index.ts"`. Node runs the TypeScript directly, so there is no build step. Nothing depends on them. [**`scripts/claude`**](./scripts/claude/AGENTS.md) (`pnpm claude`) picks a git worktree (or creates one) from a menu and starts Claude Code there with `--dangerously-skip-permissions`. [**`scripts/claude-list`**](./scripts/claude-list/AGENTS.md) (`pnpm claude-list`) removes the picked worktrees and their branches. Both read worktrees through [**`packages/git-worktrees`**](./packages/git-worktrees/AGENTS.md) (`@repo/git-worktrees`).
 - [**`packages/types`**](./packages/types/AGENTS.md) — supplies the `ValueOfEnum<T>` utility type [`docs/standards/typescript.md`](./docs/standards/typescript.md) mandates every `as const` enum consumer import rather than re-declare; it reads the values of an `as const` object and the elements of a literal array alike, the latter for `pvl.enum(['A', 'B'])`. `@pvl/schema` depends on it for its own internal enums.
-- [**`packages/conventions`**](./packages/conventions/AGENTS.md) (`@repo/conventions`) — the repo's conventions as custom ESLint rules, which `@repo/eslint-config` wires in.
+- [**`packages/conventions`**](./packages/conventions/AGENTS.md) (`@repo/conventions`) — the repo's conventions as custom ESLint rules, which `@repo/eslint-config` wires in, plus the Claude Code and lefthook `commit-msg` hooks for the git rules lint can't see.
 - [**`packages/eslint-config`**](./packages/eslint-config/AGENTS.md) and [**`packages/typescript-config`**](./packages/typescript-config/AGENTS.md) are **real, adopted dependencies**, not create-turbo leftovers: `@pvl/schema`, `@repo/types`, `@repo/git-worktrees`, both apps and both scripts take them as `workspace:*` devDependencies instead of standing up bespoke config. Treat them as part of the architecture.
 
 ## Wiring

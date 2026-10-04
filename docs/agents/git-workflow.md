@@ -2,6 +2,8 @@
 
 Read this before you create a branch, commit, push, open or edit a PR, or create or comment on an issue. Issues live as GitHub issues on `Ota-Prokopec/pvl`, driven through the `gh` CLI: [issue-tracker.md](./issue-tracker.md) has the commands and the wayfinding operations, [triage-labels.md](./triage-labels.md) the label vocabulary.
 
+The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enforce most of this file for Claude Code, and lefthook's `commit-msg` hook checks every commit subject. Agents other than Claude Code aren't bound by the Claude Code hooks, so this file stays the full statement of the rules.
+
 ## Naming
 
 - **Branches** are `<type>/<slug>`: `<type>` is one of the types below, `<slug>` is lowercase kebab-case (`feat/enum-factory`, `chore/agents-system-refactor`). A Claude Code worktree starts on a `worktree-<name>` branch, so rename it with `git branch -m <type>/<slug>` before the first commit.

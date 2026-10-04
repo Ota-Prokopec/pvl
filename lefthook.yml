@@ -13,3 +13,9 @@ pre-commit:
       run: pnpm test
     - name: build
       run: pnpm build
+
+# The commit subject format from docs/agents/git-workflow.md.
+commit-msg:
+  jobs:
+    - name: conventional-subject
+      run: node packages/conventions/src/hooks/commitMsg.ts {1}
