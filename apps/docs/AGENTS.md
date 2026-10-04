@@ -11,14 +11,6 @@ It documents `@pvl/schema` only — `@pvl/schema-compiler` has no implementation
 - Shared `@repo/eslint-config` (`base`) and `@repo/typescript-config` (`base.json`), as everywhere else.
 - `@pvl/schema` is a real `workspace:*` dependency — see "Why the workspace dependency is declared" below.
 
-## This package pins its own TypeScript
-
-`apps/docs` declares `typescript: ~5.9.3` while the rest of the repo is on `7.0.2`, deliberately: TypeDoc does not accept TypeScript 7, and 5.9 is the newest stable release it does accept. pnpm isolates it, so only the doc generator sees it.
-
-**Do not "fix" this by aligning it with the root pin** — TypeDoc fails at runtime against 7.0.2, not at install time, so the failure would look like a TypeDoc bug. The full reasoning, the rejected alternatives and the trigger for reverting are in [ADR-0014](../../docs/adr/0014-typedoc-pinned-to-typescript-5-9.md).
-
-The practical consequence: TypeScript-7-only syntax in `packages/schema/src` breaks documentation generation. If `docs:api` starts failing on syntax the rest of the repo compiles fine, that is this pin talking.
-
 ## The content root is `content/`, not the package root
 
 VitePress is pointed at `content/`, so only what lives there becomes a page; `package.json`, `typedoc.json`, `tsconfig.json` and this file stay out of the site's page space by construction.
