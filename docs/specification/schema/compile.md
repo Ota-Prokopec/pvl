@@ -11,4 +11,4 @@ What keeps that swap working, and must stay aligned with `@pvl/schema-compiler`:
 - **Fields, elements and union members are `@pvl/schema` Schemas only**, typed as `Schema` so a transformed or compiled child fits, and called through their own `_validate` with the parent's path extended. A Standard Schema from another library is rejected at the type level ([ADR-0018](../../adr/0018-composite-fields-are-pvl-schemas-only.md)).
 - **`_checkType` is the one hook a Compiled Schema fills in.** Every Modifier is baked into the emitted code, so its modifier arrays stay empty and the `_validate` it inherits reduces to `_checkType`, which must report every `Issue` at the `path` it is handed.
 
-See [`@pvl/schema-compiler`'s `AGENTS.md`](../../../packages/schema-compiler/AGENTS.md) for what the compiler does with a marked schema.
+See [`schema-compiler/compilation.md`](../schema-compiler/compilation.md) for what the compiler does with a marked schema.
