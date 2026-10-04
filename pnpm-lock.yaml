@@ -186,27 +186,6 @@ importers:
         specifier: 8.71.0
         version: 8.71.0(eslint@10.9.1(jiti@2.7.0)(supports-color@5.5.0))(supports-color@5.5.0)(typescript@6.0.3)
 
-  packages/git-worktrees:
-    devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/node':
-        specifier: ^26.4.1
-        version: 26.4.1
-      eslint:
-        specifier: 10.9.1
-        version: 10.9.1(jiti@2.7.0)(supports-color@5.5.0)
-      jiti:
-        specifier: 2.7.0
-        version: 2.7.0
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-
   packages/schema:
     dependencies:
       '@repo/types':
@@ -277,7 +256,7 @@ importers:
         version: 1.8.1
       '@repo/git-worktrees':
         specifier: workspace:*
-        version: link:../../packages/git-worktrees
+        version: link:../git-worktrees
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -305,7 +284,28 @@ importers:
         version: 1.8.1
       '@repo/git-worktrees':
         specifier: workspace:*
-        version: link:../../packages/git-worktrees
+        version: link:../git-worktrees
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(jiti@2.7.0)(supports-color@5.5.0)
+      jiti:
+        specifier: 2.7.0
+        version: 2.7.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
+  scripts/git-worktrees:
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*

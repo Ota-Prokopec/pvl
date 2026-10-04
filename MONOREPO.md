@@ -10,13 +10,13 @@ packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler (not implemented yet)
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type
-├── git-worktrees/     (@repo/git-worktrees)       — the git worktree reader the scripts share
 ├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 └── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
 scripts/
-├── claude/            (claude, private)      — `pnpm claude`: start Claude Code in a picked git worktree
-└── claude-list/       (claude-list, private) — `pnpm claude-list`: remove picked git worktrees and their branches
+├── claude/            (claude, private)         — `pnpm claude`: start Claude Code in a picked git worktree
+├── claude-list/       (claude-list, private)    — `pnpm claude-list`: remove picked git worktrees and their branches
+└── git-worktrees/     (@repo/git-worktrees)     — the git worktree reader both scripts share
 ```
 
 Every entry's `AGENTS.md` sits in its folder.
@@ -30,7 +30,7 @@ Every entry's `AGENTS.md` sits in its folder.
 
 ## Scripts
 
-`scripts/` holds only folders. Each script is its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "node scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
+`scripts/` holds only folders. `git-worktrees/` is the library the scripts share; every other folder is a script: its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "node scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
 
 ## Wiring
 
