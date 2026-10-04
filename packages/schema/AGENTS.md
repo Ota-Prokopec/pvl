@@ -4,9 +4,9 @@ A Zod-style schema validation library: compose `Schema`s and validate values aga
 
 ## Technology
 
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). The only runtime dependency is `@standard-schema/spec` — the canonical `StandardSchemaV1` type definitions, types-only and zero executable code.
+- TypeScript, ESM source. The only runtime dependency is `@standard-schema/spec` — the canonical `StandardSchemaV1` type definitions, types-only and zero executable code.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS — [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The dual output is a publish-target concern only; source stays ESM.
-- Takes the monorepo's shared `@repo/eslint-config` (its generic `base` preset, not the React-flavored ones) and `@repo/typescript-config` (`base.json`) as `workspace:*` devDependencies rather than standalone config, plus [`@repo/types`](../types/AGENTS.md) as a dependency for its own internal `as const` enums (e.g. `Issue` codes).
+- Takes the monorepo's shared `@repo/eslint-config` (its `base` preset, plus TSDoc and no-regex rules of its own in `eslint.config.ts`) and `@repo/typescript-config` (`base.json`) as `workspace:*` devDependencies rather than standalone config, plus [`@repo/types`](../types/AGENTS.md) as a dependency for its own internal `as const` enums (e.g. `Issue` codes).
 
 ## Architecture
 
@@ -114,7 +114,7 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 ## Coding style / best practices
 
-- **Primitive validators must be written for raw speed** — no regex or other comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
+- **Primitive validators must be written for raw speed**: no comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
 - Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
 - **One `Modifier` type for every Modifier.** A Modifier is a method that builds a `Modifier` literal and calls `_withPreModifier` (before the type check) or `_withPostModifier` (after it). Tag it with `MODIFIER_TAG` only where its behaviour departs from the default reading of its result, and give it a `shape` (the factory that built it) only where a later Modifier must remove it through `_withoutModifiers`. The unknown-key mode is not a type parameter of `ObjectSchema`: only `.passthrough()` changes the output type, so `.strict()` returns `this` and `.passthrough()` widens `Output`.
 - **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pvl/schema-compiler` (see its `AGENTS.md`).
@@ -123,9 +123,9 @@ See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for wha
 
 `/** */` TSDoc on anything reachable from the barrel (`src/index.ts`) **is** the published API reference: [`apps/docs`](../../apps/docs/AGENTS.md) generates `content/api/` from this source with TypeDoc, so whatever a TSDoc block says is what a consumer reads on the documentation site. Two rules follow.
 
-**Every publicly reachable member carries user-facing TSDoc with an `@example`** — every `pvl.*` factory, every check method on every schema class, every modifier on `Schema`, and the exported types. Write for someone using the library, not maintaining it: what the member accepts, what it hands back, and a runnable snippet importing from `'@pvl/schema'` that shows both a passing and a failing case where that is the interesting part. **Adding a public member without an `@example` silently ships an empty entry in the reference.**
+**Write TSDoc for someone using the library, not maintaining it**: what the member accepts, what it hands back, and an `@example` importing from `'@pvl/schema'` that shows both a passing and a failing case where that is the interesting part.
 
-**Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments immediately above the declaration, which TypeDoc never picks up.
+**Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments, which TypeDoc never picks up, between the TSDoc block and the declaration.
 
 Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. `src/modifiers.ts` (`Modifier`, `MODIFIER_TAG`) and `src/utils.ts` are outside the barrel: TypeDoc never sees them, so their comments are for maintainers. `src/types.ts` holds the package's standalone types — the inference helpers and the type plumbing behind the Modifiers (`SchemaKind`, `RetypedSchema`, `PreModifiersResult`) — and is in the barrel, so that plumbing is tagged `@internal`. `modifiers.ts` holds only the `Modifier` type and what describes it. A Modifier lives with the schema class that builds it, either inline in the method or as a module-local, non-exported factory beside the class (`object`'s unknown-key modifiers in `objectSchema.ts`), because a schema file is in the barrel. A general helper a Modifier uses belongs in `utils.ts`.
 

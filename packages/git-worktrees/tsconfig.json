@@ -7,6 +7,7 @@
     // type-only imports must say so.
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
   "include": ["src"],

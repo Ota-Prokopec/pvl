@@ -97,7 +97,7 @@ const unknownKeysStripModifier = (
   declaredKeys: ReadonlySet<string>,
 ): Modifier<unknown, unknown> => ({
   shape: unknownKeysStripModifier,
-  fn: (value) => {
+  fn: (value): Result<unknown> | null => {
     if (unknownKeysOfObject(value, declaredKeys).length === 0) {
       return null;
     }
@@ -119,7 +119,7 @@ const unknownKeysStrictModifier = (
   options?: IssueEditableProps,
 ): Modifier<unknown, unknown> => ({
   shape: unknownKeysStrictModifier,
-  fn: (value, path) => {
+  fn: (value, path): Result<unknown> | null => {
     const issues = unknownKeysOfObject(value, declaredKeys).map(
       (key) =>
         new Issue(
@@ -186,6 +186,7 @@ export class ObjectSchema<
   Input = ObjectInput<Shape>,
   Output = ObjectOutput<Shape>,
 > extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': ObjectSchemaKind<Shape>;
   // Derived from the shape once at construction rather than per `.validate()`
   private readonly _shapeKeys: ReadonlySet<string>;

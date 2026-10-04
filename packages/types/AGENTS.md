@@ -10,7 +10,7 @@ The array branch exists for `@pvl/schema`'s `pvl.enum(['A', 'B'])`, whose source
 
 ## Technology
 
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). Types only — no runtime dependencies.
+- TypeScript, ESM source. Types only — no runtime dependencies.
 - Takes the shared `@repo/eslint-config` and `@repo/typescript-config` as `workspace:*` devDependencies rather than standalone config, like every other package here.
 
 ## Architecture

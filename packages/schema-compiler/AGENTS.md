@@ -4,7 +4,7 @@ The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.
 
 ## Technology
 
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
+- TypeScript, ESM source. Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md).
 
 ### Discovery: static AST analysis, not dynamic import

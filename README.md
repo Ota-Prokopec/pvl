@@ -13,7 +13,7 @@ Run these from the repo root. Turborepo runs each one across the whole workspace
 | `pnpm dev`                          | Watch/dev mode for every app and package                                                                          |
 | `pnpm build`                        | Build every app and package                                                                                       |
 | `pnpm test`                         | Every package's unit and integration suites                                                                       |
-| `pnpm lint`                         | Lint every app and package                                                                                        |
+| `pnpm lint`                         | Lint every app and package, plus the workspace-wide checks (`lint:workspace`)                                     |
 | `pnpm check-types`                  | Type-check every app and package                                                                                  |
 | `pnpm format` / `pnpm format:check` | Format with Prettier, or only check the formatting                                                                |
 | `pnpm docs:dev` / `pnpm docs:build` | Generate the API reference, then serve or build the documentation site                                            |

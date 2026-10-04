@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 

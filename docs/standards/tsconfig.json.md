@@ -1,9 +1,6 @@
 # tsconfig.json
 
-## Core Rules
-
-- Every `tsconfig.json` extends one of the predefined base configs in [`packages/typescript-config`](../../packages/typescript-config/) rather than restating compiler options.
-- Use this scaffold as the reference for a new `tsconfig.json`, adapted to the app or package:
+Use this scaffold as the reference for a new `tsconfig.json`, adapted to the app or package. Don't restate compiler options the base already sets.
 
 ```json
 {

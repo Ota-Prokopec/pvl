@@ -6,7 +6,7 @@ It documents `@pvl/schema` only — `@pvl/schema-compiler` has no implementation
 
 ## Technology
 
-- TypeScript, ESM (see root `AGENTS.md` Core Rules). The only TypeScript here is `content/.vitepress/config.ts`.
+- TypeScript, ESM. The only TypeScript here is `content/.vitepress/config.ts`.
 - VitePress `1.6.4`, TypeDoc `0.28.x` with `typedoc-plugin-markdown` and `typedoc-vitepress-theme`. All three are pinned: VitePress 2.x exists only as an alpha with moving config and theme APIs, and the two TypeDoc plugins peer-depend on `typedoc: 0.28.x`.
 - Shared `@repo/eslint-config` (`base`) and `@repo/typescript-config` (`base.json`), as everywhere else.
 - `@pvl/schema` is a real `workspace:*` dependency — see "Why the workspace dependency is declared" below.
@@ -41,7 +41,7 @@ TypeDoc reads the schema source directly and does not need the built package, bu
 
 ## Scripts
 
-`dev` and `build` each run `docs:api` first, then `vitepress dev`/`vitepress build` over `content` — reached from the repo root as `pnpm docs:dev` and `pnpm docs:build`. `lint` and `check-types` are as everywhere else. Multi-step scripts compose named steps with `npm-run-all`'s `run-s` rather than `&&`, per [`docs/standards/turborepo.md`](../../docs/standards/turborepo.md).
+`dev` and `build` each run `docs:api` first, then `vitepress dev`/`vitepress build` over `content` — reached from the repo root as `pnpm docs:dev` and `pnpm docs:build`. `lint` and `check-types` are as everywhere else.
 
 **There is no `test` script, and that is a decision, not an omission** — `apps/playground` sets the same precedent, and Turborepo skips packages without one. The seams that apply are `check-types` on the VitePress config, `lint`, and `build` itself, which fails on a dead internal link. Verifying that the documentation's _examples_ still compile is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60), not something this package asserts today.
 

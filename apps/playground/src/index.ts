@@ -22,7 +22,7 @@ import { pvl, type Issue, type Result } from '@pvl/schema';
 const INSPECT_OPTIONS = { depth: null, breakLength: Infinity } as const;
 
 /** How wide a section's rule is drawn, in characters. */
-const RULE_WIDTH = 68;
+const RULE_WIDTH = 68 as const;
 
 /** A throwaway shape, recognizable at a glance and modelling nothing real. */
 const ROLE = {

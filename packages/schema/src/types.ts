@@ -51,11 +51,11 @@ export type PreModifiersResult = {
  *
  * @internal
  */
-export interface SchemaKind<TSchema extends Schema> {
+export type SchemaKind<TSchema extends Schema> = {
   readonly Input: unknown;
   readonly Output: unknown;
   readonly type: TSchema;
-}
+};
 
 /**
  * `TSchema`'s own class re-typed with `Input` and `Output` through its

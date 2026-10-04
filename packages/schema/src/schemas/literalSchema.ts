@@ -56,6 +56,7 @@ export class LiteralSchema<
   Input = LiteralValue,
   Output = LiteralValue,
 > extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': LiteralSchemaKind<LiteralValue>;
   private readonly literalValue: LiteralValue;
 

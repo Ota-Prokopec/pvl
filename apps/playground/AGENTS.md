@@ -6,7 +6,7 @@ It is **not** documentation, a README example set, or a test suite. It exists so
 
 ## Technology
 
-- TypeScript, ESM (see root [`AGENTS.md`](../../AGENTS.md) Core Rules).
+- TypeScript, ESM.
 - Compiled with `tsc` to `dist/` — deliberately _not_ bundled, since the app has no consumers and a plain compile already yields output Node runs directly.
 - Run under [tsx](https://tsx.is) for the `dev`/`start` scripts: `dev` is `tsx watch`, re-running the whole tour on every edit to this app _or_ to `@pvl/schema`'s source; `start` runs it once. `build`, `lint` and `check-types` are as everywhere else; there is deliberately no `test` script (see below).
 

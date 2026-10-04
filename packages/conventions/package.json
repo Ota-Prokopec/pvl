@@ -1,0 +1,29 @@
+{
+  "name": "@repo/conventions",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint": "./src/eslint/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@eslint/json": "2.1.0",
+    "@eslint/markdown": "8.0.3",
+    "@typescript-eslint/utils": "8.71.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.4.1",
+    "@typescript-eslint/rule-tester": "8.71.0",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "^5.0.1"
+  }
+}
