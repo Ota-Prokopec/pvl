@@ -2,8 +2,8 @@
 
 The testing rules every workspace entry follows. Read this before you write, change or review a test. Each package with its own testing strategy layers it on top of these rules:
 
-- [`packages/schema/TESTS.md`](./packages/schema/TESTS.md): the `@pvl/schema` strategy (runner, file placement, property-based tests).
-- `packages/schema-compiler/TESTS.md`: the `@pvl/schema-compiler` strategy, once the package has one.
+- [`docs/specification/schema/testing.md`](./docs/specification/schema/testing.md): the `@pvl/schema` strategy (the four seams, the required pipeline cases, property-based tests).
+- `docs/specification/schema-compiler/testing.md`: the `@pvl/schema-compiler` strategy, once the package has one.
 
 ## Rules
 

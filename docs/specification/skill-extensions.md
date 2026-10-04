@@ -4,6 +4,10 @@ Repo-specific rules layered on top of a skill, one section per skill. Before run
 
 A skill listed in [`skills-lock.json`](../../skills-lock.json) is installed from an external source and stays exactly as installed, so its repo-specific changes go here ([AGENTS.md](../../AGENTS.md#skills)).
 
+## The pipeline
+
+A feature runs through the skills in this order: `/wayfinder` (map the unknowns) → `/grill-with-docs` (settle what to build and why, recorded as ADRs; nothing is implemented yet) → `/to-spec` → `/to-tickets` → `/implement` → `/code-review`.
+
 ## `/grill-with-docs`
 
 The session writes only `/prototype-code` variants, which that skill deletes before the question closes. Once the session concludes and the ADR and glossary changes are written, commit just those doc changes with type `docs` (`docs(adr): record ADR-0026`), so ADR-only commits stand out in history.

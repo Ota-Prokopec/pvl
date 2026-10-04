@@ -41,4 +41,4 @@ Read [`tsdoc.md`](../../docs/standards/tsdoc.md) before you write a doc comment 
 
 ## Tests
 
-Read [`TESTS.md`](./TESTS.md) before you write, change or review a test.
+Read [`testing.md`](../../docs/specification/schema/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md).
