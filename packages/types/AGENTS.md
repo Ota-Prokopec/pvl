@@ -8,8 +8,6 @@ export type ValueOfEnum<T> = T extends ReadonlyArray<unknown> ? T[number] : T[ke
 
 The array branch exists for `@pvl/schema`'s `pvl.enum(['A', 'B'])`, whose source is a readonly tuple of literals: `T[keyof T]` on an array would also yield `length` and every array method. `ReadonlyArray` rather than `any[]`, since a `const`-inferred tuple is readonly and `any[]` does not match it.
 
-That standards file's "Use ValueOfEnum for extracting enum value types" section holds the consuming-package usage example.
-
 ## Technology
 
 - TypeScript, ESM source (see root `AGENTS.md` Core Rules). Types only — no runtime dependencies.

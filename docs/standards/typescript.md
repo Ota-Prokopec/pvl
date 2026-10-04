@@ -109,7 +109,7 @@ Where a constant is a single value rather than part of an enum set, see [`docs/s
 ## Modules
 
 - **Always use ES modules**, and never `as` in an import unless it is required.
-- **Barrel files always use `export * from '...'`.** In an `index.ts` barrel, re-export every sibling with `export * from './module.js';`. Never cherry-pick named or type-only exports (`export { x } from ...`, `export type { X } from ...`) — a source module either belongs in the barrel or it doesn't. This keeps barrels mechanically regenerable (see `pnpm barrels`) and consistent regardless of what a module happens to export today.
+- **Barrel files always use `export * from '...'`.** In an `index.ts` barrel, re-export every sibling with `export * from './module.js';`. Never cherry-pick named or type-only exports (`export { x } from ...`, `export type { X } from ...`) — a source module either belongs in the barrel or it doesn't. This keeps barrels consistent regardless of what a module happens to export today.
 
   **Exception: deliberately internal-only modules.** A sibling whose exports are not part of the package's public API (e.g. `src/modifiers.ts` in `@pvl/schema` — the internal `Modifier` type and `MODIFIER_TAG`, which no consumer imports by name) is omitted on purpose. Mark the omission with a one-line comment at the barrel's usual alphabetical slot for that module, so its absence reads as intentional rather than as something a future agent should "fix". This is a narrow carve-out, not a general license to cherry-pick.
 
@@ -121,20 +121,4 @@ export * from './HttpException.js';
 // Incorrect
 export { Exception } from './Exception.js';
 export type { AnyException } from './Exception.js';
-```
-
-## Environment variables
-
-Define an env schema with `createEnv` from `@repo/utils`:
-
-```typescript
-import { createEnv } from '@repo/utils';
-
-export const env = createEnv({
-  schema: {
-    NODE_ENV: Schema.Enums(...),
-  },
-  runtimeEnv: process.env,
-  emptyStringAsUndefined: true,
-});
 ```
