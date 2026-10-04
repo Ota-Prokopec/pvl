@@ -1,18 +1,36 @@
-# Domain docs
+# Domain Docs
 
-How to use the glossary and the ADRs when you explore code, name a domain concept, or propose a change.
+How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-## Read first
+## Before exploring, read these
 
-- [`CONTEXT.md`](../../CONTEXT.md): the glossary and domain model.
-- The ADRs in [`docs/adr/`](../adr/) that touch the area. Each filename states its decision. An ADR whose frontmatter says `status: superseded by ADR-<n>` is history: follow its successor.
+- **`CONTEXT.md`** at the repo root, or
+- **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
+- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
 
-## Speak the glossary
+If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
-Name every domain concept with its `CONTEXT.md` term, wherever it appears: an issue title, a refactor proposal, a hypothesis, a test name. A concept the glossary lacks is a signal. Either the language is invented, so reach for the existing term, or the glossary has a real gap, so note it for `/domain-modeling`.
+## File structure
+
+This repo is single-context:
+
+```
+/
+├── CONTEXT.md
+├── docs/adr/
+│   ├── 0001-....md
+│   └── 0002-....md
+└── packages/, apps/
+```
+
+## Use the glossary's vocabulary
+
+When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+
+If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
 ## Flag ADR conflicts
 
-When your output contradicts an ADR, name the ADR and say why it's worth reopening:
+If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
 
-> _Contradicts ADR-0007 (`object()` strips unknown keys by default), but worth reopening because…_
+> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
