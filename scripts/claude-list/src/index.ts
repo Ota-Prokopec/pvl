@@ -47,7 +47,7 @@ type CountNounArgs = {
   plural: string;
 };
 
-const MAIN_BRANCH = 'main';
+const MAIN_BRANCH = 'main' as const;
 
 const countNoun = ({ count, singular, plural }: CountNounArgs): string => {
   return `${count} ${count === 1 ? singular : plural}`;

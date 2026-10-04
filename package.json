@@ -2,26 +2,31 @@
   "name": "pvl",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
+    "build": "turbo run build --continue",
     "dev": "turbo run dev",
     "docs:dev": "turbo run dev --filter=docs",
     "docs:build": "turbo run build --filter=docs",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint lint:workspace --continue",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types",
-    "test": "turbo run test",
+    "check-types": "turbo run check-types --continue",
+    "test": "turbo run test --continue",
     "claude": "node scripts/claude/src/index.ts",
-    "claude-list": "node scripts/claude-list/src/index.ts"
+    "claude-list": "node scripts/claude-list/src/index.ts",
+    "lint:workspace": "eslint --config eslint.config.ts --max-warnings 0 ."
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
     "lefthook": "^2.1.16",
     "prettier": "3.9.6",
     "turbo": "^2.10.13",
-    "typescript": "7.0.2"
+    "typescript": "6.0.3"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {
     "node": ">=24"
-  }
+  },
+  "type": "module"
 }

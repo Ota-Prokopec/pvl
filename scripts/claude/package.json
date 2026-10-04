@@ -16,6 +16,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^26.4.1",
     "eslint": "10.9.1",
-    "typescript": "7.0.2"
+    "jiti": "2.7.0",
+    "typescript": "6.0.3"
   }
 }

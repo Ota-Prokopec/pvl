@@ -30,6 +30,7 @@ interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
  * ```
  */
 export class StringSchema<Input = string, Output = string> extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': StringSchemaKind;
 
   /** @internal */
