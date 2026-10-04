@@ -1,0 +1,13 @@
+# TSDoc is user-facing documentation, not contributor rationale
+
+Read this before you write a doc comment or export something new.
+
+`/** */` TSDoc on anything reachable from the barrel (`src/index.ts`) **is** the published API reference: [`apps/docs`](../../../apps/docs/AGENTS.md) generates `content/api/` from this source with TypeDoc, so whatever a TSDoc block says is what a consumer reads on the documentation site. Two rules follow.
+
+**Write TSDoc for someone using the library, not maintaining it**: what the member accepts, what it hands back, and an `@example` importing from `'@pvl/schema'` that shows both a passing and a failing case where that is the interesting part.
+
+**Contributor rationale belongs in `//` line comments, or in TSDoc tagged `@internal`.** "See ADR-0010", "phantom property", "resolved once at construction because this is the hot path" — none of that is documentation for a consumer, and in a plain TSDoc block it becomes the first thing they read. Put it in `//` comments, which TypeDoc never picks up, between the TSDoc block and the declaration.
+
+Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. A file outside the barrel (`src/index.ts`) is never seen by TypeDoc, so its comments are for maintainers; type plumbing inside it is tagged `@internal`. Each file's top comment says which side it is on.
+
+Examples are not yet verified by the build ([issue #60](https://github.com/Ota-Prokopec/pvl/issues/60)); until then, check a changed snippet by hand.

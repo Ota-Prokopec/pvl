@@ -1,3 +1,6 @@
+// The package's standalone types: the inference helpers and the type plumbing
+// behind the Modifiers (`SchemaKind`, `RetypedSchema`, `PreModifiersResult`).
+// It is in the barrel, so that plumbing is tagged `@internal`.
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
 import type { ChainableSchema } from './schemas/chainableSchema.js';
