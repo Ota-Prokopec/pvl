@@ -4,7 +4,7 @@ What `validate()` and `"~standard"` promise every consumer. Read this before you
 
 ## Standard Schema conformance
 
-Every schema implements `StandardSchemaV1`. [`docs/specification/standard-schema.md`](../../../docs/specification/standard-schema.md#conformance-rules) holds the conformance rules: the `vendor`, the populated `types`, `Issue.path`, and the single `Result` representation.
+Every schema implements `StandardSchemaV1`. [`docs/specification/standard-schema.md`](../standard-schema.md#conformance-rules) holds the conformance rules: the `vendor`, the populated `types`, `Issue.path`, and the single `Result` representation.
 
 ## `validate()` — synchronous only
 

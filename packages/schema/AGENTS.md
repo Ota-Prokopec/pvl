@@ -21,23 +21,23 @@ The single public entry point is a `pvl` namespace object (`import { pvl } from 
 
 ## Modifiers
 
-Read [`docs/pipeline.md`](./docs/pipeline.md) before you add or change a Modifier, or touch `Schema` or `ChainableSchema`. It covers the two base classes, the chained API, the pre/post Modifier pipeline, custom messages, and Refinement, Coercion and Transform.
+Read [`pipeline.md`](../../docs/specification/schema/pipeline.md) before you add or change a Modifier, or touch `Schema` or `ChainableSchema`. It covers the two base classes, the chained API, the pre/post Modifier pipeline, custom messages, and Refinement, Coercion and Transform.
 
 ## Schema types
 
-Read [`docs/schema-types.md`](./docs/schema-types.md) before you add a schema type or a constraint, or change how one behaves. It holds the v1 surface and each type's accepted values.
+Read [`schema-types.md`](../../docs/specification/schema/schema-types.md) before you add a schema type or a constraint, or change how one behaves. It holds the v1 surface and each type's accepted values.
 
 ## Public contract
 
-Read [`docs/public-contract.md`](./docs/public-contract.md) before you touch `validate()`, `"~standard"`, `Result` or `Issue`. It covers Standard Schema conformance and why `validate()` is synchronous only.
+Read [`public-contract.md`](../../docs/specification/schema/public-contract.md) before you touch `validate()`, `"~standard"`, `Result` or `Issue`. It covers Standard Schema conformance and why `validate()` is synchronous only.
 
 ## Compiler-facing surface
 
-Read [`docs/compile.md`](./docs/compile.md) before you touch `pvl.compile()`, `_checkType`, or how a composite calls its children.
+Read [`compile.md`](../../docs/specification/schema/compile.md) before you touch `pvl.compile()`, `_checkType`, or how a composite calls its children.
 
 ## TSDoc
 
-Read [`docs/tsdoc.md`](./docs/tsdoc.md) before you write a doc comment or export something new.
+Read [`tsdoc.md`](../../docs/standards/tsdoc.md) before you write a doc comment or export something new.
 
 ## Tests
 
