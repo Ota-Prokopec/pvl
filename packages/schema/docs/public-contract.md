@@ -4,9 +4,7 @@ What `validate()` and `"~standard"` promise every consumer. Read this before you
 
 ## Standard Schema conformance
 
-Every schema implements [`StandardSchemaV1`](../../../docs/specification/standard-schema.md) — [ADR-0001](../../../docs/adr/0001-adopt-standard-schema.md). `"~standard"` carries `version: 1`, `vendor: "@pvl/schema"` exactly, populated `types` (phantom `Input`/`Output`, so `StandardSchemaV1.InferInput`/`InferOutput` work for any schema built here), and a synchronous `validate`. A `Compiled Schema` compiled from these schemas reports the same `vendor`, being meant to be indistinguishable from the schema it came from ([ADR-0003](../../../docs/adr/0003-compiled-schemas-conform-to-standard-schema.md)).
-
-The internal validation result representation and `StandardSchemaV1.Result` are one shape — never two parallel representations kept in sync by hand. `Result`'s failure branch is the spec's own `FailureResult` intersected with this package's `Issue`, so `Issue.code` is readable by consumers while the type stays derived from the spec rather than re-declared beside it ([ADR-0011](../../../docs/adr/0011-result-failure-branch-carries-pvl-issue.md)). Nested object/array/union failures populate `Issue.path` with the failing field's location; a top-level scalar failure may omit `path`.
+Every schema implements `StandardSchemaV1`. [`docs/specification/standard-schema.md`](../../../docs/specification/standard-schema.md#conformance-rules) holds the conformance rules: the `vendor`, the populated `types`, `Issue.path`, and the single `Result` representation.
 
 ## `validate()` — synchronous only
 
