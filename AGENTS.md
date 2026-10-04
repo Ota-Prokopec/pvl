@@ -9,7 +9,7 @@ Each section below says when it applies and which file to read. Read only the se
 - **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pvl/schema`): a Zod-style schema-validation library. Implemented.
 - **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`): the ahead-of-time compiler that turns `pvl.compile(...)`-marked schemas into `Compiled Schema`s. Not implemented yet.
 
-[`MONOREPO.md`](./MONOREPO.md) lists every other workspace entry. Each entry has its own `AGENTS.md` with its technology, architecture, coding style and package-specific commands. Read it before working inside that entry.
+[`MONOREPO.md`](./MONOREPO.md) lists every other workspace entry. Each entry has its own `AGENTS.md` with its technology, architecture, package-specific rules and commands. Code style isn't one of them: ESLint checks it. Read it before working inside that entry.
 
 ## Commands
 

@@ -43,8 +43,7 @@ The CLI is `pvl compile`, built with yargs (see the `cli-developer` skill). Ever
 
 Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text.
 
-## Coding style / best practices
+## Implementation rules
 
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
 - **Every emit template lives in this package.** A validation rule is split on purpose: its runtime half (`code`, `message`, `test`) sits in the `@pvl/schema` class, its codegen half (the source text emitted into the `Destination File`) sits here. Emit strings are never executed at runtime, and class members can't be tree-shaken, so placing them in `@pvl/schema` would ship dead weight in every consumer's bundle. The cost is that each constraint is written twice and the halves can drift, which the differential test catches.
 - Generated output is a build artifact: keep the templates/codegen that produce it easy to diff and reason about, since it's the thing users will actually read when debugging a `Compiled Schema`.

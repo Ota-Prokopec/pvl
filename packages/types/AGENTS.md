@@ -18,7 +18,3 @@ The array branch exists for `@pvl/schema`'s `pvl.enum(['A', 'B'])`, whose source
 This package stays intentionally narrow: it exists because `docs/standards/typescript.md` mandated `ValueOfEnum` as a shared import before any package existed to provide it. It is not a general-purpose utilities dump — a new cross-package type utility belongs here only if it serves the same role (a single canonical implementation of something the repo's standards already require every consumer to share), never merely because somewhere central is convenient.
 
 [`@pvl/schema`](../schema/AGENTS.md) takes it as a `workspace:*` dependency for its own internal `as const` enums (e.g. `Issue` codes).
-
-## Coding style / best practices
-
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.

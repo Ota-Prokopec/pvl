@@ -56,8 +56,7 @@ An error-handling deep dive, Standard Schema interop, and anything about `@pvl/s
 
 The getting-started page opens with a `::: warning` callout stating that `@pvl/schema` is unpublished. **Delete that callout on the first npm release** — it exists so the `pnpm add @pvl/schema` line above it does not silently fail for a reader.
 
-## Coding style / best practices
+## Writing the guide
 
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for the VitePress config and [`docs/standards/turborepo.md`](../../docs/standards/turborepo.md) for script wiring.
 - Use the vocabulary the library's own code uses (`validate()`, `Result`, `Issue`), not a paraphrase of it.
 - Prose in the guide describes what the library does today. A capability that does not exist yet — Compiled Schemas, async validation — is either absent or named as absent, never implied.

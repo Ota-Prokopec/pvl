@@ -63,7 +63,7 @@ Primitives (`string`, `number`, `boolean`, `bigint`), `object`, `array` (includi
 
 ### Cheap structural constraints only
 
-The relevant primitives/composites get **cheap structural constraint** methods — `.min()`, `.max()`, `.length()`, `.int()`, plain numeric/length comparisons. Regex-backed helpers (`.email()`, `.url()`, `.regex()`) are **not** built into any schema type in v1; a consumer who needs one attaches their own `.refine()`. This keeps every built-in check on the fast, non-regex hot path (see Coding style) — not a claim that regex validation is useless, just that it doesn't belong in the built-in surface yet. [ADR-0008](../../docs/adr/0008-no-regex-backed-constraints-in-v1.md).
+The relevant primitives/composites get **cheap structural constraint** methods — `.min()`, `.max()`, `.length()`, `.int()`, plain numeric/length comparisons. Regex-backed helpers (`.email()`, `.url()`, `.regex()`) are **not** built into any schema type in v1; a consumer who needs one attaches their own `.refine()`. This keeps every built-in check on the fast, non-regex hot path (see Implementation rules) — not a claim that regex validation is useless, just that it doesn't belong in the built-in surface yet. [ADR-0008](../../docs/adr/0008-no-regex-backed-constraints-in-v1.md).
 
 ### Custom messages only on Modifiers that report an `Issue`
 
@@ -112,14 +112,13 @@ What keeps that swap working, and must stay aligned with `@pvl/schema-compiler`:
 
 See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a marked schema.
 
-## Coding style / best practices
+## Implementation rules
 
 - **Primitive validators must be written for raw speed**: no comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
 - **One `Modifier` type for every Modifier.** A Modifier is a method that builds a `Modifier` literal and calls `_withPreModifier` (before the type check) or `_withPostModifier` (after it). Tag it with `MODIFIER_TAG` only where its behaviour departs from the default reading of its result, and give it a `shape` (the factory that built it) only where a later Modifier must remove it through `_withoutModifiers`. The unknown-key mode is not a type parameter of `ObjectSchema`: only `.passthrough()` changes the output type, so `.strict()` returns `this` and `.passthrough()` widens `Output`.
 - **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pvl/schema-compiler` (see its `AGENTS.md`).
 
-### TSDoc is user-facing documentation, not contributor rationale
+## TSDoc is user-facing documentation, not contributor rationale
 
 `/** */` TSDoc on anything reachable from the barrel (`src/index.ts`) **is** the published API reference: [`apps/docs`](../../apps/docs/AGENTS.md) generates `content/api/` from this source with TypeDoc, so whatever a TSDoc block says is what a consumer reads on the documentation site. Two rules follow.
 

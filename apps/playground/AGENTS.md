@@ -54,8 +54,7 @@ The seams that do apply:
 - **Linting**, as everywhere else.
 - **Running the program and reading stdout** is the behavioral seam — manually, and intentionally so.
 
-## Coding style / best practices
+## Rules
 
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions — this app is held to the same bar as the rest of the repo so it cannot silently rot.
 - Use the vocabulary the library's code uses (`validate()`, `Result`, `Issue`), not a paraphrase of it.
 - The package name is the bare word `playground`, outside both the published `@pvl/*` namespace and the internal `@repo/*` one, and the package is `private`. Keep it that way: nothing here should ever look shippable.
