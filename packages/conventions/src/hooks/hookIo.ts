@@ -20,6 +20,15 @@ export const readHookInput = (): HookInput => {
   };
 };
 
+/** The UTF-8 contents of `path`, or `undefined` when it can't be read. */
+export const readFile = (path: string): string | undefined => {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return undefined;
+  }
+};
+
 /** Denies the tool call with every broken rule as the reason; does nothing when `reasons` is empty. */
 export const denyToolUse = (reasons: string[]): void => {
   if (reasons.length === 0) {

@@ -1,14 +1,14 @@
 # Skill Extensions
 
-Skills under `.agents/skills/` (symlinked into `.claude/skills/`) are installed from an external source and are never edited — see [AGENTS.md](../../AGENTS.md). Repo-specific rules that layer onto a skill's behavior live here instead, one section per skill. Before running a skill listed below, apply its extension rules on top of the skill's own instructions. [git-workflow.md](../agents/git-workflow.md) (naming, never merging a PR yourself) applies throughout.
+Skills listed in `skills-lock.json` (under `.agents/skills/`, symlinked into `.claude/skills/`) are installed from an external source and are never edited — see [AGENTS.md](../../AGENTS.md). Repo-specific rules that layer onto a skill's behavior live here instead, one section per skill. Before running a skill listed below, apply its extension rules on top of the skill's own instructions. [git-workflow.md](../agents/git-workflow.md) (naming, never merging a PR yourself) applies throughout.
 
 ## `/grill-with-docs`
 
-The session itself writes nothing. Once it concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes with type `docs` (e.g. `docs(adr): record ADR-0026`), so ADR-only commits are distinguishable in history.
+The session itself writes nothing, apart from `/prototype-code` variants, which that skill deletes before the question closes. Once it concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes with type `docs` (e.g. `docs(adr): record ADR-0026`), so ADR-only commits are distinguishable in history.
 
 ## `/grilling`
 
-The deliverable is a GitHub issue capturing the agreed design. Until the interview is over and the user asks for implementation, the repository stays untouched, including glossary or doc content the user just settled in an answer: record settled decisions in the issue body instead. Read-only exploration is expected. When the question frontier is empty and the user confirms shared understanding, write the issue and stop.
+The deliverable is a GitHub issue capturing the agreed design. Until the interview is over and the user asks for implementation, the repository stays untouched, including glossary or doc content the user just settled in an answer: record settled decisions in the issue body instead. The one exception is `/prototype-code`, run to settle a question about code shape: its variant files are written mid-session and deleted once the user picks a winner. Read-only exploration is expected. When the question frontier is empty and the user confirms shared understanding, write the issue and stop.
 
 ## `/to-spec`
 

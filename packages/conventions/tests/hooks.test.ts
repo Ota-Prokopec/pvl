@@ -123,24 +123,45 @@ describe('checkBashCommand', () => {
 });
 
 describe('checkEditedPath', () => {
-  it.each(['packages/schema/src/pvl.ts', '/repo/AGENTS.md', '/repo/.claude/settings.json'])(
-    'allows editing %s',
-    (path) => {
-      expect(checkEditedPath(path, REPO)).toEqual([]);
-    },
-  );
+  const LOCK = JSON.stringify({ version: 1, skills: { tdd: {}, zod: {} } });
+
+  /** The reasons editing `path` is denied, run from `/repo` whose `skills-lock.json` is `lock` (`null`: missing). */
+  const checkEdit = (path: string, lock: string | null = LOCK): string[] => {
+    return checkEditedPath({
+      path,
+      cwd: REPO,
+      readFile: (file): string | undefined =>
+        file === `${REPO}/skills-lock.json` ? (lock ?? undefined) : undefined,
+    });
+  };
+
+  it.each([
+    'packages/schema/src/pvl.ts',
+    '/repo/AGENTS.md',
+    '/repo/.claude/settings.json',
+    '.agents/skills/prototype-code/SKILL.md',
+    '/repo/.claude/skills/prototype-code/SKILL.md',
+  ])('allows editing %s', (path) => {
+    expect(checkEdit(path)).toEqual([]);
+  });
 
   it.each(['.agents/skills/tdd/SKILL.md', '/repo/.claude/skills/zod/SKILL.md'])(
-    'denies editing the skill file %s',
+    'denies editing the installed skill file %s',
     (path) => {
-      expect(checkEditedPath(path, REPO)).toEqual([
+      expect(checkEdit(path)).toEqual([
         expect.stringContaining('installed from an external source'),
       ]);
     },
   );
 
+  it.each([null, 'not json'])('denies editing any skill when the lock file is %j', (lock) => {
+    expect(checkEdit('.agents/skills/prototype-code/SKILL.md', lock)).toEqual([
+      expect.stringContaining('installed from an external source'),
+    ]);
+  });
+
   it('denies writing to the agent memory', () => {
-    expect(checkEditedPath('/home/me/.claude/projects/-repo/memory/MEMORY.md', REPO)).toEqual([
+    expect(checkEdit('/home/me/.claude/projects/-repo/memory/MEMORY.md')).toEqual([
       expect.stringContaining('Persist knowledge in the repo'),
     ]);
   });
