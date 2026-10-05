@@ -1,3 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "scripts/*"
+
+# pnpm 11 (strictDepBuilds) fails `pnpm install` for any dependency with a
+# build script not listed here. lefthook's postinstall installs the git hooks.
+allowBuilds:
+  esbuild: true
+  lefthook: true

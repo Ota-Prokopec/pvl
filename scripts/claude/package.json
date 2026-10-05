@@ -1,0 +1,22 @@
+{
+  "name": "claude",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "@repo/git-worktrees": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.4.1",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
+    "typescript": "6.0.3"
+  }
+}

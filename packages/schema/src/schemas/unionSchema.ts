@@ -4,6 +4,17 @@ import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
 import type { Schema } from './schema.js';
 
+/**
+ * One schema a union tries: any `@pvl/schema` Schema.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type UnionMember } from '@pvl/schema';
+ *
+ * const member: UnionMember = pvl.string();
+ * pvl.union([member, pvl.number()]);
+ * ```
+ */
 export type UnionMember = Schema<unknown, unknown>;
 
 /**
@@ -66,6 +77,7 @@ export class UnionSchema<
   Input = InferInput<Members[number]>,
   Output = InferOutput<Members[number]>,
 > extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': UnionSchemaKind<Members>;
   private readonly _members: Members;
 

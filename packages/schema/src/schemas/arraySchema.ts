@@ -46,6 +46,7 @@ export class ArraySchema<
   Input = InferInput<ItemSchema>[],
   Output = InferOutput<ItemSchema>[],
 > extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': ArraySchemaKind<ItemSchema>;
   private readonly itemSchema: ItemSchema;
 

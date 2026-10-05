@@ -34,6 +34,7 @@ interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
  * ```
  */
 export class NumberSchema<Input = number, Output = number> extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': NumberSchemaKind;
 
   /** @internal */

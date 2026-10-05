@@ -33,6 +33,7 @@ export class BooleanSchema<Input = boolean, Output = boolean> extends ChainableS
   Input,
   Output
 > {
+  /** @internal */
   declare readonly '~kind': BooleanSchemaKind;
 
   /** @internal */
