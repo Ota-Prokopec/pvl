@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 

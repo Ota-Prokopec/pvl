@@ -1,6 +1,9 @@
 // The `Modifier` type every schema's pipeline runs (ADR-0010) and the tags
-// that describe one. A Modifier itself lives with the schema class that
-// builds it. Internal-only, so it stays out of the barrel.
+// that describe one, and nothing else. A Modifier itself lives with the schema
+// class that builds it, either inline in the method or as a module-local,
+// non-exported factory beside the class (`object`'s unknown-key modifiers in
+// `objectSchema.ts`), because a schema file is in the barrel. Internal-only, so
+// it stays out of the barrel.
 import type { ValueOfEnum } from '@repo/types';
 import type { Result } from './result.js';
 

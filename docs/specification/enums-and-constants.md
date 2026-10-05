@@ -1,16 +1,32 @@
-# Enums and Constants
+# Enums and constants
 
-**Enums** — any fixed set of related named values — must be declared as `as const` objects following the pattern in [`docs/standards/typescript.md`](../standards/typescript.md). Never use the TypeScript `enum` keyword.
+How to declare a fixed set of named values (an **enum**) or a single shared value (a **constant**). `pnpm lint` enforces their declaration shape and naming; this file holds the judgment calls.
+
+## Enums
+
+Declare an enum as an `as const` object, and derive its value union with `ValueOfEnum` from `@repo/types`. Each value matches its key, unless it is externally dictated (`NODE_ENV`, HTTP status codes).
 
 ```ts
+import type { ValueOfEnum } from '@repo/types';
+
 export const SYSTEM_ROLE = {
   OWNER: 'OWNER',
   MEMBER: 'MEMBER',
 } as const;
 
 export type SystemRole = ValueOfEnum<typeof SYSTEM_ROLE>;
+
+// Externally dictated values may differ from the key format:
+export const NODE_ENV = {
+  DEVELOPMENT: 'development',
+  PRODUCTION: 'production',
+} as const;
+
+export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
 ```
 
-**True constants** (single values that are not part of an enum set) must be placed in a `consts.ts` file scoped to the app or package that owns them. Export them as `UPPER_SNAKE_CASE` named exports.
+`ValueOfEnum` also reads a literal array's elements, which is what `pvl.enum(['A', 'B'])` needs: a readonly tuple's `T[keyof T]` would include `length` and every array method.
 
-Do not export constants from middleware, route, or utility files. If a constant is only used within one module, it can remain as a non-exported local `const`; only move it to `consts.ts` when it is shared or logically belongs at the package/app boundary.
+## Constants
+
+A **constant** is a single value outside any enum set. A constant used in one module stays a local `const`. It moves to the owning app's or package's `consts.ts`, exported, once it is shared or belongs at the package boundary.

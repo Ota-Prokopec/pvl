@@ -37,6 +37,7 @@ interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
  * ```
  */
 export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': BigintSchemaKind;
 
   /** @internal */

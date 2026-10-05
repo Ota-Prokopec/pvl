@@ -1,0 +1,15 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // ESLint loads the rules through jiti and Node runs the hook scripts by
+    // stripping their types, so only erasable syntax is allowed, type-only
+    // imports must say so, and relative imports name the `.ts` file.
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  "include": ["src", "tests", "*.ts"],
+  "exclude": ["node_modules"]
+}

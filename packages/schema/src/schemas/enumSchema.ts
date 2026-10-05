@@ -72,6 +72,7 @@ export class EnumSchema<
   Input = ValueOfEnum<Source>,
   Output = ValueOfEnum<Source>,
 > extends ChainableSchema<Input, Output> {
+  /** @internal */
   declare readonly '~kind': EnumSchemaKind<Source>;
   private readonly members: ReadonlySet<EnumMember>;
 

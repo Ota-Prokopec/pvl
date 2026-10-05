@@ -21,23 +21,29 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup && tsc --project tsconfig.build.json",
+    "build": "run-s build:bundle build:types",
     "dev": "tsup --watch",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:bundle": "tsup",
+    "build:types": "tsc --project tsconfig.build.json"
   },
   "dependencies": {
     "@repo/types": "workspace:*",
     "@standard-schema/spec": "^1.1.0"
   },
   "devDependencies": {
+    "@repo/conventions": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "eslint": "10.9.1",
+    "eslint-plugin-jsdoc": "65.0.2",
     "fast-check": "^4.10.1",
+    "jiti": "2.7.0",
+    "npm-run-all": "^4.1.5",
     "tsup": "^8.5.1",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vitest": "^5.0.1"
   }
 }
