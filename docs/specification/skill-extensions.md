@@ -14,7 +14,7 @@ The session writes only `/prototype-code` variants, which that skill deletes bef
 
 ## `/grilling`
 
-The deliverable is a GitHub issue capturing the agreed design. Until the interview is over and the user asks for implementation, the repository stays read-only, glossary and docs included: a decision settled in an answer goes into the issue body. `/prototype-code` is the one writer, run to settle a question about code shape: its variant files are written mid-session and deleted once the user picks a winner. When the question frontier is empty and the user confirms shared understanding, write the issue and stop.
+Until the interview is over and the user asks for implementation, the repository stays read-only, glossary and docs included. `/prototype-code` is the one writer, run to settle a question about code shape: its variant files are written mid-session and deleted once the user picks a winner. When the question frontier is empty and the user confirms shared understanding, stop.
 
 ## `/to-spec`
 
