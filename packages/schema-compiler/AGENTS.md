@@ -1,13 +1,14 @@
 # `@pvl/schema-compiler`
 
-The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Implementation hasn't started: this directory holds only this file, which documents the conventions the package will be built under. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`).
+The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Built so far: `pvlconfig.json` and the `pvl compile` CLI, which resolve settings, report diagnostics and write a Destination File holding only its generated header. Mirroring the scanned files and compiling Schemas come next. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`).
 
 Each section below says when it applies and which file to read. Read only the sections the current task needs.
 
 ## Technology
 
 - TypeScript, ESM source. Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
-- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md).
+- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The same build writes `dist/json-schema.json` from `configSchema` (`tsup.config.ts`), and declarations come from `tsc --project tsconfig.build.json`, as in `@pvl/schema`.
+- The `pvl` bin is `dist/bin.js`. Run the local build against a project with `node packages/schema-compiler/dist/bin.js compile` from that project's directory, after `pnpm build`.
 
 ## Implementation rules
 
@@ -36,4 +37,4 @@ Read [`configuration-and-cli.md`](../../docs/specification/schema-compiler/confi
 
 ## Tests
 
-Read [`TESTS.md`](../../TESTS.md) before you write, change or review a test. The compiler's suite diffs compiled `validate()` against interpreted `validate()`, as [`code-generation.md`](../../docs/specification/schema-compiler/code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing) explains.
+Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `compile()` and the CLI.

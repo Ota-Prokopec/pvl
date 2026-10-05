@@ -67,3 +67,11 @@ _Avoid_: Opcode.
 **Destination File**:
 The single aggregate module `@pvl/schema-compiler` writes, mirroring every export of every scanned file — marked Schemas as Compiled Schemas, everything else copied through unchanged. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) for why it exists and [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands.
 _Avoid_: Generated file, output bundle, artifact directory.
+
+**Anchor**:
+The directory every relative path in a compiler run resolves against: the one holding `pvlconfig.json`, or the working directory for a run with no config file. It is what makes running from the repo root match running from the application directory, and keeps two applications' output apart. See [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) and [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#the-anchor).
+_Avoid_: Root, base directory, project directory.
+
+**Diagnostic**:
+One problem a compiler run reports: a stable public code, a severity (`ERROR` stops anything being written; `WARNING` doesn't, unless the run is strict), a message and, where there is one, the file. Distinct from an Issue, which is a validation failure at runtime. See [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#diagnostics).
+_Avoid_: Compiler error (a warning is a Diagnostic too).

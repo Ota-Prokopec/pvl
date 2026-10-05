@@ -1,0 +1,168 @@
+// `pvl compile`, in process: argv in, an exit code out, every byte of output
+// through the streams it is handed. `bin.ts` wires it to the real process.
+import yargs from 'yargs';
+import { compile, type CompilePayload } from './compile.js';
+import { DIAGNOSTIC_CODE } from './consts.js';
+import { hasError, type Diagnostic } from './diagnostic.js';
+import { createDiagnostic } from './utils.js';
+
+/** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
+export type CliStream = {
+  write: (text: string) => unknown;
+};
+
+export type RunCliOptions = {
+  cwd: string;
+  stdout: CliStream;
+  stderr: CliStream;
+};
+
+type CompileFlags = {
+  config: string | undefined;
+  include: string[] | undefined;
+  destination: string | undefined;
+  withTypes: boolean | undefined;
+  watch: boolean | undefined;
+  strict: boolean;
+  json: boolean;
+};
+
+// `error NO_CONFIG: …`: severities read as words on a terminal.
+const formatDiagnostic = ({ severity, code, message, file }: Diagnostic): string => {
+  return `${severity.toLowerCase()} ${code}: ${message}${file === undefined ? '' : ` (${file})`}\n`;
+};
+
+type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
+  payload: CompilePayload;
+  json: boolean;
+};
+
+const report = ({ payload, json, stdout, stderr }: ReportArgs): void => {
+  if (json) {
+    stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    return;
+  }
+  for (const diagnostic of payload.diagnostics) {
+    stderr.write(formatDiagnostic(diagnostic));
+  }
+  if (payload.written) {
+    stdout.write(`Wrote ${payload.destination}\n`);
+  } else if (!hasError(payload.diagnostics)) {
+    stdout.write(
+      `Resolved the destination ${payload.destination}; nothing is written there yet.\n`,
+    );
+  }
+};
+
+const runCompile = async (
+  flags: CompileFlags,
+  { cwd, stdout, stderr }: RunCliOptions,
+): Promise<number> => {
+  const payload = await compile({
+    cwd,
+    configPath: flags.config,
+    overrides: {
+      include: flags.include,
+      destination: flags.destination,
+      withTypes: flags.withTypes,
+      watch: flags.watch,
+    },
+    strict: flags.strict,
+  });
+  report({ payload, json: flags.json, stdout, stderr });
+  return hasError(payload.diagnostics) ? 1 : 0;
+};
+
+/**
+ * Runs the `pvl` CLI against `argv` (without the `node` and script entries)
+ * and resolves to its exit code: `0` on success or with only warnings, `1`
+ * on any error, a usage error included.
+ */
+export const runCli = async (
+  argv: ReadonlyArray<string>,
+  options: RunCliOptions,
+): Promise<number> => {
+  let exitCode: number | undefined;
+  let failure: Error | undefined;
+  let output = '';
+
+  await yargs([...argv])
+    .scriptName('pvl')
+    .command(
+      'compile',
+      'Compile every pvl.compile(...) Schema into the Destination File',
+      (command) =>
+        command.options({
+          config: {
+            type: 'string',
+            description: 'Path to pvlconfig.json (default: ./pvlconfig.json, if present)',
+          },
+          include: {
+            type: 'string',
+            array: true,
+            description: 'Globs selecting the schema files to compile',
+          },
+          destination: {
+            type: 'string',
+            description: 'Path of the Destination File to write',
+          },
+          'with-types': {
+            type: 'boolean',
+            description: "Generate each compiled Schema's Data and Input type aliases",
+          },
+          watch: {
+            type: 'boolean',
+            description: 'Recompile on every change',
+          },
+          strict: {
+            type: 'boolean',
+            default: false,
+            description: 'Treat warnings as errors',
+          },
+          json: {
+            type: 'boolean',
+            default: false,
+            description: 'Print the result as JSON on stdout',
+          },
+        }),
+      async (flags) => {
+        exitCode = await runCompile(flags, options);
+      },
+    )
+    .demandCommand(1, 'Name a command: pvl compile')
+    .strict()
+    .version(false)
+    .help()
+    // With a parse callback, yargs hands over its help and error text
+    // instead of printing it and exiting the process itself.
+    .parseAsync([...argv], {}, (error, _flags, text) => {
+      failure = error ?? undefined;
+      output = text;
+    })
+    .catch((error: unknown) => {
+      failure = error instanceof Error ? error : new Error(String(error));
+    });
+
+  if (failure !== undefined) {
+    const message = `${failure.message} Run \`pvl compile --help\` for usage.`;
+    // yargs failed before it could parse `--json`, so look for it by hand.
+    report({
+      payload: {
+        diagnostics: [createDiagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
+        settings: undefined,
+        destination: undefined,
+        written: false,
+      },
+      json: argv.includes('--json'),
+      stdout: options.stdout,
+      stderr: options.stderr,
+    });
+    return 1;
+  }
+  if (exitCode === undefined) {
+    // `--help` ran instead of a command.
+    options.stdout.write(`${output}\n`);
+    return 0;
+  }
+  return exitCode;
+};
