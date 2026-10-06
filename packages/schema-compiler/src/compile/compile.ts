@@ -12,30 +12,14 @@ import {
   DESTINATION_KIND,
   resolveDestination,
   writeDestinationFile,
+  type Destination,
 } from './destination.js';
-import { checkExports, findInputFiles, noInputFiles } from './scan.js';
-
-/**
- * What {@link compile} runs with.
- *
- * @example
- * ```ts
- * import { compile, type CompileArgs } from '@pvl/schema-compiler';
- *
- * const args: CompileArgs = { cwd: process.cwd(), configPath: 'apps/web/pvlconfig.json' };
- * await compile(args);
- * ```
- */
-export type CompileArgs = {
-  /** The working directory: where `pvlconfig.json` is looked for, and the anchor without one. */
-  cwd: string;
-  /** The config file, relative to `cwd`. Defaults to `pvlconfig.json` in `cwd`, which may be absent. */
-  configPath?: string;
-  /** Settings that win over the config file. */
-  overrides?: SettingOverrides;
-  /** Promotes every warning to an error. */
-  strict?: boolean;
-};
+import {
+  checkExports,
+  createNoInputFilesDiagnostic,
+  findInputFiles,
+  type ScanScope,
+} from './scan.js';
 
 /**
  * What a {@link compile} run reports.
@@ -63,6 +47,48 @@ const promoteWarnings = (diagnostics: ReadonlyArray<Diagnostic>): Diagnostic[] =
   return diagnostics.map((diagnostic) => ({ ...diagnostic, severity: SEVERITY.ERROR }));
 };
 
+type UnwrittenPayloadArgs = Pick<CompilePayload, 'settings' | 'destination'> & {
+  diagnostics: ReadonlyArray<Diagnostic>;
+  strict: boolean;
+};
+
+// The payload before anything is written, with `strict` applied.
+const unwrittenPayload = ({
+  diagnostics,
+  settings,
+  destination,
+  strict,
+}: UnwrittenPayloadArgs): CompilePayload => {
+  return {
+    diagnostics: strict ? promoteWarnings(diagnostics) : [...diagnostics],
+    settings,
+    destination,
+    written: false,
+  };
+};
+
+/**
+ * What {@link compile} runs with.
+ *
+ * @example
+ * ```ts
+ * import { compile, type CompileArgs } from '@pvl/schema-compiler';
+ *
+ * const args: CompileArgs = { cwd: process.cwd(), configPath: 'apps/web/pvlconfig.json' };
+ * await compile(args);
+ * ```
+ */
+export type CompileArgs = {
+  /** The working directory: where `pvlconfig.json` is looked for, and the base directory without one. */
+  cwd: string;
+  /** The config file, relative to `cwd`. Defaults to `pvlconfig.json` in `cwd`, which may be absent. */
+  configPath?: string;
+  /** Settings that win over the config file. */
+  overrides?: SettingOverrides;
+  /** Promotes every warning to an error. */
+  strict?: boolean;
+};
+
 /**
  * Runs one compilation: resolves the settings (overrides, then
  * `pvlconfig.json`, then defaults), scans the files `include` selects and
@@ -86,28 +112,27 @@ export const compile = async ({
   overrides = {},
   strict = false,
 }: CompileArgs): Promise<CompilePayload> => {
-  // The payload before anything is written, with `strict` applied.
-  const unwrittenPayload = (
-    found: ReadonlyArray<Diagnostic>,
-    settings: Settings | undefined,
-    destination: string | undefined,
-  ): CompilePayload => {
-    return {
-      diagnostics: strict ? promoteWarnings(found) : [...found],
-      settings,
-      destination,
-      written: false,
-    };
-  };
-
-  const resolved = await resolveSettings({ cwd: resolve(cwd), configPath, overrides });
-  if (resolved.settings === undefined) {
-    return unwrittenPayload(resolved.diagnostics, undefined, undefined);
+  const resolvedSettingsPayload = await resolveSettings({
+    cwd: resolve(cwd),
+    configPath,
+    overrides,
+  });
+  if (resolvedSettingsPayload.settings === undefined) {
+    return unwrittenPayload({
+      diagnostics: resolvedSettingsPayload.diagnostics,
+      settings: undefined,
+      destination: undefined,
+      strict,
+    });
   }
-  const { settings, anchor } = resolved;
-  const destination = resolveDestination(anchor, settings);
+  const { settings, baseDirectory } = resolvedSettingsPayload;
+  const destination: Destination = resolveDestination(baseDirectory, settings);
 
-  const scope = { anchor, include: settings.include, destination: destination.path };
+  const scope: ScanScope = {
+    baseDirectory,
+    include: settings.include,
+    destination: destination.path,
+  };
 
   const found: Diagnostic[] = [];
   if (destination.kind === DESTINATION_KIND.FILE) {
@@ -116,11 +141,16 @@ export const compile = async ({
   }
   const files = await findInputFiles(scope);
   if (files.length === 0) {
-    found.push(noInputFiles(settings.include));
+    found.push(createNoInputFilesDiagnostic(settings.include));
   }
   found.push(...checkExports(files));
 
-  const payload = unwrittenPayload(found, settings, destination.path);
+  const payload = unwrittenPayload({
+    diagnostics: found,
+    settings,
+    destination: destination.path,
+    strict,
+  });
   // Emitting the default `node_modules` package is a later step; until then
   // only a `destination` file is written.
   if (hasError(payload.diagnostics) || destination.kind === DESTINATION_KIND.PACKAGE) {

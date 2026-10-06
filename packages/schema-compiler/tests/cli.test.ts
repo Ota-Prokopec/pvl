@@ -43,7 +43,7 @@ const runJson = async (
 };
 
 describe('pvl compile: settings from flags', () => {
-  it('runs flags-only, with every relative path anchored at the working directory', async () => {
+  it('runs flags-only, with every relative path resolved from the working directory', async () => {
     const root = await createFixture({ 'schemas/user.ts': SCHEMA_FILE });
 
     const { exitCode, payload } = await runJson(root, [
@@ -107,7 +107,7 @@ describe('pvl compile: settings from flags', () => {
     });
   });
 
-  it('reads the config named by --config, anchored at its own directory', async () => {
+  it('reads the config named by --config, resolving paths from its own directory', async () => {
     const root = await createFixture({
       'apps/web/pvlconfig.json': configJson({ include: ['schemas/*.ts'], destination: 'out.ts' }),
       'apps/web/schemas/user.ts': SCHEMA_FILE,

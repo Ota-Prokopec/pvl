@@ -8,9 +8,9 @@ How a user drives `@pvl/schema-compiler`. Read this before you change `pvlconfig
 
 `node_modules` and the destination path are always excluded from `include`, so the compiler can't read its own output.
 
-## The anchor
+## The base directory
 
-Every relative path (`include`, `destination`, and the same settings passed as flags) resolves against the **anchor**: the directory holding the config file, or the working directory for a run with no config file. `pvl compile --config apps/web/pvlconfig.json` from the repo root therefore behaves exactly like `pvl compile` from `apps/web`. Without `--config`, the compiler looks for `pvlconfig.json` in the working directory only.
+Every relative path (`include`, `destination`, and the same settings passed as flags) resolves against the **base directory**: the directory holding the config file, or the working directory for a run with no config file. `pvl compile --config apps/web/pvlconfig.json` from the repo root therefore behaves exactly like `pvl compile` from `apps/web`. Without `--config`, the compiler looks for `pvlconfig.json` in the working directory only.
 
 ## `pvl compile`
 
@@ -32,13 +32,13 @@ The programmatic entry point is `compile({ cwd, configPath, overrides, strict })
 
 Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text. The codes are `DIAGNOSTIC_CODE`'s values, and the severity each is raised with is `DIAGNOSTIC_SEVERITY`'s.
 
-| Code                         | Severity  | Raised when                                                                                                                                  |
-| ---------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NO_CONFIG`                  | `ERROR`   | No `pvlconfig.json` in the working directory, no `--config`, and no setting passed as a flag                                                 |
-| `CONFIG_UNREADABLE`          | `ERROR`   | The config file named by `--config` doesn't exist, or the config file can't be read or isn't valid JSON                                      |
-| `INVALID_CONFIG`             | `ERROR`   | A setting, from the config file or a flag, fails `configSchema` (wrong type, unknown key); one diagnostic per failing setting                |
-| `NO_INPUT_FILES`             | `ERROR`   | `include` matched no file                                                                                                                    |
-| `DESTINATION_UNWRITABLE`     | `ERROR`   | `destination` is a directory, a parent of it is a file, or it can't be created or written                                                    |
-| `DESTINATION_INSIDE_INCLUDE` | `ERROR`   | An `include` pattern matches the destination, so the compiler would read its own output, whether the destination is inside the anchor or not |
-| `FILE_EXPORTS_NOTHING`       | `WARNING` | A scanned file has no export, so the Destination File mirrors nothing from it                                                                |
-| `INVALID_ARGUMENTS`          | `ERROR`   | The CLI got an unknown flag, a flag value of the wrong type, or no command (CLI only)                                                        |
+| Code                         | Severity  | Raised when                                                                                                                                          |
+| ---------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NO_CONFIG`                  | `ERROR`   | No `pvlconfig.json` in the working directory, no `--config`, and no setting passed as a flag                                                         |
+| `CONFIG_UNREADABLE`          | `ERROR`   | The config file named by `--config` doesn't exist, or the config file can't be read or isn't valid JSON                                              |
+| `INVALID_CONFIG`             | `ERROR`   | A setting, from the config file or a flag, fails `configSchema` (wrong type, unknown key); one diagnostic per failing setting                        |
+| `NO_INPUT_FILES`             | `ERROR`   | `include` matched no file                                                                                                                            |
+| `DESTINATION_UNWRITABLE`     | `ERROR`   | `destination` is a directory, a parent of it is a file, or it can't be created or written                                                            |
+| `DESTINATION_INSIDE_INCLUDE` | `ERROR`   | An `include` pattern matches the destination, so the compiler would read its own output, whether the destination is inside the base directory or not |
+| `FILE_EXPORTS_NOTHING`       | `WARNING` | A scanned file has no export, so the Destination File mirrors nothing from it                                                                        |
+| `INVALID_ARGUMENTS`          | `ERROR`   | The CLI got an unknown flag, a flag value of the wrong type, or no command (CLI only)                                                                |

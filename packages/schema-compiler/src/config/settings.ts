@@ -1,5 +1,5 @@
 // Turns the config file and the overrides into the settings a run uses, and
-// finds the anchor relative paths resolve against.
+// finds the base directory relative paths resolve against.
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Issue } from '@pvl/schema';
@@ -17,11 +17,11 @@ export type ResolveSettingsArgs = {
 };
 
 export type ResolveSettingsPayload =
-  | { diagnostics: Diagnostic[]; settings: Settings; anchor: string }
-  | { diagnostics: Diagnostic[]; settings: undefined; anchor: undefined };
+  | { diagnostics: Diagnostic[]; settings: Settings; baseDirectory: string }
+  | { diagnostics: Diagnostic[]; settings: undefined; baseDirectory: undefined };
 
 const fail = (diagnostics: Diagnostic[]): ResolveSettingsPayload => {
-  return { diagnostics, settings: undefined, anchor: undefined };
+  return { diagnostics, settings: undefined, baseDirectory: undefined };
 };
 
 const invalidConfig = (issues: ReadonlyArray<Issue>, file: string | undefined): Diagnostic[] => {
@@ -116,6 +116,6 @@ export const resolveSettings = async ({
       withTypes: given.withTypes ?? config.withTypes ?? DEFAULT_WITH_TYPES,
       watch: given.watch ?? config.watch ?? DEFAULT_WATCH,
     },
-    anchor: text === undefined ? cwd : dirname(file),
+    baseDirectory: text === undefined ? cwd : dirname(file),
   };
 };

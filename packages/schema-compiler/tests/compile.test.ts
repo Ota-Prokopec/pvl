@@ -41,7 +41,7 @@ describe('compile(): writing the Destination File', () => {
     expect(await readFixtureFile(root, 'out.ts')).toContain('@generated');
   });
 
-  it('resolves the default destination under the anchor and writes nothing there yet', async () => {
+  it('resolves the default destination under the base directory and writes nothing there yet', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
@@ -122,7 +122,7 @@ describe('compile(): settings', () => {
     expect(await readFixtureFile(root, 'from-config.ts')).toBe(undefined);
   });
 
-  it('runs with no config file when overrides are given, anchored at the working directory', async () => {
+  it('runs with no config file when overrides are given, resolving paths from the working directory', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
     const payload = await compile({ cwd: root, overrides: { destination: 'out.ts' } });
@@ -132,7 +132,7 @@ describe('compile(): settings', () => {
     expect(await readFixtureFile(root, 'out.ts')).toContain('@generated');
   });
 
-  it('anchors relative paths at the config file, wherever it is run from', async () => {
+  it("resolves relative paths from the config file's directory, wherever it is run from", async () => {
     const files = {
       'apps/web/pvlconfig.json': configJson({ include: ['schemas/*.ts'], destination: 'out.ts' }),
       'apps/web/schemas/user.ts': SCHEMA_FILE,
@@ -297,7 +297,7 @@ describe('compile(): diagnostics', () => {
     expect(await readFixtureFile(root, 'src/schemas/compiled.ts')).toBe(undefined);
   });
 
-  it('DESTINATION_INSIDE_INCLUDE: also outside the anchor', async () => {
+  it('DESTINATION_INSIDE_INCLUDE: also outside the base directory', async () => {
     const root = await createFixture({
       'app/pvlconfig.json': configJson({
         include: ['../shared/**/*.ts'],

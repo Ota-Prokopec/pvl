@@ -26,13 +26,13 @@ export type Destination = {
   path: string;
 };
 
-export const resolveDestination = (anchor: string, settings: Settings): Destination => {
+export const resolveDestination = (baseDirectory: string, settings: Settings): Destination => {
   return settings.destination === undefined
-    ? { kind: DESTINATION_KIND.PACKAGE, path: join(anchor, DEFAULT_DESTINATION_DIRECTORY) }
-    : { kind: DESTINATION_KIND.FILE, path: resolve(anchor, settings.destination) };
+    ? { kind: DESTINATION_KIND.PACKAGE, path: join(baseDirectory, DEFAULT_DESTINATION_DIRECTORY) }
+    : { kind: DESTINATION_KIND.FILE, path: resolve(baseDirectory, settings.destination) };
 };
 
-const unwritable = (path: string, reason: string): Diagnostic => {
+const createUnwritableDiagnostic = (path: string, reason: string): Diagnostic => {
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE,
     message: `Can't write the Destination File to ${path}: ${reason}.`,
@@ -67,10 +67,12 @@ const isWritable = async (path: string): Promise<boolean> => {
 export const checkWritable = async (path: string): Promise<Diagnostic[]> => {
   const existing = await statOrUndefined(path);
   if (existing?.isDirectory()) {
-    return [unwritable(path, 'it is a directory, and destination names a file')];
+    return [createUnwritableDiagnostic(path, 'it is a directory, and destination names a file')];
   }
   if (existing !== undefined) {
-    return (await isWritable(path)) ? [] : [unwritable(path, 'the file is read-only')];
+    return (await isWritable(path))
+      ? []
+      : [createUnwritableDiagnostic(path, 'the file is read-only')];
   }
   let ancestor = dirname(path);
   let ancestorStat = await statOrUndefined(ancestor);
@@ -79,28 +81,28 @@ export const checkWritable = async (path: string): Promise<Diagnostic[]> => {
     ancestorStat = await statOrUndefined(ancestor);
   }
   if (ancestorStat === undefined || !ancestorStat.isDirectory()) {
-    return [unwritable(path, `${ancestor} is not a directory`)];
+    return [createUnwritableDiagnostic(path, `${ancestor} is not a directory`)];
   }
   return (await isWritable(ancestor))
     ? []
-    : [unwritable(path, `the directory ${ancestor} is read-only`)];
+    : [createUnwritableDiagnostic(path, `the directory ${ancestor} is read-only`)];
 };
 
 /**
  * Reports each `include` pattern that matches the destination, inside the
- * anchor or out of it (`../shared/**`).
+ * base directory or out of it (`../shared/**`).
  */
 export const checkDestinationNotIncluded = ({
-  anchor,
+  baseDirectory,
   include,
   destination,
 }: ScanScope): Diagnostic[] => {
-  const fromAnchor = relative(anchor, destination);
+  const fromBaseDirectory = relative(baseDirectory, destination);
   // On another drive (Windows), no relative pattern can reach it.
-  if (isAbsolute(fromAnchor)) {
+  if (isAbsolute(fromBaseDirectory)) {
     return [];
   }
-  const asPosix = fromAnchor.split(sep).join(posix.sep);
+  const asPosix = fromBaseDirectory.split(sep).join(posix.sep);
   return include
     .filter((pattern) => matchesGlob(asPosix, posix.normalize(pattern)))
     .map((pattern) =>
@@ -127,6 +129,6 @@ export const writeDestinationFile = async ({
     await writeFile(path, content);
     return [];
   } catch (error) {
-    return [unwritable(path, errorMessage(error))];
+    return [createUnwritableDiagnostic(path, errorMessage(error))];
   }
 };

@@ -10,18 +10,18 @@ import type { Diagnostic } from '../diagnostics/diagnostic.js';
 /** What a run scans, and the destination it must never scan. */
 export type ScanScope = {
   /** The directory relative paths resolve against. */
-  anchor: string;
+  baseDirectory: string;
   include: ReadonlyArray<string>;
   /** The Destination File's absolute path. */
   destination: string;
 };
 
 /**
- * The absolute paths `include` matches under `anchor`, sorted. `node_modules`
+ * The absolute paths `include` matches under `baseDirectory`, sorted. `node_modules`
  * and `destination` are never matched.
  */
 export const findInputFiles = async ({
-  anchor,
+  baseDirectory,
   include,
   destination,
 }: ScanScope): Promise<string[]> => {
@@ -29,7 +29,7 @@ export const findInputFiles = async ({
   const entries = glob(
     include.map((pattern) => posix.normalize(pattern)),
     {
-      cwd: anchor,
+      cwd: baseDirectory,
       withFileTypes: true,
       exclude: (entry) =>
         entry.name === 'node_modules' || join(entry.parentPath, entry.name) === destination,
@@ -43,7 +43,7 @@ export const findInputFiles = async ({
   return [...files].sort();
 };
 
-export const noInputFiles = (include: ReadonlyArray<string>): Diagnostic => {
+export const createNoInputFilesDiagnostic = (include: ReadonlyArray<string>): Diagnostic => {
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.NO_INPUT_FILES,
     message: `include matched no file: ${include.map((pattern) => `\`${pattern}\``).join(', ')}.`,

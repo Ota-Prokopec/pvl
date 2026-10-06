@@ -39,7 +39,7 @@ export type PvlConfig = InferOutput<typeof configSchema>;
 
 /**
  * Every setting the compiler runs with, once flags, the config file and the
- * defaults are merged. Relative paths are relative to the anchor: the
+ * defaults are merged. Relative paths are relative to the base directory: the
  * directory holding `pvlconfig.json`, or the working directory without one.
  *
  * @example

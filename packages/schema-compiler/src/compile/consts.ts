@@ -1,6 +1,6 @@
 // Where the Destination File goes by default, and the header it opens with.
 
-/** Where the Destination File goes, relative to the anchor, when `destination` is unset. */
+/** Where the Destination File goes, relative to the base directory, when `destination` is unset. */
 export const DEFAULT_DESTINATION_DIRECTORY = 'node_modules/.pvl/compiled-schemas' as const;
 
 /** The first line of every Destination File. */
