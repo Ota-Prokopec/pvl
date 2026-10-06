@@ -1,10 +1,10 @@
 // `pvl compile`, in process: argv in, an exit code out, every byte of output
-// through the streams it is handed. `bin.ts` wires it to the real process.
+// through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
-import { compile, type CompilePayload } from './compile.js';
-import { DIAGNOSTIC_CODE } from './consts.js';
-import { hasError, type Diagnostic } from './diagnostic.js';
-import { createDiagnostic } from './utils.js';
+import { compile, type CompilePayload } from '../compile/compile.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
+import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
 export type CliStream = {

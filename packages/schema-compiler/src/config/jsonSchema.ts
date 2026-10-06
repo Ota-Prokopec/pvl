@@ -1,6 +1,6 @@
 // The JSON Schema shipped as `@pvl/schema-compiler/json-schema` for editor
 // autocomplete in `pvlconfig.json`, generated from `configSchema` at build
-// time (see `tsup.config.ts`) so it can't drift from the runtime check.
+// time (see the package's `tsup.config.ts`) so it can't drift from the runtime check.
 import {
   ArraySchema,
   BooleanSchema,

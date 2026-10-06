@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { runCli } from '../src/cli.js';
+import { runCli } from '../src/cli/runCli.js';
 import {
   DIAGNOSTIC_CODE,
   SEVERITY,

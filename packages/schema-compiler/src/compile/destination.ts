@@ -3,11 +3,13 @@ import { constants } from 'node:fs';
 import { access, mkdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, matchesGlob, posix, relative, resolve, sep } from 'node:path';
 import type { ValueOfEnum } from '@repo/types';
-import type { Settings } from './config.js';
-import { DEFAULT_DESTINATION_DIRECTORY, DIAGNOSTIC_CODE } from './consts.js';
-import type { Diagnostic } from './diagnostic.js';
+import type { Settings } from '../config/config.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
+import { errorMessage } from '../utils.js';
+import { DEFAULT_DESTINATION_DIRECTORY } from './consts.js';
 import type { ScanScope } from './scan.js';
-import { createDiagnostic, errorMessage } from './utils.js';
 
 /**
  * `FILE` is the single TypeScript file `destination` names; `PACKAGE` is the

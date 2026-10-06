@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 import { defineConfig } from 'tsup';
-import { configJsonSchema } from './src/jsonSchema.js';
+import { configJsonSchema } from './src/config/jsonSchema.js';
 
 export default defineConfig({
   // `bin.ts` is the `pvl` executable `package.json`'s `bin` points at.

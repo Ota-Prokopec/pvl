@@ -3,9 +3,9 @@
 import { glob } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { Node, Project } from 'ts-morph';
-import { DIAGNOSTIC_CODE } from './consts.js';
-import type { Diagnostic } from './diagnostic.js';
-import { createDiagnostic } from './utils.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** What a run scans, and the destination it must never scan. */
 export type ScanScope = {

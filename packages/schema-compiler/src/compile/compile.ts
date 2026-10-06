@@ -1,8 +1,11 @@
 // The programmatic entry point: one compilation run, from settings to the
 // written Destination File. The CLI and any future bundler plugin wrap it.
 import { resolve } from 'node:path';
-import type { SettingOverrides, Settings } from './config.js';
-import { GENERATED_HEADER, SEVERITY } from './consts.js';
+import type { SettingOverrides, Settings } from '../config/config.js';
+import { resolveSettings } from '../config/settings.js';
+import { SEVERITY } from '../diagnostics/consts.js';
+import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
+import { GENERATED_HEADER } from './consts.js';
 import {
   checkDestinationNotIncluded,
   checkWritable,
@@ -10,9 +13,7 @@ import {
   resolveDestination,
   writeDestinationFile,
 } from './destination.js';
-import { hasError, type Diagnostic } from './diagnostic.js';
 import { checkExports, findInputFiles, noInputFiles } from './scan.js';
-import { resolveSettings } from './settings.js';
 
 /**
  * What {@link compile} runs with.

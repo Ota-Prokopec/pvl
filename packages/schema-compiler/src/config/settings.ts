@@ -4,15 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Issue } from '@pvl/schema';
 import { configSchema, type PvlConfig, type SettingOverrides, type Settings } from './config.js';
-import {
-  CONFIG_FILE_NAME,
-  DEFAULT_INCLUDE,
-  DEFAULT_WATCH,
-  DEFAULT_WITH_TYPES,
-  DIAGNOSTIC_CODE,
-} from './consts.js';
-import type { Diagnostic } from './diagnostic.js';
-import { createDiagnostic, errorMessage } from './utils.js';
+import { CONFIG_FILE_NAME, DEFAULT_INCLUDE, DEFAULT_WATCH, DEFAULT_WITH_TYPES } from './consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
+import { errorMessage } from '../utils.js';
 
 export type ResolveSettingsArgs = {
   cwd: string;
