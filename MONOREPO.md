@@ -8,7 +8,7 @@ apps/
 └── playground/        (playground, private) — scratch app for watching @pvl/schema work
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
-├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler (not implemented yet)
+├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler and its `pvl` CLI (in progress)
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type
 ├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets

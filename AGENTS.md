@@ -7,7 +7,7 @@ Each section below says when it applies and which file to read. Read only the se
 `PVL` (Precompiled Validation Library) is a validation library that can compile schemas into optimized code (e.g. `if`/`for`) for fast runtime validation. It's a pnpm + Turborepo TypeScript monorepo, and two packages define the project:
 
 - **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pvl/schema`): a Zod-style schema-validation library. Implemented.
-- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`): the ahead-of-time compiler that turns `pvl.compile(...)`-marked schemas into `Compiled Schema`s. Not implemented yet.
+- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`): the ahead-of-time compiler that turns `pvl.compile(...)`-marked schemas into `Compiled Schema`s. In progress: its config and `pvl compile` CLI exist, compilation doesn't yet.
 
 [`MONOREPO.md`](./MONOREPO.md) lists every other workspace entry. Each entry has its own `AGENTS.md` with its technology, architecture, package-specific rules and commands. Code style isn't one of them: ESLint checks it. Read it before working inside that entry.
 

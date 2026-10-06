@@ -1,0 +1,54 @@
+{
+  "name": "@pvl/schema-compiler",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "pvl": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./json-schema": "./dist/json-schema.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "run-s build:bundle build:types",
+    "dev": "tsup --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "build:bundle": "tsup",
+    "build:types": "tsc --project tsconfig.build.json"
+  },
+  "dependencies": {
+    "@pvl/schema": "workspace:*",
+    "@repo/types": "workspace:*",
+    "ts-morph": "^28.0.0",
+    "yargs": "^18.2.0"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.4.1",
+    "@types/yargs": "^17.0.35",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
+    "npm-run-all": "^4.1.5",
+    "tsup": "^8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.1"
+  }
+}
