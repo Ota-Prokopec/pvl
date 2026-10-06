@@ -3,6 +3,7 @@
  * `@repo/eslint-config` decides which files each rule runs on.
  */
 import type { CompatiblePlugin } from 'typescript-eslint';
+import { argsTypeAboveFunction } from './rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from './rules/barrelExportsOnly.ts';
 import { constantShape } from './rules/constantShape.ts';
 import { entryHasAgentsMd } from './rules/entryHasAgentsMd.ts';
@@ -21,6 +22,7 @@ import { tsconfigExtends } from './rules/tsconfigExtends.ts';
 const plugin = {
   meta: { name: '@repo/conventions' },
   rules: {
+    'args-type-above-function': argsTypeAboveFunction,
     'barrel-exports-only': barrelExportsOnly,
     'constant-shape': constantShape,
     'entry-has-agents-md': entryHasAgentsMd,

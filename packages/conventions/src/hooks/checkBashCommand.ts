@@ -7,16 +7,6 @@ import { resolve } from 'node:path';
 import { parse } from 'shell-quote';
 import { BRANCH_NAME, CONVENTIONAL_SUBJECT } from './naming.ts';
 
-export type CheckBashCommandArgs = {
-  command: string;
-  /** The directory the command starts in. */
-  cwd: string;
-  /** The branch checked out in `directory`, or `undefined` on a detached HEAD or outside a repository. */
-  currentBranch: (directory: string) => string | undefined;
-  /** The content of the file at `path`, or `undefined` when it can't be read. */
-  readFile: (path: string) => string | undefined;
-};
-
 const MAIN_BRANCH = 'main' as const;
 const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '|&', '(', ')']);
 const GH_POSTING_COMMANDS = new Set([
@@ -209,6 +199,16 @@ const checkGh = (
       reasons.add(NO_CLAUDE);
     }
   }
+};
+
+export type CheckBashCommandArgs = {
+  command: string;
+  /** The directory the command starts in. */
+  cwd: string;
+  /** The branch checked out in `directory`, or `undefined` on a detached HEAD or outside a repository. */
+  currentBranch: (directory: string) => string | undefined;
+  /** The content of the file at `path`, or `undefined` when it can't be read. */
+  readFile: (path: string) => string | undefined;
 };
 
 /** Every rule `command` breaks, each as the instruction to follow; empty when it may run. */

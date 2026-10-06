@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { argsTypeAboveFunction } from '../src/eslint/rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from '../src/eslint/rules/barrelExportsOnly.ts';
 import { constantShape } from '../src/eslint/rules/constantShape.ts';
 import { enumShape } from '../src/eslint/rules/enumShape.ts';
@@ -20,6 +21,29 @@ typescriptTester.run('no-interface', noInterface, {
     {
       code: 'interface Shape { area(): number }\nclass Square implements Other { area(): number { return 1; } }',
       errors: [{ messageId: 'useType' }],
+    },
+  ],
+});
+
+typescriptTester.run('args-type-above-function', argsTypeAboveFunction, {
+  valid: [
+    'type CountArgs = { n: number };\nconst count = ({ n }: CountArgs): number => n;',
+    'export type CountArgs = { n: number };\n/** Counts. */\nexport const count = ({ n }: CountArgs): number => n;',
+    'type OtherArgs = { n: number };\nconst x = 1;\nconst count = ({ n }: OtherArgs): number => n;',
+    'const run = (): void => {\n  type StepArgs = { n: number };\n  const step = ({ n }: StepArgs): number => n;\n};',
+  ],
+  invalid: [
+    {
+      code: 'type CountArgs = { n: number };\nconst x = 1;\nconst count = ({ n }: CountArgs): number => n;',
+      errors: [{ messageId: 'placement', data: { type: 'CountArgs', name: 'count' } }],
+    },
+    {
+      code: 'const count = ({ n }: CountArgs): number => n;\ntype CountArgs = { n: number };',
+      errors: [{ messageId: 'placement' }],
+    },
+    {
+      code: 'const run = (): void => {\n  type StepArgs = { n: number };\n  const x = 1;\n  const step = ({ n }: StepArgs): number => n + x;\n};',
+      errors: [{ messageId: 'placement' }],
     },
   ],
 });
