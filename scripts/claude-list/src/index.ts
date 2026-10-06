@@ -35,19 +35,13 @@ type Failure = {
   message: string;
 };
 
-type TryGitArgs = {
-  args: string[];
-  /** What the call does, completing "Could not …" in the summary. */
-  subject: string;
-};
+const MAIN_BRANCH = 'main' as const;
 
 type CountNounArgs = {
   count: number;
   singular: string;
   plural: string;
 };
-
-const MAIN_BRANCH = 'main' as const;
 
 const countNoun = ({ count, singular, plural }: CountNounArgs): string => {
   return `${count} ${count === 1 ? singular : plural}`;
@@ -94,6 +88,12 @@ const hintEntry = (entry: Entry): string => {
       `dirty (${countNoun({ count: entry.changedFiles, singular: 'file', plural: 'files' })})`,
   ];
   return tags.filter((tag) => tag !== false).join(' · ');
+};
+
+type TryGitArgs = {
+  args: string[];
+  /** What the call does, completing "Could not …" in the summary. */
+  subject: string;
 };
 
 /** Runs `git`, turning a failure into a `Failure` for the summary instead of a throw. */
