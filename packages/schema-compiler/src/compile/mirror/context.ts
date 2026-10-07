@@ -10,7 +10,8 @@ import {
   type SourceFile,
   type Statement,
 } from 'ts-morph';
-import { resolveScanned, rewriteSpecifier, type ScannedModule } from './modules.js';
+import { resolveScanned, type ScannedModule } from './tsMorphProject.js';
+import { rewriteSpecifier } from './utils.js';
 
 // A shorthand `{ user }` renamed to `account` becomes `{ user: account }`,
 // keeping its key.

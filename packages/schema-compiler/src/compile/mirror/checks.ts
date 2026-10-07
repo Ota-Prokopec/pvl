@@ -5,7 +5,8 @@ import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { isDeclaration } from './context.js';
-import { displayPath, findCycles, resolveScanned, type ScannedModule } from './modules.js';
+import { resolveScanned, type ScannedModule } from './tsMorphProject.js';
+import { displayPath, findCycles } from './utils.js';
 
 // The first syntax error of each module that has one.
 const findParseFailures = (

@@ -2,7 +2,8 @@
 // where it is actually bound.
 import type { ExportDeclaration } from 'ts-morph';
 import { aliasOrName, type ModuleContext } from './context.js';
-import { resolveScanned, rewriteSpecifier } from './modules.js';
+import { resolveScanned } from './tsMorphProject.js';
+import { rewriteSpecifier } from './utils.js';
 
 /**
  * `LOCAL` is a top-level declaration of a scanned module; `EXTERNAL` is an

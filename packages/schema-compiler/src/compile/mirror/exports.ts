@@ -6,7 +6,8 @@ import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { aliasOrName, type ModuleContext } from './context.js';
-import { displayPath, resolveScanned, rewriteSpecifier } from './modules.js';
+import { resolveScanned } from './tsMorphProject.js';
+import { displayPath, rewriteSpecifier } from './utils.js';
 import {
   ORIGIN_KIND,
   originKey,

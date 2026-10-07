@@ -6,7 +6,7 @@ import { GENERATED_HEADER } from '../consts.js';
 import type { ImportBinding, ModuleContext } from './context.js';
 import { rewriteExports, type PlanExportsPayload } from './exports.js';
 import { renderImports } from './imports.js';
-import { displayPath, rewriteSpecifier } from './modules.js';
+import { displayPath, rewriteSpecifier } from './utils.js';
 
 // Rewrites the specifiers that stay in a module's body, a dynamic `import()`
 // and an `import x = require()`, to resolve from the destination.
