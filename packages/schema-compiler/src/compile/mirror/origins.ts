@@ -37,7 +37,8 @@ export type OriginResolver = {
 };
 
 export type CreateOriginResolverArgs = {
-  contexts: ReadonlyMap<string, ModuleContext>;
+  /** Every scanned module, in any order. */
+  contexts: ReadonlyArray<ModuleContext>;
   scanned: ReadonlySet<string>;
   outputDirectory: string;
 };
@@ -47,9 +48,10 @@ export const createOriginResolver = ({
   scanned,
   outputDirectory,
 }: CreateOriginResolverArgs): OriginResolver => {
+  const byPath = new Map(contexts.map((context) => [context.module.path, context]));
   // `seen` stops a re-export cycle, which only a type-only cycle can form.
   const resolveExport = (path: string, name: string, seen: Set<string>): Origin | undefined => {
-    const context = contexts.get(path);
+    const context = byPath.get(path);
     if (context === undefined || seen.has(`${path}:${name}`)) {
       return undefined;
     }

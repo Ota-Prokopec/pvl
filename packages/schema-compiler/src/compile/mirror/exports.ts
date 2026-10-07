@@ -1,13 +1,12 @@
 // Every name the Destination File exports and the binding behind it. A
 // re-export whose binding lives elsewhere forwards to that binding, and is
 // dropped when the binding is already exported under the same name.
-import { relative } from 'node:path';
 import type { ExportDeclaration, SourceFile } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { aliasOrName, type ModuleContext } from './context.js';
-import { resolveScanned, rewriteSpecifier, toPosix } from './modules.js';
+import { displayPath, resolveScanned, rewriteSpecifier } from './modules.js';
 import { ORIGIN_KIND, originKey, type Origin, type OriginResolver } from './origins.js';
 
 /** One exported name of a re-export whose binding isn't the module's own. */
@@ -62,7 +61,7 @@ export const planExports = ({
       diagnostics.push(
         createDiagnostic({
           code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-          message: `\`${name}\` is also exported by ${toPosix(relative(baseDirectory, existing.module))}, and the Destination File can export it only once. Rename one of them.`,
+          message: `\`${name}\` is also exported by ${displayPath(baseDirectory, existing.module)}, and the Destination File can export it only once. Rename one of them.`,
           file: module,
         }),
       );

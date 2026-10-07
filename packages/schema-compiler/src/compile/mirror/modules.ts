@@ -32,6 +32,11 @@ export const toPosix = (path: string): string => {
   return path.split(sep).join(posix.sep);
 };
 
+/** `path` as a banner or diagnostic shows it: relative to `baseDirectory`, with `/` separators. */
+export const displayPath = (baseDirectory: string, path: string): string => {
+  return toPosix(relative(baseDirectory, path));
+};
+
 export const createProject = (): Project => {
   return new Project({ skipAddingFilesFromTsConfig: true, compilerOptions: COMPILER_OPTIONS });
 };
