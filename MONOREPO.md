@@ -19,8 +19,6 @@ scripts/
 └── git-worktrees/     (@repo/git-worktrees)     — the git worktree reader both scripts share
 ```
 
-Every entry's `AGENTS.md` sits in its folder.
-
 ## Dependencies
 
 - `@pvl/schema-compiler` depends on `@pvl/schema`, never the other way round. Those two publish to npm; everything else is private.

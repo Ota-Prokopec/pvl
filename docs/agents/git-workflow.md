@@ -12,7 +12,7 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 
 ## Commits
 
-- **Every commit passes the pre-commit hook.** When it fails, fix the reported failure and commit again. The hook is a guardrail, so these bypasses stay unused: `git commit --no-verify`/`-n`, `LEFTHOOK=0`/`LEFTHOOK_EXCLUDE`, a `core.hooksPath` override.
+- **Every commit passes the pre-commit hook** ([AGENTS.md](../../AGENTS.md#commands)).
 - **One commit per solved issue**, parent or sub-issue.
 
 ## Pull requests
@@ -28,4 +28,4 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 2. **A leaf issue** gets a `<type>/<slug>` branch off `main`, one commit, and a PR into `main` whose body says `Closes #<n>`. Done when the PR is open and the issue carries a comment linking it.
 3. **A parent** is done when every sub-issue has a PR and the parent carries a comment linking all of them.
 
-Issues from the `/to-spec` → `/to-tickets` pipeline add the rules in the `/implement` section of [skill-extensions.md](../specification/skill-extensions.md#implement).
+Issues from the `/to-spec` → `/to-tickets` pipeline add the rules in the [`/implement`](../specification/skill-extensions.md#implement) or [`/implement-spec`](../specification/skill-extensions.md#implement-spec) section of skill-extensions.md. `/implement-spec` lands a whole spec through one PR, so its tickets get no PR of their own.
