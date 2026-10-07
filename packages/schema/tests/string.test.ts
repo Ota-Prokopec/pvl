@@ -3,6 +3,11 @@ import fc from 'fast-check';
 import { pvl } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 
+// A refinement the test expects never to run.
+const throwing = (): boolean => {
+  throw new Error('refine should not run');
+};
+
 describe('pvl.string()', () => {
   it('accepts a string', () => {
     const result = pvl.string().validate('hello');
@@ -219,9 +224,6 @@ describe('pvl.string()', () => {
     });
 
     it('skips a .refine() for undefined, wherever .optional() is chained', () => {
-      const throwing = (): boolean => {
-        throw new Error('refine should not run for undefined');
-      };
       for (const schema of [
         pvl.string().optional().refine(throwing),
         pvl.string().refine(throwing).optional(),
@@ -240,9 +242,6 @@ describe('pvl.string()', () => {
     });
 
     it('skips a .refine() for null, wherever .nullable() is chained', () => {
-      const throwing = (): boolean => {
-        throw new Error('refine should not run for null');
-      };
       for (const schema of [
         pvl.string().nullable().refine(throwing),
         pvl.string().refine(throwing).nullable(),

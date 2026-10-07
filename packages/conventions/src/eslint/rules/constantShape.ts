@@ -29,6 +29,26 @@ const isAsConst = (node: TSESTree.Expression): node is TSESTree.TSAsExpression =
   );
 };
 
+// A constant `declaration` declares: an identifier initialised with one
+// literal, `as const` or not.
+type Constant = {
+  id: TSESTree.Identifier;
+  init: TSESTree.Expression;
+};
+
+const readConstants = (declaration: TSESTree.VariableDeclaration): Constant[] => {
+  if (declaration.kind !== 'const') {
+    return [];
+  }
+  return declaration.declarations.flatMap((declarator) => {
+    if (declarator.id.type !== AST_NODE_TYPES.Identifier || declarator.init === null) {
+      return [];
+    }
+    const value = isAsConst(declarator.init) ? declarator.init.expression : declarator.init;
+    return isSingleLiteral(value) ? [{ id: declarator.id, init: declarator.init }] : [];
+  });
+};
+
 export const constantShape = createRule({
   meta: {
     type: 'suggestion',
@@ -47,39 +67,23 @@ export const constantShape = createRule({
   create: (context) => {
     const constants = new Map<string, TSESTree.Identifier>();
     const exported = new Set<string>();
-    const check = (declaration: TSESTree.VariableDeclaration, isExported: boolean): void => {
-      if (declaration.kind !== 'const') {
-        return;
-      }
-      for (const declarator of declaration.declarations) {
-        if (declarator.id.type !== AST_NODE_TYPES.Identifier || declarator.init === null) {
-          continue;
-        }
-        const value = isAsConst(declarator.init) ? declarator.init.expression : declarator.init;
-        if (!isSingleLiteral(value)) {
-          continue;
-        }
-        const name = declarator.id.name;
-        constants.set(name, declarator.id);
-        if (isExported) {
-          exported.add(name);
-        }
-        if (!isUpperSnakeCase(name)) {
-          context.report({ node: declarator.id, messageId: 'name', data: { name } });
-        }
-        if (!isAsConst(declarator.init)) {
-          context.report({ node: declarator.init, messageId: 'asConst', data: { name } });
-        }
-      }
-    };
     return {
-      'Program > VariableDeclaration': (node: TSESTree.VariableDeclaration): void => {
-        check(node, false);
-      },
-      'Program > ExportNamedDeclaration > VariableDeclaration': (
+      'Program > VariableDeclaration, Program > ExportNamedDeclaration > VariableDeclaration': (
         node: TSESTree.VariableDeclaration,
       ): void => {
-        check(node, true);
+        const isExported = node.parent.type === AST_NODE_TYPES.ExportNamedDeclaration;
+        for (const { id, init } of readConstants(node)) {
+          constants.set(id.name, id);
+          if (isExported) {
+            exported.add(id.name);
+          }
+          if (!isUpperSnakeCase(id.name)) {
+            context.report({ node: id, messageId: 'name', data: { name: id.name } });
+          }
+          if (!isAsConst(init)) {
+            context.report({ node: init, messageId: 'asConst', data: { name: id.name } });
+          }
+        }
       },
       'Program > ExportNamedDeclaration > ExportSpecifier': (
         node: TSESTree.ExportSpecifier,

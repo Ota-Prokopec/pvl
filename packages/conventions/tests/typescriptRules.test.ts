@@ -7,6 +7,7 @@ import { noImportAlias } from '../src/eslint/rules/noImportAlias.ts';
 import { noInlineEnumValue } from '../src/eslint/rules/noInlineEnumValue.ts';
 import { noInterface } from '../src/eslint/rules/noInterface.ts';
 import { noJavascriptFiles } from '../src/eslint/rules/noJavascriptFiles.ts';
+import { noLocalFunctions } from '../src/eslint/rules/noLocalFunctions.ts';
 import { noRegex } from '../src/eslint/rules/noRegex.ts';
 import { createFixture, typescriptTester } from './helpers.ts';
 
@@ -176,6 +177,29 @@ typescriptTester.run('constant-shape', constantShape, {
       code: "const VENDOR = '@pvl/schema' as const;\nexport { VENDOR };",
       filename: join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
+    },
+  ],
+});
+
+typescriptTester.run('no-local-functions', noLocalFunctions, {
+  valid: [
+    'const double = (n: number): number => n * 2;\nconst run = (): number => double(2);',
+    'function run(): number[] {\n  return [1, 2].map((n) => n * 2);\n}',
+    'const run = (): { fn: () => number } => ({ fn: () => 1 });',
+    'class Box {\n  get(): number {\n    return 1;\n  }\n}',
+  ],
+  invalid: [
+    {
+      code: 'const run = (): number => {\n  const double = (n: number): number => n * 2;\n  return double(2);\n};',
+      errors: [{ messageId: 'moveToModuleScope', data: { name: 'double' } }],
+    },
+    {
+      code: 'function run(): number {\n  function double(n: number): number {\n    return n * 2;\n  }\n  return double(2);\n}',
+      errors: [{ messageId: 'moveToModuleScope', data: { name: 'double' } }],
+    },
+    {
+      code: 'class Box {\n  get(): number {\n    const one = function (): number {\n      return 1;\n    };\n    return one();\n  }\n}',
+      errors: [{ messageId: 'moveToModuleScope', data: { name: 'one' } }],
     },
   ],
 });

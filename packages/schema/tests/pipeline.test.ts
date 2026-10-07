@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { pvl, type Issue } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 
+const isEven = (value: number): boolean => value % 2 === 0;
+
 // The reference cases for `Schema._validate`'s steps (ADR-0010): pre-modifiers
 // and post-modifiers each run in chain order around the type check, every
 // Issue is collected, and a short-circuit skips everything but a Transform.
@@ -39,7 +41,6 @@ describe('the modifier pipeline', () => {
   });
 
   it('collects a Refinement and a Constraint in chain order', () => {
-    const isEven = (value: number): boolean => value % 2 === 0;
     const result = pvl.number().refine(isEven, { message: 'must be even' }).int().validate(2.5);
     expect(result.issues?.map((issue: Issue) => [issue.code, issue.message])).toEqual([
       ['CUSTOM', 'must be even'],

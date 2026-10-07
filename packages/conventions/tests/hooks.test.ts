@@ -128,19 +128,19 @@ describe('checkBashCommand', () => {
   });
 });
 
+const SKILLS_LOCK = JSON.stringify({ version: 1, skills: { tdd: {}, zod: {} } });
+
+/** The reasons editing `path` is denied, run from `/repo` whose `skills-lock.json` is `lock` (`null`: missing). */
+const checkEdit = (path: string, lock: string | null = SKILLS_LOCK): string[] => {
+  return checkEditedPath({
+    path,
+    cwd: REPO,
+    readFile: (file): string | undefined =>
+      file === `${REPO}/skills-lock.json` ? (lock ?? undefined) : undefined,
+  });
+};
+
 describe('checkEditedPath', () => {
-  const LOCK = JSON.stringify({ version: 1, skills: { tdd: {}, zod: {} } });
-
-  /** The reasons editing `path` is denied, run from `/repo` whose `skills-lock.json` is `lock` (`null`: missing). */
-  const checkEdit = (path: string, lock: string | null = LOCK): string[] => {
-    return checkEditedPath({
-      path,
-      cwd: REPO,
-      readFile: (file): string | undefined =>
-        file === `${REPO}/skills-lock.json` ? (lock ?? undefined) : undefined,
-    });
-  };
-
   it.each([
     'packages/schema/src/pvl.ts',
     '/repo/AGENTS.md',

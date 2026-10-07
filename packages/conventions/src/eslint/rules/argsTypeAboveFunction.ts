@@ -44,6 +44,29 @@ const toArgsTypeName = (name: string): string => {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)}Args`;
 };
 
+// Each `<FunctionName>Args` type in `statements` that isn't directly above
+// its function, with that function.
+const misplacedArgsTypes = (
+  statements: ReadonlyArray<TSESTree.Node>,
+): Array<{ type: Named; fn: Named }> => {
+  const types = new Map<string, Named>();
+  const functions: Named[] = [];
+  statements.forEach((statement, index): void => {
+    const type = argsTypeName(statement);
+    if (type !== undefined) {
+      types.set(type.name, { name: type.name, node: type, index });
+    }
+    const fn = functionName(statement);
+    if (fn !== undefined) {
+      functions.push({ name: fn.name, node: fn, index });
+    }
+  });
+  return functions.flatMap((fn) => {
+    const type = types.get(toArgsTypeName(fn.name));
+    return type !== undefined && type.index !== fn.index - 1 ? [{ type, fn }] : [];
+  });
+};
+
 export const argsTypeAboveFunction = createRule({
   meta: {
     type: 'suggestion',
@@ -58,41 +81,17 @@ export const argsTypeAboveFunction = createRule({
     schema: [],
   },
   defaultOptions: [],
-  create: (context) => {
-    const check = (statements: TSESTree.Node[]): void => {
-      const types = new Map<string, Named>();
-      const functions: Named[] = [];
-      statements.forEach((statement, index): void => {
-        const type = argsTypeName(statement);
-        if (type !== undefined) {
-          types.set(type.name, { name: type.name, node: type, index });
-        }
-        const fn = functionName(statement);
-        if (fn !== undefined) {
-          functions.push({ name: fn.name, node: fn, index });
-        }
-      });
-      for (const fn of functions) {
-        const type = types.get(toArgsTypeName(fn.name));
-        if (type !== undefined && type.index !== fn.index - 1) {
-          context.report({
-            node: type.node,
-            messageId: 'placement',
-            data: { type: type.name, name: fn.name },
-          });
-        }
+  create: (context) => ({
+    'Program, BlockStatement, TSModuleBlock': (
+      node: TSESTree.Program | TSESTree.BlockStatement | TSESTree.TSModuleBlock,
+    ): void => {
+      for (const { type, fn } of misplacedArgsTypes(node.body)) {
+        context.report({
+          node: type.node,
+          messageId: 'placement',
+          data: { type: type.name, name: fn.name },
+        });
       }
-    };
-    return {
-      Program: (node): void => {
-        check(node.body);
-      },
-      BlockStatement: (node): void => {
-        check(node.body);
-      },
-      TSModuleBlock: (node): void => {
-        check(node.body);
-      },
-    };
-  },
+    },
+  }),
 });

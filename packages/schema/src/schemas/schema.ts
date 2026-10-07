@@ -6,6 +6,16 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../modifiers.js';
 import type { PreModifiersResult } from '../types.js';
 
+// Whether `modifier` stays when every modifier built by one of `shapes` is
+// removed. Matched by shape rather than identity, so a caller can remove a
+// modifier without holding on to the instance it added.
+const survives = (
+  modifier: Modifier<unknown, unknown>,
+  shapes: ReadonlyArray<ModifierShape>,
+): boolean => {
+  return modifier.shape === undefined || !shapes.includes(modifier.shape);
+};
+
 /**
  * What every schema in this library is: something that validates a value.
  * A field of an object schema, an element of an array schema and a member
@@ -240,19 +250,15 @@ export abstract class Schema<Input = unknown, Output = Input> {
     return clone;
   }
 
-  // Matched by shape rather than identity, so a caller can remove a modifier
-  // without holding on to the instance it added.
   /**
    * A copy of this schema without any modifier built by one of `shapes`.
    *
    * @internal
    */
   protected _withoutModifiers(shapes: ReadonlyArray<ModifierShape>): this {
-    const keep = (modifier: Modifier<unknown, unknown>): boolean =>
-      modifier.shape === undefined || !shapes.includes(modifier.shape);
     const clone = this._clone();
-    clone._preModifiers = this._preModifiers.filter(keep);
-    clone._postModifiers = this._postModifiers.filter(keep);
+    clone._preModifiers = this._preModifiers.filter((modifier) => survives(modifier, shapes));
+    clone._postModifiers = this._postModifiers.filter((modifier) => survives(modifier, shapes));
     return clone;
   }
 }
