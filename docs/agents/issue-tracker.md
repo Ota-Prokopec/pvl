@@ -9,7 +9,7 @@ Issues and specs for this repo live as GitHub issues on `Ota-Prokopec/pvl`. Use 
 - **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
-- **Close**: `gh issue close <number> --comment "..."` — per the repo's GitHub activity rule, the agent never closes an issue directly; closing happens automatically when a `Closes #<n>` PR is merged by the user.
+- **Close**: `gh issue close <number> --comment "..."`. An issue a PR resolves still closes through its `Closes #<n>` keyword when the user merges; close directly only an issue no PR resolves (a resolved `/wayfinder` ticket, a duplicate).
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
 

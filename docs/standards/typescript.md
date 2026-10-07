@@ -33,6 +33,7 @@ type CalculateTotalPayload = {
 ## Using types
 
 - **Export a function's or class's parameter and return types** alongside it.
+- **Annotate a variable with the repo's existing type for its value.** When a type anywhere in the repo describes what the variable holds, write `const scope: ScanScope = {…}`, not `const scope = {…}`, so the compiler checks the value against that type at the declaration.
 - **Narrow with type guards and type predicates**, starting from `unknown` where a type is genuinely unknown, so the compiler checks the narrowing an assertion would only claim.
 
 ```typescript

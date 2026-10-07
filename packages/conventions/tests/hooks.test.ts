@@ -89,8 +89,14 @@ describe('checkBashCommand', () => {
     ]);
   });
 
-  it('denies closing an issue', () => {
-    expect(check('gh issue close 4')).toEqual([expect.stringContaining('never closes an issue')]);
+  it('allows closing an issue', () => {
+    expect(check('gh issue close 4 --comment "Resolved by #12."')).toEqual([]);
+  });
+
+  it('denies a closing comment that mentions Claude', () => {
+    expect(check('gh issue close 4 -c "Done with Claude Code"')).toEqual([
+      expect.stringContaining('mentions Claude'),
+    ]);
   });
 
   it.each([
