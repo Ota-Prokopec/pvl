@@ -10,4 +10,4 @@ Read this before you write a doc comment in a published package, or export somet
 
 Protocol plumbing (`_validate`, `_checkType`, `_coerceInput`, `"~standard"`, the `_with*Modifier` helpers, the schema class constructors the `pvl.*` factories exist to hide) stays documented for maintainers but tagged `@internal`, so TypeDoc's `excludeInternal` drops it from the reference. A file outside the barrel (`src/index.ts`) is never seen by TypeDoc, so its comments are for maintainers. Type plumbing inside the barrel is tagged `@internal`. Each file's top comment says which side it is on.
 
-Examples are not yet verified by the build ([issue #60](https://github.com/Ota-Prokopec/pvl/issues/60)); until then, check a changed snippet by hand.
+**Every `@example` is compiled by the build.** `apps/docs`'s `check-types` extracts each one into its own TypeScript file and typechecks it, without executing it ([ADR-0023](../adr/0023-documentation-examples-are-typechecked-not-executed.md)). So an `@example` stands on its own, imports included, and imports from `'@pvl/schema'` rather than by relative path. A snippet that is deliberately invalid opts out with ` ```ts docs-check-skip `.

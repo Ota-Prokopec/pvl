@@ -14,7 +14,7 @@ pnpm add @pvl/schema
 
 Every schema is built from the `pvl` namespace object — one import, and everything hangs off it.
 
-```ts
+```ts docs-check-shared
 import { pvl } from '@pvl/schema';
 
 const user = pvl.object({

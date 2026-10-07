@@ -41,6 +41,10 @@
         "^build"
       ]
     },
+    "docs#check-types": {
+      "dependsOn": ["^check-types", "^build"],
+      "outputs": ["examples/**"]
+    },
     "test": {
       "dependsOn": [
         "^build"

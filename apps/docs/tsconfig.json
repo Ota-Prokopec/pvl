@@ -6,13 +6,26 @@
     "noEmit": true,
     "declaration": false,
     "declarationMap": false,
-    // The VitePress config runs in Node: it reads the generated API sidebar
-    // off disk before handing the config to VitePress.
-    "types": ["node"]
+    // The VitePress config and the example-extraction script both run in Node:
+    // the config reads the generated API sidebar off disk, and the script walks
+    // the documentation sources.
+    "types": ["node"],
+    // `scripts/` is run by Node's own TypeScript stripping (`node script.ts`),
+    // which needs the real `.ts` extension in a relative import. Nothing here
+    // is emitted, so allowing that extension costs nothing.
+    "allowImportingTsExtensions": true
   },
   // TypeScript skips dot-directories when expanding a directory into a
   // wildcard, so `content/.vitepress` on its own matches nothing — the files
   // are listed through globs whose literal prefix reaches past the dot.
-  "include": ["content/.vitepress/*.ts", "content/.vitepress/theme/**/*.ts"],
+  // `examples/` is deliberately absent: it is generated, and `tsconfig.examples.json`
+  // compiles it with its own options.
+  "include": [
+    "content/.vitepress/*.ts",
+    "content/.vitepress/theme/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["node_modules", "content/.vitepress/dist", "content/.vitepress/cache"]
 }

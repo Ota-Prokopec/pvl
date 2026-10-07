@@ -151,7 +151,7 @@ Membership is a `Set` lookup rather than a scan, so the check stays O(1) however
 
 Validates every element against one shared item schema.
 
-```ts
+```ts docs-check-shared
 const tags = pvl.array(pvl.string()).min(1).max(5);
 
 tags.validate(['a', 'b']); // { value: ['a', 'b'] }
@@ -178,7 +178,7 @@ The length constraints above are checks on the array itself, so they run only on
 
 `element` hands back the item schema an array schema was built with, so one item can be validated on its own without building a whole array around it:
 
-```ts
+```ts docs-check-shared
 const users = pvl.array(pvl.object({ name: pvl.string() }));
 
 users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
@@ -197,7 +197,7 @@ users.element.shape.name.validate(42);
 
 Validates each declared key against its own field schema.
 
-```ts
+```ts docs-check-shared
 const user = pvl.object({
   name: pvl.string().min(1),
   age: pvl.number().int().min(0),
@@ -286,7 +286,7 @@ order.shape.items.element.validate(42); // { issues: [{ code: 'INVALID_TYPE', ..
 
 Tries each member schema in the order given and succeeds on the first that accepts the value.
 
-```ts
+```ts docs-check-shared
 const id = pvl.union([pvl.string(), pvl.number().int()]);
 
 id.validate('a1'); // { value: 'a1' }

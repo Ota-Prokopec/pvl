@@ -5,7 +5,8 @@ The user-facing documentation site for [`@pvl/schema`](../../packages/schema/AGE
 ## Technology
 
 - VitePress `1.6.4` and TypeDoc `0.28.x` with `typedoc-plugin-markdown` and `typedoc-vitepress-theme`, all pinned: VitePress 2.x is still an alpha with moving config and theme APIs, and both plugins peer-depend on `typedoc: 0.28.x`.
-- The only TypeScript is `content/.vitepress/config.ts`.
+- The hand-written TypeScript is `content/.vitepress/config.ts` and `scripts/`. Node runs `scripts/` by stripping its types, so a relative import names the `.ts` file (`allowImportingTsExtensions`).
+- `@standard-schema/spec` is a devDependency because the guide's type-inference snippet imports it. `vite` is declared only for `vitest`'s peer range; VitePress keeps its own `vite` 5.
 
 ## `content/` is the site root
 
@@ -23,9 +24,18 @@ The entry point is `packages/schema/src/index.ts`, with that package's own `tsco
 
 `package.json` still declares `"@pvl/schema": "workspace:*"`: without that graph edge Turborepo wouldn't invalidate the docs cache when the library's TSDoc changes, and the guide's examples import the package anyway.
 
-## No tests, by decision
+## The documentation's code examples are typechecked
 
-The checks are `check-types` on the VitePress config, `lint`, and `build`, which fails on a dead internal link. Compiling the guide's examples is [issue #60](https://github.com/Ota-Prokopec/pvl/issues/60).
+`check-types` compiles every fenced `ts` block in `content/guide/` and every TSDoc `@example` in `packages/schema/src`, without executing them ([ADR-0023](../../docs/adr/0023-documentation-examples-are-typechecked-not-executed.md)). `scripts/extractDocExamples.ts` writes one file per snippet into `examples/`, and `tsconfig.examples.json` compiles them. `scripts/docExamples.ts` holds the pure parsing and rendering logic.
+
+- **`examples/` is generated**, on the same terms as `content/api/`. Each file starts with `// Generated from <source>:<line>.`, so follow a `tsc` error back to the documentation through that header.
+- **On a guide page, imports accumulate and declarations don't.** A snippet sees every import an earlier snippet on the page showed, but compiles in its own block scope. A snippet whose declarations later ones build on is marked ` ```ts docs-check-shared `; prefer a self-contained snippet over the marker.
+- **` ```ts docs-check-skip ` opts a snippet out**, only for code that is meant not to compile. A snippet that fails because the API moved is the harness working.
+- **A silent skip is a bug.** An unknown `docs-check-` token is an error, and `extractFenceLanguage` normalizes the fence language the way VitePress's `extractLang` does (`ts:line-numbers`, `ts{1,3}` are still `ts`). Keep the two in step if VitePress adds a form.
+
+## Tests cover the extraction only
+
+The site itself has no unit tests, by decision. `test` covers the example-extraction logic in `scripts/`. The site's checks are `check-types`, `lint`, and `build`, which fails on a dead internal link.
 
 ## Guide content
 

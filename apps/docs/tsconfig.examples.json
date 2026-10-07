@@ -1,0 +1,22 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    // `examples/` is generated and thrown away — nothing is emitted from it.
+    // Compiling it is the whole point: a documentation snippet that no longer
+    // matches the API fails here instead of shipping.
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    // A snippet is written for a reader, so it illustrates a schema without
+    // necessarily using what it declares. Unused locals are normal here.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    // Examples are consumer code: they see the package's public types and the
+    // DOM/ES globals from `base.json`'s `lib`, and nothing Node-only.
+    "types": []
+  },
+  // Written by `pnpm --filter docs examples:extract`, which `check-types` runs
+  // first. Running this project on its own before that step finds no inputs.
+  "include": ["examples/**/*.ts"],
+  "exclude": ["node_modules"]
+}

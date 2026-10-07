@@ -40,6 +40,9 @@ yarn-error.log*
 # Generated API reference (TypeDoc writes it on every docs build)
 apps/docs/content/api
 
+# Extracted documentation examples (the docs `check-types` regenerates them)
+apps/docs/examples
+
 # VitePress (patterns containing a slash are anchored to this file, so the
 # leading `**/` is what makes them match at any depth)
 **/.vitepress/cache
