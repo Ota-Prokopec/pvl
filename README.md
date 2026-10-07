@@ -33,4 +33,4 @@ pnpm test
 pnpm build
 ```
 
-lefthook's `pre-commit` hook ([`lefthook.yml`](./lefthook.yml)) runs `pnpm format` before every commit and re-adds its fixes to the commit. It then runs `lint` and `check-types`. It doesn't run `test` or `build`, so run those yourself before calling a change done. Fix the root cause of a failure. Don't suppress it or skip the hook.
+lefthook's `pre-commit` hook ([`lefthook.yml`](./lefthook.yml)) runs `pnpm format` before every commit and re-adds its fixes to the commit. It then runs `lint` and `check-types`. It doesn't run `test` or `build`; CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) runs those on every pull request, so run them yourself before calling a change done.

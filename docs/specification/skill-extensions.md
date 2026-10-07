@@ -34,4 +34,6 @@ Implement a ticket with [sub-issue-workflow.md](../agents/sub-issue-workflow.md)
 
 ## `/code-review`
 
+The standards sources are [`docs/standards/`](../standards/) (one file per technology), [`TESTS.md`](../../TESTS.md), and the files in `docs/specification/` that cover the changed area. The spec files are both standards and the Spec axis's reference for how a component must behave.
+
 Run `pnpm test` as part of the review, and report each failing test as a finding.
