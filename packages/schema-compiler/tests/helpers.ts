@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect } from 'vitest';
 import { SEVERITY, type CompilePayload, type DiagnosticCode } from '../src/index.js';
 
@@ -27,6 +28,20 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
     await writeFile(join(root, path), content);
   }
   return root;
+};
+
+/**
+ * Links the workspace's built `@pvl/schema` into the fixture's
+ * `node_modules`, so the Destination File and the source it mirrors can be
+ * imported and run.
+ */
+export const linkSchemaPackage = async (root: string): Promise<void> => {
+  await mkdir(join(root, 'node_modules/@pvl'), { recursive: true });
+  await symlink(
+    fileURLToPath(new URL('../../schema', import.meta.url)),
+    join(root, 'node_modules/@pvl/schema'),
+    'dir',
+  );
 };
 
 /** The contents of `path` under `root`, or `undefined` when it doesn't exist. */

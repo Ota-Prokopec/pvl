@@ -2,7 +2,6 @@
 // nothing scanned is ever imported or executed.
 import { glob } from 'node:fs/promises';
 import { join, posix } from 'node:path';
-import { Node, Project } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
@@ -47,30 +46,5 @@ export const createNoInputFilesDiagnostic = (include: ReadonlyArray<string>): Di
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.NO_INPUT_FILES,
     message: `include matched no file: ${include.map((pattern) => `\`${pattern}\``).join(', ')}.`,
-  });
-};
-
-/** Warns about each file with no export, since the Destination File can't mirror anything from it. */
-export const checkExports = (files: ReadonlyArray<string>): Diagnostic[] => {
-  const project = new Project({ skipAddingFilesFromTsConfig: true });
-  return files.flatMap((file) => {
-    const exportsSomething = project
-      .addSourceFileAtPath(file)
-      .getStatements()
-      .some(
-        (statement) =>
-          Node.isExportDeclaration(statement) ||
-          Node.isExportAssignment(statement) ||
-          (Node.isExportable(statement) && statement.hasExportKeyword()),
-      );
-    return exportsSomething
-      ? []
-      : [
-          createDiagnostic({
-            code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
-            message: 'This file exports nothing, so the Destination File mirrors nothing from it.',
-            file,
-          }),
-        ];
   });
 };
