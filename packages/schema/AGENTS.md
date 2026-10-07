@@ -1,6 +1,6 @@
 # `@pvl/schema`
 
-A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`) used throughout.
+A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`) used throughout.
 
 Each section below says when it applies and which file to read. Read only the sections the current task needs.
 

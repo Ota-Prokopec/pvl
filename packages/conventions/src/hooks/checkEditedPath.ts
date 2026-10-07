@@ -8,12 +8,6 @@ const MEMORY =
 
 const SKILL_PATH = /^(?<root>.*)\/\.(?:agents|claude)\/skills\/(?<name>[^/]+)/;
 
-export type CheckEditedPathArgs = {
-  path: string;
-  cwd: string;
-  readFile: (path: string) => string | undefined;
-};
-
 type IsInstalledSkillArgs = {
   root: string;
   name: string;
@@ -30,6 +24,12 @@ const isInstalledSkill = ({ root, name, readFile }: IsInstalledSkillArgs): boole
   } catch {
     return true;
   }
+};
+
+export type CheckEditedPathArgs = {
+  path: string;
+  cwd: string;
+  readFile: (path: string) => string | undefined;
 };
 
 /** Every rule editing `path` (resolved against `cwd`) breaks; empty when the edit may run. */

@@ -81,6 +81,7 @@ export const config: Linter.Config[] = defineConfig(
       '@repo/conventions/no-inline-enum-value': 'error',
       '@repo/conventions/enum-shape': 'error',
       '@repo/conventions/constant-shape': 'error',
+      '@repo/conventions/args-type-above-function': 'error',
       'turbo/no-undeclared-env-vars': 'error',
     },
   },

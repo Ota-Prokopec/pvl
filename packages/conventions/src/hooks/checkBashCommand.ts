@@ -7,16 +7,6 @@ import { resolve } from 'node:path';
 import { parse } from 'shell-quote';
 import { BRANCH_NAME, CONVENTIONAL_SUBJECT } from './naming.ts';
 
-export type CheckBashCommandArgs = {
-  command: string;
-  /** The directory the command starts in. */
-  cwd: string;
-  /** The branch checked out in `directory`, or `undefined` on a detached HEAD or outside a repository. */
-  currentBranch: (directory: string) => string | undefined;
-  /** The content of the file at `path`, or `undefined` when it can't be read. */
-  readFile: (path: string) => string | undefined;
-};
-
 const MAIN_BRANCH = 'main' as const;
 const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '|&', '(', ')']);
 const GH_POSTING_COMMANDS = new Set([
@@ -27,6 +17,7 @@ const GH_POSTING_COMMANDS = new Set([
   'issue create',
   'issue edit',
   'issue comment',
+  'issue close',
 ]);
 const GH_TITLED_COMMANDS = new Set(['pr create', 'pr edit', 'issue create', 'issue edit']);
 
@@ -35,8 +26,6 @@ const SKIP_HOOK =
 const NOT_ON_MAIN =
   'All finished work lands through a pull request: never commit on or push to `main`. Create a `<type>/<slug>` branch first.' as const;
 const NO_MERGE = 'The user merges every pull request; never merge one yourself.' as const;
-const NO_CLOSE =
-  'The agent never closes an issue: a `Closes #<n>` pull request closes it when the user merges it.' as const;
 const NO_CLAUDE =
   'Nothing posted to GitHub mentions Claude: no `CLAUDE` prefix and no "Generated with Claude Code" footer.' as const;
 
@@ -186,9 +175,6 @@ const checkGh = (
   if (action === 'pr merge') {
     reasons.add(NO_MERGE);
   }
-  if (action === 'issue close') {
-    reasons.add(NO_CLOSE);
-  }
   if (GH_TITLED_COMMANDS.has(action)) {
     for (const title of flagValues(words, ['--title', '-t'])) {
       if (!CONVENTIONAL_SUBJECT.test(title)) {
@@ -200,7 +186,10 @@ const checkGh = (
     const bodyFiles = flagValues(words, ['--body-file', '-F'])
       .filter((path): boolean => path !== '-')
       .map((path): string => args.readFile(resolve(args.cwd, path)) ?? '');
-    const posted = [...flagValues(words, ['--title', '-t', '--body', '-b']), ...bodyFiles];
+    // `gh issue close` posts its closing comment through `--comment`/`-c`.
+    const textFlags =
+      action === 'issue close' ? ['--comment', '-c'] : ['--title', '-t', '--body', '-b'];
+    const posted = [...flagValues(words, textFlags), ...bodyFiles];
     // A heredoc fed to stdin never reaches the words, so the raw command stands in for it.
     if (command.includes('<<')) {
       posted.push(command);
@@ -209,6 +198,16 @@ const checkGh = (
       reasons.add(NO_CLAUDE);
     }
   }
+};
+
+export type CheckBashCommandArgs = {
+  command: string;
+  /** The directory the command starts in. */
+  cwd: string;
+  /** The branch checked out in `directory`, or `undefined` on a detached HEAD or outside a repository. */
+  currentBranch: (directory: string) => string | undefined;
+  /** The content of the file at `path`, or `undefined` when it can't be read. */
+  readFile: (path: string) => string | undefined;
 };
 
 /** Every rule `command` breaks, each as the instruction to follow; empty when it may run. */
