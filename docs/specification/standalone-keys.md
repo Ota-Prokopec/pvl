@@ -112,7 +112,7 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 ### Domain and decision records
 
 - A new ADR reinstates `.standalone()` and the Standalone Key, records that `shape`/`element` survive `.transform()`, `.standalone()` and `pvl.compile()`, and states the size argument for opt-in exposure. It supersedes the matching parts of ADR-0016 and ADR-0020, and both get a pointer to it, as ADR-0020 did to ADR-0016.
-- `CONTEXT.md` regains **Standalone Key**: a field of an object Schema marked `.standalone()`, the only kind of key that appears in `shape`, and the only kind the compiler emits a separate Compiled Schema for. The **Compiled Schema** entry gains `shape`/`element`.
+- `GLOSSARY.md` regains **Standalone Key**: a field of an object Schema marked `.standalone()`, the only kind of key that appears in `shape`, and the only kind the compiler emits a separate Compiled Schema for. The **Compiled Schema** entry gains `shape`/`element`.
 - The `@pvl/schema` specification for `pvl.compile()` and the compiler's code-generation and compilation specifications are updated to match.
 
 ## Testing Decisions
