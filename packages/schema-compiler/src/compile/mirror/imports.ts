@@ -3,6 +3,7 @@
 // sorted so the same input always prints the same block.
 import type { ImportBinding } from './context.js';
 
+// Sorts import bindings alphabetically by their local name.
 const compareByLocalName = (a: ImportBinding, b: ImportBinding): number => {
   return a.localName < b.localName ? -1 : 1;
 };
@@ -23,6 +24,7 @@ export type RenderImportBlockArgs = {
   sideEffectImportSpecifiers: ReadonlyArray<string>;
 };
 
+/** The import block at the top of the Destination File, one line per import declaration. */
 export const renderImportBlock = ({
   externalImports,
   sideEffectImportSpecifiers,

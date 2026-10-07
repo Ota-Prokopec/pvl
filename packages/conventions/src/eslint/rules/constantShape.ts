@@ -36,6 +36,7 @@ type Constant = {
   init: TSESTree.Expression;
 };
 
+// Every constant a `const` declaration declares; none for `let` or `var`.
 const readConstants = (declaration: TSESTree.VariableDeclaration): Constant[] => {
   if (declaration.kind !== 'const') {
     return [];

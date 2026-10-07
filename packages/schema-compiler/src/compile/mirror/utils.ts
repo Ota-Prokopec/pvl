@@ -2,6 +2,7 @@
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { ScannedModule } from './tsMorphProject.js';
 
+/** `path` with the platform's separators replaced by `/`. */
 export const toPosixPath = (path: string): string => {
   return path.split(sep).join(posix.sep);
 };
@@ -11,6 +12,7 @@ export const toDisplayPath = (baseDirectory: string, path: string): string => {
   return toPosixPath(relative(baseDirectory, path));
 };
 
+/** Whether `specifier` names a file by path, rather than a package resolved through `node_modules`. */
 export const isRelativeOrAbsoluteSpecifier = (specifier: string): boolean => {
   return specifier.startsWith('.') || isAbsolute(specifier);
 };

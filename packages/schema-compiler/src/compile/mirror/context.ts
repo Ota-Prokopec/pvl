@@ -77,6 +77,9 @@ export const isDeclarationStatement = (topLevelStatement: Statement): boolean =>
   );
 };
 
+// The identifiers a top-level statement binds at module scope: each name a
+// `const`/`let`/`var` declares, destructured ones included, or the name of a
+// function, class, interface, type, enum, namespace or import-equals.
 const getTopLevelNameIdentifiers = (topLevelStatement: Statement): Identifier[] => {
   if (Node.isVariableStatement(topLevelStatement)) {
     return topLevelStatement.getDeclarations().flatMap((declaration) => {
@@ -327,6 +330,10 @@ export type ReadModuleContextArgs = {
   outputDirectory: string;
 };
 
+/**
+ * Reads what one scanned module binds at its top level, first naming its
+ * anonymous default export so an importer can refer to it.
+ */
 export const readModuleContext = ({
   scannedModule,
   scannedFilePaths,

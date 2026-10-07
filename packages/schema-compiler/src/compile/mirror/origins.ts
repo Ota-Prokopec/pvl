@@ -50,6 +50,7 @@ export type CreateOriginLookupArgs = {
   outputDirectory: string;
 };
 
+/** Indexes the scanned modules by path, for resolving where a name is bound. */
 export const createOriginLookup = ({
   moduleContexts,
   scannedFilePaths,

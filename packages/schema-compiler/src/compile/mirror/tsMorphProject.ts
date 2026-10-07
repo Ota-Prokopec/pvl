@@ -29,6 +29,7 @@ export type ScannedModule = {
   dependencies: Set<string>;
 };
 
+/** An empty ts-morph project resolving modules the way a bundler does; the scanned files are added to it one by one. */
 export const createTsMorphProject = (): Project => {
   return new Project({
     skipAddingFilesFromTsConfig: true,

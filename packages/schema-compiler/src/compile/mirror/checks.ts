@@ -57,6 +57,7 @@ const createNamespaceImportDiagnostics = (
   );
 };
 
+// An IMPORT_CYCLE error for each cycle of value imports among the scanned modules.
 const importCycleDiagnostics = (
   scannedModules: ReadonlyArray<ScannedModule>,
   baseDirectory: string,
@@ -114,6 +115,8 @@ const hasTopLevelSideEffect = (statement: Statement): boolean => {
   );
 };
 
+// Whether any of the statements exports a name, by `export` on a declaration,
+// `export { … }`, `export … from` or `export default`.
 const hasAnyExport = (topLevelStatements: ReadonlyArray<Statement>): boolean => {
   return topLevelStatements.some(
     (statement) =>

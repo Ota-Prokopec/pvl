@@ -78,6 +78,7 @@ const readDeclaredExports = (
   return exportedBindings;
 };
 
+// Whether an exported name is type-only, through `export type { … }` or `export { type … }`.
 const isTypeOnlyExport = (
   exportDeclaration: ExportDeclaration,
   exportSpecifier: ExportSpecifier,
@@ -85,6 +86,7 @@ const isTypeOnlyExport = (
   return exportDeclaration.isTypeOnly() || exportSpecifier.isTypeOnly();
 };
 
+// Whether the binding behind `exportedBinding` is a declaration of module `path` itself.
 const isBoundInModule = ({ bindingOrigin }: ExportedBinding, path: string): boolean => {
   return bindingOrigin.kind === ORIGIN_KIND.LOCAL && bindingOrigin.modulePath === path;
 };
@@ -95,6 +97,8 @@ type ClassifyExportDeclarationArgs = {
   exportDeclaration: ExportDeclaration;
 };
 
+// Sorts the names one export declaration exports into the module's own
+// exports and the ones it forwards from elsewhere in the scanned set.
 const classifyExportDeclaration = ({
   originLookup,
   moduleContext,
@@ -207,6 +211,11 @@ export type PlanExportsArgs = {
   baseDirectory: string;
 };
 
+/**
+ * Decides every name the Destination File exports, module by module in
+ * emission order, and reports a DUPLICATE_EXPORT for a name two different
+ * bindings are exported under.
+ */
 export const planExports = ({
   moduleContexts,
   originLookup,
@@ -263,10 +272,12 @@ export const planExports = ({
   return { diagnostics: exportedNameRegistry.diagnostics, rewriteByDeclaration };
 };
 
+// `type ` for a type-only export specifier, nothing otherwise.
 const typeKeywordPrefix = (isTypeOnly: boolean): string => {
   return isTypeOnly ? 'type ' : '';
 };
 
+// An export specifier exporting `localName` as `exportedName`: `a` or `a as b`.
 const formatExportSpecifier = (localName: string, exportedName: string): string => {
   return localName === exportedName ? exportedName : `${localName} as ${exportedName}`;
 };

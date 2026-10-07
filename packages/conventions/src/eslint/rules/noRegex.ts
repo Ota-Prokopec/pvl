@@ -2,6 +2,7 @@
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../utils.ts';
 
+// Whether `node` is `RegExp(…)` or `new RegExp(…)`.
 const callsRegExp = (node: TSESTree.CallExpression | TSESTree.NewExpression): boolean => {
   return node.callee.type === AST_NODE_TYPES.Identifier && node.callee.name === 'RegExp';
 };
