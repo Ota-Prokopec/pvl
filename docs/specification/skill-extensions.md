@@ -1,29 +1,53 @@
-# Skill Extensions
+# Skill extensions
 
-Skills under `.agents/skills/` (symlinked into `.claude/skills/`) are installed from an external source — never edit them directly, per the rule in [AGENTS.md](../../AGENTS.md). This file is where repo-specific rules that extend or layer onto a skill's behavior live instead, one section per skill. Before running a skill listed here, apply its extension rules on top of the skill's own instructions.
+Repo-specific rules layered on top of a skill, one section per skill. Before running a skill listed here, apply its section on top of the skill's own instructions. [git-workflow.md](../agents/git-workflow.md) applies to every skill.
+
+A skill listed in [`skills-lock.json`](../../skills-lock.json) is installed from an external source and stays exactly as installed, so its repo-specific changes go here ([AGENTS.md](../../AGENTS.md#skills)).
+
+## The pipeline
+
+A feature runs through the skills in this order: `/wayfinder` (map the unknowns) → `/grill-with-docs` (settle what to build and why, recorded as ADRs; nothing is implemented yet) → `/to-spec` → `/to-tickets` → `/implement-spec` (the whole spec in one run) or `/implement` (one ticket at a time) → `/code-review`.
 
 ## `/grill-with-docs`
 
-After the grilling session concludes and the resulting ADR/glossary doc changes are written, commit just those doc changes, using type `docs` per AGENTS.md's `CLAUDE(<type>): <description>` convention (e.g. `CLAUDE(docs): record ADR-0026`), so ADR-only commits are distinguishable in history.
+The session writes only `/prototype-code` variants, which that skill deletes before the question closes. Once the session concludes and the ADR and glossary changes are written, commit just those doc changes with type `docs` (`docs(adr): record ADR-0026`), so ADR-only commits stand out in history.
+
+## `/grilling`
+
+Until the interview is over and the user asks for implementation, the repository stays read-only, glossary and docs included. `/prototype-code` is the one writer, run to settle a question about code shape: its variant files are written mid-session and deleted once the user picks a winner. When the question frontier is empty and the user confirms shared understanding, stop.
 
 ## `/to-spec`
 
-A spec is a parent issue, not something meant to be implemented directly — the whole spec is too large to land as one change. Apply the `spec` label to it (in addition to, not instead of, whatever the skill's own instructions already say). Do not apply `ready-for-agent` to a spec issue — that label means "grabbable and implementable as-is," which a spec is not until `/to-tickets` has broken it down.
+A spec is a parent issue, too large to land as one change, so `/to-tickets` breaks it down before anything is implemented. Label it `spec`, in addition to the skill's own labels, and keep `ready-for-agent` off it: that label means implementable as-is.
 
-In addition to publishing the GitHub issue, write the same spec content to a file under `docs/specification/` (e.g. `docs/specification/<slug>.md`), committed via a PR per AGENTS.md's pull-request rule — never straight to `main`. Cross-link the two: the file's top should reference its GitHub issue number, and the issue body should reference the file path.
+Besides publishing the issue, write the same spec to `docs/specification/<slug>.md` and land it through a PR. Cross-link the two: the file's top names its issue number, and the issue body names the file path.
 
 ## `/to-tickets`
 
-Each ticket produced from a spec must be small enough to implement as one self-contained unit of work — that's the whole reason the spec gets broken down instead of implemented directly. Every ticket must be published to GitHub as its own issue, with the skill's own `## Parent` section filled in to link back to the spec issue — never omit that section for pipeline tickets, even though the skill's own template treats it as optional. Apply the `ticket` label to each one (in addition to, not instead of, whatever the skill's own instructions already say, e.g. `ready-for-agent`) — the `spec` label belongs only on the parent, never on its tickets.
+Each ticket is one self-contained unit of work, implementable as a single change. Publish every ticket as its own GitHub issue with the skill's `## Parent` section filled in, linking back to the spec issue; for pipeline tickets that section is required, though the skill's template treats it as optional. Label each ticket `ticket`, in addition to the skill's own labels (e.g. `ready-for-agent`); `spec` belongs only on the parent.
 
 ## `/implement`
 
-Scope: applies only to spec issues (labeled `spec`) and their child tickets (labeled `ready-for-agent`, with a `## Parent` link to a spec) — issues that came through the `/to-spec` → `/to-tickets` pipeline. Work on any other `#<int>` issue reference still follows AGENTS.md's Issue Resolution Workflow — a single `issue/<n>-<slug>` branch and one PR into `main` — rather than the spec/ticket branch structure below.
+Scope: spec issues (labelled `spec`) and their child tickets (labelled `ticket`, with a `## Parent` link to a spec). Any other `#<int>` follows "Resolving an issue" in [git-workflow.md](../agents/git-workflow.md).
 
-For pipeline work:
+Implement a ticket with [sub-issue-workflow.md](../agents/sub-issue-workflow.md), with the spec as the parent and the ticket as the child: the spec branch (`feat/schema-compiler`) is the parent branch, and each ticket branch (`feat/compiler-cli`) branches off it.
 
-- **Spec branch**: the first time any of a spec's tickets is implemented, create a branch off `main` named `spec/<issue-number>-<slug>` (e.g. `spec/10-jwt-verified-trusted-proxy-identity`) if it doesn't already exist. This is the integration branch every child ticket's PR targets — never push ticket commits straight to it.
-- **Ticket branch**: for each ticket, branch off the spec branch (not `main`) named `ticket/<issue-number>-<slug>` (e.g. `ticket/11-jwt-verified-trusted-proxy-for-apps-bff`). Do the ticket's implementation, TDD, and the full post-modification checklist there, exactly as normal — the only change from the non-pipeline flow is branching off the spec branch instead of `main`.
-- **Ticket PR**: once a ticket is done (checklist green, `/code-review` findings addressed), push the ticket branch and open a PR from it into the _spec branch_ (not `main`) — title `CLAUDE(<type>): <description>` per AGENTS.md. Since this PR doesn't target `main`, a closing keyword won't fire on merge — state the relationship in the body as plain prose instead (e.g. "Part of #14, resolves #16"). Comment on the ticket issue linking the PR (not a bare commit, since there's no main commit yet), same `CLAUDE: ` prefix convention. Do not merge it yourself — that's the user's review/merge action.
-- **Spec PR**: once the spec branch has at least one ticket merged into it (a PR into `main` needs a diff to exist, so this can't happen before that), open a PR from the spec branch into `main`, if one doesn't already exist — title `CLAUDE(<type>): <description>`. This PR does target `main`, so its body should carry real closing keywords for the spec issue and every child ticket that landed in it (e.g. "Closes #14. Closes #16. Closes #17."), since merging here is genuinely the point where that work is done. Open it as a **draft** — it represents the whole spec and is only meant to be merged once every child ticket has landed in the spec branch, and draft status guards against it being merged early by mistake. Do not mark it ready for review or merge it yourself; the user promotes and merges it once all tickets are in.
-- The agent never merges a PR (ticket or spec) — every merge is the user's action, performed on GitHub.
+## `/implement-spec`
+
+Scope: a spec issue (labelled `spec`) and its tickets, as `/implement` defines them.
+
+The integration branch is the spec branch (`feat/schema-compiler`), off `main`. Implementer branches are the skill's internal worktrees, so they get no PR of their own: the merger subagent squash-merges each ticket onto the integration branch as one commit. The integration branch's single PR into `main` carries a closing keyword for the spec and for every ticket (`Closes #14. Closes #16.`). In place of step 8, leave that PR a draft and close no issue: the user promotes, merges and closes ([sub-issue-workflow.md](../agents/sub-issue-workflow.md)).
+
+## `/pr`
+
+Besides the skill's Summary, Evidence and Merge Danger sections, the body states the issue(s) it addresses and stays free of any Claude mention, as [git-workflow.md](../agents/git-workflow.md#pull-requests) requires.
+
+## `/retro`
+
+An accepted suggestion lands in the repo: a doc (`AGENTS.md`, `docs/agents/`, this file) or a lint rule or hook in [`@repo/conventions`](../../packages/conventions/AGENTS.md). Never in agent memory.
+
+## `/code-review`
+
+The standards sources are [`docs/standards/`](../standards/) (one file per technology), [`TESTS.md`](../../TESTS.md), and the files in `docs/specification/` that cover the changed area. The spec files are both standards and the Spec axis's reference for how a component must behave.
+
+Run `pnpm test` as part of the review, and report each failing test as a finding.

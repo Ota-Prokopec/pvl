@@ -1,7 +1,8 @@
 import type { ValueOfEnum } from '@repo/types';
-import { buildIssue, formatIssueMessageValue, ISSUE_CODE } from '../issue.js';
+import { ISSUE_CODE, Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
 /**
  * A single accepted enum value, in either source form. Values may be strings
@@ -17,33 +18,8 @@ import { Schema, type SchemaOptions } from './baseSchema.js';
  */
 export type EnumMember = string | number;
 
-/**
- * The `as const` enum-object source form — an object whose values are the
- * accepted set.
- *
- * @example
- * ```ts
- * import { pvl, type EnumObjectSource } from '@pvl/schema';
- *
- * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const satisfies EnumObjectSource;
- * const role = pvl.enum(SYSTEM_ROLE); // accepts 'OWNER' | 'MEMBER'
- * ```
- */
-export type EnumObjectSource = Readonly<Record<string, EnumMember>>;
-
-/**
- * The array source form — an ad hoc list of string literals, for sets that do
- * not warrant first declaring a named enum object.
- *
- * @example
- * ```ts
- * import { pvl, type EnumArraySource } from '@pvl/schema';
- *
- * const sizes: EnumArraySource = ['small', 'medium', 'large'];
- * const size = pvl.enum(['small', 'medium', 'large']);
- * ```
- */
-export type EnumArraySource = ReadonlyArray<string>;
+type EnumObjectSource = Readonly<Record<string, EnumMember>>;
+type EnumArraySource = ReadonlyArray<string>;
 
 /**
  * Either source form `pvl.enum()` accepts. Both produce the same kind of
@@ -61,31 +37,11 @@ export type EnumArraySource = ReadonlyArray<string>;
  */
 export type EnumSource = EnumObjectSource | EnumArraySource;
 
-/**
- * The union of values an enum schema accepts, resolved from whichever source
- * form was used. This is the type `.validate()` hands back on success.
- *
- * @example
- * ```ts
- * import { pvl, type EnumOutput } from '@pvl/schema';
- *
- * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const;
- *
- * type Role = EnumOutput<typeof SYSTEM_ROLE>; // 'OWNER' | 'MEMBER'
- * type Size = EnumOutput<['small', 'large']>; // 'small' | 'large'
- *
- * const role = pvl.enum(SYSTEM_ROLE);
- * ```
- */
-export type EnumOutput<Source extends EnumSource> = Source extends EnumArraySource
-  ? Source[number]
-  : ValueOfEnum<Source>;
-
-const toMembers = (source: EnumSource): ReadonlyArray<EnumMember> =>
-  Array.isArray(source) ? source : Object.values(source);
-
-const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
-  members.map(formatIssueMessageValue).join(', ');
+interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind<
+  EnumSchema<Source, unknown, unknown>
+> {
+  readonly type: EnumSchema<Source, this['Input'], this['Output']>;
+}
 
 /**
  * Accepts one of a fixed set of values, sourced from either an `as const`
@@ -111,28 +67,37 @@ const formatMembers = (members: ReadonlyArray<EnumMember>): string =>
  * pvl.enum(['small', 'medium', 'large']).validate('medium'); // { value: 'medium' }
  * ```
  */
-export class EnumSchema<Source extends EnumSource> extends Schema<
-  EnumOutput<Source>,
-  EnumOutput<Source>
-> {
-  private readonly _members: ReadonlySet<EnumMember>;
-  private readonly _message: string;
+export class EnumSchema<
+  Source extends EnumSource,
+  Input = ValueOfEnum<Source>,
+  Output = ValueOfEnum<Source>,
+> extends ChainableSchema<Input, Output> {
+  /** @internal */
+  declare readonly '~kind': EnumSchemaKind<Source>;
+  private readonly members: ReadonlySet<EnumMember>;
 
   /** @internal */
-  constructor(source: Source, options?: SchemaOptions) {
+  constructor(source: Source) {
     super();
-    const members = toMembers(source);
-    this._members = new Set(members);
-    this._message = options?.message ?? `Expected one of ${formatMembers(members)}`;
+    const members = Array.isArray(source) ? source : Object.values(source);
+    this.members = new Set(members);
   }
 
   /** @internal */
-  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<EnumOutput<Source>> {
-    if (!this._members.has(value as EnumMember)) {
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
+    if (!this.members.has(value as EnumMember)) {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_VALUE, this._message, path)],
+        issues: [
+          new Issue(
+            ISSUE_CODE.INVALID_VALUE,
+            path,
+            `Expected one of ${Array.from(this.members)
+              .map((enumMember) => Issue.formatIssueMessageValue(enumMember))
+              .join(', ')}`,
+          ),
+        ],
       };
     }
-    return { value: value as EnumOutput<Source> };
+    return { value: value as Output };
   }
 }

@@ -1,6 +1,14 @@
 {
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "allow": ["Bash(gh:*)"]
+    "allow": ["Bash(*)"]
+  },
+  "skillOverrides": {
+    "cli-developer": "off",
+    "ts-morph-analyzer": "off",
+    "wizard": "off"
+  },
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": false
   }
 }

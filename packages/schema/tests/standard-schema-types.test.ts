@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ValueOfEnum } from '@repo/types';
-import { pvl } from '../src/index.js';
+import { pvl, type NumberSchema, type Schema, type StringSchema } from '../src/index.js';
 
 const SYSTEM_ROLE = {
   OWNER: 'OWNER',
@@ -216,5 +216,177 @@ describe('type inference', () => {
   it("infers an array of arrays' nested element type", () => {
     const schema = pvl.array(pvl.array(pvl.number()));
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number[][]>();
+  });
+
+  it("leaves a refined object schema's input/output untouched", () => {
+    const schema = pvl.object({ name: pvl.string() }).refine((value) => value.name.length > 0);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+  });
+
+  it("widens an optional object schema's input/output with undefined", () => {
+    const schema = pvl.object({ name: pvl.string() }).optional();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+  });
+
+  it('keeps an earlier widening through a later .strict()', () => {
+    const schema = pvl.object({ name: pvl.string() }).optional().strict();
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      { name: string } | undefined
+    >();
+  });
+
+  it('keeps an earlier widening through a later .passthrough()', () => {
+    const schema = pvl.object({ name: pvl.string() }).optional().passthrough();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      ({ name: string } & Record<string, unknown>) | undefined
+    >();
+  });
+
+  it("widens a nullable object schema's input/output with null", () => {
+    const schema = pvl.object({ name: pvl.string() }).nullable();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+    } | null>();
+  });
+
+  it("infers a transformed object schema's differing input/output", () => {
+    const schema = pvl.object({ name: pvl.string() }).transform((value) => value.name.length);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{ name: string }>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
+  });
+
+  it("widens an optional array schema's input/output with undefined", () => {
+    const schema = pvl.array(pvl.string()).optional();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+      string[] | undefined
+    >();
+  });
+
+  it("infers a transformed array schema's differing input/output", () => {
+    const schema = pvl.array(pvl.string()).transform((value) => value.length);
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string[]>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
+  });
+
+  it('infers an .optional() composite field as an optional key', () => {
+    const schema = pvl.object({
+      name: pvl.string(),
+      address: pvl.object({ city: pvl.string() }).optional(),
+      tags: pvl.array(pvl.string()).optional(),
+    });
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+      name: string;
+      address?: { city: string } | undefined;
+      tags?: string[] | undefined;
+    }>();
+  });
+
+  it("keeps a refined string schema's own constraint methods reachable", () => {
+    const schema = pvl.string().refine((value) => value !== 'root');
+    expectTypeOf(schema.min(1)).toEqualTypeOf<StringSchema>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
+  });
+
+  it("types shape as each declared key's own schema class", () => {
+    const schema = pvl.object({ name: pvl.string(), age: pvl.number() });
+    expectTypeOf(schema.shape).toEqualTypeOf<Readonly<{ name: StringSchema; age: NumberSchema }>>();
+    expectTypeOf(schema.shape.name).toEqualTypeOf<StringSchema>();
+  });
+
+  it('types every key of shape as read-only, not just the accessor', () => {
+    const schema = pvl.object({ name: pvl.string() });
+    expectTypeOf(schema.shape).toEqualTypeOf<{ readonly name: StringSchema }>();
+    expectTypeOf(schema.shape).not.toEqualTypeOf<{ name: StringSchema }>();
+  });
+
+  it("infers a field's own input/output through shape", () => {
+    const schema = pvl.object({ name: pvl.string().transform((value) => value.length) });
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema.shape.name>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema.shape.name>>().toEqualTypeOf<number>();
+  });
+
+  it('types a nested composite reached through shape as its own composite class', () => {
+    const schema = pvl.object({
+      user: pvl.object({ city: pvl.string() }),
+      tags: pvl.array(pvl.number()),
+    });
+    expectTypeOf(schema.shape.user.shape.city).toEqualTypeOf<StringSchema>();
+    expectTypeOf(schema.shape.tags.element).toEqualTypeOf<NumberSchema>();
+  });
+
+  it('keeps shape typed through .strict(), .passthrough() and the base modifiers', () => {
+    const base = pvl.object({ name: pvl.string() });
+    expectTypeOf(base.strict().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.passthrough().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.optional().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.nullable().shape.name).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.refine(() => true).shape.name).toEqualTypeOf<StringSchema>();
+  });
+
+  it("types element as the item's own schema class", () => {
+    const schema = pvl.array(pvl.string());
+    expectTypeOf(schema.element).toEqualTypeOf<StringSchema>();
+  });
+
+  it("infers the item's own input/output through element", () => {
+    const schema = pvl.array(pvl.string().transform((value) => value.length));
+    expectTypeOf<StandardSchemaV1.InferInput<typeof schema.element>>().toEqualTypeOf<string>();
+    expectTypeOf<StandardSchemaV1.InferOutput<typeof schema.element>>().toEqualTypeOf<number>();
+  });
+
+  it('keeps element typed through the length constraints and the base modifiers', () => {
+    const base = pvl.array(pvl.string());
+    expectTypeOf(base.min(1).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.max(5).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.length(2).element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.optional().element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.nullable().element).toEqualTypeOf<StringSchema>();
+    expectTypeOf(base.refine(() => true).element).toEqualTypeOf<StringSchema>();
+  });
+
+  it('makes a transformed schema read-only: no modifier, shape or element', () => {
+    const string = pvl.string().transform((value) => value.length);
+    const object = pvl.object({ name: pvl.string() }).transform((value) => value.name);
+    const array = pvl.array(pvl.string()).transform((value) => value.length);
+
+    expectTypeOf(string).toEqualTypeOf<Schema<string, number>>();
+    expectTypeOf(object).not.toHaveProperty('shape');
+    expectTypeOf(array).not.toHaveProperty('element');
+    for (const modifier of ['optional', 'nullable', 'refine', 'transform', 'coerce'] as const) {
+      expectTypeOf(string).not.toHaveProperty(modifier);
+      expectTypeOf(object).not.toHaveProperty(modifier);
+    }
+    expectTypeOf(object).not.toHaveProperty('strict');
+    expectTypeOf(array).not.toHaveProperty('min');
+  });
+
+  it('types a .transform() chained after .nullable()/.optional() with null/undefined', () => {
+    pvl
+      .string()
+      .nullable()
+      .optional()
+      .transform((value) => {
+        expectTypeOf(value).toEqualTypeOf<string | null | undefined>();
+        return value;
+      });
+  });
+
+  it('keeps a primitive schema class through .optional(), .nullable() and .coerce()', () => {
+    expectTypeOf(pvl.string().optional().min(2)).toEqualTypeOf<
+      StringSchema<string | undefined, string | undefined>
+    >();
+    expectTypeOf(pvl.number().nullable().int()).toEqualTypeOf<
+      NumberSchema<number | null, number | null>
+    >();
+    expectTypeOf(pvl.number().coerce().min(1)).toEqualTypeOf<NumberSchema<unknown, number>>();
   });
 });

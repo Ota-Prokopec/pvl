@@ -1,13 +1,12 @@
 import { coerceToNumber } from '../coercions.js';
-import { buildIssue, ISSUE_CODE, type IssueCode } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import type { SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
 
-type NumberCheck = {
-  readonly code: IssueCode;
-  readonly message: string;
-  readonly test: (value: number) => boolean;
-};
+interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
+  readonly type: NumberSchema<this['Input'], this['Output']>;
+}
 
 /**
  * Accepts a JavaScript `number` — floats and integers alike, since JavaScript
@@ -19,12 +18,9 @@ type NumberCheck = {
  * built-in finiteness constraint. Arbitrary-precision integers belong to
  * `pvl.bigint()`, and this schema never accepts or produces one.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
  *
  * @example
  * ```ts
@@ -37,15 +33,13 @@ type NumberCheck = {
  * age.validate(Number.NaN); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class NumberSchema extends Schema<number, number> {
-  private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<NumberCheck>;
+export class NumberSchema<Input = number, Output = number> extends ChainableSchema<Input, Output> {
+  /** @internal */
+  declare readonly '~kind': NumberSchemaKind;
 
   /** @internal */
-  constructor(options?: SchemaOptions, checks: ReadonlyArray<NumberCheck> = []) {
+  constructor() {
     super();
-    this._typeMessage = options?.message ?? 'Expected number';
-    this._checks = checks;
   }
 
   /**
@@ -62,11 +56,21 @@ export class NumberSchema extends Schema<number, number> {
    * quantity.validate(0); // { issues: [{ code: 'TOO_SMALL', message: 'order at least one' }] }
    * ```
    */
-  min(value: number, options?: SchemaOptions): NumberSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_SMALL,
-      message: options?.message ?? `Number must be greater than or equal to ${value}`,
-      test: (current) => current >= value,
+  min(minValue: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<number, number>({
+      fn: (value, path) => {
+        return value >= minValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_SMALL,
+                  path,
+                  options?.message ?? `Number must be greater than or equal to ${minValue}`,
+                ),
+              ],
+            };
+      },
     });
   }
 
@@ -82,11 +86,21 @@ export class NumberSchema extends Schema<number, number> {
    * percentage.validate(101); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(value: number, options?: SchemaOptions): NumberSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_BIG,
-      message: options?.message ?? `Number must be less than or equal to ${value}`,
-      test: (current) => current <= value,
+  max(maxValue: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<number, number>({
+      fn: (value, path) => {
+        return value <= maxValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_BIG,
+                  path,
+                  options?.message ?? `Number must be less than or equal to ${maxValue}`,
+                ),
+              ],
+            };
+      },
     });
   }
 
@@ -104,11 +118,21 @@ export class NumberSchema extends Schema<number, number> {
    * pageSize.validate(25.5); // { issues: [{ code: 'NOT_INTEGER', ... }] }
    * ```
    */
-  int(options?: SchemaOptions): NumberSchema {
-    return this._withCheck({
-      code: ISSUE_CODE.NOT_INTEGER,
-      message: options?.message ?? 'Number must be an integer',
-      test: (current) => Number.isInteger(current),
+  int(options?: IssueEditableProps): this {
+    return this._withPostModifier<number, number>({
+      fn: (value, path) => {
+        return Number.isInteger(value)
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.NOT_INTEGER,
+                  path,
+                  options?.message ?? 'Number must be an integer',
+                ),
+              ],
+            };
+      },
     });
   }
 
@@ -121,18 +145,9 @@ export class NumberSchema extends Schema<number, number> {
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<number> {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected number')],
       };
     }
-    for (const check of this._checks) {
-      if (!check.test(value)) {
-        return { issues: [buildIssue(check.code, check.message, path)] };
-      }
-    }
     return { value };
-  }
-
-  private _withCheck(check: NumberCheck): NumberSchema {
-    return new NumberSchema({ message: this._typeMessage }, [...this._checks, check]);
   }
 }

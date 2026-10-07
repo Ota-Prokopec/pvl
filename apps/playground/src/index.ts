@@ -22,7 +22,7 @@ import { pvl, type Issue, type Result } from '@pvl/schema';
 const INSPECT_OPTIONS = { depth: null, breakLength: Infinity } as const;
 
 /** How wide a section's rule is drawn, in characters. */
-const RULE_WIDTH = 68;
+const RULE_WIDTH = 68 as const;
 
 /** A throwaway shape, recognizable at a glance and modelling nothing real. */
 const ROLE = {
@@ -39,15 +39,13 @@ const section = (title: string): void => {
  * An `Issue`'s `path` rendered as the leading segment of its output line:
  * dotted notation with array indices in brackets — `address.city `, `[0] `,
  * `members[1].name ` — so a nested location reads the way it would be written
- * in TypeScript, plus the space that separates it from the `IssueCode`.
- * Standard Schema allows a segment to be either a bare key or a `{ key }`
- * wrapper, hence the unwrap. An `Issue` reported at the root has no `path`, and
- * yields the empty string so its line reads `✗ [CODE]: message`.
+ * in TypeScript, plus the space that separates it from the `IssueCode`. An
+ * `Issue` reported at the root has no `path`, and yields the empty string so
+ * its line reads `✗ [CODE]: message`.
  */
 const formatPathPrefix = (path: Issue['path']): string => {
   let formatted = '';
-  for (const segment of path ?? []) {
-    const key = typeof segment === 'object' ? segment.key : segment;
+  for (const key of path ?? []) {
     formatted +=
       typeof key === 'number' ? `[${key}]` : formatted === '' ? String(key) : `.${String(key)}`;
   }
@@ -130,8 +128,8 @@ report({
 
 section('5. Union');
 
-// No member accepted the value, so every member's own rejection is reported
-// rather than one generic "nothing matched".
+// No member accepted the value, so one INVALID_UNION Issue is reported,
+// followed by every member's own rejection.
 const identifier = pvl.union([pvl.string(), pvl.number()]);
 report({ label: 'pvl.union([string, number]) ← 36', result: identifier.validate(36) });
 report({ label: 'pvl.union([string, number]) ← true', result: identifier.validate(true) });
@@ -164,8 +162,8 @@ report({
 
 section('8. Transform');
 
-// A Transform runs as validation succeeds, so the accepted value printed below
-// is not the input that went in.
+// A Transform runs last, and only once validation has succeeded, so the
+// accepted value printed below is not the input that went in.
 const shoutedName = pvl.string().transform((name) => name.trim().toUpperCase());
 report({
   label: 'pvl.string().transform(trim + upper) ← "  Ada  "',
@@ -175,8 +173,8 @@ report({ label: 'pvl.string().transform(trim + upper) ← 42', result: shoutedNa
 
 section('9. Coercion');
 
-// A Coercion runs before validation — the mirror image of the Transform above.
-// It converts the input, then the schema's normal check decides.
+// A Coercion runs before the type check — the mirror image of the Transform
+// above. It converts the input, then the schema's normal check decides.
 const coercedAge = pvl.number().coerce();
 report({ label: 'pvl.number().coerce() ← "36"', result: coercedAge.validate('36') });
 

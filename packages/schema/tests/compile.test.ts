@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { pvl } from '../src/index.js';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import { pvl, type Schema } from '../src/index.js';
+import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
   it('returns the given object schema unchanged pre-compilation', () => {
@@ -22,8 +23,142 @@ describe('pvl.compile()', () => {
     expect(arraySchema.validate(['a', 42]).issues).toBeDefined();
   });
 
-  it('rejects a bare primitive schema at the type level', () => {
-    // @ts-expect-error pvl.compile() only accepts a composite (object/array) schema
-    pvl.compile(pvl.string());
+  it('returns the given primitive schema unchanged pre-compilation', () => {
+    const schema = pvl.string();
+    expect(pvl.compile(schema)).toBe(schema);
+  });
+
+  it('returns the given union schema unchanged pre-compilation', () => {
+    const schema = pvl.union([pvl.string(), pvl.number()]);
+    expect(pvl.compile(schema)).toBe(schema);
+  });
+
+  describe('a composite schema carrying a modifier', () => {
+    it('accepts a refined object schema', () => {
+      const schema = pvl
+        .object({ name: pvl.string() })
+        .refine((value) => value.name.length > 0, { message: 'name must not be empty' });
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate({ name: 'Ada' }).issues).toBeUndefined();
+      expect(compiled.validate({ name: '' }).issues?.[0]?.message).toBe('name must not be empty');
+    });
+
+    it('accepts an optional object schema', () => {
+      const schema = pvl.object({ name: pvl.string() }).optional();
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(undefined).issues).toBeUndefined();
+    });
+
+    it('accepts a nullable object schema', () => {
+      const schema = pvl.object({ name: pvl.string() }).nullable();
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(null).issues).toBeUndefined();
+    });
+
+    it('accepts a transformed object schema', () => {
+      const schema = pvl.object({ name: pvl.string() }).transform((value) => value.name.length);
+
+      const compiled = pvl.compile(schema);
+      const result = compiled.validate({ name: 'Ada' });
+      assertSuccess(result);
+      expect(result.value).toBe(3);
+    });
+
+    it('accepts a refined array schema', () => {
+      const schema = pvl
+        .array(pvl.string())
+        .refine((value) => value.length % 2 === 0, { message: 'must have an even count' });
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(['a']).issues?.[0]?.message).toBe('must have an even count');
+    });
+
+    it('accepts an optional array schema', () => {
+      const schema = pvl.array(pvl.string()).optional();
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(undefined).issues).toBeUndefined();
+    });
+
+    it('accepts a nullable array schema', () => {
+      const schema = pvl.array(pvl.string()).nullable();
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(null).issues).toBeUndefined();
+    });
+
+    it('accepts a transformed array schema', () => {
+      const schema = pvl.array(pvl.string()).transform((value) => value.length);
+
+      const compiled = pvl.compile(schema);
+      const result = compiled.validate(['a', 'b']);
+      assertSuccess(result);
+      expect(result.value).toBe(2);
+    });
+
+    it('accepts a chain of modifiers on a strict object schema', () => {
+      const schema = pvl
+        .object({ name: pvl.string() })
+        .strict()
+        .refine((value) => value.name !== 'root')
+        .nullable();
+
+      const compiled = pvl.compile(schema);
+      expect(compiled).toBe(schema);
+      expect(compiled.validate(null).issues).toBeUndefined();
+      expect(compiled.validate({ name: 'root' }).issues).toBeDefined();
+    });
+  });
+
+  // ADR-0020: a Compiled Schema is a plain Schema, with no `shape`/`element`.
+  describe('the type it hands back', () => {
+    it('chains no modifier onto a compiled schema', () => {
+      const compiled = pvl.compile(pvl.object({ name: pvl.string() }));
+      // @ts-expect-error a Compiled Schema takes no modifier
+      compiled.optional();
+      // @ts-expect-error a Compiled Schema takes no modifier
+      compiled.strict();
+      // @ts-expect-error a Compiled Schema takes no modifier
+      pvl.compile(pvl.array(pvl.string())).min(1);
+    });
+
+    it("hands back a plain Schema with an object schema's input/output and no shape", () => {
+      const compiled = pvl.compile(pvl.object({ name: pvl.string() }).optional());
+      expectTypeOf(compiled).not.toHaveProperty('shape');
+      expectTypeOf(compiled).toEqualTypeOf<
+        Schema<{ name: string } | undefined, { name: string } | undefined>
+      >();
+    });
+
+    it('hands back a plain Schema with no element for an array schema', () => {
+      const compiled = pvl.compile(pvl.array(pvl.string()).min(1));
+      expectTypeOf(compiled).not.toHaveProperty('element');
+      expectTypeOf(compiled).toEqualTypeOf<Schema<string[], string[]>>();
+    });
+
+    it("carries a transformed composite's output type", () => {
+      const object = pvl.compile(
+        pvl.object({ name: pvl.string() }).transform((value) => value.name),
+      );
+      expectTypeOf(object).toEqualTypeOf<Schema<{ name: string }, string>>();
+    });
+
+    it('hands back a plain Schema for a primitive, transformed or not', () => {
+      const plain = pvl.compile(pvl.string().min(1));
+      const transformed = pvl.compile(pvl.string().transform((value) => value.length));
+      // @ts-expect-error a Compiled Schema takes no modifier
+      plain.max(5);
+      expectTypeOf(plain).toEqualTypeOf<Schema<string, string>>();
+      expectTypeOf(transformed).toEqualTypeOf<Schema<string, number>>();
+    });
   });
 });

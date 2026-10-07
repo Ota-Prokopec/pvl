@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
-import { assertSuccess } from './helpers.js';
+import { assertSuccess, issueCodes } from './helpers.js';
 
 describe('pvl.string()', () => {
   it('accepts a string', () => {
@@ -14,11 +13,6 @@ describe('pvl.string()', () => {
   it('rejects a non-string', () => {
     const result = pvl.string().validate(42);
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const result = pvl.string({ message: 'must be a string' }).validate(42);
-    expect(result.issues?.[0]?.message).toBe('must be a string');
   });
 
   it('reports a top-level Issue with no path for a bare string failure', () => {
@@ -102,6 +96,16 @@ describe('pvl.string()', () => {
       });
       expect(() => schema.validate(42)).not.toThrow();
     });
+
+    it('collects a constraint chained after it alongside its own Issue, in chain order', () => {
+      const schema = pvl
+        .string()
+        .refine((value) => value !== 'root', { message: 'reserved name' })
+        .max(3);
+      expect(issueCodes(schema.validate('root'))).toEqual(['CUSTOM', 'TOO_BIG']);
+      expect(issueCodes(schema.validate('abcd'))).toEqual(['TOO_BIG']);
+      expect(schema.validate('ada').issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {
@@ -132,6 +136,16 @@ describe('pvl.string()', () => {
       expect(result.value).toBe('true');
     });
 
+    it('coerces any other input through String(), undefined and null included', () => {
+      expect(pvl.string().coerce().validate(undefined)).toEqual({ value: 'undefined' });
+      expect(pvl.string().coerce().validate(null)).toEqual({ value: 'null' });
+      expect(pvl.string().coerce().validate({})).toEqual({ value: '[object Object]' });
+    });
+
+    it('leaves undefined alone when .optional() is chained before .coerce()', () => {
+      expect(pvl.string().optional().coerce().validate(undefined)).toEqual({ value: undefined });
+    });
+
     it("still rejects a value that can't become a valid string", () => {
       const result = pvl.string().min(3).coerce().validate(4);
       expect(result.issues).toBeDefined();
@@ -145,16 +159,6 @@ describe('pvl.string()', () => {
         .validate(42);
       assertSuccess(result);
       expect(result.value).toBe('42');
-    });
-
-    it('still coerces when chained after .transform()', () => {
-      const result = pvl
-        .string()
-        .transform((value) => value.length)
-        .coerce()
-        .validate(true);
-      assertSuccess(result);
-      expect(result.value).toBe(4);
     });
   });
 
@@ -184,26 +188,25 @@ describe('pvl.string()', () => {
     });
   });
 
-  describe('interleaved .refine()/.transform() ordering', () => {
-    it('applies steps in exact call order, not refinements-then-transforms', () => {
+  describe('.refine() before .transform()', () => {
+    it('runs a .refine() chained before .transform() on the untransformed value', () => {
       const schema = pvl
         .string()
         .refine((value) => value.startsWith('a'))
-        .transform((value) => value.toUpperCase())
-        .refine((value) => value === value.toUpperCase());
+        .transform((value) => value.toUpperCase());
       const result = schema.validate('abc');
       assertSuccess(result);
       expect(result.value).toBe('ABC');
     });
 
-    it('fails the final refinement when it observes the post-transform value', () => {
+    it('skips the .transform() once a .refine() chained before it has failed', () => {
       const schema = pvl
         .string()
         .refine((value) => value.startsWith('a'))
-        .transform((value) => value.toUpperCase())
-        .refine((value) => value.startsWith('a'));
-      const result = schema.validate('abc');
-      expect(result.issues).toBeDefined();
+        .transform(() => {
+          throw new Error('transform should not run after a failed refinement');
+        });
+      expect(issueCodes(schema.validate('bcd'))).toEqual(['CUSTOM']);
     });
   });
 
@@ -215,19 +218,18 @@ describe('pvl.string()', () => {
       expect(result.value).toBeUndefined();
     });
 
-    it('short-circuits on undefined before any .refine()/.transform() step runs', () => {
-      const schema = pvl
-        .string()
-        .refine(() => {
-          throw new Error('refine should not run for undefined');
-        })
-        .transform(() => {
-          throw new Error('transform should not run for undefined');
-        })
-        .optional();
-      const result = schema.validate(undefined);
-      assertSuccess(result);
-      expect(result.value).toBeUndefined();
+    it('skips a .refine() for undefined, wherever .optional() is chained', () => {
+      const throwing = (): boolean => {
+        throw new Error('refine should not run for undefined');
+      };
+      for (const schema of [
+        pvl.string().optional().refine(throwing),
+        pvl.string().refine(throwing).optional(),
+      ]) {
+        const result = schema.validate(undefined);
+        assertSuccess(result);
+        expect(result.value).toBeUndefined();
+      }
     });
 
     it('short-circuits on null before the base type check runs', () => {
@@ -237,19 +239,18 @@ describe('pvl.string()', () => {
       expect(result.value).toBeNull();
     });
 
-    it('short-circuits on null before any .refine()/.transform() step runs', () => {
-      const schema = pvl
-        .string()
-        .refine(() => {
-          throw new Error('refine should not run for null');
-        })
-        .transform(() => {
-          throw new Error('transform should not run for null');
-        })
-        .nullable();
-      const result = schema.validate(null);
-      assertSuccess(result);
-      expect(result.value).toBeNull();
+    it('skips a .refine() for null, wherever .nullable() is chained', () => {
+      const throwing = (): boolean => {
+        throw new Error('refine should not run for null');
+      };
+      for (const schema of [
+        pvl.string().nullable().refine(throwing),
+        pvl.string().refine(throwing).nullable(),
+      ]) {
+        const result = schema.validate(null);
+        assertSuccess(result);
+        expect(result.value).toBeNull();
+      }
     });
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { pvl } from '../src/index.js';
+import { ObjectSchema, pvl, type Schema } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.object()', () => {
@@ -44,12 +44,6 @@ describe('pvl.object()', () => {
   it('rejects an array', () => {
     const result = pvl.object({ name: pvl.string() }).validate(['ada']);
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const schema = pvl.object({ name: pvl.string() }, { message: 'invalid payload' });
-    const result = schema.validate(42);
-    expect(result.issues?.[0]?.message).toBe('invalid payload');
   });
 
   it('reports one issue per failing field rather than stopping at the first', () => {
@@ -98,6 +92,20 @@ describe('pvl.object()', () => {
       const result = schema.validate({ name: 'ada', extra: true });
       assertSuccess(result);
       expect(result.value).toEqual({ name: 'ada', extra: true });
+    });
+
+    it('lets a later .strict() undo an earlier .passthrough()', () => {
+      const schema = pvl.object({ name: pvl.string() }).passthrough().strict();
+      expect(schema.validate({ name: 'ada', extra: true }).issues?.[0]?.code).toBe(
+        'UNRECOGNIZED_KEY',
+      );
+    });
+
+    it('does not mutate the input it strips or passes through', () => {
+      const input = { name: 'ada', extra: true };
+      pvl.object({ name: pvl.string() }).validate(input);
+      pvl.object({ name: pvl.string() }).passthrough().validate(input);
+      expect(input).toEqual({ name: 'ada', extra: true });
     });
 
     it("does not let a passed-through `__proto__` key change the output's prototype", () => {
@@ -206,6 +214,34 @@ describe('pvl.object()', () => {
       expect(schema.validate('{"name":"ada"}').issues).toBeDefined();
     });
 
+    it('keeps .optional() through a later .strict()', () => {
+      const schema = pvl.object({ name: pvl.string() }).optional().strict();
+      const result = schema.validate(undefined);
+      assertSuccess(result);
+      expect(result.value).toBeUndefined();
+      expect(schema.validate({ name: 'ada', extra: 1 }).issues?.[0]?.code).toBe('UNRECOGNIZED_KEY');
+    });
+
+    it('hands back a distinct, prototype-preserving clone', () => {
+      const schema = pvl.object({ name: pvl.string() });
+      const refined = schema.refine(() => true);
+      expect(refined).not.toBe(schema);
+      expect(refined).toBeInstanceOf(ObjectSchema);
+      expect(schema.optional().nullable()).toBeInstanceOf(ObjectSchema);
+      // The original is untouched — a modifier never mutates in place.
+      expect(schema.validate(undefined).issues).toBeDefined();
+    });
+
+    it('keeps .refine() through a later .strict()', () => {
+      const schema = pvl
+        .object({ name: pvl.string() })
+        .refine((value) => value.name !== 'root', { message: 'reserved name' })
+        .strict();
+      expect(schema.validate({ name: 'root' }).issues?.[0]?.message).toBe('reserved name');
+      expect(schema.validate({ name: 'ada', extra: 1 }).issues?.[0]?.code).toBe('UNRECOGNIZED_KEY');
+      expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
+    });
+
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.object({ name: pvl.string() });
       expect(schema['~standard'].version).toBe(1);
@@ -213,6 +249,109 @@ describe('pvl.object()', () => {
       expect(schema['~standard'].validate({ name: 'ada' })).toEqual({
         value: { name: 'ada' },
       });
+    });
+  });
+
+  describe('shape', () => {
+    it("exposes each declared key's own schema instance", () => {
+      const name = pvl.string();
+      const age = pvl.number();
+      const schema = pvl.object({ name, age });
+
+      expect(Object.keys(schema.shape)).toEqual(['name', 'age']);
+      expect(schema.shape.name).toBe(name);
+      expect(schema.shape.age).toBe(age);
+    });
+
+    it('exposes no keys for an empty shape', () => {
+      expect(Object.keys(pvl.object({}).shape)).toEqual([]);
+    });
+
+    it('validates one field on its own, accepting a valid value', () => {
+      const schema = pvl.object({ name: pvl.string().min(2), age: pvl.number() });
+      const result = schema.shape.name.validate('ada');
+      assertSuccess(result);
+      expect(result.value).toBe('ada');
+    });
+
+    it('validates one field on its own, rejecting an invalid value', () => {
+      const schema = pvl.object({ name: pvl.string().min(2), age: pvl.number() });
+      const result = schema.shape.name.validate('a');
+      expect(result.issues).toEqual([
+        { code: 'TOO_SMALL', message: 'String must contain at least 2 character(s)' },
+      ]);
+    });
+
+    it("carries the field's own modifiers when validated on its own", () => {
+      const schema = pvl.object({ nickname: pvl.string().optional() });
+      expect(schema.shape.nickname.validate(undefined).issues).toBeUndefined();
+      expect(schema.shape.nickname.validate(42).issues).toBeDefined();
+    });
+
+    it('reaches a nested object field through its own shape', () => {
+      const city = pvl.string();
+      const schema = pvl.object({ user: pvl.object({ city }) });
+      expect(schema.shape.user.shape.city).toBe(city);
+      expect(schema.shape.user.shape.city.validate(42).issues).toBeDefined();
+    });
+
+    it('reaches a nested array field through its element', () => {
+      const tag = pvl.string();
+      const schema = pvl.object({ tags: pvl.array(tag) });
+      expect(schema.shape.tags.element).toBe(tag);
+    });
+
+    it('survives .strict(), .passthrough() and the base modifiers', () => {
+      const name = pvl.string();
+      const base = pvl.object({ name });
+
+      expect(base.strict().shape.name).toBe(name);
+      expect(base.passthrough().shape.name).toBe(name);
+      expect(base.optional().shape.name).toBe(name);
+      expect(base.nullable().shape.name).toBe(name);
+      expect(base.refine(() => true).shape.name).toBe(name);
+    });
+
+    it('leaves validation behaviour untouched', () => {
+      const schema = pvl.object({ name: pvl.string() });
+      const before = schema.validate({ name: 'ada', extra: true });
+
+      schema.shape.name.validate(42);
+
+      expect(schema.validate({ name: 'ada', extra: true })).toEqual(before);
+    });
+
+    it('rejects a replacement shape, at the type level and at runtime', () => {
+      const schema = pvl.object({ name: pvl.string() });
+      const replaceShape = (): void => {
+        // @ts-expect-error `shape` is read-only
+        schema.shape = { name: pvl.number() };
+      };
+
+      expect(replaceShape).toThrow(TypeError);
+      expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
+    });
+
+    // Not a runtime assertion: per the parent spec, immutability below the
+    // accessor is the type system's job, so the only thing to check is that
+    // the write does not typecheck. Left unchecked it would be the silent
+    // failure — the constructor snapshots the fields, so a per-key write would
+    // make `shape` disagree with `validate()`.
+    it('rejects a replacement field at the type level', () => {
+      const schema = pvl.object({ name: pvl.string() });
+      // @ts-expect-error each key of `shape` is read-only
+      schema.shape.name = pvl.string().min(5);
+    });
+
+    it('ignores a later mutation of the object literal it was built with', () => {
+      const original = pvl.string();
+      const declared: Record<string, Schema<unknown, unknown>> = { name: original };
+      const schema = pvl.object(declared);
+
+      declared.name = pvl.number();
+
+      expect(schema.shape.name).toBe(original);
+      expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
     });
   });
 

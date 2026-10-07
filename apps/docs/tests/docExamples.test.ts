@@ -8,7 +8,7 @@ import {
   type DocExample,
 } from '../scripts/docExamples.ts';
 
-const SOURCE_PATH = 'apps/docs/content/guide/example.md';
+const SOURCE_PATH = 'apps/docs/content/guide/example.md' as const;
 
 describe('parseMarkdownExamples', () => {
   it('extracts a fenced ts block', () => {
@@ -157,7 +157,7 @@ describe('parseMarkdownExamples', () => {
   });
 });
 
-const TS_SOURCE_PATH = 'packages/schema/src/schemas/stringSchema.ts';
+const TS_SOURCE_PATH = 'packages/schema/src/schemas/stringSchema.ts' as const;
 
 describe('parseTsdocExamples', () => {
   it('extracts an @example fence and strips the TSDoc prefix', () => {

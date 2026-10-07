@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
-import { assertSuccess } from './helpers.js';
+import { assertSuccess, issueCodes } from './helpers.js';
 
 describe('pvl.number()', () => {
   it('accepts a number', () => {
@@ -24,11 +23,6 @@ describe('pvl.number()', () => {
   it('rejects NaN', () => {
     const result = pvl.number().validate(NaN);
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const result = pvl.number({ message: 'must be a number' }).validate('x');
-    expect(result.issues?.[0]?.message).toBe('must be a number');
   });
 
   it('reports a top-level Issue with no path for a bare number failure', () => {
@@ -112,6 +106,16 @@ describe('pvl.number()', () => {
       });
       expect(() => schema.validate('x')).not.toThrow();
     });
+
+    it('collects a constraint chained after it alongside its own Issue, in chain order', () => {
+      const schema = pvl
+        .number()
+        .refine((value) => value % 2 === 0, { message: 'must be even' })
+        .int();
+      expect(schema.validate(3).issues?.map((issue) => issue.message)).toEqual(['must be even']);
+      expect(issueCodes(schema.validate(2.5))).toEqual(['CUSTOM', 'NOT_INTEGER']);
+      expect(schema.validate(4).issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {
@@ -158,16 +162,6 @@ describe('pvl.number()', () => {
         .refine((value) => value > 0)
         .coerce()
         .validate('42');
-      assertSuccess(result);
-      expect(result.value).toBe(42);
-    });
-
-    it('still coerces when chained after .transform()', () => {
-      const result = pvl
-        .number()
-        .transform((value) => value * 2)
-        .coerce()
-        .validate('21');
       assertSuccess(result);
       expect(result.value).toBe(42);
     });

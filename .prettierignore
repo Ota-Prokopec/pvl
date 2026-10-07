@@ -1,9 +1,10 @@
 # Dependencies
 node_modules
 
-# Installed agent skills — externally managed; hand edits (including
-# reformatting) are silently lost on the next install/sync, so Prettier
-# must never touch them. `.claude/skills/` is a tree of symlinks into
+# Agent skills. Those listed in `skills-lock.json` are externally managed;
+# hand edits (including reformatting) are silently lost on the next
+# install/sync, so Prettier must never touch them. Repo-owned skills share
+# the folder and are skipped too, since Prettier can't read the lock file. `.claude/skills/` is a tree of symlinks into
 # `.agents/skills/`; listed defensively in case a future Prettier version
 # follows symlinks.
 .agents

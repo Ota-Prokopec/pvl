@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
@@ -19,11 +18,6 @@ describe('pvl.boolean()', () => {
   it('rejects a non-boolean', () => {
     const result = pvl.boolean().validate('true');
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const result = pvl.boolean({ message: 'must be a boolean' }).validate('x');
-    expect(result.issues?.[0]?.message).toBe('must be a boolean');
   });
 
   it('reports a top-level Issue with no path for a bare boolean failure', () => {
@@ -98,16 +92,6 @@ describe('pvl.boolean()', () => {
         .refine((value) => typeof value === 'boolean')
         .coerce()
         .validate(1);
-      assertSuccess(result);
-      expect(result.value).toBe(true);
-    });
-
-    it('still coerces when chained after .transform()', () => {
-      const result = pvl
-        .boolean()
-        .transform((value) => !value)
-        .coerce()
-        .validate(0);
       assertSuccess(result);
       expect(result.value).toBe(true);
     });

@@ -1,4 +1,4 @@
-import type { Result } from '../src/index.js';
+import type { Issue, IssueCode, Result } from '../src/index.js';
 
 /**
  * Narrows a `Result` to its success branch, failing the test with the issues
@@ -16,3 +16,10 @@ export const assertSuccess: <Output>(
     throw new Error(`Expected a success Result, got issues: ${JSON.stringify(result.issues)}`);
   }
 };
+
+// `issues` is the spec's `Issue[]` intersected with this package's own (see
+// ADR-0011), and `.map` resolves to the spec's overload, whose `Issue` has no
+// `code` — so the callback names this package's `Issue` explicitly.
+/** Each Issue's `code`, in the order the Result reported them. */
+export const issueCodes = (result: Result<unknown>): IssueCode[] | undefined =>
+  result.issues?.map((issue: Issue) => issue.code);

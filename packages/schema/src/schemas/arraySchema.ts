@@ -1,60 +1,14 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { buildIssue, ISSUE_CODE, type Issue, type IssueCode } from '../issue.js';
+import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import { Schema, type SchemaOptions } from './baseSchema.js';
+import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import { ChainableSchema } from './chainableSchema.js';
+import type { Schema } from './schema.js';
 
-type ArrayCheck = {
-  readonly code: IssueCode;
-  readonly message: string;
-  readonly test: (value: ReadonlyArray<unknown>) => boolean;
-};
-
-/**
- * The element schema an array schema validates every item against. Any schema
- * qualifies, including another array schema or an object schema.
- *
- * @example
- * ```ts
- * import { pvl, type ArrayItem } from '@pvl/schema';
- *
- * const item: ArrayItem = pvl.string();
- * const tags = pvl.array(item);
- * ```
- */
-export type ArrayItem = Schema<unknown, unknown>;
-
-/**
- * The array type a value must match going in, composed from the item
- * schema's own input type.
- *
- * @example
- * ```ts
- * import { pvl, type ArrayInput } from '@pvl/schema';
- *
- * const item = pvl.string();
- * const input: ArrayInput<typeof item> = ['a', 'b'];
- *
- * pvl.array(item).validate(input);
- * ```
- */
-export type ArrayInput<Item extends ArrayItem> = StandardSchemaV1.InferInput<Item>[];
-
-/**
- * The array type a successful validation hands back, composed from the item
- * schema's own output type — which differs from the input type once the item
- * schema carries a `.transform()`.
- *
- * @example
- * ```ts
- * import { pvl, type ArrayOutput } from '@pvl/schema';
- *
- * const item = pvl.string().transform((value) => value.length);
- * const output: ArrayOutput<typeof item> = [1, 2]; // numbers, not strings
- *
- * pvl.array(item).validate(['a', 'bc']); // { value: [1, 2] }
- * ```
- */
-export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<Item>[];
+interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
+  ArraySchema<ItemSchema, unknown, unknown>
+> {
+  readonly type: ArraySchema<ItemSchema, this['Input'], this['Output']>;
+}
 
 /**
  * Validates every element against one shared item schema. Build one with
@@ -66,17 +20,15 @@ export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<I
  * level appends its own path segment, so a failure deep inside reports
  * exactly where it happened.
  *
- * The length constraints are checks on the array itself and, like a
- * primitive's checks, stop at the first failure rather than collecting
- * alongside element issues. `.coerce()` is inherited but does nothing here —
+ * The length constraints are checks on the array itself. They run, in the
+ * order chained, only once every element has passed, so they never report
+ * alongside element issues; between themselves they all report rather than
+ * stopping at the first. `.coerce()` is inherited but does nothing here —
  * there is no unambiguous way to read an array out of a non-array.
  *
- * Chain these constraints **before** the shared modifiers (`.optional()`,
- * `.nullable()`, `.coerce()`, `.refine()`, `.transform()`): a constraint
- * method rebuilds the schema from its constraints alone, so a modifier
- * applied earlier in the chain is silently dropped. This is a defect, not a
- * design — prefer `.min(3).optional()` over `.optional().min(3)` until it is
- * fixed.
+ * Every modifier hands back an array schema rather than the base `ChainableSchema`,
+ * so a modified array schema is still something `pvl.compile()` accepts and
+ * the length constraints stay chainable. `.transform()` ends the chain.
  *
  * @example
  * ```ts
@@ -89,24 +41,52 @@ export type ArrayOutput<Item extends ArrayItem> = StandardSchemaV1.InferOutput<I
  * // { issues: [{ path: [1], ... }, { path: [2], ... }] } — every failing element
  * ```
  */
-export class ArraySchema<Item extends ArrayItem> extends Schema<
-  ArrayInput<Item>,
-  ArrayOutput<Item>
-> {
-  private readonly _item: Item;
-  private readonly _typeMessage: string;
-  private readonly _checks: ReadonlyArray<ArrayCheck>;
+export class ArraySchema<
+  ItemSchema extends Schema<unknown, unknown>,
+  Input = InferInput<ItemSchema>[],
+  Output = InferOutput<ItemSchema>[],
+> extends ChainableSchema<Input, Output> {
+  /** @internal */
+  declare readonly '~kind': ArraySchemaKind<ItemSchema>;
+  private readonly itemSchema: ItemSchema;
 
   /** @internal */
-  constructor(item: Item, options?: SchemaOptions, checks: ReadonlyArray<ArrayCheck> = []) {
+  constructor(itemSchema: ItemSchema) {
     super();
-    this._item = item;
-    this._typeMessage = options?.message ?? 'Expected array';
-    this._checks = checks;
+    this.itemSchema = itemSchema;
+  }
+
+  // An accessor with no setter, so the property cannot be written. One schema
+  // rather than a keyed collection, so — unlike `ObjectSchema`'s `shape` —
+  // there is nothing below it to make read-only. The schema handed back is the
+  // very instance the caller declared, so its own modifiers come with it, and
+  // `@pvl/schema-compiler`'s Compiled Schemas expose `element` too, so a call
+  // site written against an interpreted schema survives the import swap.
+  /**
+   * The schema every element of this array is validated against, so a single
+   * item can be reached and validated on its own without validating a whole
+   * array. A composite item carries its own `shape` or `element`, so nested
+   * structure is reachable all the way down.
+   *
+   * Read-only: reading the item schema never affects how this schema
+   * validates, and it cannot be replaced.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const users = pvl.array(pvl.object({ name: pvl.string() }));
+   *
+   * users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
+   * users.element.shape.name.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * ```
+   */
+  get element(): ItemSchema {
+    return this.itemSchema;
   }
 
   /**
-   * Requires at least `length` elements.
+   * Requires at least `minLength` elements.
    *
    * @example
    * ```ts
@@ -117,16 +97,26 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * tags.validate([]); // { issues: [{ code: 'TOO_SMALL', message: 'pick at least one tag' }] }
    * ```
    */
-  min(length: number, options?: SchemaOptions): ArraySchema<Item> {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_SMALL,
-      message: options?.message ?? `Array must contain at least ${length} element(s)`,
-      test: (value) => value.length >= length,
+  min(minLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
+      fn: (value, path) => {
+        return value.length >= minLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_SMALL,
+                  path,
+                  options?.message ?? `Array must contain at least ${minLength} element(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /**
-   * Requires at most `length` elements.
+   * Requires at most `maxLength` elements.
    *
    * @example
    * ```ts
@@ -137,16 +127,26 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * tags.validate(['a', 'b', 'c', 'd', 'e', 'f']); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(length: number, options?: SchemaOptions): ArraySchema<Item> {
-    return this._withCheck({
-      code: ISSUE_CODE.TOO_BIG,
-      message: options?.message ?? `Array must contain at most ${length} element(s)`,
-      test: (value) => value.length <= length,
+  max(maxLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
+      fn: (value, path) => {
+        return value.length <= maxLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_BIG,
+                  path,
+                  options?.message ?? `Array must contain at most ${maxLength} element(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /**
-   * Requires exactly `length` elements.
+   * Requires exactly `exactLength` elements.
    *
    * @example
    * ```ts
@@ -158,31 +158,37 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
    * rgb.validate([12, 34]); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(length: number, options?: SchemaOptions): ArraySchema<Item> {
-    return this._withCheck({
-      code: ISSUE_CODE.INVALID_LENGTH,
-      message: options?.message ?? `Array must contain exactly ${length} element(s)`,
-      test: (value) => value.length === length,
+  length(exactLength: number, options?: IssueEditableProps): this {
+    return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
+      fn: (value, path) => {
+        return value.length === exactLength
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.INVALID_LENGTH,
+                  path,
+                  options?.message ?? `Array must contain exactly ${exactLength} element(s)`,
+                ),
+              ],
+            };
+      },
     });
   }
 
   /** @internal */
-  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<ArrayOutput<Item>> {
-    if (!Array.isArray(value)) {
+  _checkType(array: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
+    if (!Array.isArray(array)) {
       return {
-        issues: [buildIssue(ISSUE_CODE.INVALID_TYPE, this._typeMessage, path)],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected array')],
       };
-    }
-    for (const check of this._checks) {
-      if (!check.test(value)) {
-        return { issues: [buildIssue(check.code, check.message, path)] };
-      }
     }
 
     const output: unknown[] = [];
     const issues: Issue[] = [];
-    for (let index = 0; index < value.length; index += 1) {
-      const result = this._item._validate(value[index], [...path, index]);
+
+    for (const [index, item] of (array as unknown[]).entries()) {
+      const result = this.itemSchema._validate(item, [...path, index]);
       if (result.issues) {
         issues.push(...result.issues);
         continue;
@@ -194,11 +200,9 @@ export class ArraySchema<Item extends ArrayItem> extends Schema<
       return { issues };
     }
     // Built element by element from each item's own result, which the type
-    // system can't follow back to the composed array type.
-    return { value: output as ArrayOutput<Item> };
-  }
-
-  private _withCheck(check: ArrayCheck): ArraySchema<Item> {
-    return new ArraySchema(this._item, { message: this._typeMessage }, [...this._checks, check]);
+    // system can't follow back to the composed array type. `Output` is a free
+    // type parameter — a modifier may have widened it past the composed type
+    // — so the assertion goes through `unknown`.
+    return { value: output as unknown as Output };
   }
 }

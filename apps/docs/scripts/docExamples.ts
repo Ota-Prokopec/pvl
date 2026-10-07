@@ -59,15 +59,8 @@ export type DocExampleFixture = {
   readonly contents: string;
 };
 
-export type RenderDocExampleFixturesArgs = {
-  /** One document's examples, in the order they appear in it. */
-  readonly examples: ReadonlyArray<DocExample>;
-  /** Fixture path prefix for this document, e.g. `guide/schemas`. */
-  readonly fixtureStem: string;
-};
-
 const EXAMPLE_LANGUAGES: ReadonlySet<string> = new Set(['ts', 'typescript']);
-const MARKER_NAMESPACE = 'docs-check-';
+const MARKER_NAMESPACE = 'docs-check-' as const;
 const KNOWN_MARKERS: ReadonlySet<string> = new Set(Object.values(DOC_EXAMPLE_MARKER));
 
 const FENCE_OPEN_RE = /^\s*```(.*)$/;
@@ -330,14 +323,14 @@ const parseImportStatement = (args: ParseImportStatementArgs): ReadonlyArray<Imp
     });
 };
 
-type SplitCodeImportsArgs = {
-  readonly code: string;
-  readonly location: DocLocation;
-};
-
 type SplitCodeImportsPayload = {
   readonly bindings: ReadonlyArray<ImportBinding>;
   readonly body: string;
+};
+
+type SplitCodeImportsArgs = {
+  readonly code: string;
+  readonly location: DocLocation;
 };
 
 // Imports have to leave the snippet body: a body may end up inside a block
@@ -403,6 +396,13 @@ const renderImportBindings = (bindings: ReadonlyArray<ImportBinding>): ReadonlyA
 type FixtureRegion = {
   readonly line: number;
   readonly code: string;
+};
+
+export type RenderDocExampleFixturesArgs = {
+  /** One document's examples, in the order they appear in it. */
+  readonly examples: ReadonlyArray<DocExample>;
+  /** Fixture path prefix for this document, e.g. `guide/schemas`. */
+  readonly fixtureStem: string;
 };
 
 /**

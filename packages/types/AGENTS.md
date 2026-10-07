@@ -1,28 +1,9 @@
 # `@repo/types`
 
-A minimal internal package with a single purpose: exporting `ValueOfEnum<T>`, the utility type [`docs/standards/typescript.md`](../../docs/standards/typescript.md) mandates every `as const` enum consumer in this monorepo use to derive a value union, instead of each package re-declaring its own copy or inlining `typeof X[keyof typeof X]`.
+The home of `ValueOfEnum<T>`, the utility type [`enums-and-constants.md`](../../docs/specification/enums-and-constants.md) has every `as const` enum consumer import rather than re-declare. Types only, with no runtime code. [`@pvl/schema`](../schema/AGENTS.md) uses it for its internal enums (e.g. `Issue` codes).
 
-```ts
-export type ValueOfEnum<T> = T[keyof T];
-```
+`ValueOfEnum` has an array branch for `pvl.enum(['A', 'B'])`, whose source is a readonly tuple: `T[keyof T]` on an array would also yield `length` and every array method. It matches `ReadonlyArray`, because a `const`-inferred tuple is readonly and `any[]` wouldn't match it.
 
-See `docs/standards/typescript.md`'s "Use ValueOfEnum for extracting enum value types" section for the consuming-package usage example (an `as const` enum object plus the derived `ValueOfEnum<typeof ...>` value-union type) — not repeated here.
+## Scope
 
-## Technology
-
-- TypeScript, ESM source (see root `AGENTS.md` Core Rules). No runtime dependencies — this package is types only.
-- Depends on the monorepo's shared `@repo/eslint-config` and `@repo/typescript-config` as `workspace:*` devDependencies, rather than a standalone lint/type-check config, consistent with every other package in this monorepo.
-
-## Architecture
-
-This package stays intentionally narrow: it exists because `docs/standards/typescript.md` already mandated `ValueOfEnum` as a shared import before any package that needed it actually existed to provide it. It is not a general-purpose types/utilities dumping ground — a new cross-package type utility only belongs here if it serves the same role `ValueOfEnum` does (a single canonical implementation of something the repo's own standards already require every consumer to share), not merely because it's convenient to put it somewhere central.
-
-`@pvl/schema` takes this package as a `workspace:*` dependency for its own internal `as const` enums (e.g. `Issue` codes) — see [`packages/schema/AGENTS.md`](../schema/AGENTS.md).
-
-## Coding style / best practices
-
-- Follow [`docs/standards/typescript.md`](../../docs/standards/typescript.md) for all TypeScript conventions.
-
-## Open questions
-
-- None currently.
+The package stays narrow. A cross-package type utility belongs here only when it is the single canonical implementation of something the repo's standards require every consumer to share, the role `ValueOfEnum` plays. A type that just wants a central home stays with its user.

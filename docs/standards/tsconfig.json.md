@@ -1,10 +1,6 @@
 # tsconfig.json
 
-## Core Rules
-
-- Use predefined base configs to extend all tsconfigs - See [packages/typescript-config/AGENTS.md](../../packages/typescript-config/AGENTS.md)
-
-* **Use this tsconfig scaffold as a reference when creating a new `tsconfig.json` file. Adapt it as needed for the specific app or package.**
+Start a new `tsconfig.json` from this scaffold, adapted to the app or package. The base sets every shared compiler option, so the file adds only what differs.
 
 ```json
 {

@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import type { Result } from '../src/index.js';
 import { pvl } from '../src/index.js';
-import { assertSuccess } from './helpers.js';
+import { assertSuccess, issueCodes } from './helpers.js';
 
 describe('pvl.bigint()', () => {
   it('accepts a bigint', () => {
@@ -14,11 +13,6 @@ describe('pvl.bigint()', () => {
   it('rejects a non-bigint', () => {
     const result = pvl.bigint().validate(42);
     expect(result.issues).toBeDefined();
-  });
-
-  it('uses a custom message for the base type check', () => {
-    const result = pvl.bigint({ message: 'must be a bigint' }).validate('x');
-    expect(result.issues?.[0]?.message).toBe('must be a bigint');
   });
 
   it('reports a top-level Issue with no path for a bare bigint failure', () => {
@@ -85,6 +79,17 @@ describe('pvl.bigint()', () => {
       });
       expect(() => schema.validate('x')).not.toThrow();
     });
+
+    it('collects a constraint chained after it alongside its own Issue, in chain order', () => {
+      const schema = pvl
+        .bigint()
+        .refine((value) => value % 2n === 0n, { message: 'must be even' })
+        .min(10n);
+      expect(issueCodes(schema.validate(3n))).toEqual(['CUSTOM', 'TOO_SMALL']);
+      expect(issueCodes(schema.validate(11n))).toEqual(['CUSTOM']);
+      expect(issueCodes(schema.validate(4n))).toEqual(['TOO_SMALL']);
+      expect(schema.validate(12n).issues).toBeUndefined();
+    });
   });
 
   describe('.transform()', () => {
@@ -131,16 +136,6 @@ describe('pvl.bigint()', () => {
         .refine((value) => value > 0n)
         .coerce()
         .validate('42');
-      assertSuccess(result);
-      expect(result.value).toBe(42n);
-    });
-
-    it('still coerces when chained after .transform()', () => {
-      const result = pvl
-        .bigint()
-        .transform((value) => value * 2n)
-        .coerce()
-        .validate('21');
       assertSuccess(result);
       expect(result.value).toBe(42n);
     });
