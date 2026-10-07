@@ -12,7 +12,7 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 
 ## Commits
 
-- **Every commit passes the pre-commit hook.** When it fails, fix the reported failure and commit again. The hook is a guardrail, so these bypasses stay unused: `git commit --no-verify`/`-n`, `LEFTHOOK=0`/`LEFTHOOK_EXCLUDE`, a `core.hooksPath` override.
+- **Every commit passes the pre-commit hook** ([AGENTS.md](../../AGENTS.md#commands)).
 - **One commit per solved issue**, parent or sub-issue.
 
 ## Pull requests

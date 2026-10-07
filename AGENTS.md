@@ -16,7 +16,7 @@ Each section below says when it applies and which file to read. Read only the se
 Read [`README.md`](./README.md) before you run a root command or check that a change is done. It holds the commands and the post-modification checklist.
 
 - **Root commands live only in [`README.md`](./README.md).** An `AGENTS.md` lists only the commands specific to its own entry.
-- **A task is done only when the post-modification checklist passes.** Fix the root cause of a failure. Never suppress it with an ignore comment or a skip flag.
+- **A task is done only when the post-modification checklist passes.** Fix the root cause of a failure. Never suppress it with an ignore comment or a skip flag, and never bypass the pre-commit hook (`--no-verify`/`-n`, `LEFTHOOK=0`/`LEFTHOOK_EXCLUDE`, a `core.hooksPath` override).
 
 ## GitHub
 
@@ -50,4 +50,4 @@ Read [`docs/specification/skill-extensions.md`](./docs/specification/skill-exten
 
 ## Agent docs
 
-- **Persist knowledge in the repo.** A workflow, convention or correction meant to outlive the session goes into an agentic `*.md` file here (an `AGENTS.md`, or a doc under `docs/agents/` linked from one), never into the agent's internal memory. Keep each file scoped to one concern and link it from a section of this file or from an entry's `AGENTS.md`, so an agent reads only what its task needs.
+- **Persist knowledge in the repo.** A workflow, convention or correction meant to outlive the session goes into an agentic `*.md` file here (an `AGENTS.md`, or a doc under `docs/agents/` linked from one) or, when it is mechanical, a lint rule or hook in [`@repo/conventions`](./packages/conventions/AGENTS.md), never into the agent's internal memory. Keep each file scoped to one concern and link it from a section of this file or from an entry's `AGENTS.md`, so an agent reads only what its task needs.
