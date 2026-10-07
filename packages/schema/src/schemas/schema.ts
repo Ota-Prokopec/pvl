@@ -6,14 +6,14 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../modifiers.js';
 import type { PreModifiersResult } from '../types.js';
 
-// Whether `modifier` stays when every modifier built by one of `shapes` is
-// removed. Matched by shape rather than identity, so a caller can remove a
-// modifier without holding on to the instance it added.
-const survives = (
+// Whether `modifier` was built by one of `shapes`. Matched by shape rather
+// than identity, so a caller can remove a modifier without holding on to the
+// instance it added.
+const isBuiltByOneOf = (
   modifier: Modifier<unknown, unknown>,
   shapes: ReadonlyArray<ModifierShape>,
 ): boolean => {
-  return modifier.shape === undefined || !shapes.includes(modifier.shape);
+  return modifier.shape !== undefined && shapes.includes(modifier.shape);
 };
 
 /**
@@ -257,8 +257,12 @@ export abstract class Schema<Input = unknown, Output = Input> {
    */
   protected _withoutModifiers(shapes: ReadonlyArray<ModifierShape>): this {
     const clone = this._clone();
-    clone._preModifiers = this._preModifiers.filter((modifier) => survives(modifier, shapes));
-    clone._postModifiers = this._postModifiers.filter((modifier) => survives(modifier, shapes));
+    clone._preModifiers = this._preModifiers.filter(
+      (modifier) => !isBuiltByOneOf(modifier, shapes),
+    );
+    clone._postModifiers = this._postModifiers.filter(
+      (modifier) => !isBuiltByOneOf(modifier, shapes),
+    );
     return clone;
   }
 }
