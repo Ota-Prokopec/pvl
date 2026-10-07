@@ -10,12 +10,6 @@ import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage } from '../utils.js';
 
-export type ResolveSettingsArgs = {
-  cwd: string;
-  configPath: string | undefined;
-  overrides: SettingOverrides;
-};
-
 export type ResolveSettingsPayload =
   | { diagnostics: Diagnostic[]; settings: Settings; baseDirectory: string }
   | { diagnostics: Diagnostic[]; settings: undefined; baseDirectory: undefined };
@@ -58,6 +52,12 @@ const definedOnly = (overrides: SettingOverrides): SettingOverrides => {
   return Object.fromEntries(
     Object.entries(overrides).filter(([, value]) => value !== undefined),
   ) as SettingOverrides;
+};
+
+export type ResolveSettingsArgs = {
+  cwd: string;
+  configPath: string | undefined;
+  overrides: SettingOverrides;
 };
 
 /** Reads `pvlconfig.json` and merges it under the overrides and over the defaults. */
