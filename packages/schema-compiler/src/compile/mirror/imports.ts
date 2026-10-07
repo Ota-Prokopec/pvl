@@ -7,11 +7,11 @@ const byLocal = (a: ImportBinding, b: ImportBinding): number => {
   return a.local < b.local ? -1 : 1;
 };
 
-const namedImport = (allTypes: boolean) => {
-  return ({ imported, local, typeOnly }: ImportBinding): string => {
-    const name = imported === local ? local : `${imported} as ${local}`;
-    return typeOnly && !allTypes ? `type ${name}` : name;
-  };
+// One name in a named import's braces; `type` marks it only when the
+// declaration as a whole isn't type-only.
+const namedImport = ({ imported, local, typeOnly }: ImportBinding, allTypes: boolean): string => {
+  const name = imported === local ? local : `${imported} as ${local}`;
+  return typeOnly && !allTypes ? `type ${name}` : name;
 };
 
 export type RenderImportsArgs = {
@@ -52,7 +52,7 @@ export const renderImports = ({ bindings, bareImports }: RenderImportsArgs): str
     const named = group.filter(({ imported }) => imported !== 'default' && imported !== '*');
     if (named.length > 0) {
       const allTypes = named.every(({ typeOnly }) => typeOnly);
-      const names = named.map(namedImport(allTypes)).join(', ');
+      const names = named.map((binding) => namedImport(binding, allTypes)).join(', ');
       lines.push(`import ${allTypes ? 'type ' : ''}{ ${names} } ${from}`);
     }
   }

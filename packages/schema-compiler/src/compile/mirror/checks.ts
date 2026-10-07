@@ -86,18 +86,15 @@ export const findBlockingErrors = ({
   scanned,
   baseDirectory,
 }: FindBlockingErrorsArgs): Diagnostic[] => {
-  const checks = [
-    (): Diagnostic[] => findParseFailures(project, modules),
-    (): Diagnostic[] => findNamespaceImports(modules, scanned),
-    (): Diagnostic[] => findImportCycles(modules, baseDirectory),
-  ];
-  for (const check of checks) {
-    const errors = check();
-    if (errors.length > 0) {
-      return errors;
-    }
+  const parseFailures = findParseFailures(project, modules);
+  if (parseFailures.length > 0) {
+    return parseFailures;
   }
-  return [];
+  const namespaceImports = findNamespaceImports(modules, scanned);
+  if (namespaceImports.length > 0) {
+    return namespaceImports;
+  }
+  return findImportCycles(modules, baseDirectory);
 };
 
 // A top-level statement that does something when its module is evaluated,

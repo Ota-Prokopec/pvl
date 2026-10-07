@@ -5,7 +5,7 @@ import { findBlockingErrors, findWarnings } from './checks.js';
 import { readContext, type ModuleContext } from './context.js';
 import { planExports } from './exports.js';
 import { createProject, emissionOrder, readModules } from './modules.js';
-import { createOriginResolver } from './origins.js';
+import { createOriginLookup } from './origins.js';
 import { renderDestinationFile } from './render.js';
 import { joinScope } from './scope.js';
 
@@ -39,10 +39,10 @@ export const mirror = ({ files, baseDirectory, outputDirectory }: MirrorArgs): M
   const contexts: ModuleContext[] = modules.map((module) =>
     readContext({ module, scanned, outputDirectory }),
   );
-  const resolver = createOriginResolver({ contexts, scanned, outputDirectory });
+  const lookup = createOriginLookup({ contexts, scanned, outputDirectory });
   // Planned against the names as written, before joinScope renames any.
-  const exportPlan = planExports({ contexts, resolver, scanned, baseDirectory, outputDirectory });
-  const { finalNames, externalImports } = joinScope({ contexts, resolver });
+  const exportPlan = planExports({ contexts, lookup, baseDirectory });
+  const { finalNames, externalImports } = joinScope({ contexts, lookup });
   return {
     diagnostics: [...warnings, ...exportPlan.diagnostics],
     content: renderDestinationFile({

@@ -5,6 +5,7 @@ import {
   SyntaxKind,
   type ExportSpecifier,
   type Identifier,
+  type ImportDeclaration,
   type ImportSpecifier,
   type SourceFile,
   type Statement,
@@ -31,8 +32,8 @@ export type ImportBinding = {
   typeOnly: boolean;
   specifier: string;
   target: string | undefined;
-  /** Renames the binding and every reference to it in its module. */
-  rename: (name: string) => void;
+  /** The identifier a default or namespace import binds, or a named import's specifier. */
+  node: Identifier | ImportSpecifier;
 };
 
 /** A top-level name a module declares. */
@@ -40,7 +41,7 @@ export type Declared = {
   name: string;
   /** Exported under its own name, so renaming it would change the module's exports. */
   exportedAsItself: boolean;
-  rename: (name: string) => void;
+  identifier: Identifier;
 };
 
 export type ModuleContext = {
@@ -149,14 +150,27 @@ const freeName = (sourceFile: SourceFile, name: string): void => {
   }
 };
 
-// Every rename goes through here, so no inner declaration captures the
-// binding under its new name.
-const renameIdentifier =
-  (identifier: Identifier) =>
-  (name: string): void => {
-    freeName(identifier.getSourceFile(), name);
-    identifier.rename(name, RENAME_OPTIONS);
-  };
+/** Renames `identifier` and every reference to it, first renaming any inner declaration that would capture it under `name`. */
+export const renameIdentifier = (identifier: Identifier, name: string): void => {
+  freeName(identifier.getSourceFile(), name);
+  identifier.rename(name, RENAME_OPTIONS);
+};
+
+/** Renames an import's local binding and every reference to it in its module. */
+export const renameImport = (binding: ImportBinding, name: string): void => {
+  const { node } = binding;
+  if (Node.isIdentifier(node)) {
+    renameIdentifier(node, name);
+    return;
+  }
+  if (node.getAliasNode() === undefined) {
+    node.setAlias(node.getName());
+  }
+  const alias = node.getAliasNode();
+  if (alias !== undefined) {
+    renameIdentifier(alias, name);
+  }
+};
 
 // Gives an anonymous default export a name, so an import of it can collapse
 // into a reference: `export default <expression>` becomes a `const`, and a
@@ -180,80 +194,77 @@ const nameAnonymousDefault = (sourceFile: SourceFile): void => {
   }
 };
 
-export type ReadContextArgs = {
-  module: ScannedModule;
+type ReadImportBindingsArgs = {
+  path: string;
+  declaration: ImportDeclaration;
   scanned: ReadonlySet<string>;
   outputDirectory: string;
 };
 
-export const readContext = ({
-  module,
+// Every name one import declaration binds.
+const readImportBindings = ({
+  path,
+  declaration,
   scanned,
   outputDirectory,
-}: ReadContextArgs): ModuleContext => {
-  const { path, sourceFile } = module;
-  nameAnonymousDefault(sourceFile);
-  const imports: ImportBinding[] = [];
-  const bareImports: string[] = [];
-  for (const declaration of sourceFile.getImportDeclarations()) {
-    const raw = declaration.getModuleSpecifierValue();
-    const specifier = rewriteSpecifier(raw, path, outputDirectory);
-    const target = resolveScanned(raw, path, scanned);
-    const typeOnly = declaration.isTypeOnly();
-    const defaultImport = declaration.getDefaultImport();
-    const namespaceImport = declaration.getNamespaceImport();
-    const named = declaration.getNamedImports();
-    if (defaultImport === undefined && namespaceImport === undefined && named.length === 0) {
-      if (target === undefined) {
-        bareImports.push(specifier);
-      }
-      continue;
-    }
-    if (defaultImport !== undefined) {
-      imports.push({
-        importer: path,
-        local: defaultImport.getText(),
-        imported: 'default',
-        typeOnly,
-        specifier,
-        target,
-        rename: renameIdentifier(defaultImport),
-      });
-    }
-    if (namespaceImport !== undefined) {
-      // Into the set, it is NAMESPACE_IMPORT_OF_SCANNED_FILE before this
-      // runs; from outside, it is an ordinary import.
-      imports.push({
-        importer: path,
-        local: namespaceImport.getText(),
-        imported: '*',
-        typeOnly,
-        specifier,
-        target: undefined,
-        rename: renameIdentifier(namespaceImport),
-      });
-    }
-    for (const specifierNode of named) {
-      imports.push({
-        importer: path,
-        local: aliasOrName(specifierNode),
-        imported: specifierNode.getName(),
-        typeOnly: typeOnly || specifierNode.isTypeOnly(),
-        specifier,
-        target,
-        rename: (name) => {
-          if (specifierNode.getAliasNode() === undefined) {
-            specifierNode.setAlias(specifierNode.getName());
-          }
-          const alias = specifierNode.getAliasNode();
-          if (alias !== undefined) {
-            renameIdentifier(alias)(name);
-          }
-        },
-      });
-    }
-  }
+}: ReadImportBindingsArgs): ImportBinding[] => {
+  const raw = declaration.getModuleSpecifierValue();
+  const common = {
+    importer: path,
+    specifier: rewriteSpecifier(raw, path, outputDirectory),
+    target: resolveScanned(raw, path, scanned),
+  };
+  const typeOnly = declaration.isTypeOnly();
+  const defaultImport = declaration.getDefaultImport();
+  const namespaceImport = declaration.getNamespaceImport();
+  return [
+    ...(defaultImport === undefined
+      ? []
+      : [
+          {
+            ...common,
+            local: defaultImport.getText(),
+            imported: 'default',
+            typeOnly,
+            node: defaultImport,
+          },
+        ]),
+    // Into the set, a namespace import is NAMESPACE_IMPORT_OF_SCANNED_FILE
+    // before this runs; from outside, it is an ordinary import.
+    ...(namespaceImport === undefined
+      ? []
+      : [
+          {
+            ...common,
+            target: undefined,
+            local: namespaceImport.getText(),
+            imported: '*',
+            typeOnly,
+            node: namespaceImport,
+          },
+        ]),
+    ...declaration.getNamedImports().map((specifierNode) => ({
+      ...common,
+      local: aliasOrName(specifierNode),
+      imported: specifierNode.getName(),
+      typeOnly: typeOnly || specifierNode.isTypeOnly(),
+      node: specifierNode,
+    })),
+  ];
+};
 
+// A side-effect-only import (`import './setup.js'`) binds nothing.
+const isBareImport = (declaration: ImportDeclaration): boolean => {
+  return (
+    declaration.getDefaultImport() === undefined &&
+    declaration.getNamespaceImport() === undefined &&
+    declaration.getNamedImports().length === 0
+  );
+};
+
+// Exported name → the local name it exports, for an `export { … }` with no
+// module specifier and `export default <name>`.
+const readLocalExports = (sourceFile: SourceFile): Map<string, string> => {
   const localExports = new Map<string, string>();
   for (const declaration of sourceFile.getExportDeclarations()) {
     if (declaration.getModuleSpecifierValue() === undefined) {
@@ -268,7 +279,15 @@ export const readContext = ({
       localExports.set('default', expression.getText());
     }
   }
+  return localExports;
+};
 
+// Every top-level name the module declares, and the exported ones by the
+// name they are exported under.
+const readDeclarations = (
+  sourceFile: SourceFile,
+  localExports: ReadonlyMap<string, string>,
+): Pick<ModuleContext, 'declared' | 'declaredExports'> => {
   const declaredExports = new Map<string, string>();
   const declared: Declared[] = [];
   for (const statement of sourceFile.getStatements()) {
@@ -282,9 +301,41 @@ export const readContext = ({
       declared.push({
         name,
         exportedAsItself: (exportable && !isDefault) || localExports.get(name) === name,
-        rename: renameIdentifier(identifier),
+        identifier,
       });
     }
   }
-  return { module, imports, bareImports, localExports, declaredExports, declared };
+  return { declared, declaredExports };
+};
+
+export type ReadContextArgs = {
+  module: ScannedModule;
+  scanned: ReadonlySet<string>;
+  outputDirectory: string;
+};
+
+export const readContext = ({
+  module,
+  scanned,
+  outputDirectory,
+}: ReadContextArgs): ModuleContext => {
+  const { path, sourceFile } = module;
+  nameAnonymousDefault(sourceFile);
+  const declarations = sourceFile.getImportDeclarations();
+  const imports = declarations
+    .filter((declaration) => !isBareImport(declaration))
+    .flatMap((declaration) => readImportBindings({ path, declaration, scanned, outputDirectory }));
+  const bareImports = declarations
+    .filter(isBareImport)
+    .map((declaration) => declaration.getModuleSpecifierValue())
+    .filter((raw) => resolveScanned(raw, path, scanned) === undefined)
+    .map((raw) => rewriteSpecifier(raw, path, outputDirectory));
+  const localExports = readLocalExports(sourceFile);
+  return {
+    module,
+    imports,
+    bareImports,
+    localExports,
+    ...readDeclarations(sourceFile, localExports),
+  };
 };
