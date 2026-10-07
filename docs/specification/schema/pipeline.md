@@ -1,6 +1,6 @@
 # The Modifier pipeline
 
-How a `@pvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/schema.ts` or `src/schemas/chainableSchema.ts`. [`CONTEXT.md`](../../../CONTEXT.md) defines the terms.
+How a `@pvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/schema.ts` or `src/schemas/chainableSchema.ts`. [`GLOSSARY.md`](../../../GLOSSARY.md) defines the terms.
 
 ## `Schema` and `ChainableSchema`: two abstract classes, one per file
 
@@ -48,7 +48,7 @@ pvl.object({ name: pvl.string() }).strict({ message: 'no extra keys' });
 
 ## Refinements, Transforms, Coercion
 
-All three are supported in v1 (`CONTEXT.md` has the precise distinction), and each runs where it is chained:
+All three are supported in v1 (`GLOSSARY.md` has the precise distinction), and each runs where it is chained:
 
 - **Refinement**: `(data) => boolean` predicates attached via `.refine(predicate, options?)`, a post-modifier. Never change the value; a failing Refinement produces a `CUSTOM` `Issue`, never throws, and does not stop the post-modifiers after it. Skipped for a value `.optional()`/`.nullable()` short-circuited.
 - **Coercion**: opt-in conversion of the raw input via `.coerce()`, a pre-modifier replacing the value **before** the type check, so a coerced value is checked like any other and a coercion never produces an `Issue` of its own. Its position against `.optional()`/`.nullable()` matters: `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`, `pvl.string().optional().coerce()` keeps it. A no-op (identity `_coerceInput`) on `object`, `array`, `union` and `enum`.

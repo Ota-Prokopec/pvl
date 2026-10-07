@@ -1,6 +1,6 @@
 # `@pvl/schema-compiler`
 
-The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Implementation hasn't started: this directory holds only this file, which documents the conventions the package will be built under. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`CONTEXT.md`](../../CONTEXT.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`).
+The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Implementation hasn't started: this directory holds only this file, which documents the conventions the package will be built under. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`).
 
 Each section below says when it applies and which file to read. Read only the sections the current task needs.
 

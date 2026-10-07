@@ -37,9 +37,9 @@ Read [`TESTS.md`](./TESTS.md) before you write, change or review a test. It hold
 
 ## Domain and decisions
 
-Read [`CONTEXT.md`](./CONTEXT.md) (the glossary) and the ADRs in [`docs/adr/`](./docs/adr/) that touch the area before you work on domain code or name a domain concept. [`docs/agents/domain.md`](./docs/agents/domain.md) says how to use them.
+Read [`GLOSSARY.md`](./GLOSSARY.md) and the ADRs in [`docs/adr/`](./docs/adr/) that touch the area before you work on domain code or name a domain concept. [`docs/agents/domain.md`](./docs/agents/domain.md) says how to use them.
 
-- **[`CONTEXT.md`](./CONTEXT.md) is the living glossary and domain model.** Update a term's entry in the same change that coins, renames or redefines it. Each entry cross-links the ADR or spec doc that owns it.
+- **[`GLOSSARY.md`](./GLOSSARY.md) is the living glossary and domain model.** Update a term's entry in the same change that coins, renames or redefines it. Each entry cross-links the ADR or spec doc that owns it.
 - A change that is an architectural decision gets an ADR in [`docs/adr/`](./docs/adr/).
 
 ## Skills
