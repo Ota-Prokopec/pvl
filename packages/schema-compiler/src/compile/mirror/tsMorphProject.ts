@@ -9,10 +9,10 @@ import {
   type ImportDeclaration,
   type SourceFile,
 } from 'ts-morph';
-import { isPathSpecifier } from './utils.js';
+import { isRelativeOrAbsoluteSpecifier } from './utils.js';
 
 /** Bundler resolution, so `./user.js` finds `user.ts` the way the user's own build does. */
-const COMPILER_OPTIONS: ts.CompilerOptions = {
+const BUNDLER_COMPILER_OPTIONS: ts.CompilerOptions = {
   module: ts.ModuleKind.ESNext,
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   allowJs: true,
@@ -29,61 +29,79 @@ export type ScannedModule = {
   dependencies: Set<string>;
 };
 
-export const createProject = (): Project => {
-  return new Project({ skipAddingFilesFromTsConfig: true, compilerOptions: COMPILER_OPTIONS });
+export const createTsMorphProject = (): Project => {
+  return new Project({
+    skipAddingFilesFromTsConfig: true,
+    compilerOptions: BUNDLER_COMPILER_OPTIONS,
+  });
 };
 
-/** The scanned file `specifier` resolves to from `containingFile`, or `undefined` when it leaves the set. */
-export const resolveScanned = (
-  specifier: string,
-  containingFile: string,
-  scanned: ReadonlySet<string>,
+/** The scanned file `moduleSpecifier` resolves to from `importerPath`, or `undefined` when it leaves the set. */
+export const resolveToScannedFile = (
+  moduleSpecifier: string,
+  importerPath: string,
+  scannedFilePaths: ReadonlySet<string>,
 ): string | undefined => {
-  if (!isPathSpecifier(specifier)) {
+  if (!isRelativeOrAbsoluteSpecifier(moduleSpecifier)) {
     return undefined;
   }
-  const resolved = ts.resolveModuleName(specifier, containingFile, COMPILER_OPTIONS, ts.sys)
-    .resolvedModule?.resolvedFileName;
-  if (resolved === undefined) {
+  const resolvedFileName = ts.resolveModuleName(
+    moduleSpecifier,
+    importerPath,
+    BUNDLER_COMPILER_OPTIONS,
+    ts.sys,
+  ).resolvedModule?.resolvedFileName;
+  if (resolvedFileName === undefined) {
     return undefined;
   }
-  const absolute = resolve(resolved);
-  return scanned.has(absolute) ? absolute : undefined;
+  const absoluteResolvedPath = resolve(resolvedFileName);
+  return scannedFilePaths.has(absoluteResolvedPath) ? absoluteResolvedPath : undefined;
 };
 
-// Whether evaluating the importing module needs `declaration`'s target
+// Whether evaluating the importing module needs `importOrExportDeclaration`'s target
 // evaluated first. A type-only import or re-export is erased.
-const isValueEdge = (declaration: ImportDeclaration | ExportDeclaration): boolean => {
-  if (declaration.isTypeOnly()) {
+const isRuntimeDependency = (
+  importOrExportDeclaration: ImportDeclaration | ExportDeclaration,
+): boolean => {
+  if (importOrExportDeclaration.isTypeOnly()) {
     return false;
   }
-  if (Node.isImportDeclaration(declaration)) {
-    const named = declaration.getNamedImports();
+  if (Node.isImportDeclaration(importOrExportDeclaration)) {
+    const namedSpecifiers = importOrExportDeclaration.getNamedImports();
     return (
-      declaration.getDefaultImport() !== undefined ||
-      declaration.getNamespaceImport() !== undefined ||
-      named.length === 0 ||
-      named.some((specifier) => !specifier.isTypeOnly())
+      importOrExportDeclaration.getDefaultImport() !== undefined ||
+      importOrExportDeclaration.getNamespaceImport() !== undefined ||
+      namedSpecifiers.length === 0 ||
+      namedSpecifiers.some((moduleSpecifier) => !moduleSpecifier.isTypeOnly())
     );
   }
-  const named = declaration.getNamedExports();
-  return named.length === 0 || named.some((specifier) => !specifier.isTypeOnly());
+  const namedSpecifiers = importOrExportDeclaration.getNamedExports();
+  return (
+    namedSpecifiers.length === 0 ||
+    namedSpecifiers.some((moduleSpecifier) => !moduleSpecifier.isTypeOnly())
+  );
 };
 
 /** Adds every file to `project` and links each to the scanned modules it depends on. */
-export const readModules = (project: Project, files: ReadonlyArray<string>): ScannedModule[] => {
-  const scanned = new Set(files);
-  return files.map((path) => {
+export const readScannedModules = (
+  project: Project,
+  scannedFilePathList: ReadonlyArray<string>,
+): ScannedModule[] => {
+  const scannedFilePaths = new Set(scannedFilePathList);
+  return scannedFilePathList.map((path) => {
     const sourceFile = project.addSourceFileAtPath(path);
     const dependencies = new Set<string>();
-    for (const declaration of [
+    for (const importOrExportDeclaration of [
       ...sourceFile.getImportDeclarations(),
       ...sourceFile.getExportDeclarations(),
     ]) {
-      const specifier = declaration.getModuleSpecifierValue();
-      const target = specifier === undefined ? undefined : resolveScanned(specifier, path, scanned);
-      if (target !== undefined && isValueEdge(declaration)) {
-        dependencies.add(target);
+      const moduleSpecifier = importOrExportDeclaration.getModuleSpecifierValue();
+      const scannedTargetPath =
+        moduleSpecifier === undefined
+          ? undefined
+          : resolveToScannedFile(moduleSpecifier, path, scannedFilePaths);
+      if (scannedTargetPath !== undefined && isRuntimeDependency(importOrExportDeclaration)) {
+        dependencies.add(scannedTargetPath);
       }
     }
     return { path, sourceFile, dependencies };

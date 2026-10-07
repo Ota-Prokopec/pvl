@@ -4,24 +4,24 @@ import { Node, ts, type Project, type Statement } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { isDeclaration } from './context.js';
-import { resolveScanned, type ScannedModule } from './tsMorphProject.js';
-import { displayPath, findCycles } from './utils.js';
+import { isDeclarationStatement } from './context.js';
+import { resolveToScannedFile, type ScannedModule } from './tsMorphProject.js';
+import { toDisplayPath, findImportCycles } from './utils.js';
 
 // The first syntax error of each module that has one.
-const findParseFailures = (
-  project: Project,
-  modules: ReadonlyArray<ScannedModule>,
+const createParseFailureDiagnostics = (
+  tsMorphProject: Project,
+  scannedModules: ReadonlyArray<ScannedModule>,
 ): Diagnostic[] => {
-  return modules.flatMap(({ path, sourceFile }) =>
-    project
+  return scannedModules.flatMap(({ path, sourceFile }) =>
+    tsMorphProject
       .getProgram()
       .getSyntacticDiagnostics(sourceFile)
       .slice(0, 1)
-      .map((failure) =>
+      .map((syntaxDiagnostic) =>
         createDiagnostic({
           code: DIAGNOSTIC_CODE.PARSE_FAILED,
-          message: `This file doesn't parse, so it can't be mirrored: ${ts.flattenDiagnosticMessageText(failure.compilerObject.messageText, ' ')} (line ${String(failure.getLineNumber())}).`,
+          message: `This file doesn't parse, so it can't be mirrored: ${ts.flattenDiagnosticMessageText(syntaxDiagnostic.compilerObject.messageText, ' ')} (line ${String(syntaxDiagnostic.getLineNumber())}).`,
           file: path,
         }),
       ),
@@ -30,21 +30,21 @@ const findParseFailures = (
 
 // A namespace import or re-export of a scanned file would have to import
 // that file again, evaluating it twice, so each is an error instead.
-const findNamespaceImports = (
-  modules: ReadonlyArray<ScannedModule>,
-  scanned: ReadonlySet<string>,
+const createNamespaceImportDiagnostics = (
+  scannedModules: ReadonlyArray<ScannedModule>,
+  scannedFilePaths: ReadonlySet<string>,
 ): Diagnostic[] => {
-  return modules.flatMap(({ path, sourceFile }) =>
+  return scannedModules.flatMap(({ path, sourceFile }) =>
     [...sourceFile.getImportDeclarations(), ...sourceFile.getExportDeclarations()]
       .filter((declaration) => {
-        const specifier = declaration.getModuleSpecifierValue();
-        const namespace = Node.isImportDeclaration(declaration)
+        const moduleSpecifier = declaration.getModuleSpecifierValue();
+        const namespaceNode = Node.isImportDeclaration(declaration)
           ? declaration.getNamespaceImport()
           : declaration.getNamespaceExport();
         return (
-          namespace !== undefined &&
-          specifier !== undefined &&
-          resolveScanned(specifier, path, scanned) !== undefined
+          namespaceNode !== undefined &&
+          moduleSpecifier !== undefined &&
+          resolveToScannedFile(moduleSpecifier, path, scannedFilePaths) !== undefined
         );
       })
       .map((declaration) =>
@@ -57,23 +57,23 @@ const findNamespaceImports = (
   );
 };
 
-const findImportCycles = (
-  modules: ReadonlyArray<ScannedModule>,
+const importCycleDiagnostics = (
+  scannedModules: ReadonlyArray<ScannedModule>,
   baseDirectory: string,
 ): Diagnostic[] => {
-  return findCycles(modules).map((cycle) =>
+  return findImportCycles(scannedModules).map((cyclePaths) =>
     createDiagnostic({
       code: DIAGNOSTIC_CODE.IMPORT_CYCLE,
-      message: `These scanned files import each other, so one would read another's exports before they exist in the Destination File: ${cycle.map((path) => displayPath(baseDirectory, path)).join(' → ')}. Break the cycle, or make an import type-only.`,
-      file: cycle[0],
+      message: `These scanned files import each other, so one would read another's exports before they exist in the Destination File: ${cyclePaths.map((path) => toDisplayPath(baseDirectory, path)).join(' → ')}. Break the cycle, or make an import type-only.`,
+      file: cyclePaths[0],
     }),
   );
 };
 
 export type FindBlockingErrorsArgs = {
-  project: Project;
-  modules: ReadonlyArray<ScannedModule>;
-  scanned: ReadonlySet<string>;
+  tsMorphProject: Project;
+  scannedModules: ReadonlyArray<ScannedModule>;
+  scannedFilePaths: ReadonlySet<string>;
   baseDirectory: string;
 };
 
@@ -82,28 +82,31 @@ export type FindBlockingErrorsArgs = {
  * file that doesn't parse can't be read for the rest.
  */
 export const findBlockingErrors = ({
-  project,
-  modules,
-  scanned,
+  tsMorphProject,
+  scannedModules,
+  scannedFilePaths,
   baseDirectory,
 }: FindBlockingErrorsArgs): Diagnostic[] => {
-  const parseFailures = findParseFailures(project, modules);
-  if (parseFailures.length > 0) {
-    return parseFailures;
+  const parseFailureDiagnostics = createParseFailureDiagnostics(tsMorphProject, scannedModules);
+  if (parseFailureDiagnostics.length > 0) {
+    return parseFailureDiagnostics;
   }
-  const namespaceImports = findNamespaceImports(modules, scanned);
-  if (namespaceImports.length > 0) {
-    return namespaceImports;
+  const namespaceImportDiagnostics = createNamespaceImportDiagnostics(
+    scannedModules,
+    scannedFilePaths,
+  );
+  if (namespaceImportDiagnostics.length > 0) {
+    return namespaceImportDiagnostics;
   }
-  return findImportCycles(modules, baseDirectory);
+  return importCycleDiagnostics(scannedModules, baseDirectory);
 };
 
 // A top-level statement that does something when its module is evaluated,
 // rather than declaring a name. An initializer isn't counted: building a
 // Schema is exactly that.
-const isSideEffecting = (statement: Statement): boolean => {
+const hasTopLevelSideEffect = (statement: Statement): boolean => {
   return !(
-    isDeclaration(statement) ||
+    isDeclarationStatement(statement) ||
     Node.isImportDeclaration(statement) ||
     Node.isExportDeclaration(statement) ||
     Node.isExportAssignment(statement) ||
@@ -111,8 +114,8 @@ const isSideEffecting = (statement: Statement): boolean => {
   );
 };
 
-const exportsSomething = (statements: ReadonlyArray<Statement>): boolean => {
-  return statements.some(
+const hasAnyExport = (topLevelStatements: ReadonlyArray<Statement>): boolean => {
+  return topLevelStatements.some(
     (statement) =>
       Node.isExportDeclaration(statement) ||
       Node.isExportAssignment(statement) ||
@@ -121,9 +124,9 @@ const exportsSomething = (statements: ReadonlyArray<Statement>): boolean => {
 };
 
 /** The warnings about what one module brings into the Destination File. */
-export const findWarnings = ({ path, sourceFile }: ScannedModule): Diagnostic[] => {
-  const statements = sourceFile.getStatements();
-  const nothingExported = exportsSomething(statements)
+export const createModuleWarnings = ({ path, sourceFile }: ScannedModule): Diagnostic[] => {
+  const topLevelStatements = sourceFile.getStatements();
+  const exportsNothingWarnings = hasAnyExport(topLevelStatements)
     ? []
     : [
         createDiagnostic({
@@ -132,12 +135,12 @@ export const findWarnings = ({ path, sourceFile }: ScannedModule): Diagnostic[] 
           file: path,
         }),
       ];
-  const sideEffects = statements.filter(isSideEffecting).map((statement) =>
+  const sideEffectWarnings = topLevelStatements.filter(hasTopLevelSideEffect).map((statement) =>
     createDiagnostic({
       code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
       message: `The top-level statement on line ${String(statement.getStartLineNumber())} is copied into the Destination File, so it now runs from two modules.`,
       file: path,
     }),
   );
-  return [...nothingExported, ...sideEffects];
+  return [...exportsNothingWarnings, ...sideEffectWarnings];
 };

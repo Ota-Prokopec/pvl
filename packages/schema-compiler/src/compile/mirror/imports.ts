@@ -3,58 +3,80 @@
 // sorted so the same input always prints the same block.
 import type { ImportBinding } from './context.js';
 
-const byLocal = (a: ImportBinding, b: ImportBinding): number => {
-  return a.local < b.local ? -1 : 1;
+const compareByLocalName = (a: ImportBinding, b: ImportBinding): number => {
+  return a.localName < b.localName ? -1 : 1;
 };
 
 // One name in a named import's braces; `type` marks it only when the
 // declaration as a whole isn't type-only.
-const namedImport = ({ imported, local, typeOnly }: ImportBinding, allTypes: boolean): string => {
-  const name = imported === local ? local : `${imported} as ${local}`;
-  return typeOnly && !allTypes ? `type ${name}` : name;
+const formatNamedImportSpecifier = (
+  { importedName, localName, isTypeOnly }: ImportBinding,
+  isWholeImportTypeOnly: boolean,
+): string => {
+  const specifierText = importedName === localName ? localName : `${importedName} as ${localName}`;
+  return isTypeOnly && !isWholeImportTypeOnly ? `type ${specifierText}` : specifierText;
 };
 
-export type RenderImportsArgs = {
-  bindings: ReadonlyArray<ImportBinding>;
+export type RenderImportBlockArgs = {
+  externalImports: ReadonlyArray<ImportBinding>;
   /** Specifiers imported for their side effect only. */
-  bareImports: ReadonlyArray<string>;
+  sideEffectImportSpecifiers: ReadonlyArray<string>;
 };
 
-export const renderImports = ({ bindings, bareImports }: RenderImportsArgs): string => {
+export const renderImportBlock = ({
+  externalImports,
+  sideEffectImportSpecifiers,
+}: RenderImportBlockArgs): string => {
   // The same binding imported by several modules is one import, type-only
   // only when every module imported it as a type.
-  const merged = new Map<string, ImportBinding>();
-  for (const binding of bindings) {
-    const key = `${binding.specifier}\0${binding.imported}\0${binding.local}`;
-    const typeOnly = binding.typeOnly && (merged.get(key)?.typeOnly ?? true);
-    merged.set(key, { ...binding, typeOnly });
+  const mergedBindingByKey = new Map<string, ImportBinding>();
+  for (const importBinding of externalImports) {
+    const bindingKey = `${importBinding.rewrittenSpecifier}\0${importBinding.importedName}\0${importBinding.localName}`;
+    const isTypeOnly =
+      importBinding.isTypeOnly && (mergedBindingByKey.get(bindingKey)?.isTypeOnly ?? true);
+    mergedBindingByKey.set(bindingKey, { ...importBinding, isTypeOnly });
   }
-  const bySpecifier = new Map<string, ImportBinding[]>(
-    bareImports.map((specifier) => [specifier, []]),
+  const bindingsBySpecifier = new Map<string, ImportBinding[]>(
+    sideEffectImportSpecifiers.map((specifier) => [specifier, []]),
   );
-  for (const binding of merged.values()) {
-    bySpecifier.set(binding.specifier, [...(bySpecifier.get(binding.specifier) ?? []), binding]);
+  for (const importBinding of mergedBindingByKey.values()) {
+    bindingsBySpecifier.set(importBinding.rewrittenSpecifier, [
+      ...(bindingsBySpecifier.get(importBinding.rewrittenSpecifier) ?? []),
+      importBinding,
+    ]);
   }
 
-  const lines: string[] = [];
-  for (const specifier of [...bySpecifier.keys()].sort()) {
-    const group = [...(bySpecifier.get(specifier) ?? [])].sort(byLocal);
-    const from = `from '${specifier}';`;
-    if (group.length === 0) {
-      lines.push(`import '${specifier}';`);
+  const importLines: string[] = [];
+  for (const specifier of [...bindingsBySpecifier.keys()].sort()) {
+    const bindingsOfSpecifier = [...(bindingsBySpecifier.get(specifier) ?? [])].sort(
+      compareByLocalName,
+    );
+    const fromClause = `from '${specifier}';`;
+    if (bindingsOfSpecifier.length === 0) {
+      importLines.push(`import '${specifier}';`);
     }
-    for (const { local, typeOnly } of group.filter(({ imported }) => imported === 'default')) {
-      lines.push(`import ${typeOnly ? 'type ' : ''}${local} ${from}`);
+    for (const { localName, isTypeOnly } of bindingsOfSpecifier.filter(
+      ({ importedName }) => importedName === 'default',
+    )) {
+      importLines.push(`import ${isTypeOnly ? 'type ' : ''}${localName} ${fromClause}`);
     }
-    for (const { local, typeOnly } of group.filter(({ imported }) => imported === '*')) {
-      lines.push(`import ${typeOnly ? 'type ' : ''}* as ${local} ${from}`);
+    for (const { localName, isTypeOnly } of bindingsOfSpecifier.filter(
+      ({ importedName }) => importedName === '*',
+    )) {
+      importLines.push(`import ${isTypeOnly ? 'type ' : ''}* as ${localName} ${fromClause}`);
     }
-    const named = group.filter(({ imported }) => imported !== 'default' && imported !== '*');
-    if (named.length > 0) {
-      const allTypes = named.every(({ typeOnly }) => typeOnly);
-      const names = named.map((binding) => namedImport(binding, allTypes)).join(', ');
-      lines.push(`import ${allTypes ? 'type ' : ''}{ ${names} } ${from}`);
+    const namedBindings = bindingsOfSpecifier.filter(
+      ({ importedName }) => importedName !== 'default' && importedName !== '*',
+    );
+    if (namedBindings.length > 0) {
+      const isWholeImportTypeOnly = namedBindings.every(({ isTypeOnly }) => isTypeOnly);
+      const namedSpecifierList = namedBindings
+        .map((importBinding) => formatNamedImportSpecifier(importBinding, isWholeImportTypeOnly))
+        .join(', ');
+      importLines.push(
+        `import ${isWholeImportTypeOnly ? 'type ' : ''}{ ${namedSpecifierList} } ${fromClause}`,
+      );
     }
   }
-  return lines.join('\n');
+  return importLines.join('\n');
 };

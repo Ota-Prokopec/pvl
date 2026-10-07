@@ -13,7 +13,7 @@ import {
   writeDestinationFile,
   type Destination,
 } from './destination.js';
-import { mirror, type MirrorPayload } from './mirror/mirror.js';
+import { mirrorScannedFiles, type MirrorScannedFilesPayload } from './mirror/mirror.js';
 import { createNoInputFilesDiagnostic, findInputFiles, type ScanScope } from './scan.js';
 
 /**
@@ -138,14 +138,14 @@ export const compile = async ({
   if (files.length === 0) {
     found.push(createNoInputFilesDiagnostic(settings.include));
   }
-  const mirrored: MirrorPayload = mirror({
-    files,
+  const mirroredScannedFiles: MirrorScannedFilesPayload = mirrorScannedFiles({
+    scannedFilePaths: files,
     baseDirectory,
     // The default destination is a package directory holding `index.ts`.
     outputDirectory:
       destination.kind === DESTINATION_KIND.FILE ? dirname(destination.path) : destination.path,
   });
-  found.push(...mirrored.diagnostics);
+  found.push(...mirroredScannedFiles.diagnostics);
 
   const payload = unwrittenPayload({
     diagnostics: found,
@@ -160,7 +160,7 @@ export const compile = async ({
   }
   const writeFailure = await writeDestinationFile({
     path: destination.path,
-    content: mirrored.content,
+    content: mirroredScannedFiles.destinationFileText,
   });
   return writeFailure.length > 0
     ? { ...payload, diagnostics: [...payload.diagnostics, ...writeFailure] }

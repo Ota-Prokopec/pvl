@@ -1,24 +1,24 @@
 // Mirrors the scanned set into the Destination File's text (ADR-0005): each
 // step lives in its own module, and this one runs them in order.
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { findBlockingErrors, findWarnings } from './checks.js';
-import { readContext, type ModuleContext } from './context.js';
+import { findBlockingErrors, createModuleWarnings } from './checks.js';
+import { readModuleContext, type ModuleContext } from './context.js';
 import { planExports } from './exports.js';
-import { createProject, readModules } from './tsMorphProject.js';
-import { emissionOrder } from './utils.js';
+import { createTsMorphProject, readScannedModules } from './tsMorphProject.js';
+import { sortByDependencyOrder } from './utils.js';
 import { createOriginLookup } from './origins.js';
 import { renderDestinationFile } from './render.js';
-import { joinScope } from './scope.js';
+import { joinIntoOneTopLevelScope } from './scope.js';
 
-export type MirrorPayload = {
+export type MirrorScannedFilesPayload = {
   diagnostics: Diagnostic[];
   /** The Destination File's text; empty when an error stopped the mirror. */
-  content: string;
+  destinationFileText: string;
 };
 
-export type MirrorArgs = {
+export type MirrorScannedFilesArgs = {
   /** The scanned files' absolute paths. */
-  files: ReadonlyArray<string>;
+  scannedFilePaths: ReadonlyArray<string>;
   /** The directory each banner names its file relative to. */
   baseDirectory: string;
   /** The directory the Destination File lands in, which relative imports are rewritten against. */
@@ -26,30 +26,46 @@ export type MirrorArgs = {
 };
 
 /** Builds the Destination File's text from the scanned files, and reports what blocks or degrades it. */
-export const mirror = ({ files, baseDirectory, outputDirectory }: MirrorArgs): MirrorPayload => {
-  const project = createProject();
-  const scanned = new Set(files);
-  const scannedModules = readModules(project, files);
-  const errors = findBlockingErrors({ project, modules: scannedModules, scanned, baseDirectory });
-  if (errors.length > 0) {
-    return { diagnostics: errors, content: '' };
+export const mirrorScannedFiles = ({
+  scannedFilePaths,
+  baseDirectory,
+  outputDirectory,
+}: MirrorScannedFilesArgs): MirrorScannedFilesPayload => {
+  const tsMorphProject = createTsMorphProject();
+  const scannedFilePathSet = new Set(scannedFilePaths);
+  const scannedModules = readScannedModules(tsMorphProject, scannedFilePaths);
+  const blockingErrors = findBlockingErrors({
+    tsMorphProject,
+    scannedModules,
+    scannedFilePaths: scannedFilePathSet,
+    baseDirectory,
+  });
+  if (blockingErrors.length > 0) {
+    return { diagnostics: blockingErrors, destinationFileText: '' };
   }
 
-  const modules = emissionOrder(scannedModules);
-  const warnings = modules.flatMap(findWarnings);
-  const contexts: ModuleContext[] = modules.map((module) =>
-    readContext({ module, scanned, outputDirectory }),
+  const orderedModules = sortByDependencyOrder(scannedModules);
+  const moduleWarnings = orderedModules.flatMap(createModuleWarnings);
+  const moduleContexts: ModuleContext[] = orderedModules.map((scannedModule) =>
+    readModuleContext({ scannedModule, scannedFilePaths: scannedFilePathSet, outputDirectory }),
   );
-  const lookup = createOriginLookup({ contexts, scanned, outputDirectory });
-  // Planned against the names as written, before joinScope renames any.
-  const exportPlan = planExports({ contexts, lookup, baseDirectory });
-  const { finalNames, externalImports } = joinScope({ contexts, lookup });
+  const originLookup = createOriginLookup({
+    moduleContexts,
+    scannedFilePaths: scannedFilePathSet,
+    outputDirectory,
+  });
+  // Planned against the names as written, before joinIntoOneTopLevelScope renames any.
+  const exportPlan = planExports({ moduleContexts, originLookup, baseDirectory });
+  const { finalNameByOriginKey, externalImports } = joinIntoOneTopLevelScope({
+    moduleContexts,
+    originLookup,
+  });
   return {
-    diagnostics: [...warnings, ...exportPlan.diagnostics],
-    content: renderDestinationFile({
-      contexts,
+    diagnostics: [...moduleWarnings, ...exportPlan.diagnostics],
+    destinationFileText: renderDestinationFile({
+      moduleContexts,
       exportPlan,
-      finalNames,
+      finalNameByOriginKey,
       externalImports,
       baseDirectory,
       outputDirectory,

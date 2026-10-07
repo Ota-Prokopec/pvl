@@ -2,79 +2,87 @@
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { ScannedModule } from './tsMorphProject.js';
 
-export const toPosix = (path: string): string => {
+export const toPosixPath = (path: string): string => {
   return path.split(sep).join(posix.sep);
 };
 
 /** `path` as a banner or diagnostic shows it: relative to `baseDirectory`, with `/` separators. */
-export const displayPath = (baseDirectory: string, path: string): string => {
-  return toPosix(relative(baseDirectory, path));
+export const toDisplayPath = (baseDirectory: string, path: string): string => {
+  return toPosixPath(relative(baseDirectory, path));
 };
 
-export const isPathSpecifier = (specifier: string): boolean => {
+export const isRelativeOrAbsoluteSpecifier = (specifier: string): boolean => {
   return specifier.startsWith('.') || isAbsolute(specifier);
 };
 
 /**
  * `specifier`, rewritten so it resolves from `outputDirectory` as it did from
- * `containingFile`. A bare specifier resolves through `node_modules` and is
+ * `importerPath`. A bare specifier resolves through `node_modules` and is
  * kept as written.
  */
-export const rewriteSpecifier = (
+export const rewriteSpecifierForOutputDirectory = (
   specifier: string,
-  containingFile: string,
+  importerPath: string,
   outputDirectory: string,
 ): string => {
-  if (!isPathSpecifier(specifier)) {
+  if (!isRelativeOrAbsoluteSpecifier(specifier)) {
     return specifier;
   }
-  const fromOutput = toPosix(
-    relative(outputDirectory, resolve(dirname(containingFile), specifier)),
+  const pathFromOutputDirectory = toPosixPath(
+    relative(outputDirectory, resolve(dirname(importerPath), specifier)),
   );
-  return fromOutput.startsWith('.') ? fromOutput : `./${fromOutput}`;
+  return pathFromOutputDirectory.startsWith('.')
+    ? pathFromOutputDirectory
+    : `./${pathFromOutputDirectory}`;
 };
 
 /**
  * The modules with every dependency before its dependents, ties broken by
  * path so the order is stable. Modules caught in a cycle are left out; see
- * {@link findCycles}.
+ * {@link findImportCycles}.
  */
-export const emissionOrder = (modules: ReadonlyArray<ScannedModule>): ScannedModule[] => {
-  const pending = [...modules].sort((a, b) => (a.path < b.path ? -1 : 1));
-  const emitted = new Set<string>();
-  const order: ScannedModule[] = [];
-  let next = pending.find((module) => [...module.dependencies].every((dep) => emitted.has(dep)));
-  while (next !== undefined) {
-    order.push(next);
-    emitted.add(next.path);
-    pending.splice(pending.indexOf(next), 1);
-    next = pending.find((module) => [...module.dependencies].every((dep) => emitted.has(dep)));
+export const sortByDependencyOrder = (
+  scannedModules: ReadonlyArray<ScannedModule>,
+): ScannedModule[] => {
+  const unorderedModules = [...scannedModules].sort((a, b) => (a.path < b.path ? -1 : 1));
+  const orderedPaths = new Set<string>();
+  const orderedModules: ScannedModule[] = [];
+  let nextReadyModule = unorderedModules.find((module) =>
+    [...module.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
+  );
+  while (nextReadyModule !== undefined) {
+    orderedModules.push(nextReadyModule);
+    orderedPaths.add(nextReadyModule.path);
+    unorderedModules.splice(unorderedModules.indexOf(nextReadyModule), 1);
+    nextReadyModule = unorderedModules.find((module) =>
+      [...module.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
+    );
   }
-  return order;
+  return orderedModules;
 };
 
 // The shortest dependency path from `start` back to itself, or `undefined`
 // when `start` isn't on a cycle.
-const cycleThrough = (
-  start: string,
-  byPath: ReadonlyMap<string, ScannedModule>,
+const findShortestCycleThrough = (
+  startPath: string,
+  moduleByPath: ReadonlyMap<string, ScannedModule>,
 ): string[] | undefined => {
-  const previous = new Map<string, string>();
-  const queue = [start];
-  for (const current of queue) {
-    for (const dependency of [...(byPath.get(current)?.dependencies ?? [])].sort()) {
-      if (dependency === start) {
-        const cycle = [current];
-        let step = current;
-        while (step !== start) {
-          step = previous.get(step) ?? start;
-          cycle.unshift(step);
+  const predecessorByPath = new Map<string, string>();
+  const pathsToVisit = [startPath];
+  for (const currentPath of pathsToVisit) {
+    for (const dependency of [...(moduleByPath.get(currentPath)?.dependencies ?? [])].sort()) {
+      if (dependency === startPath) {
+        const cyclePaths = [currentPath];
+        let stepPath = currentPath;
+        while (stepPath !== startPath) {
+          stepPath = predecessorByPath.get(stepPath) ?? startPath;
+          cyclePaths.unshift(stepPath);
         }
-        return [...cycle, start];
+        return [...cyclePaths, startPath];
       }
-      if (!previous.has(dependency)) {
-        previous.set(dependency, current);
-        queue.push(dependency);
+      if (!predecessorByPath.has(dependency)) {
+        predecessorByPath.set(dependency, currentPath);
+        pathsToVisit.push(dependency);
       }
     }
   }
@@ -86,20 +94,20 @@ const cycleThrough = (
  * first path back to that path. A module on several cycles is reported on
  * one.
  */
-export const findCycles = (modules: ReadonlyArray<ScannedModule>): string[][] => {
-  const byPath = new Map(modules.map((module) => [module.path, module]));
-  const emitted = new Set(emissionOrder(modules).map(({ path }) => path));
-  const reported = new Set<string>();
-  const cycles: string[][] = [];
-  for (const path of [...byPath.keys()].sort()) {
-    if (emitted.has(path) || reported.has(path)) {
+export const findImportCycles = (scannedModules: ReadonlyArray<ScannedModule>): string[][] => {
+  const moduleByPath = new Map(scannedModules.map((module) => [module.path, module]));
+  const orderedPaths = new Set(sortByDependencyOrder(scannedModules).map(({ path }) => path));
+  const pathsOnReportedCycles = new Set<string>();
+  const importCycles: string[][] = [];
+  for (const path of [...moduleByPath.keys()].sort()) {
+    if (orderedPaths.has(path) || pathsOnReportedCycles.has(path)) {
       continue;
     }
-    const cycle = cycleThrough(path, byPath);
-    if (cycle !== undefined) {
-      cycles.push(cycle);
-      cycle.forEach((member) => reported.add(member));
+    const cyclePaths = findShortestCycleThrough(path, moduleByPath);
+    if (cyclePaths !== undefined) {
+      importCycles.push(cyclePaths);
+      cyclePaths.forEach((cyclePath) => pathsOnReportedCycles.add(cyclePath));
     }
   }
-  return cycles;
+  return importCycles;
 };

@@ -2,6 +2,15 @@
 
 How to write TypeScript in this repo. `pnpm lint` enforces the mechanical rules, and its messages say what to do; this file holds the judgment calls. Enums and constants have their own file: [enums-and-constants.md](../specification/enums-and-constants.md).
 
+## Naming functions and variables
+
+A reader must know from the name alone what a function does or what a variable holds, without reading its body or its declaration.
+
+- **A function's name is a verb phrase saying what it does to what:** `resolveToScannedFile`, `createParseFailureDiagnostics`, not `resolve`, `claim` or `findCycles`. A predicate reads as a question: `isSideEffectOnlyImport`, `hasAnyExport`.
+- **A variable's name says what the value is, not its shape or where it came from:** `moduleSpecifier`, not `raw`; `importBindings`, not `imports`; `scannedTargetPath`, not `target`. Never `context`, `entry`, `node`, `data`, `item` or `result` alone.
+- **A map is named `<value>By<Key>`:** `finalNameByOriginKey`, `moduleContextByPath`.
+- **A name stays the same across the code it passes through:** a value named `exportedName` in one function isn't `name` in the next, and a destructured property keeps its name.
+
 ## Naming types
 
 A type's suffix says its role:

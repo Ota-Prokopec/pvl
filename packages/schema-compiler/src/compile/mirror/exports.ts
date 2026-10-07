@@ -5,161 +5,195 @@ import type { ExportDeclaration, ExportSpecifier, SourceFile } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { aliasOrName, type ModuleContext } from './context.js';
-import { resolveScanned } from './tsMorphProject.js';
-import { displayPath, rewriteSpecifier } from './utils.js';
+import { getAliasOrOwnName, type ModuleContext } from './context.js';
+import { resolveToScannedFile } from './tsMorphProject.js';
+import { toDisplayPath, rewriteSpecifierForOutputDirectory } from './utils.js';
 import {
   ORIGIN_KIND,
-  originKey,
-  resolveExport,
-  resolveLocal,
+  toOriginKey,
+  findExportOrigin,
+  findLocalNameOrigin,
   type Origin,
   type OriginLookup,
 } from './origins.js';
 
 /** One name a module exports, and the binding behind it. */
-export type ExportEntry = {
-  name: string;
-  origin: Origin;
+export type ExportedBinding = {
+  exportedName: string;
+  bindingOrigin: Origin;
 };
 
 /** One exported name of a re-export whose binding isn't the module's own. */
-export type Forward = ExportEntry & {
-  typeOnly: boolean;
+export type ForwardedExport = ExportedBinding & {
+  isTypeOnly: boolean;
 };
 
 /**
- * How one export declaration is rewritten: `forwarded` holds every name it
- * forwards, `forwards` only those still to be exported from it.
+ * How one export declaration is rewritten: `forwardedNames` holds every name
+ * it forwards, `forwardsToEmit` only those still to be exported from it.
  */
-export type DeclarationPlan = {
-  forwarded: Set<string>;
-  forwards: Forward[];
+export type ExportDeclarationRewrite = {
+  forwardedNames: Set<string>;
+  forwardsToEmit: ForwardedExport[];
 };
 
 export type PlanExportsPayload = {
   diagnostics: Diagnostic[];
   /** The export declarations to rewrite; any other keeps its text, its specifier rewritten. */
-  declarations: Map<ExportDeclaration, DeclarationPlan>;
+  rewriteByDeclaration: Map<ExportDeclaration, ExportDeclarationRewrite>;
 };
 
 // What one export declaration exports: the names bound where it points,
 // registered as they are, and the ones forwarded from elsewhere in the set.
-// A `rewritten` declaration is replaced by its forwards.
-type DeclarationExports = {
-  own: ExportEntry[];
-  forwards: Forward[];
-  rewritten: boolean;
+// A declaration that `needsRewrite` is replaced by its forwards.
+type ExportDeclarationContents = {
+  ownExports: ExportedBinding[];
+  forwardedExports: ForwardedExport[];
+  needsRewrite: boolean;
 };
 
 // The names a module exports through `export` on a declaration and
 // `export default`.
-const declaredExportEntries = (lookup: OriginLookup, context: ModuleContext): ExportEntry[] => {
-  const { path, sourceFile } = context.module;
-  const entries: ExportEntry[] = [...context.declaredExports].map(([name, local]) => ({
-    name,
-    origin: { kind: ORIGIN_KIND.LOCAL, module: path, name: local },
-  }));
-  if (sourceFile.getExportAssignments().some((assignment) => !assignment.isExportEquals())) {
-    const local = context.localExports.get('default');
-    const origin: Origin =
-      local === undefined
-        ? { kind: ORIGIN_KIND.LOCAL, module: path, name: 'default' }
-        : resolveLocal(lookup, context, local);
-    entries.push({ name: 'default', origin });
+const readDeclaredExports = (
+  originLookup: OriginLookup,
+  moduleContext: ModuleContext,
+): ExportedBinding[] => {
+  const { path, sourceFile } = moduleContext.scannedModule;
+  const exportedBindings: ExportedBinding[] = [...moduleContext.declarationNameByExportedName].map(
+    ([exportedName, localName]) => ({
+      exportedName,
+      bindingOrigin: { kind: ORIGIN_KIND.LOCAL, modulePath: path, declarationName: localName },
+    }),
+  );
+  if (
+    sourceFile.getExportAssignments().some((exportAssignment) => !exportAssignment.isExportEquals())
+  ) {
+    const localName = moduleContext.localNameByExportedName.get('default');
+    const bindingOrigin: Origin =
+      localName === undefined
+        ? { kind: ORIGIN_KIND.LOCAL, modulePath: path, declarationName: 'default' }
+        : findLocalNameOrigin(originLookup, moduleContext, localName);
+    exportedBindings.push({ exportedName: 'default', bindingOrigin });
   }
-  return entries;
+  return exportedBindings;
 };
 
 const isTypeOnlyExport = (
-  declaration: ExportDeclaration,
-  specifierNode: ExportSpecifier,
+  exportDeclaration: ExportDeclaration,
+  exportSpecifier: ExportSpecifier,
 ): boolean => {
-  return declaration.isTypeOnly() || specifierNode.isTypeOnly();
+  return exportDeclaration.isTypeOnly() || exportSpecifier.isTypeOnly();
 };
 
-const isOwnEntry = ({ origin }: ExportEntry, path: string): boolean => {
-  return origin.kind === ORIGIN_KIND.LOCAL && origin.module === path;
+const isBoundInModule = ({ bindingOrigin }: ExportedBinding, path: string): boolean => {
+  return bindingOrigin.kind === ORIGIN_KIND.LOCAL && bindingOrigin.modulePath === path;
 };
 
-type ReadDeclarationExportsArgs = {
-  lookup: OriginLookup;
-  context: ModuleContext;
-  declaration: ExportDeclaration;
+type ClassifyExportDeclarationArgs = {
+  originLookup: OriginLookup;
+  moduleContext: ModuleContext;
+  exportDeclaration: ExportDeclaration;
 };
 
-const readDeclarationExports = ({
-  lookup,
-  context,
-  declaration,
-}: ReadDeclarationExportsArgs): DeclarationExports => {
-  const { path } = context.module;
-  const raw = declaration.getModuleSpecifierValue();
-  const named = declaration.getNamedExports();
-  if (raw === undefined) {
+const classifyExportDeclaration = ({
+  originLookup,
+  moduleContext,
+  exportDeclaration,
+}: ClassifyExportDeclarationArgs): ExportDeclarationContents => {
+  const { path } = moduleContext.scannedModule;
+  const moduleSpecifier = exportDeclaration.getModuleSpecifierValue();
+  const namedExports = exportDeclaration.getNamedExports();
+  if (moduleSpecifier === undefined) {
     // `export { … }`: a name bound in this module stays as written.
-    const entries = named.map((specifierNode) => ({
-      name: aliasOrName(specifierNode),
-      origin: resolveLocal(lookup, context, specifierNode.getName()),
-      typeOnly: isTypeOnlyExport(declaration, specifierNode),
+    const exportedBindings = namedExports.map((exportSpecifier) => ({
+      exportedName: getAliasOrOwnName(exportSpecifier),
+      bindingOrigin: findLocalNameOrigin(originLookup, moduleContext, exportSpecifier.getName()),
+      isTypeOnly: isTypeOnlyExport(exportDeclaration, exportSpecifier),
     }));
-    const forwards = entries.filter((entry) => !isOwnEntry(entry, path));
-    const own = entries.filter((entry) => isOwnEntry(entry, path));
-    return { own, forwards, rewritten: forwards.length > 0 };
+    const forwardedExports = exportedBindings.filter(
+      (exportedBinding) => !isBoundInModule(exportedBinding, path),
+    );
+    const ownExports = exportedBindings.filter((exportedBinding) =>
+      isBoundInModule(exportedBinding, path),
+    );
+    return { ownExports, forwardedExports, needsRewrite: forwardedExports.length > 0 };
   }
-  const target = resolveScanned(raw, path, lookup.scanned);
-  const specifier = rewriteSpecifier(raw, path, lookup.outputDirectory);
-  const namespaceExport = declaration.getNamespaceExport();
-  if (namespaceExport !== undefined) {
-    const origin: Origin = { kind: ORIGIN_KIND.EXTERNAL, specifier, imported: '*' };
-    return { own: [{ name: namespaceExport.getName(), origin }], forwards: [], rewritten: false };
+  const scannedTargetPath = resolveToScannedFile(
+    moduleSpecifier,
+    path,
+    originLookup.scannedFilePaths,
+  );
+  const rewrittenSpecifier = rewriteSpecifierForOutputDirectory(
+    moduleSpecifier,
+    path,
+    originLookup.outputDirectory,
+  );
+  const namespaceExportNode = exportDeclaration.getNamespaceExport();
+  if (namespaceExportNode !== undefined) {
+    const bindingOrigin: Origin = {
+      kind: ORIGIN_KIND.EXTERNAL,
+      rewrittenSpecifier,
+      importedName: '*',
+    };
+    return {
+      ownExports: [{ exportedName: namespaceExportNode.getName(), bindingOrigin }],
+      forwardedExports: [],
+      needsRewrite: false,
+    };
   }
-  if (target === undefined) {
-    const own = named.map((specifierNode) => ({
-      name: aliasOrName(specifierNode),
-      origin: {
+  if (scannedTargetPath === undefined) {
+    const ownExports = namedExports.map((exportSpecifier) => ({
+      exportedName: getAliasOrOwnName(exportSpecifier),
+      bindingOrigin: {
         kind: ORIGIN_KIND.EXTERNAL,
-        specifier,
-        imported: specifierNode.getName(),
+        rewrittenSpecifier,
+        importedName: exportSpecifier.getName(),
       } satisfies Origin,
     }));
-    return { own, forwards: [], rewritten: false };
+    return { ownExports, forwardedExports: [], needsRewrite: false };
   }
   // Into the set: `export *` is dropped, as every name it re-exports is
   // already exported by the module that binds it.
-  const forwards = named.map((specifierNode) => ({
-    name: aliasOrName(specifierNode),
-    origin: resolveExport(lookup, target, specifierNode.getName()) ?? {
+  const forwardedExports = namedExports.map((exportSpecifier) => ({
+    exportedName: getAliasOrOwnName(exportSpecifier),
+    bindingOrigin: findExportOrigin(originLookup, scannedTargetPath, exportSpecifier.getName()) ?? {
       kind: ORIGIN_KIND.LOCAL,
-      module: target,
-      name: specifierNode.getName(),
+      modulePath: scannedTargetPath,
+      declarationName: exportSpecifier.getName(),
     },
-    typeOnly: isTypeOnlyExport(declaration, specifierNode),
+    isTypeOnly: isTypeOnlyExport(exportDeclaration, exportSpecifier),
   }));
-  return { own: [], forwards, rewritten: true };
+  return { ownExports: [], forwardedExports, needsRewrite: true };
 };
 
 // Every name exported so far, with the binding and module behind it.
-type ExportRegistry = {
-  exported: Map<string, { key: string; module: string }>;
+type ExportedNameRegistry = {
+  exportByName: Map<string, { originKey: string; modulePath: string }>;
   diagnostics: Diagnostic[];
   baseDirectory: string;
 };
 
-// Whether `entry` is newly exported; a different binding already exported
+// Whether `exportedBinding` is newly exported; a different binding already exported
 // under its name is a DUPLICATE_EXPORT.
-const register = (registry: ExportRegistry, module: string, entry: ExportEntry): boolean => {
-  const existing = registry.exported.get(entry.name);
-  if (existing === undefined) {
-    registry.exported.set(entry.name, { key: originKey(entry.origin), module });
+const registerExportedName = (
+  exportedNameRegistry: ExportedNameRegistry,
+  modulePath: string,
+  exportedBinding: ExportedBinding,
+): boolean => {
+  const alreadyExported = exportedNameRegistry.exportByName.get(exportedBinding.exportedName);
+  if (alreadyExported === undefined) {
+    exportedNameRegistry.exportByName.set(exportedBinding.exportedName, {
+      originKey: toOriginKey(exportedBinding.bindingOrigin),
+      modulePath,
+    });
     return true;
   }
-  if (existing.key !== originKey(entry.origin)) {
-    registry.diagnostics.push(
+  if (alreadyExported.originKey !== toOriginKey(exportedBinding.bindingOrigin)) {
+    exportedNameRegistry.diagnostics.push(
       createDiagnostic({
         code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-        message: `\`${entry.name}\` is also exported by ${displayPath(registry.baseDirectory, existing.module)}, and the Destination File can export it only once. Rename one of them.`,
-        file: module,
+        message: `\`${exportedBinding.exportedName}\` is also exported by ${toDisplayPath(exportedNameRegistry.baseDirectory, alreadyExported.modulePath)}, and the Destination File can export it only once. Rename one of them.`,
+        file: modulePath,
       }),
     );
   }
@@ -168,108 +202,149 @@ const register = (registry: ExportRegistry, module: string, entry: ExportEntry):
 
 export type PlanExportsArgs = {
   /** In emission order. */
-  contexts: ReadonlyArray<ModuleContext>;
-  lookup: OriginLookup;
+  moduleContexts: ReadonlyArray<ModuleContext>;
+  originLookup: OriginLookup;
   baseDirectory: string;
 };
 
 export const planExports = ({
-  contexts,
-  lookup,
+  moduleContexts,
+  originLookup,
   baseDirectory,
 }: PlanExportsArgs): PlanExportsPayload => {
-  const registry: ExportRegistry = { exported: new Map(), diagnostics: [], baseDirectory };
-  const declarations = new Map<ExportDeclaration, DeclarationPlan>();
-  const pending: Array<{ plan: DeclarationPlan; module: string; forward: Forward }> = [];
-  for (const context of contexts) {
-    const { path, sourceFile } = context.module;
-    declaredExportEntries(lookup, context).forEach((entry) => register(registry, path, entry));
-    for (const declaration of sourceFile.getExportDeclarations()) {
-      const { own, forwards, rewritten } = readDeclarationExports({ lookup, context, declaration });
-      own.forEach((entry) => register(registry, path, entry));
-      if (rewritten) {
-        const plan: DeclarationPlan = {
-          forwarded: new Set(forwards.map(({ name }) => name)),
-          forwards: [],
+  const exportedNameRegistry: ExportedNameRegistry = {
+    exportByName: new Map(),
+    diagnostics: [],
+    baseDirectory,
+  };
+  const rewriteByDeclaration = new Map<ExportDeclaration, ExportDeclarationRewrite>();
+  const forwardsAwaitingRegistration: Array<{
+    declarationRewrite: ExportDeclarationRewrite;
+    modulePath: string;
+    forwardedExport: ForwardedExport;
+  }> = [];
+  for (const moduleContext of moduleContexts) {
+    const { path, sourceFile } = moduleContext.scannedModule;
+    readDeclaredExports(originLookup, moduleContext).forEach((exportedBinding) =>
+      registerExportedName(exportedNameRegistry, path, exportedBinding),
+    );
+    for (const exportDeclaration of sourceFile.getExportDeclarations()) {
+      const { ownExports, forwardedExports, needsRewrite } = classifyExportDeclaration({
+        originLookup,
+        moduleContext,
+        exportDeclaration,
+      });
+      ownExports.forEach((exportedBinding) =>
+        registerExportedName(exportedNameRegistry, path, exportedBinding),
+      );
+      if (needsRewrite) {
+        const declarationRewrite: ExportDeclarationRewrite = {
+          forwardedNames: new Set(forwardedExports.map(({ exportedName }) => exportedName)),
+          forwardsToEmit: [],
         };
-        declarations.set(declaration, plan);
-        pending.push(...forwards.map((forward) => ({ plan, module: path, forward })));
+        rewriteByDeclaration.set(exportDeclaration, declarationRewrite);
+        forwardsAwaitingRegistration.push(
+          ...forwardedExports.map((forwardedExport) => ({
+            declarationRewrite,
+            modulePath: path,
+            forwardedExport,
+          })),
+        );
       }
     }
   }
   // After every module's own exports, so a forward is dropped wherever the
   // binding is exported under that name.
-  for (const { plan, module, forward } of pending) {
-    if (register(registry, module, forward)) {
-      plan.forwards.push(forward);
+  for (const { declarationRewrite, modulePath, forwardedExport } of forwardsAwaitingRegistration) {
+    if (registerExportedName(exportedNameRegistry, modulePath, forwardedExport)) {
+      declarationRewrite.forwardsToEmit.push(forwardedExport);
     }
   }
-  return { diagnostics: registry.diagnostics, declarations };
+  return { diagnostics: exportedNameRegistry.diagnostics, rewriteByDeclaration };
 };
 
-const typePrefix = (typeOnly: boolean): string => {
-  return typeOnly ? 'type ' : '';
+const typeKeywordPrefix = (isTypeOnly: boolean): string => {
+  return isTypeOnly ? 'type ' : '';
 };
 
-const aliased = (local: string, name: string): string => {
-  return local === name ? name : `${local} as ${name}`;
+const formatExportSpecifier = (localName: string, exportedName: string): string => {
+  return localName === exportedName ? exportedName : `${localName} as ${exportedName}`;
 };
 
 // The statements replacing a planned declaration: the specifiers it keeps,
 // then each forward pointing at its binding's final name.
-const forwardedText = (
-  declaration: ExportDeclaration,
-  plan: DeclarationPlan,
-  finalNames: ReadonlyMap<string, string>,
+const renderRewrittenExportStatements = (
+  exportDeclaration: ExportDeclaration,
+  declarationRewrite: ExportDeclarationRewrite,
+  finalNameByOriginKey: ReadonlyMap<string, string>,
 ): string[] => {
-  const named = declaration
+  const keptSpecifierTexts = exportDeclaration
     .getNamedExports()
-    .filter((specifierNode) => !plan.forwarded.has(aliasOrName(specifierNode)))
-    .map((specifierNode) => specifierNode.getText());
-  const fromOutside: string[] = [];
-  for (const { name, origin, typeOnly } of plan.forwards) {
-    if (origin.kind === ORIGIN_KIND.LOCAL) {
-      const local = finalNames.get(originKey(origin)) ?? origin.name;
-      named.push(`${typePrefix(typeOnly)}${aliased(local, name)}`);
-    } else if (origin.imported === '*') {
-      fromOutside.push(`export * as ${name} from '${origin.specifier}';`);
+    .filter(
+      (exportSpecifier) =>
+        !declarationRewrite.forwardedNames.has(getAliasOrOwnName(exportSpecifier)),
+    )
+    .map((exportSpecifier) => exportSpecifier.getText());
+  const externalReExportStatements: string[] = [];
+  for (const { exportedName, bindingOrigin, isTypeOnly } of declarationRewrite.forwardsToEmit) {
+    if (bindingOrigin.kind === ORIGIN_KIND.LOCAL) {
+      const localName =
+        finalNameByOriginKey.get(toOriginKey(bindingOrigin)) ?? bindingOrigin.declarationName;
+      keptSpecifierTexts.push(
+        `${typeKeywordPrefix(isTypeOnly)}${formatExportSpecifier(localName, exportedName)}`,
+      );
+    } else if (bindingOrigin.importedName === '*') {
+      externalReExportStatements.push(
+        `export * as ${exportedName} from '${bindingOrigin.rewrittenSpecifier}';`,
+      );
     } else {
-      fromOutside.push(
-        `export { ${typePrefix(typeOnly)}${aliased(origin.imported, name)} } from '${origin.specifier}';`,
+      externalReExportStatements.push(
+        `export { ${typeKeywordPrefix(isTypeOnly)}${formatExportSpecifier(bindingOrigin.importedName, exportedName)} } from '${bindingOrigin.rewrittenSpecifier}';`,
       );
     }
   }
-  return [...(named.length > 0 ? [`export { ${named.join(', ')} };`] : []), ...fromOutside];
+  return [
+    ...(keptSpecifierTexts.length > 0 ? [`export { ${keptSpecifierTexts.join(', ')} };`] : []),
+    ...externalReExportStatements,
+  ];
 };
 
 export type RewriteExportsArgs = {
   sourceFile: SourceFile;
-  plan: PlanExportsPayload;
+  exportPlan: PlanExportsPayload;
   /** Origin key → the name a renamed binding ended up with. */
-  finalNames: ReadonlyMap<string, string>;
+  finalNameByOriginKey: ReadonlyMap<string, string>;
   outputDirectory: string;
 };
 
-/** Applies `plan` to one module's export declarations, and rewrites every other one's specifier. */
+/** Applies `exportPlan` to one module's export declarations, and rewrites every other one's specifier. */
 export const rewriteExports = ({
   sourceFile,
-  plan,
-  finalNames,
+  exportPlan,
+  finalNameByOriginKey,
   outputDirectory,
 }: RewriteExportsArgs): void => {
-  for (const declaration of sourceFile.getExportDeclarations()) {
-    const planned = plan.declarations.get(declaration);
-    const raw = declaration.getModuleSpecifierValue();
-    if (planned !== undefined) {
-      const text = forwardedText(declaration, planned, finalNames);
-      if (text.length === 0) {
-        declaration.remove();
+  for (const exportDeclaration of sourceFile.getExportDeclarations()) {
+    const plannedRewrite = exportPlan.rewriteByDeclaration.get(exportDeclaration);
+    const moduleSpecifier = exportDeclaration.getModuleSpecifierValue();
+    if (plannedRewrite !== undefined) {
+      const replacementStatements = renderRewrittenExportStatements(
+        exportDeclaration,
+        plannedRewrite,
+        finalNameByOriginKey,
+      );
+      if (replacementStatements.length === 0) {
+        exportDeclaration.remove();
       } else {
-        declaration.replaceWithText(text.join('\n'));
+        exportDeclaration.replaceWithText(replacementStatements.join('\n'));
       }
-    } else if (raw !== undefined) {
-      declaration.setModuleSpecifier(
-        rewriteSpecifier(raw, sourceFile.getFilePath(), outputDirectory),
+    } else if (moduleSpecifier !== undefined) {
+      exportDeclaration.setModuleSpecifier(
+        rewriteSpecifierForOutputDirectory(
+          moduleSpecifier,
+          sourceFile.getFilePath(),
+          outputDirectory,
+        ),
       );
     }
   }

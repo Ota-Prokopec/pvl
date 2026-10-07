@@ -1,9 +1,9 @@
 // Follows a name through imports and re-exports within the scanned set to
 // where it is actually bound.
 import type { ExportDeclaration } from 'ts-morph';
-import { aliasOrName, type ModuleContext } from './context.js';
-import { resolveScanned } from './tsMorphProject.js';
-import { rewriteSpecifier } from './utils.js';
+import { getAliasOrOwnName, type ModuleContext } from './context.js';
+import { resolveToScannedFile } from './tsMorphProject.js';
+import { rewriteSpecifierForOutputDirectory } from './utils.js';
 
 /**
  * `LOCAL` is a top-level declaration of a scanned module; `EXTERNAL` is an
@@ -15,151 +15,216 @@ export const ORIGIN_KIND = {
 } as const;
 
 /** Where a {@link ORIGIN_KIND.LOCAL} name is bound: a scanned module's own declaration. */
-export type LocalOrigin = { kind: typeof ORIGIN_KIND.LOCAL; module: string; name: string };
+export type LocalOrigin = {
+  kind: typeof ORIGIN_KIND.LOCAL;
+  modulePath: string;
+  declarationName: string;
+};
 
 /**
  * Where a name is bound. An {@link ORIGIN_KIND.EXTERNAL} origin's
- * `specifier` is already rewritten to resolve from the destination.
+ * `rewrittenSpecifier` is already rewritten to resolve from the destination.
  */
 export type Origin =
-  LocalOrigin | { kind: typeof ORIGIN_KIND.EXTERNAL; specifier: string; imported: string };
+  | LocalOrigin
+  | { kind: typeof ORIGIN_KIND.EXTERNAL; rewrittenSpecifier: string; importedName: string };
 
 /** Equal for two origins exactly when they are the same binding. */
-export const originKey = (origin: Origin): string => {
+export const toOriginKey = (origin: Origin): string => {
   return origin.kind === ORIGIN_KIND.LOCAL
-    ? `local:${origin.module}:${origin.name}`
-    : `external:${origin.specifier}:${origin.imported}`;
+    ? `local:${origin.modulePath}:${origin.declarationName}`
+    : `external:${origin.rewrittenSpecifier}:${origin.importedName}`;
 };
 
 /** What resolving an origin reads: every scanned module, by path. */
 export type OriginLookup = {
-  contexts: ReadonlyMap<string, ModuleContext>;
-  scanned: ReadonlySet<string>;
+  moduleContextByPath: ReadonlyMap<string, ModuleContext>;
+  scannedFilePaths: ReadonlySet<string>;
   outputDirectory: string;
 };
 
 export type CreateOriginLookupArgs = {
   /** Every scanned module, in any order. */
-  contexts: ReadonlyArray<ModuleContext>;
-  scanned: ReadonlySet<string>;
+  moduleContexts: ReadonlyArray<ModuleContext>;
+  scannedFilePaths: ReadonlySet<string>;
   outputDirectory: string;
 };
 
 export const createOriginLookup = ({
-  contexts,
-  scanned,
+  moduleContexts,
+  scannedFilePaths,
   outputDirectory,
 }: CreateOriginLookupArgs): OriginLookup => {
   return {
-    contexts: new Map(contexts.map((context) => [context.module.path, context])),
-    scanned,
+    moduleContextByPath: new Map(
+      moduleContexts.map((moduleContext) => [moduleContext.scannedModule.path, moduleContext]),
+    ),
+    scannedFilePaths,
     outputDirectory,
   };
 };
 
-// One resolution in progress. `seen` stops a re-export cycle, which only a
+// One resolution in progress. `visitedExportKeys` stops a re-export cycle, which only a
 // type-only cycle can form.
-type Walk = {
-  lookup: OriginLookup;
-  seen: Set<string>;
+type OriginResolution = {
+  originLookup: OriginLookup;
+  visitedExportKeys: Set<string>;
 };
 
-// Where `target`'s export `name` is bound; if the user's code names an
-// export `target` doesn't have, the reference is kept as written.
-const originIn = (walk: Walk, target: string, name: string): Origin => {
-  return exportOrigin(walk, target, name) ?? { kind: ORIGIN_KIND.LOCAL, module: target, name };
+// Where `targetPath`'s export `exportedName` is bound; if the user's code
+// names an export `targetPath` doesn't have, the reference is kept as written.
+const followExportOrKeepReference = (
+  resolution: OriginResolution,
+  targetPath: string,
+  exportedName: string,
+): Origin => {
+  return (
+    followExport(resolution, targetPath, exportedName) ?? {
+      kind: ORIGIN_KIND.LOCAL,
+      modulePath: targetPath,
+      declarationName: exportedName,
+    }
+  );
 };
 
-const localOrigin = (walk: Walk, context: ModuleContext, local: string): Origin => {
-  const binding = context.imports.find((candidate) => candidate.local === local);
-  if (binding === undefined) {
-    return { kind: ORIGIN_KIND.LOCAL, module: context.module.path, name: local };
+// Where the top-level name `localName` of a module is bound: its own
+// declaration, or what the import binding it is points at.
+const followLocalName = (
+  resolution: OriginResolution,
+  moduleContext: ModuleContext,
+  localName: string,
+): Origin => {
+  const importBinding = moduleContext.importBindings.find(
+    (candidate) => candidate.localName === localName,
+  );
+  if (importBinding === undefined) {
+    return {
+      kind: ORIGIN_KIND.LOCAL,
+      modulePath: moduleContext.scannedModule.path,
+      declarationName: localName,
+    };
   }
-  return binding.target === undefined
-    ? { kind: ORIGIN_KIND.EXTERNAL, specifier: binding.specifier, imported: binding.imported }
-    : originIn(walk, binding.target, binding.imported);
+  return importBinding.scannedTargetPath === undefined
+    ? {
+        kind: ORIGIN_KIND.EXTERNAL,
+        rewrittenSpecifier: importBinding.rewrittenSpecifier,
+        importedName: importBinding.importedName,
+      }
+    : followExportOrKeepReference(
+        resolution,
+        importBinding.scannedTargetPath,
+        importBinding.importedName,
+      );
 };
 
-type ReExportOriginArgs = {
-  walk: Walk;
-  path: string;
-  declaration: ExportDeclaration;
-  name: string;
+type FollowReExportArgs = {
+  resolution: OriginResolution;
+  modulePath: string;
+  exportDeclaration: ExportDeclaration;
+  exportedName: string;
 };
 
-// Where `export … from` in module `path` binds `name`, or `undefined` when
-// it doesn't export that name.
-const reExportOrigin = ({
-  walk,
-  path,
-  declaration,
-  name,
-}: ReExportOriginArgs): Origin | undefined => {
-  const raw = declaration.getModuleSpecifierValue();
-  if (raw === undefined) {
+// Where `export … from` in module `modulePath` binds `exportedName`, or
+// `undefined` when it doesn't export that name.
+const followReExport = ({
+  resolution,
+  modulePath,
+  exportDeclaration,
+  exportedName,
+}: FollowReExportArgs): Origin | undefined => {
+  const moduleSpecifier = exportDeclaration.getModuleSpecifierValue();
+  if (moduleSpecifier === undefined) {
     return undefined;
   }
-  const target = resolveScanned(raw, path, walk.lookup.scanned);
-  const specifier = rewriteSpecifier(raw, path, walk.lookup.outputDirectory);
-  const namespaceExport = declaration.getNamespaceExport();
-  if (namespaceExport !== undefined) {
-    return namespaceExport.getName() === name
-      ? { kind: ORIGIN_KIND.EXTERNAL, specifier, imported: '*' }
+  const targetPath = resolveToScannedFile(
+    moduleSpecifier,
+    modulePath,
+    resolution.originLookup.scannedFilePaths,
+  );
+  const rewrittenSpecifier = rewriteSpecifierForOutputDirectory(
+    moduleSpecifier,
+    modulePath,
+    resolution.originLookup.outputDirectory,
+  );
+  const namespaceExportNode = exportDeclaration.getNamespaceExport();
+  if (namespaceExportNode !== undefined) {
+    return namespaceExportNode.getName() === exportedName
+      ? { kind: ORIGIN_KIND.EXTERNAL, rewrittenSpecifier, importedName: '*' }
       : undefined;
   }
-  const named = declaration.getNamedExports();
-  if (named.length === 0) {
+  const namedExports = exportDeclaration.getNamedExports();
+  if (namedExports.length === 0) {
     // `export *` never re-exports a default.
-    return target === undefined || name === 'default'
+    return targetPath === undefined || exportedName === 'default'
       ? undefined
-      : exportOrigin(walk, target, name);
+      : followExport(resolution, targetPath, exportedName);
   }
-  const match = named.find((specifierNode) => aliasOrName(specifierNode) === name);
-  if (match === undefined) {
+  const matchingExportSpecifier = namedExports.find(
+    (exportSpecifier) => getAliasOrOwnName(exportSpecifier) === exportedName,
+  );
+  if (matchingExportSpecifier === undefined) {
     return undefined;
   }
-  return target === undefined
-    ? { kind: ORIGIN_KIND.EXTERNAL, specifier, imported: match.getName() }
-    : originIn(walk, target, match.getName());
+  return targetPath === undefined
+    ? {
+        kind: ORIGIN_KIND.EXTERNAL,
+        rewrittenSpecifier,
+        importedName: matchingExportSpecifier.getName(),
+      }
+    : followExportOrKeepReference(resolution, targetPath, matchingExportSpecifier.getName());
 };
 
-const exportOrigin = (walk: Walk, path: string, name: string): Origin | undefined => {
-  const context = walk.lookup.contexts.get(path);
-  if (context === undefined || walk.seen.has(`${path}:${name}`)) {
+// Where module `modulePath`'s export `exportedName` is bound, or `undefined`
+// when it has no such export.
+const followExport = (
+  resolution: OriginResolution,
+  modulePath: string,
+  exportedName: string,
+): Origin | undefined => {
+  const moduleContext = resolution.originLookup.moduleContextByPath.get(modulePath);
+  if (
+    moduleContext === undefined ||
+    resolution.visitedExportKeys.has(`${modulePath}:${exportedName}`)
+  ) {
     return undefined;
   }
-  walk.seen.add(`${path}:${name}`);
-  const local = context.localExports.get(name);
-  if (local !== undefined) {
-    return localOrigin(walk, context, local);
+  resolution.visitedExportKeys.add(`${modulePath}:${exportedName}`);
+  const localName = moduleContext.localNameByExportedName.get(exportedName);
+  if (localName !== undefined) {
+    return followLocalName(resolution, moduleContext, localName);
   }
-  const declaredName = context.declaredExports.get(name);
-  if (declaredName !== undefined) {
-    return { kind: ORIGIN_KIND.LOCAL, module: path, name: declaredName };
+  const declarationName = moduleContext.declarationNameByExportedName.get(exportedName);
+  if (declarationName !== undefined) {
+    return { kind: ORIGIN_KIND.LOCAL, modulePath, declarationName };
   }
-  for (const declaration of context.module.sourceFile.getExportDeclarations()) {
-    const origin = reExportOrigin({ walk, path, declaration, name });
-    if (origin !== undefined) {
-      return origin;
+  for (const exportDeclaration of moduleContext.scannedModule.sourceFile.getExportDeclarations()) {
+    const reExportOrigin = followReExport({
+      resolution,
+      modulePath,
+      exportDeclaration,
+      exportedName,
+    });
+    if (reExportOrigin !== undefined) {
+      return reExportOrigin;
     }
   }
   return undefined;
 };
 
-/** Where module `path`'s export `name` is bound, or `undefined` when it has no such export. */
-export const resolveExport = (
-  lookup: OriginLookup,
-  path: string,
-  name: string,
+/** Where module `modulePath`'s export `exportedName` is bound, or `undefined` when it has no such export. */
+export const findExportOrigin = (
+  originLookup: OriginLookup,
+  modulePath: string,
+  exportedName: string,
 ): Origin | undefined => {
-  return exportOrigin({ lookup, seen: new Set() }, path, name);
+  return followExport({ originLookup, visitedExportKeys: new Set() }, modulePath, exportedName);
 };
 
-/** Where the top-level name `local` of a module is bound. */
-export const resolveLocal = (
-  lookup: OriginLookup,
-  context: ModuleContext,
-  local: string,
+/** Where the top-level name `localName` of a module is bound. */
+export const findLocalNameOrigin = (
+  originLookup: OriginLookup,
+  moduleContext: ModuleContext,
+  localName: string,
 ): Origin => {
-  return localOrigin({ lookup, seen: new Set() }, context, local);
+  return followLocalName({ originLookup, visitedExportKeys: new Set() }, moduleContext, localName);
 };
