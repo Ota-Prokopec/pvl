@@ -29,7 +29,11 @@ export type ScannedModule = {
   dependencies: Set<string>;
 };
 
-/** An empty ts-morph project resolving modules the way a bundler does; the scanned files are added to it one by one. */
+/**
+ * An empty ts-morph project that resolves modules the way a bundler does.
+ * It ignores the user's `tsconfig.json`: only the scanned files are added,
+ * one by one, by {@link readScannedModules}.
+ */
 export const createTsMorphProject = (): Project => {
   return new Project({
     skipAddingFilesFromTsConfig: true,
@@ -37,7 +41,23 @@ export const createTsMorphProject = (): Project => {
   });
 };
 
-/** The scanned file `moduleSpecifier` resolves to from `importerPath`, or `undefined` when it leaves the set. */
+/**
+ * The absolute path of the scanned file `moduleSpecifier` resolves to when
+ * imported from `importerPath`, or `undefined` when it resolves to anything
+ * outside the scanned set. Resolution follows the bundler rules, so a `.js`
+ * specifier finds the `.ts` file.
+ *
+ * With `src/schemas/user.ts` and `src/schemas/post.ts` scanned, from
+ * `src/schemas/post.ts`:
+ *
+ * ```ts
+ * resolveToScannedFile('./user.js', …)      // '/repo/src/schemas/user.ts'
+ * resolveToScannedFile('./user', …)         // '/repo/src/schemas/user.ts'
+ * resolveToScannedFile('../helpers.js', …)  // undefined: not scanned
+ * resolveToScannedFile('@pvl/schema', …)    // undefined: a package, never scanned
+ * resolveToScannedFile('./missing.js', …)   // undefined: resolves to no file
+ * ```
+ */
 export const resolveToScannedFile = (
   moduleSpecifier: string,
   importerPath: string,
@@ -59,8 +79,18 @@ export const resolveToScannedFile = (
   return scannedFilePaths.has(absoluteResolvedPath) ? absoluteResolvedPath : undefined;
 };
 
-// Whether evaluating the importing module needs `importOrExportDeclaration`'s target
-// evaluated first. A type-only import or re-export is erased.
+// Whether evaluating the importing module needs the module that
+// `importOrExportDeclaration` names to be evaluated first. Anything that
+// brings in a value does; a declaration that brings in only types is erased
+// when compiled, so it doesn't.
+//
+//   import { user } from './user.js';           // yes
+//   import { type User, user } from './user.js'; // yes: `user` is a value
+//   import './setup.js';                        // yes: runs setup.ts
+//   export * from './user.js';                  // yes
+//   import type { User } from './user.js';      // no
+//   import { type User } from './user.js';      // no: every name is a type
+//   export type { User } from './user.js';      // no
 const isRuntimeDependency = (
   importOrExportDeclaration: ImportDeclaration | ExportDeclaration,
 ): boolean => {
@@ -73,24 +103,37 @@ const isRuntimeDependency = (
       importOrExportDeclaration.getDefaultImport() !== undefined ||
       importOrExportDeclaration.getNamespaceImport() !== undefined ||
       namedSpecifiers.length === 0 ||
-      namedSpecifiers.some((moduleSpecifier) => !moduleSpecifier.isTypeOnly())
+      namedSpecifiers.some((namedSpecifier) => !namedSpecifier.isTypeOnly())
     );
   }
   const namedSpecifiers = importOrExportDeclaration.getNamedExports();
   return (
     namedSpecifiers.length === 0 ||
-    namedSpecifiers.some((moduleSpecifier) => !moduleSpecifier.isTypeOnly())
+    namedSpecifiers.some((namedSpecifier) => !namedSpecifier.isTypeOnly())
   );
 };
 
-/** Adds every file to `project` and links each to the scanned modules it depends on. */
+/**
+ * Adds every scanned file to `tsMorphProject` and records, for each, the
+ * scanned files it needs evaluated first. An import of something outside
+ * the set, or of types only, isn't a dependency.
+ *
+ * ```ts
+ * // post.ts
+ * import { pvl } from '@pvl/schema';         // outside the set: ignored
+ * import type { Tag } from './tag.js';      // types only: ignored
+ * import { user } from './user.js';         // dependency: user.ts
+ * ```
+ *
+ * gives `post.ts` the dependencies `{ '/repo/src/schemas/user.ts' }`.
+ */
 export const readScannedModules = (
-  project: Project,
+  tsMorphProject: Project,
   scannedFilePathList: ReadonlyArray<string>,
 ): ScannedModule[] => {
   const scannedFilePaths = new Set(scannedFilePathList);
   return scannedFilePathList.map((path) => {
-    const sourceFile = project.addSourceFileAtPath(path);
+    const sourceFile = tsMorphProject.addSourceFileAtPath(path);
     const dependencies = new Set<string>();
     for (const importOrExportDeclaration of [
       ...sourceFile.getImportDeclarations(),

@@ -44,8 +44,18 @@ const toArgsTypeName = (name: string): string => {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)}Args`;
 };
 
-// Each `<FunctionName>Args` type in `statements` that isn't directly above
-// its function, with that function.
+// Each `<FunctionName>Args` type among `statements` that isn't the
+// statement directly above its function, paired with that function.
+//
+//   type SaveArgs = { … };
+//   const save = (args: SaveArgs) => …;   // fine: directly above
+//
+//   type LoadArgs = { … };
+//   const helper = 1;
+//   const load = (args: LoadArgs) => …;   // reported: `helper` sits between
+//
+// An Args type whose function isn't among `statements`, and a function with
+// no Args type, are both ignored.
 const misplacedArgsTypes = (
   statements: ReadonlyArray<TSESTree.Node>,
 ): Array<{ type: Named; fn: Named }> => {

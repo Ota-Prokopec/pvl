@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { pvl, type Issue } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 
-// Whether `value` is even: the `.refine()` predicate the pipeline cases use.
+// Whether `value` is even: the `.refine()` predicate the pipeline cases
+// chain, so a case can tell whether the refinement ran (`isEven(2.5)` is
+// false, and fails the refinement) or was skipped.
 const isEven = (value: number): boolean => value % 2 === 0;
 
 // The reference cases for `Schema._validate`'s steps (ADR-0010): pre-modifiers

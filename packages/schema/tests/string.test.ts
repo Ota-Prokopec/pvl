@@ -3,7 +3,11 @@ import fc from 'fast-check';
 import { pvl } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 
-// A refinement the test expects never to run.
+// A `.refine()` predicate that throws if it is ever called, for the cases
+// asserting a refinement is skipped: an absent optional or a `null`
+// nullable value short-circuits before it.
+//
+//   pvl.string().optional().refine(throwing).validate(undefined) // passes, never calls it
 const throwing = (): boolean => {
   throw new Error('refine should not run');
 };

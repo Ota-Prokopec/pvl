@@ -25,7 +25,22 @@ export type MirrorScannedFilesArgs = {
   outputDirectory: string;
 };
 
-/** Builds the Destination File's text from the scanned files, and reports what blocks or degrades it. */
+/**
+ * Builds the Destination File's text from the scanned files (ADR-0005): one
+ * file holding every scanned module's code in dependency order, under one
+ * top-level scope, importing only from outside the set.
+ *
+ * Returns the warnings with the text, or, when a scanned file can't be
+ * mirrored, only the blocking errors and empty text:
+ *
+ * - PARSE_FAILED: a file isn't valid syntax.
+ * - NAMESPACE_IMPORT_OF_SCANNED_FILE: `import * as x from './scanned.js'`.
+ * - IMPORT_CYCLE: scanned files import each other's values.
+ * - DUPLICATE_EXPORT: two files export different bindings under one name.
+ *
+ * DUPLICATE_EXPORT is found while planning the exports, so it comes with
+ * the text; the caller decides not to write it.
+ */
 export const mirrorScannedFiles = ({
   scannedFilePaths,
   baseDirectory,

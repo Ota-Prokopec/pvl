@@ -58,12 +58,34 @@ export type ModuleContext = {
   declaredNames: DeclaredName[];
 };
 
-/** The name a specifier binds or exports under: its alias, or its own name without one. */
+/**
+ * The name an import or export specifier makes available: its alias when it
+ * has one, otherwise the name itself.
+ *
+ * ```ts
+ * import { user } from './user.js';            // 'user'
+ * import { user as account } from './user.js'; // 'account'
+ * export { user as account };                  // 'account'
+ * ```
+ */
 export const getAliasOrOwnName = (specifier: ImportSpecifier | ExportSpecifier): string => {
   return specifier.getAliasNode()?.getText() ?? specifier.getName();
 };
 
-/** Whether `statement` declares a name rather than running anything, its initializers aside. */
+/**
+ * Whether a top-level statement only declares names, so evaluating it runs
+ * nothing but its initializers.
+ *
+ * ```ts
+ * const user = pvl.object({ … });   // true
+ * function format() { … }           // true
+ * class Registry { … }              // true
+ * type User = Infer<typeof user>;   // true
+ * import fs = require('node:fs');   // true
+ * console.log('loaded');            // false: a call
+ * if (debug) { … }                  // false
+ * ```
+ */
 export const isDeclarationStatement = (topLevelStatement: Statement): boolean => {
   return (
     Node.isVariableStatement(topLevelStatement) ||
@@ -77,19 +99,29 @@ export const isDeclarationStatement = (topLevelStatement: Statement): boolean =>
   );
 };
 
-// The identifiers a top-level statement binds at module scope: each name a
-// `const`/`let`/`var` declares, destructured ones included, or the name of a
-// function, class, interface, type, enum, namespace or import-equals.
+// The identifiers of the names a top-level statement declares at module
+// scope, the ones the Destination File's single scope must keep unique.
+//
+//   const user = …, post = …;          // [user, post]
+//   const { id, meta: { tags } } = …;  // [id, tags]: `meta` is a key, not a name
+//   function format() { … }            // [format]
+//   export default function () { … }  // []: no name yet
+//   console.log('loaded');             // []
 const getTopLevelNameIdentifiers = (topLevelStatement: Statement): Identifier[] => {
   if (Node.isVariableStatement(topLevelStatement)) {
-    return topLevelStatement.getDeclarations().flatMap((declaration) => {
-      const nameNode = declaration.getNameNode();
-      return Node.isIdentifier(nameNode)
-        ? [nameNode]
-        : nameNode.getDescendantsOfKind(SyntaxKind.Identifier).filter((identifier) => {
-            const parent = identifier.getParent();
-            return Node.isBindingElement(parent) && parent.getNameNode() === identifier;
-          });
+    return topLevelStatement.getDeclarations().flatMap((variableDeclaration) => {
+      const declaredNameNode = variableDeclaration.getNameNode();
+      return Node.isIdentifier(declaredNameNode)
+        ? [declaredNameNode]
+        : declaredNameNode
+            .getDescendantsOfKind(SyntaxKind.Identifier)
+            .filter((patternIdentifier) => {
+              const bindingElement = patternIdentifier.getParent();
+              return (
+                Node.isBindingElement(bindingElement) &&
+                bindingElement.getNameNode() === patternIdentifier
+              );
+            });
     });
   }
   if (
@@ -101,29 +133,37 @@ const getTopLevelNameIdentifiers = (topLevelStatement: Statement): Identifier[] 
     Node.isModuleDeclaration(topLevelStatement) ||
     Node.isImportEqualsDeclaration(topLevelStatement)
   ) {
-    const nameNode = topLevelStatement.getNameNode();
-    return nameNode !== undefined && Node.isIdentifier(nameNode) ? [nameNode] : [];
+    const declaredNameNode = topLevelStatement.getNameNode();
+    return declaredNameNode !== undefined && Node.isIdentifier(declaredNameNode)
+      ? [declaredNameNode]
+      : [];
   }
   return [];
 };
 
-// Whether `identifier` names something declared inside a function, block or
-// class of its module, rather than at the top level.
+// Whether `identifier` is the name in a declaration nested inside a
+// function, block or class, rather than a top-level one or a reference.
+//
+//   const user = …;                         // `user`: top level, false
+//   const build = (user) => {               // parameter `user`: true
+//     const post = …;                       // `post`: true
+//     return user;                          // a reference: false
+//   };
 const isNestedDeclarationName = (identifier: Identifier): boolean => {
-  const parent = identifier.getParent();
+  const declaringNode = identifier.getParent();
   const isDeclarationName =
-    (Node.isVariableDeclaration(parent) ||
-      Node.isParameterDeclaration(parent) ||
-      Node.isBindingElement(parent) ||
-      Node.isFunctionDeclaration(parent) ||
-      Node.isFunctionExpression(parent) ||
-      Node.isClassDeclaration(parent) ||
-      Node.isClassExpression(parent) ||
-      Node.isTypeParameterDeclaration(parent) ||
-      Node.isEnumDeclaration(parent) ||
-      Node.isInterfaceDeclaration(parent) ||
-      Node.isTypeAliasDeclaration(parent)) &&
-    parent.getNameNode() === identifier;
+    (Node.isVariableDeclaration(declaringNode) ||
+      Node.isParameterDeclaration(declaringNode) ||
+      Node.isBindingElement(declaringNode) ||
+      Node.isFunctionDeclaration(declaringNode) ||
+      Node.isFunctionExpression(declaringNode) ||
+      Node.isClassDeclaration(declaringNode) ||
+      Node.isClassExpression(declaringNode) ||
+      Node.isTypeParameterDeclaration(declaringNode) ||
+      Node.isEnumDeclaration(declaringNode) ||
+      Node.isInterfaceDeclaration(declaringNode) ||
+      Node.isTypeAliasDeclaration(declaringNode)) &&
+    declaringNode.getNameNode() === identifier;
   const topLevelStatement = identifier.getFirstAncestor((ancestor) =>
     Node.isSourceFile(ancestor.getParent()),
   );
@@ -134,8 +174,17 @@ const isNestedDeclarationName = (identifier: Identifier): boolean => {
   return isDeclarationName && !isTopLevelName;
 };
 
-// Renames every inner declaration of `name` in `sourceFile`, so a top-level
-// binding about to take that name can't be shadowed by it.
+// Renames every nested declaration of `name` in `sourceFile` to the first
+// unused `<name>_<n>`, so a top-level binding about to be renamed to `name`
+// isn't shadowed inside it. Before renaming the import `account` to `user`:
+//
+//   import { user as account } from './user.js';
+//   const greet = (user) => `${user.name} of ${account.id}`;
+//
+// the parameter becomes `user_2`, otherwise `account.id` would turn into
+// `user.id` and read the parameter:
+//
+//   const greet = (user_2) => `${user_2.name} of ${user.id}`;
 const renameNestedDeclarationsOf = (sourceFile: SourceFile, name: string): void => {
   const usedIdentifierTexts = new Set(
     sourceFile
@@ -145,25 +194,45 @@ const renameNestedDeclarationsOf = (sourceFile: SourceFile, name: string): void 
   const shadowingIdentifiers = sourceFile
     .getDescendantsOfKind(SyntaxKind.Identifier)
     .filter((identifier) => identifier.getText() === name && isNestedDeclarationName(identifier));
-  for (const identifier of shadowingIdentifiers) {
+  for (const shadowingIdentifier of shadowingIdentifiers) {
     let suffix = 2;
     while (usedIdentifierTexts.has(`${name}_${String(suffix)}`)) {
       suffix += 1;
     }
     usedIdentifierTexts.add(`${name}_${String(suffix)}`);
-    identifier.rename(`${name}_${String(suffix)}`, RENAME_KEEPING_SHORTHAND_KEYS);
+    shadowingIdentifier.rename(`${name}_${String(suffix)}`, RENAME_KEEPING_SHORTHAND_KEYS);
   }
 };
 
-/** Renames `identifier` and every reference to it, first renaming any inner declaration that would capture it under `name`. */
+/**
+ * Renames the declaration `identifier` to `name` along with every
+ * reference to it, after moving any nested declaration of `name` out of the
+ * way (see `renameNestedDeclarationsOf`). A shorthand property keeps its key:
+ *
+ * ```ts
+ * const user = …; export const payload = { user };
+ * // renamed to user_2:
+ * const user_2 = …; export const payload = { user: user_2 };
+ * ```
+ */
 export const renameAvoidingShadowing = (identifier: Identifier, name: string): void => {
   renameNestedDeclarationsOf(identifier.getSourceFile(), name);
   identifier.rename(name, RENAME_KEEPING_SHORTHAND_KEYS);
 };
 
-/** Renames an import's local binding and every reference to it in its module. */
-export const renameImportBinding = (binding: ImportBinding, name: string): void => {
-  const { bindingNode } = binding;
+/**
+ * Renames the local name an import binds to `name`, and every reference to
+ * it in the importing module. A named import gains an alias, so it still
+ * imports the same export:
+ *
+ * ```ts
+ * import { user } from './user.js';          // → import { user as user_2 } …
+ * import { user as account } from './user.js'; // → import { user as user_2 } …
+ * import config from './config.js';          // → import config_2 from …
+ * ```
+ */
+export const renameImportBinding = (importBinding: ImportBinding, name: string): void => {
+  const { bindingNode } = importBinding;
   if (Node.isIdentifier(bindingNode)) {
     renameAvoidingShadowing(bindingNode, name);
     return;
@@ -177,16 +246,25 @@ export const renameImportBinding = (binding: ImportBinding, name: string): void 
   }
 };
 
-// Gives an anonymous default export a name, so an import of it can collapse
-// into a reference: `export default <expression>` becomes a `const`, and a
-// nameless default function or class is named.
+// Gives a module's anonymous default export the name `defaultExport`, so a
+// scanned module importing it has a binding to refer to.
+//
+//   export default pvl.string();       // → const defaultExport = pvl.string();
+//                                      //   export default defaultExport;
+//   export default function () { … }   // → export default function defaultExport() { … }
+//   export default class { … }         // → export default class defaultExport { … }
+//
+// A default export that is already a name is left alone:
+//
+//   export default user;
+//   export default function format() { … }
 const nameAnonymousDefaultExport = (sourceFile: SourceFile): void => {
   for (const topLevelStatement of sourceFile.getStatements()) {
     if (Node.isExportAssignment(topLevelStatement)) {
-      const expression = topLevelStatement.getExpression();
-      if (!topLevelStatement.isExportEquals() && !Node.isIdentifier(expression)) {
+      const exportedExpression = topLevelStatement.getExpression();
+      if (!topLevelStatement.isExportEquals() && !Node.isIdentifier(exportedExpression)) {
         topLevelStatement.replaceWithText(
-          `const ${ANONYMOUS_DEFAULT_EXPORT_NAME} = ${expression.getText()};\nexport default ${ANONYMOUS_DEFAULT_EXPORT_NAME};`,
+          `const ${ANONYMOUS_DEFAULT_EXPORT_NAME} = ${exportedExpression.getText()};\nexport default ${ANONYMOUS_DEFAULT_EXPORT_NAME};`,
         );
       }
     } else if (
@@ -207,7 +285,16 @@ type ReadImportBindingsArgs = {
   outputDirectory: string;
 };
 
-// Every name one import declaration binds.
+// One ImportBinding per name an import declaration binds.
+//
+//   import config, { user as account, type Post } from './models.js';
+//
+//   → { localName: 'config',  importedName: 'default', isTypeOnly: false }
+//     { localName: 'account', importedName: 'user',    isTypeOnly: false }
+//     { localName: 'Post',    importedName: 'Post',    isTypeOnly: true }
+//
+// each carrying the specifier rewritten for the output directory, and
+// `scannedTargetPath` when `./models.js` is a scanned file.
 const readImportBindings = ({
   importerPath,
   importDeclaration,
@@ -263,7 +350,12 @@ const readImportBindings = ({
   ];
 };
 
-// A side-effect-only import (`import './setup.js'`) binds nothing.
+// Whether an import declaration only runs its module and binds no name.
+//
+//   import './setup.js';                  // true
+//   import 'reflect-metadata';            // true
+//   import { user } from './user.js';     // false
+//   import {} from './user.js';           // true: binds nothing
 const isSideEffectOnlyImport = (importDeclaration: ImportDeclaration): boolean => {
   return (
     importDeclaration.getDefaultImport() === undefined &&
@@ -272,8 +364,15 @@ const isSideEffectOnlyImport = (importDeclaration: ImportDeclaration): boolean =
   );
 };
 
-// Exported name → the local name it exports, for an `export { … }` with no
-// module specifier and `export default <name>`.
+// For the exports that name a binding declared elsewhere in the same
+// module, the local name behind each exported name.
+//
+//   export { user, post as article };  // user → user, article → post
+//   export default user;               // default → user
+//
+// A declaration carrying `export` is read by `readDeclaredNames`, and
+// `export { … } from './other.js'` names another module's binding, so
+// neither is here.
 const readLocalNameByExportedName = (sourceFile: SourceFile): Map<string, string> => {
   const localNameByExportedName = new Map<string, string>();
   for (const exportDeclaration of sourceFile.getExportDeclarations()) {
@@ -292,8 +391,13 @@ const readLocalNameByExportedName = (sourceFile: SourceFile): Map<string, string
   return localNameByExportedName;
 };
 
-// Every top-level name the module declares, and the exported ones by the
-// name they are exported under.
+// Every top-level name the module declares, and for each declaration
+// carrying `export`, the name it is exported under.
+//
+//   export const user = …;               // exported as `user`, under its own name
+//   export default function format() {}  // exported as `default`, not under its own name
+//   const post = …; export { post };     // exported under its own name, via `export { … }`
+//   const draft = …;                     // not exported: may be renamed freely
 const readDeclaredNames = (
   sourceFile: SourceFile,
   localNameByExportedName: ReadonlyMap<string, string>,
@@ -331,8 +435,23 @@ export type ReadModuleContextArgs = {
 };
 
 /**
- * Reads what one scanned module binds at its top level, first naming its
- * anonymous default export so an importer can refer to it.
+ * Reads everything one scanned module binds at its top level, which the
+ * later steps resolve and rename: its imports, its side-effect-only imports
+ * of files outside the set, its own declarations and how each export maps
+ * to a local name. First gives an anonymous default export the name
+ * `defaultExport`.
+ *
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ * import './setup.js';
+ * const base = pvl.object({ … });
+ * export const user = base.extend({ … });
+ * export default user;
+ * ```
+ *
+ * gives one import binding (`pvl`), one side-effect import (`./setup.js`
+ * rewritten, unless setup.ts is scanned), the declared names `base` and
+ * `user`, and the exports `user` → `user` and `default` → `user`.
  */
 export const readModuleContext = ({
   scannedModule,

@@ -29,7 +29,17 @@ export type Origin =
   | LocalOrigin
   | { kind: typeof ORIGIN_KIND.EXTERNAL; rewrittenSpecifier: string; importedName: string };
 
-/** Equal for two origins exactly when they are the same binding. */
+/**
+ * A string equal for two origins exactly when they are the same binding,
+ * to key maps and sets by binding.
+ *
+ * ```ts
+ * toOriginKey({ kind: 'LOCAL', modulePath: '/repo/src/user.ts', declarationName: 'user' })
+ * // 'local:/repo/src/user.ts:user'
+ * toOriginKey({ kind: 'EXTERNAL', rewrittenSpecifier: '@pvl/schema', importedName: 'pvl' })
+ * // 'external:@pvl/schema:pvl'
+ * ```
+ */
 export const toOriginKey = (origin: Origin): string => {
   return origin.kind === ORIGIN_KIND.LOCAL
     ? `local:${origin.modulePath}:${origin.declarationName}`
@@ -50,7 +60,11 @@ export type CreateOriginLookupArgs = {
   outputDirectory: string;
 };
 
-/** Indexes the scanned modules by path, for resolving where a name is bound. */
+/**
+ * Indexes every scanned module by its path, so {@link findExportOrigin} and
+ * {@link findLocalNameOrigin} can step from an import into the module it
+ * names.
+ */
 export const createOriginLookup = ({
   moduleContexts,
   scannedFilePaths,
@@ -65,15 +79,20 @@ export const createOriginLookup = ({
   };
 };
 
-// One resolution in progress. `visitedExportKeys` stops a re-export cycle, which only a
-// type-only cycle can form.
+// One resolution in progress. `visitedExportKeys` holds each
+// `<module path>:<exported name>` already followed, so a re-export cycle
+// ends instead of looping; only a type-only cycle can form one, as
+// IMPORT_CYCLE blocks the rest.
 type OriginResolution = {
   originLookup: OriginLookup;
   visitedExportKeys: Set<string>;
 };
 
-// Where `targetPath`'s export `exportedName` is bound; if the user's code
-// names an export `targetPath` doesn't have, the reference is kept as written.
+// Where module `targetPath`'s export `exportedName` is bound. When the
+// module has no such export, which TypeScript would have rejected, the
+// reference is kept as written, as a binding `exportedName` of that module:
+//
+//   import { missing } from './user.js';  // → LOCAL user.ts `missing`
 const followExportOrKeepReference = (
   resolution: OriginResolution,
   targetPath: string,
@@ -88,15 +107,21 @@ const followExportOrKeepReference = (
   );
 };
 
-// Where the top-level name `localName` of a module is bound: its own
-// declaration, or what the import binding it is points at.
+// Where the top-level name `localName` of a module is bound, following
+// imports into the scanned set until it reaches a declaration or leaves
+// the set. In post.ts:
+//
+//   const draft = …;                    // `draft` → LOCAL post.ts `draft`
+//   import { pvl } from '@pvl/schema';  // `pvl`   → EXTERNAL '@pvl/schema' `pvl`
+//   import { user } from './user.js';   // `user`  → wherever user.ts's export
+//                                       //           `user` is bound
 const followLocalName = (
   resolution: OriginResolution,
   moduleContext: ModuleContext,
   localName: string,
 ): Origin => {
   const importBinding = moduleContext.importBindings.find(
-    (candidate) => candidate.localName === localName,
+    (candidateBinding) => candidateBinding.localName === localName,
   );
   if (importBinding === undefined) {
     return {
@@ -125,8 +150,19 @@ type FollowReExportArgs = {
   exportedName: string;
 };
 
-// Where `export … from` in module `modulePath` binds `exportedName`, or
-// `undefined` when it doesn't export that name.
+// Where the re-export `exportDeclaration` in module `modulePath` binds
+// `exportedName`, or `undefined` when that declaration doesn't export it.
+// Looking for `user`:
+//
+//   export { user } from './user.js';          // → user.ts's export `user`
+//   export { account as user } from './a.js';  // → a.ts's export `account`
+//   export * from './user.js';                 // → user.ts's export `user`, if any
+//   export * as user from 'some-package';      // → EXTERNAL 'some-package' `*`
+//   export { user } from 'some-package';       // → EXTERNAL 'some-package' `user`
+//   export { post } from './post.js';          // → undefined: not `user`
+//   export { user };                           // → undefined: not a re-export
+//
+// `export *` never re-exports a default, so it never matches `default`.
 const followReExport = ({
   resolution,
   modulePath,
@@ -175,8 +211,12 @@ const followReExport = ({
     : followExportOrKeepReference(resolution, targetPath, matchingExportSpecifier.getName());
 };
 
-// Where module `modulePath`'s export `exportedName` is bound, or `undefined`
-// when it has no such export.
+// Where module `modulePath`'s export `exportedName` is bound, or
+// `undefined` when it has no such export or isn't scanned. Tries, in order:
+//
+//   export { user };  /  export default user;   // the local name, followed further
+//   export const user = …;                       // the declaration itself
+//   export { user } from './other.js';           // the re-export, followed further
 const followExport = (
   resolution: OriginResolution,
   modulePath: string,
@@ -212,7 +252,18 @@ const followExport = (
   return undefined;
 };
 
-/** Where module `modulePath`'s export `exportedName` is bound, or `undefined` when it has no such export. */
+/**
+ * Where scanned module `modulePath`'s export `exportedName` is actually
+ * bound, following re-exports through the scanned set, or `undefined` when
+ * it has no such export.
+ *
+ * ```ts
+ * // index.ts: export { user as account } from './user.js';
+ * // user.ts:  import { base } from './base.js'; export const user = base;
+ * findExportOrigin(lookup, '/repo/src/index.ts', 'account')
+ * // { kind: 'LOCAL', modulePath: '/repo/src/user.ts', declarationName: 'user' }
+ * ```
+ */
 export const findExportOrigin = (
   originLookup: OriginLookup,
   modulePath: string,
@@ -221,7 +272,18 @@ export const findExportOrigin = (
   return followExport({ originLookup, visitedExportKeys: new Set() }, modulePath, exportedName);
 };
 
-/** Where the top-level name `localName` of a module is bound. */
+/**
+ * Where the top-level name `localName` of a module is actually bound: the
+ * module's own declaration, or, for an import, the declaration in the
+ * scanned set it leads to, or the import from outside the set it ends at.
+ *
+ * ```ts
+ * // post.ts: import { account } from './index.js';
+ * // index.ts: export { user as account } from './user.js';
+ * findLocalNameOrigin(lookup, postContext, 'account')
+ * // { kind: 'LOCAL', modulePath: '/repo/src/user.ts', declarationName: 'user' }
+ * ```
+ */
 export const findLocalNameOrigin = (
   originLookup: OriginLookup,
   moduleContext: ModuleContext,

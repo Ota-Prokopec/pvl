@@ -36,7 +36,14 @@ type Constant = {
   init: TSESTree.Expression;
 };
 
-// Every constant a `const` declaration declares; none for `let` or `var`.
+// The constants a variable declaration declares: each identifier it
+// initialises with one literal, with or without `as const`.
+//
+//   const MAX = 5;                   // [MAX]
+//   const NAME = 'pvl' as const;     // [NAME]
+//   const A = 1, b = foo();          // [A]: `b` isn't a literal
+//   const { x } = point;             // []: destructured
+//   let count = 0;                   // []: not `const`
 const readConstants = (declaration: TSESTree.VariableDeclaration): Constant[] => {
   if (declaration.kind !== 'const') {
     return [];

@@ -2,7 +2,13 @@
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../utils.ts';
 
-// Whether `node` is `RegExp(…)` or `new RegExp(…)`.
+// Whether a call or `new` expression builds a regular expression through
+// the global `RegExp`.
+//
+//   new RegExp('^a+$')        // true
+//   RegExp(pattern, 'g')      // true
+//   new Registry()            // false
+//   window.RegExp('a')        // false: only a bare `RegExp` is caught
 const callsRegExp = (node: TSESTree.CallExpression | TSESTree.NewExpression): boolean => {
   return node.callee.type === AST_NODE_TYPES.Identifier && node.callee.name === 'RegExp';
 };

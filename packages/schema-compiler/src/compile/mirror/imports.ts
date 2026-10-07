@@ -3,13 +3,20 @@
 // sorted so the same input always prints the same block.
 import type { ImportBinding } from './context.js';
 
-// Sorts import bindings alphabetically by their local name.
-const compareByLocalName = (a: ImportBinding, b: ImportBinding): number => {
-  return a.localName < b.localName ? -1 : 1;
+// Orders two import bindings alphabetically by their local name, for
+// `Array.prototype.sort`, so the names in an import's braces never move
+// between runs: `{ object, pvl, string }`.
+const compareByLocalName = (first: ImportBinding, second: ImportBinding): number => {
+  return first.localName < second.localName ? -1 : 1;
 };
 
-// One name in a named import's braces; `type` marks it only when the
-// declaration as a whole isn't type-only.
+// One name in a named import's braces. A type-only name is marked `type`
+// unless the whole declaration is `import type`, which already says so.
+//
+//   { importedName: 'user', localName: 'user' }       // 'user'
+//   { importedName: 'user', localName: 'account' }    // 'user as account'
+//   { …, isTypeOnly: true }, in `import { … }`        // 'type User'
+//   { …, isTypeOnly: true }, in `import type { … }`   // 'User'
 const formatNamedImportSpecifier = (
   { importedName, localName, isTypeOnly }: ImportBinding,
   isWholeImportTypeOnly: boolean,
@@ -24,7 +31,26 @@ export type RenderImportBlockArgs = {
   sideEffectImportSpecifiers: ReadonlyArray<string>;
 };
 
-/** The import block at the top of the Destination File, one line per import declaration. */
+/**
+ * The import block at the top of the Destination File: every import from
+ * outside the scanned set, merged into one declaration per specifier, with
+ * the specifiers in alphabetical order. The same name imported by several
+ * modules is imported once, and as `type` only if every module imported it
+ * as a type.
+ *
+ * ```ts
+ * // user.ts: import { pvl } from '@pvl/schema';  import '../setup.js';
+ * // post.ts: import { pvl, type Infer } from '@pvl/schema';
+ * //          import config from '../config.js';
+ *
+ * import config from '../config.js';
+ * import '../setup.js';
+ * import { type Infer, pvl } from '@pvl/schema';
+ * ```
+ *
+ * Imports into the scanned set never reach here: they collapse into direct
+ * references.
+ */
 export const renderImportBlock = ({
   externalImports,
   sideEffectImportSpecifiers,

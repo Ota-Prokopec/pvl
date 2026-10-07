@@ -27,9 +27,16 @@ type SeparateCollapsedAndExternalImportsPayload = {
   externalImports: ImportBinding[];
 };
 
-// Each import is from outside the set, or into it. One into the set
-// resolves to a scanned module's declaration, or through it to an import
-// from outside, which then stands in for it.
+// Splits every import of every module into `collapsedImports`, which point
+// at a declaration in the scanned set and become plain references to it,
+// and `externalImports`, which stay imports in the Destination File's
+// import block.
+//
+//   import { user } from './user.js';       // collapsed: user.ts declares `user`
+//   import { pvl } from '@pvl/schema';      // external
+//   import { pvl } from './reexports.js';   // external, when reexports.ts is
+//                                           // `export { pvl } from '@pvl/schema'`:
+//                                           // becomes `import { pvl } from '@pvl/schema'`
 const separateCollapsedAndExternalImports = (
   moduleContexts: ReadonlyArray<ModuleContext>,
   originLookup: OriginLookup,
@@ -60,8 +67,14 @@ const separateCollapsedAndExternalImports = (
   return { collapsedImports, externalImports };
 };
 
-// The name `ownerKey` ends up with: `name` when it is free or already
-// `ownerKey`'s, otherwise the first free `<name>_<n>`. Records the claim.
+// Claims a top-level name for the binding `ownerKey` and returns the name
+// it gets: `name` when no other binding has it yet, otherwise the first
+// free `<name>_<n>`, counting from 2. Records the claim in `ownerKeyByName`.
+//
+//   claimUniqueName(owners, 'user', 'local:a.ts:user')  // 'user'
+//   claimUniqueName(owners, 'user', 'local:a.ts:user')  // 'user': same binding
+//   claimUniqueName(owners, 'user', 'local:b.ts:user')  // 'user_2'
+//   claimUniqueName(owners, 'user', 'local:c.ts:user')  // 'user_3'
 const claimUniqueName = (
   ownerKeyByName: Map<string, string>,
   name: string,
@@ -81,7 +94,12 @@ const claimUniqueName = (
   return suffixedName;
 };
 
-// Two modules importing the same name from the same place share it.
+// The owner key of an import from outside the set: the same for every
+// module importing the same export under the same local name, so they
+// share one import and one name in the Destination File.
+//
+//   import { pvl } from '@pvl/schema';  // in user.ts and post.ts: one owner
+//   import { pvl as p } from '@pvl/schema';  // a different owner: name `p`
 const toExternalImportOwnerKey = ({
   rewrittenSpecifier,
   importedName,
@@ -90,9 +108,20 @@ const toExternalImportOwnerKey = ({
   return `${toOriginKey({ kind: ORIGIN_KIND.EXTERNAL, rewrittenSpecifier, importedName })}:${localName}`;
 };
 
-// Renames every clashing binding in its module, updating each external
-// import's `localName` in place, and returns origin key → final name for each
-// non-exported declaration.
+// Gives every top-level binding of every module a name no other binding
+// in the Destination File has, renaming it and its references in its
+// module where needed. Exported declarations are claimed first and keep
+// their names, since renaming them would change the Destination File's
+// exports; then, module by module in emission order, each other
+// declaration and each external import claims its name.
+//
+//   // emitted first: user.ts          // emitted second: post.ts
+//   const format = …;                  const format = …;      // → format_2
+//   export const user = …;             const user = …;        // → user_2: exported in user.ts
+//   import { pvl } from '@pvl/schema'; import { pvl } from '@pvl/schema';  // shared
+//
+// Returns each non-exported declaration's final name by origin key, and
+// updates each external import's `localName` in place.
 const assignUniqueTopLevelNames = (
   moduleContexts: ReadonlyArray<ModuleContext>,
   externalImports: ReadonlyArray<ImportBinding>,
@@ -154,7 +183,27 @@ export type JoinIntoOneTopLevelScopeArgs = {
   originLookup: OriginLookup;
 };
 
-/** Renames bindings across the modules' source files so they share one scope. */
+/**
+ * Renames the bindings across the scanned modules' source files so they can
+ * share the Destination File's single top-level scope: no two bindings
+ * share a name, and every import into the scanned set is renamed to the
+ * final name of the declaration it points at, so the import can be removed
+ * and its references keep working.
+ *
+ * ```ts
+ * // user.ts: const format = …; export const user = …;
+ * // post.ts: import { user as author } from './user.js'; const format = …;
+ * //          export const post = pvl.object({ author, by: format });
+ *
+ * // In the Destination File:
+ * const format = …; export const user = …;
+ * const format_2 = …;
+ * export const post = pvl.object({ author: user, by: format_2 });
+ * ```
+ *
+ * Returns the final names of the renamed declarations, for the export
+ * rewrites, and the imports from outside the set, for the import block.
+ */
 export const joinIntoOneTopLevelScope = ({
   moduleContexts,
   originLookup,

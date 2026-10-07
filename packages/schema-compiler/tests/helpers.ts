@@ -31,9 +31,19 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
 };
 
 /**
- * Links the workspace's built `@pvl/schema` into the fixture's
- * `node_modules`, so the Destination File and the source it mirrors can be
- * imported and run.
+ * Symlinks the workspace's built `@pvl/schema` into the fixture at `root`
+ * as `node_modules/@pvl/schema`, so both the Destination File and the
+ * source it mirrors can be imported and run, to compare their behaviour.
+ *
+ * ```ts
+ * const root = await createFixture({ 'src/schemas/order.ts': ORDER_SOURCE, … });
+ * await linkSchemaPackage(root);
+ * await compile({ cwd: root });
+ * const mirrored = await import(join(root, 'out.ts'));
+ * const source = await import(join(root, 'src/schemas/order.ts'));
+ * ```
+ *
+ * Needs `@pvl/schema` built first; `pnpm test` builds it through Turborepo.
  */
 export const linkSchemaPackage = async (root: string): Promise<void> => {
   await mkdir(join(root, 'node_modules/@pvl'), { recursive: true });

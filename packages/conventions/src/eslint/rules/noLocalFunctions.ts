@@ -2,7 +2,12 @@
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../utils.ts';
 
-// Whether `node` is a function of any syntax: arrow, declaration or expression.
+// Whether `node` is a function, in any of its three syntaxes.
+//
+//   () => 1                 // true: arrow function
+//   function save() {}      // true: function declaration
+//   const f = function () {} // true for the function expression
+//   class A { m() {} }      // false for the class; `m` is a method
 const isFunction = (node: TSESTree.Node): boolean => {
   return (
     node.type === AST_NODE_TYPES.ArrowFunctionExpression ||
@@ -11,7 +16,14 @@ const isFunction = (node: TSESTree.Node): boolean => {
   );
 };
 
-// Whether any ancestor of `node` is a function, so `node` is not at module scope.
+// Whether `node` sits anywhere inside a function, rather than at module
+// scope or inside only blocks, classes and objects.
+//
+//   const top = () => {};             // `top`: false
+//   const outer = () => {
+//     const inner = () => {};         // `inner`: true
+//   };
+//   if (debug) { const f = () => {}; } // `f`: false: a block isn't a function
 const isInsideFunction = (node: TSESTree.Node): boolean => {
   // The root's `parent` is `null` at runtime, though typed as optional.
   for (
@@ -26,7 +38,13 @@ const isInsideFunction = (node: TSESTree.Node): boolean => {
   return false;
 };
 
-// Whether a variable's initializer is a function, making the variable a named function.
+// Whether a variable's initializer is a function, which makes the variable
+// a named function the rule applies to.
+//
+//   const save = () => {};          // true
+//   const load = function () {};    // true
+//   const total = items.length;     // false
+//   let pending;                    // false: no initializer
 const isFunctionValue = (node: TSESTree.Expression | null): boolean => {
   return (
     node?.type === AST_NODE_TYPES.ArrowFunctionExpression ||

@@ -52,8 +52,16 @@ type ExportDeclarationContents = {
   needsRewrite: boolean;
 };
 
-// The names a module exports through `export` on a declaration and
-// `export default`.
+// The names a module exports from its own declarations and its
+// `export default`, each with the binding behind it.
+//
+//   export const user = …;                // `user` → user.ts `user`
+//   export default function format() {}   // `default` → user.ts `format`
+//   import { base } from './base.js';
+//   export default base;                  // `default` → base.ts's export `base`
+//
+// `export { … }` and `export … from` are read by
+// `classifyExportDeclaration` instead.
 const readDeclaredExports = (
   originLookup: OriginLookup,
   moduleContext: ModuleContext,
@@ -78,7 +86,10 @@ const readDeclaredExports = (
   return exportedBindings;
 };
 
-// Whether an exported name is type-only, through `export type { … }` or `export { type … }`.
+// Whether one name of an export declaration exports only a type.
+//
+//   export type { User } from './user.js';  // true: the whole declaration
+//   export { type User, user };             // true for `User`, false for `user`
 const isTypeOnlyExport = (
   exportDeclaration: ExportDeclaration,
   exportSpecifier: ExportSpecifier,
@@ -86,7 +97,12 @@ const isTypeOnlyExport = (
   return exportDeclaration.isTypeOnly() || exportSpecifier.isTypeOnly();
 };
 
-// Whether the binding behind `exportedBinding` is a declaration of module `path` itself.
+// Whether the binding behind `exportedBinding` is declared in module `path`
+// itself, rather than imported from another scanned file.
+//
+//   // in post.ts
+//   const post = …; export { post };                     // true
+//   import { user } from './user.js'; export { user };   // false: bound in user.ts
 const isBoundInModule = ({ bindingOrigin }: ExportedBinding, path: string): boolean => {
   return bindingOrigin.kind === ORIGIN_KIND.LOCAL && bindingOrigin.modulePath === path;
 };
@@ -97,8 +113,20 @@ type ClassifyExportDeclarationArgs = {
   exportDeclaration: ExportDeclaration;
 };
 
-// Sorts the names one export declaration exports into the module's own
-// exports and the ones it forwards from elsewhere in the scanned set.
+// Sorts the names one export declaration exports into `ownExports`, bound
+// in the module itself or outside the scanned set and kept as written, and
+// `forwardedExports`, bound in another scanned file. A declaration with any
+// forward `needsRewrite`, since its specifier points at a file the
+// Destination File no longer imports.
+//
+//   export { post };                          // own, kept
+//   import { user } from './user.js';
+//   export { user };                          // forwarded to user.ts `user`
+//   export { pvl } from '@pvl/schema';        // own, kept: outside the set
+//   export * as helpers from '../helpers.js'; // own, kept: a namespace from outside
+//   export { user as account } from './user.js';
+//                                             // forwarded to user.ts `user`
+//   export * from './user.js';                // dropped: user.ts exports its own names
 const classifyExportDeclaration = ({
   originLookup,
   moduleContext,
@@ -170,15 +198,23 @@ const classifyExportDeclaration = ({
   return { ownExports: [], forwardedExports, needsRewrite: true };
 };
 
-// Every name exported so far, with the binding and module behind it.
+// The names the Destination File exports so far, each with the binding and
+// the scanned module it was first exported from, and the DUPLICATE_EXPORT
+// errors found on the way.
 type ExportedNameRegistry = {
   exportByName: Map<string, { originKey: string; modulePath: string }>;
   diagnostics: Diagnostic[];
   baseDirectory: string;
 };
 
-// Whether `exportedBinding` is newly exported; a different binding already exported
-// under its name is a DUPLICATE_EXPORT.
+// Records `exportedBinding` as exported by module `modulePath`, returning
+// whether it is new. The same binding exported again, through a re-export,
+// returns false and is dropped; a different binding under the same name is a
+// DUPLICATE_EXPORT error.
+//
+//   // user.ts: export const user = …;
+//   // index.ts: export { user } from './user.js';   // same binding: false, dropped
+//   // post.ts: export const user = …;               // different: DUPLICATE_EXPORT
 const registerExportedName = (
   exportedNameRegistry: ExportedNameRegistry,
   modulePath: string,
@@ -212,9 +248,19 @@ export type PlanExportsArgs = {
 };
 
 /**
- * Decides every name the Destination File exports, module by module in
- * emission order, and reports a DUPLICATE_EXPORT for a name two different
- * bindings are exported under.
+ * Decides every name the Destination File exports. Every module's own
+ * exports are registered first, in emission order, then the re-exports
+ * between scanned files, so a re-export of a name the Destination File
+ * already exports is dropped instead of exported twice.
+ *
+ * ```ts
+ * // user.ts:  export const user = …;
+ * // index.ts: export { user, user as account } from './user.js';
+ * // → the Destination File exports `user` once, and `export { user as account };`
+ * ```
+ *
+ * A name exported by two different bindings is reported as DUPLICATE_EXPORT.
+ * Plans against the names as written, so it runs before any is renamed.
  */
 export const planExports = ({
   moduleContexts,
@@ -272,18 +318,40 @@ export const planExports = ({
   return { diagnostics: exportedNameRegistry.diagnostics, rewriteByDeclaration };
 };
 
-// `type ` for a type-only export specifier, nothing otherwise.
+// The `type ` keyword to put before a type-only export specifier, or nothing.
+//
+//   typeKeywordPrefix(true)   // 'type '  → export { type User }
+//   typeKeywordPrefix(false)  // ''       → export { user }
 const typeKeywordPrefix = (isTypeOnly: boolean): string => {
   return isTypeOnly ? 'type ' : '';
 };
 
-// An export specifier exporting `localName` as `exportedName`: `a` or `a as b`.
+// The specifier text exporting the binding `localName` as `exportedName`.
+//
+//   formatExportSpecifier('user', 'user')     // 'user'
+//   formatExportSpecifier('user', 'account')  // 'user as account'
 const formatExportSpecifier = (localName: string, exportedName: string): string => {
   return localName === exportedName ? exportedName : `${localName} as ${exportedName}`;
 };
 
-// The statements replacing a planned declaration: the specifiers it keeps,
-// then each forward pointing at its binding's final name.
+// The statements replacing an export declaration that needs rewriting: one
+// `export { … }` with the specifiers it keeps and each forward into the
+// scanned set pointing at its binding's final name, then a separate
+// `export … from` for each forward that ends outside the set.
+//
+//   // user.ts:      const user = …; export { user as account };
+//   // reexports.ts: export { pvl } from '@pvl/schema';
+//   import { account } from './user.js';
+//   import { pvl } from './reexports.js';
+//   export { post, account as member, pvl };
+//
+//   → export { post, user as member };
+//     export { pvl } from '@pvl/schema';
+//
+// where `user` is user.ts's binding under its final name: `user_2` if
+// another module claimed `user` first.
+//
+// Returns nothing when every forward was dropped as already exported.
 const renderRewrittenExportStatements = (
   exportDeclaration: ExportDeclaration,
   declarationRewrite: ExportDeclarationRewrite,
@@ -328,7 +396,19 @@ export type RewriteExportsArgs = {
   outputDirectory: string;
 };
 
-/** Applies `exportPlan` to one module's export declarations, and rewrites every other one's specifier. */
+/**
+ * Rewrites one module's export declarations for the Destination File: each
+ * one `exportPlan` rewrites is replaced by its new statements, or removed
+ * when none are left, and every other `export … from` keeps its text with
+ * its specifier rewritten to resolve from the output directory.
+ *
+ * ```ts
+ * export { user as account } from './user.js'; // planned: → export { user as account };
+ * export * from './user.js';                   // planned: removed
+ * export { helper } from '../helpers.js';      // specifier rewritten for the output directory
+ * export { post };                             // unchanged
+ * ```
+ */
 export const rewriteExports = ({
   sourceFile,
   exportPlan,

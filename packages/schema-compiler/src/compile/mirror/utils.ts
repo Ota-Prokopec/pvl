@@ -2,36 +2,72 @@
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { ScannedModule } from './tsMorphProject.js';
 
-/** `path` with the platform's separators replaced by `/`. */
+/**
+ * `path` with the platform's separators replaced by `/`, so the Destination
+ * File and the diagnostics read the same on Windows as elsewhere.
+ *
+ * ```ts
+ * toPosixPath('src\\schemas\\user.ts') // 'src/schemas/user.ts' on Windows
+ * toPosixPath('src/schemas/user.ts')   // unchanged on macOS and Linux
+ * ```
+ */
 export const toPosixPath = (path: string): string => {
   return path.split(sep).join(posix.sep);
 };
 
-/** `path` as a banner or diagnostic shows it: relative to `baseDirectory`, with `/` separators. */
+/**
+ * `path` as a module banner or a diagnostic shows it: relative to
+ * `baseDirectory`, with `/` separators.
+ *
+ * ```ts
+ * toDisplayPath('/repo', '/repo/src/schemas/user.ts') // 'src/schemas/user.ts'
+ * // In the Destination File: // ---- src/schemas/user.ts ----
+ * ```
+ */
 export const toDisplayPath = (baseDirectory: string, path: string): string => {
   return toPosixPath(relative(baseDirectory, path));
 };
 
-/** Whether `specifier` names a file by path, rather than a package resolved through `node_modules`. */
-export const isRelativeOrAbsoluteSpecifier = (specifier: string): boolean => {
-  return specifier.startsWith('.') || isAbsolute(specifier);
+/**
+ * Whether `moduleSpecifier` names a file by its path, rather than a package
+ * that resolves through `node_modules`.
+ *
+ * ```ts
+ * isRelativeOrAbsoluteSpecifier('./user.js')        // true
+ * isRelativeOrAbsoluteSpecifier('../helpers.js')    // true
+ * isRelativeOrAbsoluteSpecifier('/repo/src/a.js')   // true
+ * isRelativeOrAbsoluteSpecifier('@pvl/schema')      // false
+ * isRelativeOrAbsoluteSpecifier('node:path')        // false
+ * ```
+ */
+export const isRelativeOrAbsoluteSpecifier = (moduleSpecifier: string): boolean => {
+  return moduleSpecifier.startsWith('.') || isAbsolute(moduleSpecifier);
 };
 
 /**
- * `specifier`, rewritten so it resolves from `outputDirectory` as it did from
- * `importerPath`. A bare specifier resolves through `node_modules` and is
- * kept as written.
+ * `moduleSpecifier`, rewritten so that imported from a file in
+ * `outputDirectory` it reaches the same file it reached from `importerPath`.
+ * A package specifier resolves the same from anywhere, so it is kept.
+ *
+ * With `importerPath` `/repo/src/schemas/user.ts` and `outputDirectory`
+ * `/repo/src/generated`:
+ *
+ * ```ts
+ * rewriteSpecifierForOutputDirectory('../helpers.js', …) // '../helpers.js'
+ * rewriteSpecifierForOutputDirectory('./tags.js', …)     // '../schemas/tags.js'
+ * rewriteSpecifierForOutputDirectory('@pvl/schema', …)   // '@pvl/schema', kept
+ * ```
  */
 export const rewriteSpecifierForOutputDirectory = (
-  specifier: string,
+  moduleSpecifier: string,
   importerPath: string,
   outputDirectory: string,
 ): string => {
-  if (!isRelativeOrAbsoluteSpecifier(specifier)) {
-    return specifier;
+  if (!isRelativeOrAbsoluteSpecifier(moduleSpecifier)) {
+    return moduleSpecifier;
   }
   const pathFromOutputDirectory = toPosixPath(
-    relative(outputDirectory, resolve(dirname(importerPath), specifier)),
+    relative(outputDirectory, resolve(dirname(importerPath), moduleSpecifier)),
   );
   return pathFromOutputDirectory.startsWith('.')
     ? pathFromOutputDirectory
@@ -39,32 +75,49 @@ export const rewriteSpecifierForOutputDirectory = (
 };
 
 /**
- * The modules with every dependency before its dependents, ties broken by
- * path so the order is stable. Modules caught in a cycle are left out; see
- * {@link findImportCycles}.
+ * The scanned modules ordered so each comes after every module it depends
+ * on, which is the order the Destination File emits them in. Among modules
+ * that are ready at the same time, the one with the alphabetically first
+ * path goes first, so the order never changes between runs.
+ *
+ * ```text
+ * post.ts depends on user.ts, user.ts and tag.ts depend on nothing
+ * → tag.ts, user.ts, post.ts
+ * ```
+ *
+ * A module on an import cycle can never become ready, so it, and every
+ * module depending on it, is left out; {@link findImportCycles} reports it.
  */
 export const sortByDependencyOrder = (
   scannedModules: ReadonlyArray<ScannedModule>,
 ): ScannedModule[] => {
-  const unorderedModules = [...scannedModules].sort((a, b) => (a.path < b.path ? -1 : 1));
+  const unorderedModules = [...scannedModules].sort((first, second) =>
+    first.path < second.path ? -1 : 1,
+  );
   const orderedPaths = new Set<string>();
   const orderedModules: ScannedModule[] = [];
-  let nextReadyModule = unorderedModules.find((module) =>
-    [...module.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
+  let nextReadyModule = unorderedModules.find((candidateModule) =>
+    [...candidateModule.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
   );
   while (nextReadyModule !== undefined) {
     orderedModules.push(nextReadyModule);
     orderedPaths.add(nextReadyModule.path);
     unorderedModules.splice(unorderedModules.indexOf(nextReadyModule), 1);
-    nextReadyModule = unorderedModules.find((module) =>
-      [...module.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
+    nextReadyModule = unorderedModules.find((candidateModule) =>
+      [...candidateModule.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
     );
   }
   return orderedModules;
 };
 
-// The shortest dependency path from `start` back to itself, or `undefined`
-// when `start` isn't on a cycle.
+// The shortest chain of dependencies leading from `startPath` back to
+// itself, as the paths along it with `startPath` at both ends, or
+// `undefined` when `startPath` isn't on a cycle. Found breadth-first, so
+// the shortest chain wins.
+//
+//   a.ts → b.ts → a.ts, and a.ts → c.ts → d.ts → a.ts
+//   findShortestCycleThrough('a.ts', …) // ['a.ts', 'b.ts', 'a.ts']
+//   findShortestCycleThrough('e.ts', …) // undefined when nothing leads back
 const findShortestCycleThrough = (
   startPath: string,
   moduleByPath: ReadonlyMap<string, ScannedModule>,
@@ -72,8 +125,8 @@ const findShortestCycleThrough = (
   const predecessorByPath = new Map<string, string>();
   const pathsToVisit = [startPath];
   for (const currentPath of pathsToVisit) {
-    for (const dependency of [...(moduleByPath.get(currentPath)?.dependencies ?? [])].sort()) {
-      if (dependency === startPath) {
+    for (const dependencyPath of [...(moduleByPath.get(currentPath)?.dependencies ?? [])].sort()) {
+      if (dependencyPath === startPath) {
         const cyclePaths = [currentPath];
         let stepPath = currentPath;
         while (stepPath !== startPath) {
@@ -82,9 +135,9 @@ const findShortestCycleThrough = (
         }
         return [...cyclePaths, startPath];
       }
-      if (!predecessorByPath.has(dependency)) {
-        predecessorByPath.set(dependency, currentPath);
-        pathsToVisit.push(dependency);
+      if (!predecessorByPath.has(dependencyPath)) {
+        predecessorByPath.set(dependencyPath, currentPath);
+        pathsToVisit.push(dependencyPath);
       }
     }
   }
@@ -92,12 +145,22 @@ const findShortestCycleThrough = (
 };
 
 /**
- * Each import cycle among the modules, as the paths around it from its
- * first path back to that path. A module on several cycles is reported on
- * one.
+ * Every import cycle among the scanned modules, each as the paths around
+ * it, starting and ending at its alphabetically first path. A module on
+ * several cycles is reported on only one, so one broken import doesn't
+ * produce a pile of errors.
+ *
+ * ```text
+ * a.ts imports b.ts, b.ts imports a.ts, c.ts imports a.ts
+ * → [['a.ts', 'b.ts', 'a.ts']]
+ * ```
+ *
+ * c.ts depends on the cycle but isn't on it, so it isn't reported.
  */
 export const findImportCycles = (scannedModules: ReadonlyArray<ScannedModule>): string[][] => {
-  const moduleByPath = new Map(scannedModules.map((module) => [module.path, module]));
+  const moduleByPath = new Map(
+    scannedModules.map((scannedModule) => [scannedModule.path, scannedModule]),
+  );
   const orderedPaths = new Set(sortByDependencyOrder(scannedModules).map(({ path }) => path));
   const pathsOnReportedCycles = new Set<string>();
   const importCycles: string[][] = [];

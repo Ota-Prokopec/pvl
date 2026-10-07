@@ -11,6 +11,22 @@ A reader must know from the name alone what a function does or what a variable h
 - **A map is named `<value>By<Key>`:** `finalNameByOriginKey`, `moduleContextByPath`.
 - **A name stays the same across the code it passes through:** a value named `exportedName` in one function isn't `name` in the next, and a destructured property keeps its name.
 
+## Header comments
+
+Every function has a comment directly above it that tells a reader what it does without reading its body: `/** */` when it is exported, `//` when it isn't (and see [tsdoc.md](./tsdoc.md) for a published package).
+
+- **Say what it returns or changes, in the domain's words**, not how the body works.
+- **Show examples of the code it handles:** what it accepts, what it reports or rewrites and into what, and what it ignores or blocks, each with the result beside it.
+
+```typescript
+// Whether an import declaration only runs its module and binds no name.
+//
+//   import './setup.js';                  // true
+//   import { user } from './user.js';     // false
+```
+
+- **Keep the examples true.** Check each one against the code and its tests; a wrong example misleads more than none.
+
 ## Naming types
 
 A type's suffix says its role:

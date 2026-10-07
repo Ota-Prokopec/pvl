@@ -6,9 +6,16 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../modifiers.js';
 import type { PreModifiersResult } from '../types.js';
 
-// Whether `modifier` was built by one of `shapes`. Matched by shape rather
-// than identity, so a caller can remove a modifier without holding on to the
-// instance it added.
+// Whether `modifier` was built by one of the modifier factories in
+// `shapes`. Matched by the factory rather than the instance, so a caller
+// can remove a modifier without holding on to the one it added: `.strict()`
+// and `.passthrough()` drop whichever unknown-keys modifier is already set.
+//
+//   isBuiltByOneOf(unknownKeysStrictModifier(keys), UNKNOWN_KEYS_MODIFIERS) // true
+//   isBuiltByOneOf(unknownKeysStripModifier(keys), UNKNOWN_KEYS_MODIFIERS)  // true
+//   isBuiltByOneOf(<the modifier .min(3) adds>, UNKNOWN_KEYS_MODIFIERS)     // false
+//
+// A modifier with no `shape` matches nothing, so it is never removed.
 const isBuiltByOneOf = (
   modifier: Modifier<unknown, unknown>,
   shapes: ReadonlyArray<ModifierShape>,

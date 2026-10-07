@@ -8,8 +8,20 @@ import { isDeclarationStatement } from './context.js';
 import { resolveToScannedFile, type ScannedModule } from './tsMorphProject.js';
 import { toDisplayPath, findImportCycles } from './utils.js';
 
-// The first syntax error of each module that has one.
-const createParseFailureDiagnostics = (
+// A PARSE_FAILED error for each scanned file that isn't valid syntax, read
+// from the TypeScript compiler's syntactic diagnostics. Only a file's first
+// syntax error is reported, as the later ones are usually its knock-on
+// effects.
+//
+//   // src/schemas/user.ts
+//   export const user = pvl.object({ name: pvl.string() ;
+//
+//   → PARSE_FAILED: This file doesn't parse, so it can't be mirrored:
+//     ',' expected. (line 2).
+//
+// Only syntax is checked: a type error such as `const age: number = 'x'`
+// parses fine and isn't reported.
+const syntacticDiagnostics = (
   tsMorphProject: Project,
   scannedModules: ReadonlyArray<ScannedModule>,
 ): Diagnostic[] => {
@@ -28,9 +40,18 @@ const createParseFailureDiagnostics = (
   );
 };
 
-// A namespace import or re-export of a scanned file would have to import
-// that file again, evaluating it twice, so each is an error instead.
-const createNamespaceImportDiagnostics = (
+// A NAMESPACE_IMPORT_OF_SCANNED_FILE error for each namespace import or
+// re-export whose specifier resolves to a scanned file. The Destination File
+// holds that file's exports as plain top-level bindings, with no module
+// object a namespace could refer to; keeping the import would evaluate the
+// file a second time.
+//
+//   import * as schemas from './user.js';    // blocked: user.ts is scanned
+//   export * as schemas from './user.js';    // blocked: user.ts is scanned
+//   import { user } from './user.js';        // fine: collapses into `user`
+//   import * as path from 'node:path';       // fine: not a scanned file
+//   import * as helpers from '../helpers.js'; // fine when helpers.ts isn't scanned
+const namespaceImportDiagnostics = (
   scannedModules: ReadonlyArray<ScannedModule>,
   scannedFilePaths: ReadonlySet<string>,
 ): Diagnostic[] => {
@@ -57,7 +78,21 @@ const createNamespaceImportDiagnostics = (
   );
 };
 
-// An IMPORT_CYCLE error for each cycle of value imports among the scanned modules.
+// An IMPORT_CYCLE error for each cycle of value imports among the scanned
+// files, reported on the cycle's first file. In the Destination File every
+// module's code runs top to bottom once, so one module of a cycle would read
+// another's export before its `const` has run.
+//
+//   // a.ts                              // b.ts
+//   import { b } from './b.js';          import { a } from './a.js';
+//   export const a = pvl.array(b);       export const b = pvl.array(a);
+//
+//   → IMPORT_CYCLE: … src/a.ts → src/b.ts → src/a.ts. Break the cycle, or
+//     make an import type-only.
+//
+// A type-only import is erased, so it never closes a cycle:
+//
+//   import type { B } from './b.js';     // not a cycle edge
 const importCycleDiagnostics = (
   scannedModules: ReadonlyArray<ScannedModule>,
   baseDirectory: string,
@@ -79,8 +114,16 @@ export type FindBlockingErrorsArgs = {
 };
 
 /**
- * The errors that stop the mirror, from the first check that finds any: a
- * file that doesn't parse can't be read for the rest.
+ * The errors that stop the mirror, from the first of three checks that finds
+ * any, in this order:
+ *
+ * 1. PARSE_FAILED: a scanned file isn't valid syntax.
+ * 2. NAMESPACE_IMPORT_OF_SCANNED_FILE: `import * as x from './scanned.js'`.
+ * 3. IMPORT_CYCLE: scanned files import each other's values.
+ *
+ * A later check reads the syntax trees an earlier one found broken, so it
+ * runs only when every earlier check passed. An empty result means the
+ * scanned set can be mirrored.
  */
 export const findBlockingErrors = ({
   tsMorphProject,
@@ -88,23 +131,30 @@ export const findBlockingErrors = ({
   scannedFilePaths,
   baseDirectory,
 }: FindBlockingErrorsArgs): Diagnostic[] => {
-  const parseFailureDiagnostics = createParseFailureDiagnostics(tsMorphProject, scannedModules);
-  if (parseFailureDiagnostics.length > 0) {
-    return parseFailureDiagnostics;
+  const parseFailures = syntacticDiagnostics(tsMorphProject, scannedModules);
+  if (parseFailures.length > 0) {
+    return parseFailures;
   }
-  const namespaceImportDiagnostics = createNamespaceImportDiagnostics(
+  const namespaceImportsOfScannedFiles = namespaceImportDiagnostics(
     scannedModules,
     scannedFilePaths,
   );
-  if (namespaceImportDiagnostics.length > 0) {
-    return namespaceImportDiagnostics;
+  if (namespaceImportsOfScannedFiles.length > 0) {
+    return namespaceImportsOfScannedFiles;
   }
   return importCycleDiagnostics(scannedModules, baseDirectory);
 };
 
-// A top-level statement that does something when its module is evaluated,
-// rather than declaring a name. An initializer isn't counted: building a
-// Schema is exactly that.
+// Whether a top-level statement does something when its module is
+// evaluated, rather than only declaring a name. A declaration's initializer
+// doesn't count, since building a Schema is exactly that.
+//
+//   console.log('loaded');                 // side effect
+//   registry.add(user);                    // side effect
+//   if (debug) { … }                       // side effect
+//   export const user = pvl.object({ … }); // declaration: no
+//   import { pvl } from '@pvl/schema';     // import: no
+//   export { user as account };            // export: no
 const hasTopLevelSideEffect = (statement: Statement): boolean => {
   return !(
     isDeclarationStatement(statement) ||
@@ -115,8 +165,12 @@ const hasTopLevelSideEffect = (statement: Statement): boolean => {
   );
 };
 
-// Whether any of the statements exports a name, by `export` on a declaration,
-// `export { … }`, `export … from` or `export default`.
+// Whether any of the top-level statements exports a name, in any form:
+//
+//   export const user = …;        export { user };
+//   export * from './user.js';    export default user;
+//
+// A file of only `const internal = 1;` exports nothing.
 const hasAnyExport = (topLevelStatements: ReadonlyArray<Statement>): boolean => {
   return topLevelStatements.some(
     (statement) =>
@@ -126,7 +180,15 @@ const hasAnyExport = (topLevelStatements: ReadonlyArray<Statement>): boolean => 
   );
 };
 
-/** The warnings about what one module brings into the Destination File. */
+/**
+ * The warnings about what one scanned module brings into the Destination
+ * File. Neither stops the mirror; `--strict` turns them into errors.
+ *
+ * - FILE_EXPORTS_NOTHING: the file has no export, so nothing in it can be
+ *   imported from the Destination File (`const internal = 1;` alone).
+ * - SIDE_EFFECT_COPIED: one per top-level statement that runs code, such as
+ *   `console.log('loaded');`, which now runs in the Destination File too.
+ */
 export const createModuleWarnings = ({ path, sourceFile }: ScannedModule): Diagnostic[] => {
   const topLevelStatements = sourceFile.getStatements();
   const exportsNothingWarnings = hasAnyExport(topLevelStatements)
