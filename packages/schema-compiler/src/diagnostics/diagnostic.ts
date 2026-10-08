@@ -1,5 +1,5 @@
 // The shape every compiler diagnostic is reported in.
-import { SEVERITY, type DiagnosticCode, type Severity } from './consts.js';
+import { SEVERITY, type DiagnosticCode, type Severity } from './enums.js';
 
 /**
  * One problem the compiler found. Refer to it by `code`, which is stable;

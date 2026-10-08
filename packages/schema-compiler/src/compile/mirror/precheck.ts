@@ -1,10 +1,20 @@
 // What stops a scanned file from being mirrored, and what is worth a warning
 // when it is. Reads the scanned modules before anything is rewritten.
 import { Node, ts, type Project, type Statement } from 'ts-morph';
-import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
+import { DIAGNOSTIC_CODE } from '../../diagnostics/enums.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { isOutsideRootDirectory, type ScannedModule } from './scannedModule.js';
+
+/** Names `export *` never re-exports, so they can't clash in the barrel: DEFAULT_EXPORT reports them instead. */
+const NAMES_SKIPPED_BY_EXPORT_STAR: ReadonlySet<string> = new Set(['default', 'export=']);
+
+// The first module, by path, to export a name, with what that name is bound to.
+type FirstExport = {
+  /** Relative to the Root Directory. */
+  relativePath: string;
+  declarations: ReadonlyArray<Node>;
+};
 
 export class Precheck {
   /**
@@ -22,7 +32,7 @@ export class Precheck {
    * Only syntax is checked: a type error such as `const age: number = 'x'`
    * parses fine and isn't reported.
    */
-  public static findParseFailures(
+  public static findParseFailuresDiagnostics(
     tsMorphProject: Project,
     scannedModules: ReadonlyArray<ScannedModule>,
   ): Diagnostic[] {
@@ -51,7 +61,7 @@ export class Precheck {
    * // lib/helpers.ts      → FILE_OUTSIDE_ROOT_DIR
    * ```
    */
-  public static findFilesOutsideRootDirectory(
+  public static findFilesOutsideRootDirectoryDiagnostics(
     scannedModules: ReadonlyArray<ScannedModule>,
     rootDirectory: string,
   ): Diagnostic[] {
@@ -80,7 +90,7 @@ export class Precheck {
    * export const user = pvl.object({ … });     // fine
    * ```
    */
-  public static findDefaultExports({ path, sourceFile }: ScannedModule): Diagnostic[] {
+  public static findDefaultExportsDiagnostics({ path, sourceFile }: ScannedModule): Diagnostic[] {
     return sourceFile
       .getStatements()
       .filter((statement) => Precheck.exportsDefault(statement))
@@ -94,6 +104,48 @@ export class Precheck {
   }
 
   /**
+   * A DUPLICATE_EXPORT error for each name a scanned module exports that an
+   * earlier one, by path, already exports bound to something else: the
+   * barrel's `export *` of both would be ambiguous, so neither would be
+   * exported. Re-exports are followed to their declarations, so re-exporting
+   * a binding under the name it already has isn't a clash.
+   *
+   * ```ts
+   * // src/schemas/a.ts: export const user = pvl.object({ … });
+   * // src/schemas/b.ts: export const user = pvl.object({ … });   // DUPLICATE_EXPORT on b.ts
+   * // src/schemas/c.ts: export { user } from './a.js';           // fine: the same binding
+   * ```
+   */
+  public static findDuplicateExportsDiagnostics(
+    scannedModules: ReadonlyArray<ScannedModule>,
+  ): Diagnostic[] {
+    const firstExportByExportedName = new Map<string, FirstExport>();
+    const duplicateExportDiagnostics: Diagnostic[] = [];
+    for (const { path, relativePath, sourceFile } of [...scannedModules].sort((first, second) =>
+      first.relativePath < second.relativePath ? -1 : 1,
+    )) {
+      for (const [exportedName, declarations] of sourceFile.getExportedDeclarations()) {
+        const firstExport = firstExportByExportedName.get(exportedName);
+        if (NAMES_SKIPPED_BY_EXPORT_STAR.has(exportedName)) {
+          continue;
+        }
+        if (firstExport === undefined) {
+          firstExportByExportedName.set(exportedName, { relativePath, declarations });
+        } else if (!Precheck.isSameBinding(firstExport.declarations, declarations)) {
+          duplicateExportDiagnostics.push(
+            createDiagnostic({
+              code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
+              message: `\`${exportedName}\` is also exported by ${firstExport.relativePath}, bound to something else, so the barrel can't re-export both. Rename one of them.`,
+              file: path,
+            }),
+          );
+        }
+      }
+    }
+    return duplicateExportDiagnostics;
+  }
+
+  /**
    * The warnings about what one scanned module brings into the mirror:
    *
    * - FILE_EXPORTS_NOTHING: the file has no export, so nothing in it can be
@@ -103,7 +155,7 @@ export class Precheck {
    *   `console.log('loaded');`, which runs again wherever the mirror is
    *   loaded.
    */
-  public static findWarnings({ path, sourceFile }: ScannedModule): Diagnostic[] {
+  public static findWarningsDiagnostics({ path, sourceFile }: ScannedModule): Diagnostic[] {
     const topLevelStatements = sourceFile.getStatements();
     const exportsNothingWarnings = Precheck.hasExport(topLevelStatements)
       ? []
@@ -144,6 +196,23 @@ export class Precheck {
         Node.isExportDeclaration(statement) ||
         Node.isExportAssignment(statement) ||
         (Node.isExportable(statement) && statement.hasExportKeyword()),
+    );
+  }
+
+  // Whether two exports of one name are bound to the same declarations, as a
+  // re-export of a binding is; ESM then treats `export *` of both as one export.
+  //
+  //   // user.ts: export const user = …;    forward.ts: export { user } from './user.js';
+  //   → same: both lead to user.ts's `user`
+  //   // a.ts: export const user = …;       b.ts: export const user = …;
+  //   → different
+  private static isSameBinding(
+    firstDeclarations: ReadonlyArray<Node>,
+    laterDeclarations: ReadonlyArray<Node>,
+  ): boolean {
+    return (
+      firstDeclarations.length === laterDeclarations.length &&
+      laterDeclarations.every((declaration) => firstDeclarations.includes(declaration))
     );
   }
 

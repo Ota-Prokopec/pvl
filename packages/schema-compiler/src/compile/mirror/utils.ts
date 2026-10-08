@@ -68,11 +68,14 @@ export const isPathModuleSpecifier = (moduleSpecifier: string): boolean => {
   return isRelativeModuleSpecifier(moduleSpecifier) || isAbsolute(moduleSpecifier);
 };
 
-// `relativePath` as a relative module specifier, which must start with a
-// dot so it isn't read as a package name.
-//
-//   toDotRelativeModuleSpecifier('schemas/user.js')   // './schemas/user.js'
-//   toDotRelativeModuleSpecifier('../lib/helpers.js') // '../lib/helpers.js'
+/**
+ * `relativePath` as a relative module specifier, which must start with a
+ *  dot so it isn't read as a package name.
+ * ```ts
+ * toDotRelativeModuleSpecifier('schemas/user.js')   // './schemas/user.js'
+ * toDotRelativeModuleSpecifier('../lib/helpers.js'); // '../lib/helpers.js'
+ * ```
+ */
 const toDotRelativeModuleSpecifier = (relativePath: string): string => {
   const posixPath = toPosixPath(relativePath);
   return posixPath.startsWith('.') ? posixPath : `./${posixPath}`;

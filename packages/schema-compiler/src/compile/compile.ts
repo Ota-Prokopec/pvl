@@ -3,7 +3,7 @@
 import { relative, resolve } from 'node:path';
 import type { SettingOverrides, Settings } from '../config/config.js';
 import { resolveSettings } from '../config/settings.js';
-import { SEVERITY } from '../diagnostics/consts.js';
+import { SEVERITY } from '../diagnostics/enums.js';
 import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
 import { BARREL_FILE_NAME } from './consts.js';
 import {
@@ -49,7 +49,22 @@ type UnwrittenPayloadArgs = Pick<CompilePayload, 'settings' | 'destination'> & {
   strict: boolean;
 };
 
-// The payload before anything is written, with `strict` applied.
+/**
+ * Builds the {@link CompilePayload} for a run that hasn't written the
+ * Destination Directory (yet): `written` is always `false`.
+ *
+ * Handles:
+ * - `strict`: every warning is promoted to an error, so the caller's
+ *   `hasError` check then stops the run before anything is written.
+ * - Without `strict`: the diagnostics are copied unchanged, so later pushes to
+ *   the caller's array don't leak into the payload.
+ *
+ * Reports: the `settings` and `destination` as given. Both are `undefined`
+ * when the settings couldn't be resolved.
+ *
+ * Ignores: whether an error is present. Deciding to write or bail is
+ * {@link compile}'s job; a write failure appended afterwards is not promoted.
+ */
 const unwrittenPayload = ({
   diagnostics,
   settings,
@@ -114,6 +129,7 @@ export const compile = async ({
     configPath,
     overrides,
   });
+
   if (resolvedSettingsPayload.settings === undefined) {
     return unwrittenPayload({
       diagnostics: resolvedSettingsPayload.diagnostics,
@@ -122,6 +138,7 @@ export const compile = async ({
       strict,
     });
   }
+
   const { settings, baseDirectory } = resolvedSettingsPayload;
   const destination: Destination = resolveDestination(baseDirectory, settings);
   const rootDirectory = resolve(baseDirectory, settings.rootDir);
@@ -165,13 +182,16 @@ export const compile = async ({
     destination: destination.path,
     strict,
   });
+
   if (hasError(payload.diagnostics)) {
     return payload;
   }
+
   const writeFailure = await writeDestination({
     destination,
     mirroredFiles: mirroredScannedFiles.mirroredFiles,
   });
+
   return writeFailure.length > 0
     ? { ...payload, diagnostics: [...payload.diagnostics, ...writeFailure] }
     : { ...payload, written: true };

@@ -2,7 +2,7 @@
 // nothing scanned is ever imported or executed.
 import { glob } from 'node:fs/promises';
 import { join, posix } from 'node:path';
-import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 

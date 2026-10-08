@@ -1,7 +1,6 @@
 // Where the Destination Directory goes, whether it can go there, and writing
 // it in one move.
-import { constants } from 'node:fs';
-import { access, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import fs from 'node:fs/promises';
 import {
   basename,
   dirname,
@@ -13,7 +12,7 @@ import {
   resolve,
 } from 'node:path';
 import type { Settings } from '../config/config.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage } from '../utils.js';
@@ -51,7 +50,7 @@ export const resolveDestination = (baseDirectory: string, settings: Settings): D
 };
 
 // A DESTINATION_UNWRITABLE diagnostic for `path`, saying why.
-const createUnwritableDiagnostic = (path: string, reason: string): Diagnostic => {
+const createDestinationUnwritableDiagnostic = (path: string, reason: string): Diagnostic => {
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE,
     message: `Can't write the Destination Directory to ${path}: ${reason}.`,
@@ -59,12 +58,16 @@ const createUnwritableDiagnostic = (path: string, reason: string): Diagnostic =>
   });
 };
 
-// What `stat` says about `path`, or `undefined` when nothing is there.
+/**
+ * What `stat` says about `path`, or `undefined` when nothing is there.
+ * @returns metadata or a directory/file in the path
+ */
+
 const statOrUndefined = async (
   path: string,
-): Promise<Awaited<ReturnType<typeof stat>> | undefined> => {
+): Promise<Awaited<ReturnType<typeof fs.stat>> | undefined> => {
   try {
-    return await stat(path);
+    return await fs.stat(path);
   } catch {
     return undefined;
   }
@@ -74,7 +77,7 @@ const statOrUndefined = async (
 // directory `path`.
 const isWritable = async (path: string): Promise<boolean> => {
   try {
-    await access(path, constants.W_OK);
+    await fs.access(path, fs.constants.W_OK);
     return true;
   } catch {
     return false;
@@ -88,7 +91,7 @@ const isWritable = async (path: string): Promise<boolean> => {
 //   generated/ holding nothing                         // true
 //   src/ holding index.ts, app.ts                      // false
 const isReplaceableDirectory = async (path: string): Promise<boolean> => {
-  const entryNames = await readdir(path);
+  const entryNames = await fs.readdir(path);
   return entryNames.length === 0 || entryNames.includes(GENERATED_MARKER_FILE_NAME);
 };
 
@@ -110,9 +113,16 @@ const isReplaceableDirectory = async (path: string): Promise<boolean> => {
  */
 export const checkDestination = async (path: string): Promise<Diagnostic[]> => {
   const existing = await statOrUndefined(path);
+
   if (existing !== undefined && !existing.isDirectory()) {
-    return [createUnwritableDiagnostic(path, 'it is a file, and destination names a directory')];
+    return [
+      createDestinationUnwritableDiagnostic(
+        path,
+        'it is a file, and destination names a directory',
+      ),
+    ];
   }
+
   if (existing !== undefined && !(await isReplaceableDirectory(path))) {
     return [
       createDiagnostic({
@@ -122,6 +132,7 @@ export const checkDestination = async (path: string): Promise<Diagnostic[]> => {
       }),
     ];
   }
+
   let ancestor = dirname(path);
   let ancestorStat = await statOrUndefined(ancestor);
   while (ancestorStat === undefined && dirname(ancestor) !== ancestor) {
@@ -129,11 +140,11 @@ export const checkDestination = async (path: string): Promise<Diagnostic[]> => {
     ancestorStat = await statOrUndefined(ancestor);
   }
   if (ancestorStat === undefined || !ancestorStat.isDirectory()) {
-    return [createUnwritableDiagnostic(path, `${ancestor} is not a directory`)];
+    return [createDestinationUnwritableDiagnostic(path, `${ancestor} is not a directory`)];
   }
   return (await isWritable(ancestor))
     ? []
-    : [createUnwritableDiagnostic(path, `the directory ${ancestor} is read-only`)];
+    : [createDestinationUnwritableDiagnostic(path, `the directory ${ancestor} is read-only`)];
 };
 
 export type CheckDestinationNotIncludedArgs = {
@@ -169,12 +180,14 @@ export const checkDestinationNotIncluded = ({
     return [];
   }
   const destinationAsPosix = toPosixPath(destinationFromBaseDirectory);
+
   const writtenPaths = [
     destinationAsPosix,
     ...mirroredFilePaths.map((mirroredFilePath) =>
       posix.join(destinationAsPosix, mirroredFilePath),
     ),
   ];
+
   return include
     .filter((pattern) =>
       writtenPaths.some((writtenPath) => matchesGlob(writtenPath, posix.normalize(pattern))),
@@ -211,6 +224,7 @@ export const writeDestination = async ({
   mirroredFiles,
 }: WriteDestinationArgs): Promise<Diagnostic[]> => {
   const temporaryPath = join(dirname(destination.path), `${basename(destination.path)}.pvl-tmp`);
+
   const filesToWrite: ReadonlyArray<MirroredFile> = [
     ...mirroredFiles,
     { relativePath: GENERATED_MARKER_FILE_NAME, text: GENERATED_MARKER_TEXT },
@@ -218,19 +232,20 @@ export const writeDestination = async ({
       ? [{ relativePath: GITIGNORE_FILE_NAME, text: DEFAULT_DESTINATION_GITIGNORE_TEXT }]
       : []),
   ];
+
   try {
-    await rm(temporaryPath, { recursive: true, force: true });
-    await mkdir(temporaryPath, { recursive: true });
+    await fs.rm(temporaryPath, { recursive: true, force: true });
+    await fs.mkdir(temporaryPath, { recursive: true });
     for (const { relativePath, text } of filesToWrite) {
       const filePath = join(temporaryPath, relativePath);
-      await mkdir(dirname(filePath), { recursive: true });
-      await writeFile(filePath, text);
+      await fs.mkdir(dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, text);
     }
-    await rm(destination.path, { recursive: true, force: true });
-    await rename(temporaryPath, destination.path);
+    await fs.rm(destination.path, { recursive: true, force: true });
+    await fs.rename(temporaryPath, destination.path);
     return [];
   } catch (error) {
-    await rm(temporaryPath, { recursive: true, force: true });
-    return [createUnwritableDiagnostic(destination.path, errorMessage(error))];
+    await fs.rm(temporaryPath, { recursive: true, force: true });
+    return [createDestinationUnwritableDiagnostic(destination.path, errorMessage(error))];
   }
 };

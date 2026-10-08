@@ -3,7 +3,7 @@
 import yargs from 'yargs';
 import { compile, type CompilePayload } from '../compile/compile.js';
 import type { SettingOverrides } from '../config/config.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
 

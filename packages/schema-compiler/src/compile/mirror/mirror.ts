@@ -3,7 +3,7 @@
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { hasError } from '../../diagnostics/diagnostic.js';
 import { BARREL_FILE_NAME, GENERATED_HEADER } from '../consts.js';
-import { findDuplicateExports, renderBarrel } from './barrel.js';
+import { renderBarrel } from './barrel.js';
 import { rewriteModuleSpecifiers } from './moduleSpecifiers.js';
 import { Precheck } from './precheck.js';
 import { readScannedModules } from './scannedModule.js';
@@ -74,7 +74,7 @@ export const mirrorScannedFiles = ({
     destinationDirectory,
   });
 
-  const parseFailures = Precheck.findParseFailures(tsMorphProject, scannedModules);
+  const parseFailures = Precheck.findParseFailuresDiagnostics(tsMorphProject, scannedModules);
   const unparsedFilePaths = new Set(parseFailures.map(({ file }) => file));
   const parsedModules = scannedModules.filter(({ path }) => !unparsedFilePaths.has(path));
   const hasScannedBarrel = scannedModules.some(
@@ -82,10 +82,12 @@ export const mirrorScannedFiles = ({
   );
   const diagnostics = [
     ...parseFailures,
-    ...Precheck.findFilesOutsideRootDirectory(scannedModules, rootDirectory),
-    ...parsedModules.flatMap((scannedModule) => Precheck.findDefaultExports(scannedModule)),
-    ...(hasScannedBarrel ? [] : findDuplicateExports(parsedModules)),
-    ...parsedModules.flatMap((scannedModule) => Precheck.findWarnings(scannedModule)),
+    ...Precheck.findFilesOutsideRootDirectoryDiagnostics(scannedModules, rootDirectory),
+    ...parsedModules.flatMap((scannedModule) =>
+      Precheck.findDefaultExportsDiagnostics(scannedModule),
+    ),
+    ...(hasScannedBarrel ? [] : Precheck.findDuplicateExportsDiagnostics(parsedModules)),
+    ...parsedModules.flatMap((scannedModule) => Precheck.findWarningsDiagnostics(scannedModule)),
   ];
   if (hasError(diagnostics)) {
     return { diagnostics, mirroredFiles: [] };
@@ -101,9 +103,11 @@ export const mirrorScannedFiles = ({
       text: `${GENERATED_HEADER}\n${scannedModule.sourceFile.getFullText()}`,
     };
   });
+
   const barrel: MirroredFile[] = hasScannedBarrel
     ? []
     : [{ relativePath: BARREL_FILE_NAME, text: renderBarrel(scannedModules) }];
+
   return {
     diagnostics,
     mirroredFiles: [...barrel, ...mirroredModules].sort((first, second) =>
