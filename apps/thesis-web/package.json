@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node src/dev.ts",
     "build:thesis": "node src/build.ts",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit"
@@ -11,7 +12,9 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/browser-sync": "^2.29.1",
     "@types/node": "^26.4.1",
+    "browser-sync": "^3.0.4",
     "eslint": "10.9.1",
     "jiti": "2.7.0",
     "typescript": "6.0.3"

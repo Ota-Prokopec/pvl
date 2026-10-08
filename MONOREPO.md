@@ -6,7 +6,7 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 apps/
 ├── docs/              (docs, private)        — documentation site for @pvl/schema
 ├── playground/        (playground, private)  — scratch app for watching @pvl/schema work
-└── thesis-web/        (thesis-web, private)  — the bachelor's thesis website, built from thesis/
+└── thesis-web/        (thesis-web, private)  — the bachelor's thesis PDF, shown on a page, built from thesis/
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler (not implemented yet)

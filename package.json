@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "build": "turbo run build --continue",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!thesis-web",
+    "dev:thesis": "turbo run dev --filter=thesis-web",
     "docs:dev": "turbo run dev --filter=docs",
     "docs:build": "turbo run build --filter=docs",
     "build:thesis": "turbo run build:thesis",

@@ -1,7 +1,0 @@
--- make4ht build file for thesis/web.tex: biber runs between the LaTeX passes so
--- citations resolve, and the extra passes settle cross-references and the TOC.
-Make:add("biber", "biber --input-directory ${builddir} --output-directory ${builddir} ${input}")
-Make:htlatex {}
-Make:biber {}
-Make:htlatex {}
-Make:htlatex {}
