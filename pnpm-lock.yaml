@@ -101,6 +101,27 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  apps/thesis-web:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../../packages/eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(jiti@2.7.0)(supports-color@5.5.0)
+      jiti:
+        specifier: 2.7.0
+        version: 2.7.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/conventions:
     dependencies:
       '@eslint/json':

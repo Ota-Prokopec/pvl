@@ -1,0 +1,10 @@
+% Shared macros for both thesis entry points (main.tex for the PDF, web.tex for
+% the HTML). Keep it to constructs that tex4ht converts.
+\ProvidesPackage{pvl}
+\RequirePackage{listings}
+\newcommand{\pvl}{\textsc{PVL}}
+\newcommand{\kod}[1]{\texttt{#1}}
+% One listings style for both outputs: monospace with straight quotes and
+% backticks (so quoted source code isn't curled), wrapped long lines.
+\lstset{basicstyle=\ttfamily\footnotesize, columns=fullflexible, keepspaces=true,
+  upquote=true, breaklines=true, numbers=left, numberstyle=\tiny}

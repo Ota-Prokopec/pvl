@@ -4,8 +4,9 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 
 ```
 apps/
-├── docs/              (docs, private)       — documentation site for @pvl/schema
-└── playground/        (playground, private) — scratch app for watching @pvl/schema work
+├── docs/              (docs, private)        — documentation site for @pvl/schema
+├── playground/        (playground, private)  — scratch app for watching @pvl/schema work
+└── thesis-web/        (thesis-web, private)  — the bachelor's thesis website, built from thesis/
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler (not implemented yet)
@@ -19,11 +20,13 @@ scripts/
 └── git-worktrees/     (@repo/git-worktrees)     — the git worktree reader both scripts share
 ```
 
+`thesis/` at the root isn't a workspace entry: it's the LaTeX source of the bachelor's thesis, built by `apps/thesis-web` ([`thesis/AGENTS.md`](./thesis/AGENTS.md)).
+
 ## Dependencies
 
 - `@pvl/schema-compiler` depends on `@pvl/schema`, never the other way round. Those two publish to npm; everything else is private.
 - `@pvl/schema` depends on `@repo/types` for its internal enums.
-- Both scripts read worktrees through `@repo/git-worktrees`. Nothing depends on the scripts or the apps.
+- Both scripts read worktrees through `@repo/git-worktrees`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
 - `@repo/eslint-config` and `@repo/typescript-config` are real, adopted dependencies, not create-turbo leftovers: every entry takes them as `workspace:*` devDependencies. `@repo/eslint-config` wires in `@repo/conventions`.
 
 ## Scripts

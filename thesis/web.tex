@@ -1,0 +1,31 @@
+% Web entry point: converted to HTML by make4ht in LuaLaTeX mode, which keeps
+% the Czech diacritics intact in page titles. The fasthesis frame (title
+% page, declaration, assignment) exists only in the PDF (main.tex). tex4ht puts
+% the table of contents on the index page itself, so there's no \tableofcontents,
+% and \printbibliography's starred chapter already lands in it.
+\documentclass[a4paper]{report}
+\usepackage[czech]{babel}
+\usepackage{csquotes}
+\usepackage[backend=biber, bibencoding=utf8, style=iso-numeric, maxnames=5, sortlocale=cs_CZ]{biblatex}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{pvl}
+\input{keywords}
+\addbibresource{refs.bib}
+\title{PVL -- knihovna pro validaci dat s~předkompilací schémat}
+\author{Ota Prokopec}
+\date{}
+\begin{document}
+\maketitle
+\section*{Abstrakt}
+\input{abstract-cs}
+
+\noindent\textbf{Klíčová slova:} \keywordscs
+\section*{Abstract}
+\input{abstract-en}
+
+\noindent\textbf{Keywords:} \keywordsen
+\input{chapters/uvod}
+\input{chapters/zaver}
+\printbibliography
+\end{document}

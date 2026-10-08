@@ -1,0 +1,23 @@
+% PDF entry point: the graded version, typeset with the faculty's fasthesis class.
+% The web entry point (web.tex) shares chapters/, pvl.sty and refs.bib.
+\documentclass[czech, bc, kiv, he, iso690numb, pdf]{fasthesis}
+\usepackage{pvl}
+\input{keywords}
+\title{PVL -- knihovna pro validaci dat s~předkompilací schémat}
+\author{Ota}{Prokopec}{}{}
+\supervisor{doplnit vedoucího práce}
+\stagworkid{00000}
+\signdate{8}{10}{2026}{V~Plzni}
+\assignment{zadani.pdf}
+\addbibresource{refs.bib}
+\abstract{\input{abstract-cs}}{\input{abstract-en}\par\medskip\noindent\textbf{Keywords:} \keywordsen}
+% \keywords reads its argument literally, so expand the list first.
+\expandafter\keywords\expandafter{\keywordscs}
+\acknowledgement{Poděkování.}
+\begin{document}
+\frontpages
+\tableofcontents
+\input{chapters/uvod}
+\input{chapters/zaver}
+\printbibliography[heading=bibintoc]
+\end{document}
