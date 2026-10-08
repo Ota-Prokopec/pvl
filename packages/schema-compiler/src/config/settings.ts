@@ -4,7 +4,13 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Issue } from '@pvl/schema';
 import { configSchema, type PvlConfig, type SettingOverrides, type Settings } from './config.js';
-import { CONFIG_FILE_NAME, DEFAULT_INCLUDE, DEFAULT_WATCH, DEFAULT_WITH_TYPES } from './consts.js';
+import {
+  CONFIG_FILE_NAME,
+  DEFAULT_INCLUDE,
+  DEFAULT_ROOT_DIR,
+  DEFAULT_WATCH,
+  DEFAULT_WITH_TYPES,
+} from './consts.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
@@ -112,6 +118,7 @@ export const resolveSettings = async ({
     diagnostics: [],
     settings: {
       include: given.include ?? config.include ?? [...DEFAULT_INCLUDE],
+      rootDir: given.rootDir ?? config.rootDir ?? DEFAULT_ROOT_DIR,
       destination: given.destination ?? config.destination,
       withTypes: given.withTypes ?? config.withTypes ?? DEFAULT_WITH_TYPES,
       watch: given.watch ?? config.watch ?? DEFAULT_WATCH,

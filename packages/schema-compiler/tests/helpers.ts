@@ -1,6 +1,15 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect } from 'vitest';
 import { SEVERITY, type CompilePayload, type DiagnosticCode } from '../src/index.js';
@@ -32,14 +41,14 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
 
 /**
  * Symlinks the workspace's built `@pvl/schema` into the fixture at `root`
- * as `node_modules/@pvl/schema`, so both the Destination File and the
+ * as `node_modules/@pvl/schema`, so both a mirrored module and the
  * source it mirrors can be imported and run, to compare their behaviour.
  *
  * ```ts
  * const root = await createFixture({ 'src/schemas/order.ts': ORDER_SOURCE, … });
  * await linkSchemaPackage(root);
  * await compile({ cwd: root });
- * const mirrored = await import(join(root, 'out.ts'));
+ * const mirrored = await import(join(root, '.pvl/schemas/order.ts'));
  * const source = await import(join(root, 'src/schemas/order.ts'));
  * ```
  *
@@ -58,6 +67,32 @@ export const linkSchemaPackage = async (root: string): Promise<void> => {
 export const readFixtureFile = async (root: string, path: string): Promise<string | undefined> => {
   try {
     return await readFile(join(root, path), 'utf8');
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Every file under `path` in the fixture at `root`, relative to `path` with
+ * `/` separators, sorted; `undefined` when `path` doesn't exist.
+ *
+ * ```ts
+ * await listFixtureFiles(root, '.pvl'); // ['.gitignore', '.pvl-generated', 'index.ts', 'schemas/user.ts']
+ * ```
+ */
+export const listFixtureFiles = async (
+  root: string,
+  path: string,
+): Promise<string[] | undefined> => {
+  const directory = join(root, path);
+  try {
+    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile())
+      .map((entry) =>
+        relative(directory, join(entry.parentPath, entry.name)).split(sep).join(posix.sep),
+      )
+      .sort();
   } catch {
     return undefined;
   }

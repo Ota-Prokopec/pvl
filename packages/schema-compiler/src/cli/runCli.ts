@@ -46,10 +46,6 @@ const report = ({ payload, json, stdout, stderr }: ReportArgs): void => {
   }
   if (payload.written) {
     stdout.write(`Wrote ${payload.destination}\n`);
-  } else if (!hasError(payload.diagnostics)) {
-    stdout.write(
-      `Resolved the destination ${payload.destination}; nothing is written there yet.\n`,
-    );
   }
 };
 
@@ -62,6 +58,7 @@ const runCompile = async (
     configPath: flags.config,
     overrides: {
       include: flags.include,
+      rootDir: flags.rootDir,
       destination: flags.destination,
       withTypes: flags.withTypes,
       watch: flags.watch,
@@ -89,7 +86,7 @@ export const runCli = async (
     .scriptName('pvl')
     .command(
       'compile',
-      'Compile every pvl.compile(...) Schema into the Destination File',
+      'Mirror the schema files into the Destination Directory, compiling every pvl.compile(...) Schema',
       (command) =>
         command.options({
           config: {
@@ -101,9 +98,13 @@ export const runCli = async (
             array: true,
             description: 'Globs selecting the schema files to compile',
           },
+          'root-dir': {
+            type: 'string',
+            description: 'The source root the Destination Directory mirrors (default: src)',
+          },
           destination: {
             type: 'string',
-            description: 'Path of the Destination File to write',
+            description: 'The Destination Directory to write (default: .pvl)',
           },
           'with-types': {
             type: 'boolean',

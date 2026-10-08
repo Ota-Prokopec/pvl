@@ -1,19 +1,21 @@
 // The programmatic entry point: one compilation run, from settings to the
-// written Destination File. The CLI and any future bundler plugin wrap it.
-import { dirname, resolve } from 'node:path';
+// written Destination Directory. The CLI and any future bundler plugin wrap it.
+import { relative, resolve } from 'node:path';
 import type { SettingOverrides, Settings } from '../config/config.js';
 import { resolveSettings } from '../config/settings.js';
 import { SEVERITY } from '../diagnostics/consts.js';
 import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
+import { BARREL_FILE_NAME } from './consts.js';
 import {
+  checkDestination,
   checkDestinationNotIncluded,
-  checkWritable,
-  DESTINATION_KIND,
   resolveDestination,
-  writeDestinationFile,
+  writeDestination,
   type Destination,
 } from './destination.js';
 import { mirrorScannedFiles, type MirrorScannedFilesPayload } from './mirror/mirror.js';
+import { isOutsideRootDirectory } from './mirror/scannedModule.js';
+import { toPosixPath } from './mirror/utils.js';
 import { createNoInputFilesDiagnostic, findInputFiles, type ScanScope } from './scan.js';
 
 /**
@@ -32,9 +34,9 @@ export type CompilePayload = {
   diagnostics: Diagnostic[];
   /** The merged settings, or `undefined` when they couldn't be resolved. */
   settings: Settings | undefined;
-  /** The Destination File's absolute path, once settings resolved. */
+  /** The Destination Directory's absolute path, once settings resolved. */
   destination: string | undefined;
-  /** Whether the Destination File was written. Never `true` when an error fired. */
+  /** Whether the Destination Directory was written. Never `true` when an error fired. */
   written: boolean;
 };
 
@@ -87,7 +89,7 @@ export type CompileArgs = {
 /**
  * Runs one compilation: resolves the settings (overrides, then
  * `pvlconfig.json`, then defaults), scans the files `include` selects and
- * writes the Destination File. Nothing is written when any error fired.
+ * writes the Destination Directory. Nothing is written when any error fired.
  * Problems come back as diagnostics; it doesn't throw for them.
  *
  * @example
@@ -96,7 +98,7 @@ export type CompileArgs = {
  *
  * const { diagnostics } = await compile({
  *   cwd: process.cwd(),
- *   overrides: { destination: 'src/generated/schemas.ts' },
+ *   overrides: { destination: 'src/generated' },
  * });
  * const failed = hasError(diagnostics);
  * ```
@@ -122,28 +124,38 @@ export const compile = async ({
   }
   const { settings, baseDirectory } = resolvedSettingsPayload;
   const destination: Destination = resolveDestination(baseDirectory, settings);
+  const rootDirectory = resolve(baseDirectory, settings.rootDir);
 
   const scope: ScanScope = {
     baseDirectory,
     include: settings.include,
     destination: destination.path,
   };
-
-  const found: Diagnostic[] = [];
-  if (destination.kind === DESTINATION_KIND.FILE) {
-    found.push(...checkDestinationNotIncluded(scope));
-    found.push(...(await checkWritable(destination.path)));
-  }
   const files = await findInputFiles(scope);
+
+  const found: Diagnostic[] = [
+    ...checkDestinationNotIncluded({
+      ...scope,
+      // Where each scanned file would be mirrored, plus the barrel. A file
+      // outside the Root Directory has no place in the mirror, which
+      // FILE_OUTSIDE_ROOT_DIR reports.
+      mirroredFilePaths: [
+        BARREL_FILE_NAME,
+        ...files
+          .map((file) => toPosixPath(relative(rootDirectory, file)))
+          .filter((relativePath) => !isOutsideRootDirectory(relativePath)),
+      ],
+    }),
+    ...(await checkDestination(destination.path)),
+  ];
   if (files.length === 0) {
     found.push(createNoInputFilesDiagnostic(settings.include));
   }
   const mirroredScannedFiles: MirrorScannedFilesPayload = mirrorScannedFiles({
     scannedFilePaths: files,
     baseDirectory,
-    // The default destination is a package directory holding `index.ts`.
-    outputDirectory:
-      destination.kind === DESTINATION_KIND.FILE ? dirname(destination.path) : destination.path,
+    rootDirectory,
+    destinationDirectory: destination.path,
   });
   found.push(...mirroredScannedFiles.diagnostics);
 
@@ -153,14 +165,12 @@ export const compile = async ({
     destination: destination.path,
     strict,
   });
-  // Emitting the default `node_modules` package is a later step; until then
-  // only a `destination` file is written.
-  if (hasError(payload.diagnostics) || destination.kind === DESTINATION_KIND.PACKAGE) {
+  if (hasError(payload.diagnostics)) {
     return payload;
   }
-  const writeFailure = await writeDestinationFile({
-    path: destination.path,
-    content: mirroredScannedFiles.destinationFileText,
+  const writeFailure = await writeDestination({
+    destination,
+    mirroredFiles: mirroredScannedFiles.mirroredFiles,
   });
   return writeFailure.length > 0
     ? { ...payload, diagnostics: [...payload.diagnostics, ...writeFailure] }

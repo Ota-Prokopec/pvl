@@ -1,10 +1,34 @@
-// Path helpers, free-name lookup and the module-graph order the Destination File is emitted in.
-import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
-import type { ScannedModule } from './tsMorphProject.js';
+// Path and module specifier helpers the mirror shares: how a path is shown,
+// and how a module specifier is spelled from a mirrored module's location.
+import { dirname, extname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
+
+/** Extensions a module specifier may spell out, which a rewritten one keeps. */
+const MODULE_SPECIFIER_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.json',
+]);
+
+/** Declaration file suffixes, stripped whole so `types.d.ts` isn't left as `types.d`. */
+const DECLARATION_FILE_SUFFIXES = ['.d.ts', '.d.mts', '.d.cts'] as const;
+
+/** The extension a barrel spells for each TypeScript extension, so it resolves under Node and bundlers alike. */
+const BARREL_EXTENSION_BY_SOURCE_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ['.ts', '.js'],
+  ['.tsx', '.js'],
+  ['.mts', '.mjs'],
+  ['.cts', '.cjs'],
+]);
 
 /**
- * `path` with the platform's separators replaced by `/`, so the Destination
- * File and the diagnostics read the same on Windows as elsewhere.
+ * `path` with the platform's separators replaced by `/`, so the mirror and
+ * the diagnostics read the same on Windows as elsewhere.
  *
  * ```ts
  * toPosixPath('src\\schemas\\user.ts') // 'src/schemas/user.ts' on Windows
@@ -16,183 +40,123 @@ export const toPosixPath = (path: string): string => {
 };
 
 /**
- * `path` as a module banner or a diagnostic shows it: relative to
- * `baseDirectory`, with `/` separators.
+ * Whether `moduleSpecifier` names a file relative to the importing one.
  *
  * ```ts
- * toDisplayPath('/repo', '/repo/src/schemas/user.ts') // 'src/schemas/user.ts'
- * // In the Destination File: // ---- src/schemas/user.ts ----
+ * isRelativeModuleSpecifier('./user.js')      // true
+ * isRelativeModuleSpecifier('../helpers.js')  // true
+ * isRelativeModuleSpecifier('/repo/src/a.js') // false: absolute
+ * isRelativeModuleSpecifier('@/schemas/user') // false: an alias or a package
  * ```
  */
-export const toDisplayPath = (baseDirectory: string, path: string): string => {
-  return toPosixPath(relative(baseDirectory, path));
-};
-
-/**
- * The first of `name`, `name_2`, `name_3`, … that `isTaken` rejects, so a
- * binding renamed to it can't clash with one already holding a name.
- *
- * ```ts
- * findFreeName('user', (candidate) => candidate === 'other')          // 'user'
- * findFreeName('user', (candidate) => candidate === 'user')           // 'user_2'
- * findFreeName('user', (candidate) => ['user', 'user_2'].includes(candidate)) // 'user_3'
- * ```
- */
-export const findFreeName = (name: string, isTaken: (candidate: string) => boolean): string => {
-  let freeName = name;
-  let suffix = 1;
-  while (isTaken(freeName)) {
-    suffix += 1;
-    freeName = `${name}_${String(suffix)}`;
-  }
-  return freeName;
+export const isRelativeModuleSpecifier = (moduleSpecifier: string): boolean => {
+  return moduleSpecifier.startsWith('./') || moduleSpecifier.startsWith('../');
 };
 
 /**
  * Whether `moduleSpecifier` names a file by its path, rather than a package
- * that resolves through `node_modules`.
+ * or an alias, which resolve through `node_modules` or tsconfig `paths`.
  *
  * ```ts
- * isRelativeOrAbsoluteModuleSpecifier('./user.js')        // true
- * isRelativeOrAbsoluteModuleSpecifier('../helpers.js')    // true
- * isRelativeOrAbsoluteModuleSpecifier('/repo/src/a.js')   // true
- * isRelativeOrAbsoluteModuleSpecifier('@pvl/schema')      // false
- * isRelativeOrAbsoluteModuleSpecifier('node:path')        // false
+ * isPathModuleSpecifier('./user.js')        // true
+ * isPathModuleSpecifier('/repo/src/a.js')   // true
+ * isPathModuleSpecifier('@pvl/schema')      // false
+ * isPathModuleSpecifier('@/schemas/user')   // false
  * ```
  */
-export const isRelativeOrAbsoluteModuleSpecifier = (moduleSpecifier: string): boolean => {
-  return moduleSpecifier.startsWith('.') || isAbsolute(moduleSpecifier);
+export const isPathModuleSpecifier = (moduleSpecifier: string): boolean => {
+  return isRelativeModuleSpecifier(moduleSpecifier) || isAbsolute(moduleSpecifier);
+};
+
+// `relativePath` as a relative module specifier, which must start with a
+// dot so it isn't read as a package name.
+//
+//   toDotRelativeModuleSpecifier('schemas/user.js')   // './schemas/user.js'
+//   toDotRelativeModuleSpecifier('../lib/helpers.js') // '../lib/helpers.js'
+const toDotRelativeModuleSpecifier = (relativePath: string): string => {
+  const posixPath = toPosixPath(relativePath);
+  return posixPath.startsWith('.') ? posixPath : `./${posixPath}`;
 };
 
 /**
- * `moduleSpecifier` is rewritten to a path so it can be imported from
- * `outputDirectory`. It reaches the same file it reached from `importerPath`.
- * A package name module specifier (`@pvl/schema`) is kept, as it resolves the same.
+ * `moduleSpecifier`, a path written in the file `importerPath`, spelled so
+ * it reaches the same file from `outputDirectory`. The spelling is kept, so
+ * an extension-less or `.js` module specifier stays one.
  *
  * With `importerPath` `/repo/src/schemas/user.ts` and `outputDirectory`
- * `/repo/src/generated`:
+ * `/repo/.pvl/schemas`:
  *
  * ```ts
- * rewriteModuleSpecifierForOutputDirectory('../helpers.js', …) // '../helpers.js'
- * rewriteModuleSpecifierForOutputDirectory('./tags.js', …)     // '../schemas/tags.js'
- * rewriteModuleSpecifierForOutputDirectory('@pvl/schema', …)   // '@pvl/schema', kept
+ * rewritePathModuleSpecifier('../lib/helpers.js', …) // '../../src/lib/helpers.js'
+ * rewritePathModuleSpecifier('./tags', …)            // '../../src/schemas/tags'
  * ```
  */
-export const rewriteModuleSpecifierForOutputDirectory = (
+export const rewritePathModuleSpecifier = (
   moduleSpecifier: string,
   importerPath: string,
   outputDirectory: string,
 ): string => {
-  if (!isRelativeOrAbsoluteModuleSpecifier(moduleSpecifier)) {
-    return moduleSpecifier;
-  }
-  const pathFromOutputDirectory = toPosixPath(
+  return toDotRelativeModuleSpecifier(
     relative(outputDirectory, resolve(dirname(importerPath), moduleSpecifier)),
   );
-  return pathFromOutputDirectory.startsWith('.')
-    ? pathFromOutputDirectory
-    : `./${pathFromOutputDirectory}`;
 };
 
-/**
- * The scanned modules ordered so each comes after every module it depends
- * on, which is the order the Destination File emits them in. Among modules
- * that are ready at the same time, the one with the alphabetically first
- * path goes first, so the order never changes between runs.
- *
- * ```text
- * post.ts depends on user.ts, user.ts and tag.ts depend on nothing
- * → tag.ts, user.ts, post.ts
- * ```
- *
- * A module on an import cycle can never become ready, so it, and every
- * module depending on it, is left out; {@link findImportCycles} reports it.
- */
-export const sortByDependencyOrder = (
-  scannedModules: ReadonlyArray<ScannedModule>,
-): ScannedModule[] => {
-  const unorderedModules = [...scannedModules].sort((first, second) =>
-    first.path < second.path ? -1 : 1,
-  );
-  const orderedPaths = new Set<string>();
-  const orderedModules: ScannedModule[] = [];
-  let nextReadyModule = unorderedModules.find((candidateModule) =>
-    [...candidateModule.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
-  );
-  while (nextReadyModule !== undefined) {
-    orderedModules.push(nextReadyModule);
-    orderedPaths.add(nextReadyModule.path);
-    unorderedModules.splice(unorderedModules.indexOf(nextReadyModule), 1);
-    nextReadyModule = unorderedModules.find((candidateModule) =>
-      [...candidateModule.dependencies].every((dependencyPath) => orderedPaths.has(dependencyPath)),
-    );
-  }
-  return orderedModules;
-};
-
-// The shortest chain of dependencies leading from `startPath` back to
-// itself, as the paths along it with `startPath` at both ends, or
-// `undefined` when `startPath` isn't on a cycle. Found breadth-first, so
-// the shortest chain wins.
+// `filePath` without its extension, a declaration file's whole `.d.ts`
+// included.
 //
-//   a.ts → b.ts → a.ts, and a.ts → c.ts → d.ts → a.ts
-//   findShortestCycleThrough('a.ts', …) // ['a.ts', 'b.ts', 'a.ts']
-//   findShortestCycleThrough('e.ts', …) // undefined when nothing leads back
-const findShortestCycleThrough = (
-  startPath: string,
-  moduleByPath: ReadonlyMap<string, ScannedModule>,
-): string[] | undefined => {
-  const predecessorByPath = new Map<string, string>();
-  const pathsToVisit = [startPath];
-  for (const currentPath of pathsToVisit) {
-    for (const dependencyPath of [...(moduleByPath.get(currentPath)?.dependencies ?? [])].sort()) {
-      if (dependencyPath === startPath) {
-        const cyclePaths = [currentPath];
-        let stepPath = currentPath;
-        while (stepPath !== startPath) {
-          stepPath = predecessorByPath.get(stepPath) ?? startPath;
-          cyclePaths.unshift(stepPath);
-        }
-        return [...cyclePaths, startPath];
-      }
-      if (!predecessorByPath.has(dependencyPath)) {
-        predecessorByPath.set(dependencyPath, currentPath);
-        pathsToVisit.push(dependencyPath);
-      }
-    }
-  }
-  return undefined;
+//   stripFileExtension('/repo/src/lib/helpers.ts')  // '/repo/src/lib/helpers'
+//   stripFileExtension('/repo/src/lib/types.d.ts')  // '/repo/src/lib/types'
+//   stripFileExtension('/repo/src/data.json')       // '/repo/src/data'
+const stripFileExtension = (filePath: string): string => {
+  const declarationFileSuffix = DECLARATION_FILE_SUFFIXES.find((suffix) =>
+    filePath.endsWith(suffix),
+  );
+  const extension = declarationFileSuffix ?? extname(filePath);
+  return filePath.slice(0, filePath.length - extension.length);
 };
 
 /**
- * Every import cycle among the scanned modules, each as the paths around
- * it, starting and ending at its alphabetically first path. A module on
- * several cycles is reported on only one, so one broken import doesn't
- * produce a pile of errors.
+ * A relative module specifier for the file `targetPath`, from the directory
+ * `outputDirectory`, spelling the extension the way `originalModuleSpecifier`
+ * did: its own extension when it had one, none otherwise.
  *
- * ```text
- * a.ts imports b.ts, b.ts imports a.ts, c.ts imports a.ts
- * → [['a.ts', 'b.ts', 'a.ts']]
+ * With `outputDirectory` `/repo/.pvl/schemas`:
+ *
+ * ```ts
+ * toRelativeModuleSpecifier(…, '/repo/.pvl/schemas/user.ts', '@/schemas/user.js') // './user.js'
+ * toRelativeModuleSpecifier(…, '/repo/src/lib/helpers.ts', '@/lib/helpers')      // '../../src/lib/helpers'
+ * toRelativeModuleSpecifier(…, '/repo/src/data.json', '@/data.json')             // '../../src/data.json'
  * ```
- *
- * c.ts depends on the cycle but isn't on it, so it isn't reported.
  */
-export const findImportCycles = (scannedModules: ReadonlyArray<ScannedModule>): string[][] => {
-  const moduleByPath = new Map(
-    scannedModules.map((scannedModule) => [scannedModule.path, scannedModule]),
+export const toRelativeModuleSpecifier = (
+  outputDirectory: string,
+  targetPath: string,
+  originalModuleSpecifier: string,
+): string => {
+  const originalExtension = extname(originalModuleSpecifier);
+  const spelledExtension = MODULE_SPECIFIER_EXTENSIONS.has(originalExtension)
+    ? originalExtension
+    : '';
+  return toDotRelativeModuleSpecifier(
+    `${relative(outputDirectory, stripFileExtension(targetPath))}${spelledExtension}`,
   );
-  const orderedPaths = new Set(sortByDependencyOrder(scannedModules).map(({ path }) => path));
-  const pathsOnReportedCycles = new Set<string>();
-  const importCycles: string[][] = [];
-  for (const path of [...moduleByPath.keys()].sort()) {
-    if (orderedPaths.has(path) || pathsOnReportedCycles.has(path)) {
-      continue;
-    }
-    const cyclePaths = findShortestCycleThrough(path, moduleByPath);
-    if (cyclePaths !== undefined) {
-      importCycles.push(cyclePaths);
-      cyclePaths.forEach((cyclePath) => pathsOnReportedCycles.add(cyclePath));
-    }
-  }
-  return importCycles;
+};
+
+/**
+ * The module specifier the barrel re-exports the mirrored module at
+ * `relativePath` (relative to the Destination Directory) through, with the
+ * `.js` family extension a TypeScript import of it spells.
+ *
+ * ```ts
+ * toBarrelModuleSpecifier('schemas/user.ts')  // './schemas/user.js'
+ * toBarrelModuleSpecifier('schemas/legacy.mts') // './schemas/legacy.mjs'
+ * toBarrelModuleSpecifier('schemas/plain.js') // './schemas/plain.js'
+ * ```
+ */
+export const toBarrelModuleSpecifier = (relativePath: string): string => {
+  const extension = extname(relativePath);
+  const barrelExtension = BARREL_EXTENSION_BY_SOURCE_EXTENSION.get(extension) ?? extension;
+  return toDotRelativeModuleSpecifier(
+    `${relativePath.slice(0, relativePath.length - extension.length)}${barrelExtension}`,
+  );
 };

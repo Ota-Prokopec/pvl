@@ -11,7 +11,7 @@ export type ScanScope = {
   /** The directory relative paths resolve against. */
   baseDirectory: string;
   include: ReadonlyArray<string>;
-  /** The Destination File's absolute path. */
+  /** The Destination Directory's absolute path. */
   destination: string;
 };
 

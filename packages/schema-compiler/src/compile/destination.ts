@@ -1,45 +1,65 @@
-// Where the Destination File goes, whether it can go there, and writing it.
+// Where the Destination Directory goes, whether it can go there, and writing
+// it in one move.
 import { constants } from 'node:fs';
-import { access, mkdir, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, matchesGlob, posix, relative, resolve, sep } from 'node:path';
-import type { ValueOfEnum } from '@repo/types';
+import { access, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  matchesGlob,
+  posix,
+  relative,
+  resolve,
+} from 'node:path';
 import type { Settings } from '../config/config.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage } from '../utils.js';
-import { DEFAULT_DESTINATION_DIRECTORY } from './consts.js';
-import type { ScanScope } from './scan.js';
+import {
+  DEFAULT_DESTINATION_DIRECTORY,
+  DEFAULT_DESTINATION_GITIGNORE_TEXT,
+  GENERATED_MARKER_FILE_NAME,
+  GENERATED_MARKER_TEXT,
+  GITIGNORE_FILE_NAME,
+} from './consts.js';
+import type { MirroredFile } from './mirror/mirror.js';
+import { toPosixPath } from './mirror/utils.js';
 
-/**
- * `FILE` is the single TypeScript file `destination` names; `PACKAGE` is the
- * default `node_modules` package directory, used when `destination` is unset.
- */
-export const DESTINATION_KIND = {
-  FILE: 'FILE',
-  PACKAGE: 'PACKAGE',
-} as const;
-
+/** Where the Destination Directory goes. */
 export type Destination = {
-  kind: ValueOfEnum<typeof DESTINATION_KIND>;
   /** Absolute. */
   path: string;
+  /** Whether `destination` was unset, so the default `.pvl` directory is used. */
+  isDefault: boolean;
 };
 
+/**
+ * The Destination Directory `settings` name, resolved against the base
+ * directory, or the default `<baseDirectory>/.pvl`.
+ *
+ * ```ts
+ * resolveDestination('/repo', { destination: undefined, … })   // { path: '/repo/.pvl', isDefault: true }
+ * resolveDestination('/repo', { destination: 'generated', … }) // { path: '/repo/generated', isDefault: false }
+ * ```
+ */
 export const resolveDestination = (baseDirectory: string, settings: Settings): Destination => {
   return settings.destination === undefined
-    ? { kind: DESTINATION_KIND.PACKAGE, path: join(baseDirectory, DEFAULT_DESTINATION_DIRECTORY) }
-    : { kind: DESTINATION_KIND.FILE, path: resolve(baseDirectory, settings.destination) };
+    ? { path: join(baseDirectory, DEFAULT_DESTINATION_DIRECTORY), isDefault: true }
+    : { path: resolve(baseDirectory, settings.destination), isDefault: false };
 };
 
+// A DESTINATION_UNWRITABLE diagnostic for `path`, saying why.
 const createUnwritableDiagnostic = (path: string, reason: string): Diagnostic => {
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE,
-    message: `Can't write the Destination File to ${path}: ${reason}.`,
+    message: `Can't write the Destination Directory to ${path}: ${reason}.`,
     file: path,
   });
 };
 
+// What `stat` says about `path`, or `undefined` when nothing is there.
 const statOrUndefined = async (
   path: string,
 ): Promise<Awaited<ReturnType<typeof stat>> | undefined> => {
@@ -50,6 +70,8 @@ const statOrUndefined = async (
   }
 };
 
+// Whether the current process may create and remove entries in the
+// directory `path`.
 const isWritable = async (path: string): Promise<boolean> => {
   try {
     await access(path, constants.W_OK);
@@ -59,20 +81,46 @@ const isWritable = async (path: string): Promise<boolean> => {
   }
 };
 
+// Whether the existing directory `path` may be replaced: it is empty, or it
+// carries the marker a previous run left.
+//
+//   .pvl/ holding .pvl-generated, index.ts, schemas/   // true
+//   generated/ holding nothing                         // true
+//   src/ holding index.ts, app.ts                      // false
+const isReplaceableDirectory = async (path: string): Promise<boolean> => {
+  const entryNames = await readdir(path);
+  return entryNames.length === 0 || entryNames.includes(GENERATED_MARKER_FILE_NAME);
+};
+
 /**
- * Checks, without writing anything, that `path` can be written as a file:
- * it isn't a directory, and its nearest existing ancestor is a writable
- * directory.
+ * Checks, without writing anything, that the Destination Directory can be
+ * written at `path`, which needs its parent to be writable, since the
+ * directory is replaced in one move:
+ *
+ * - DESTINATION_UNWRITABLE: `path` is a file, its nearest existing ancestor
+ *   is a file, or the directory it would be created in is read-only.
+ * - DESTINATION_NOT_EMPTY: `path` is a directory holding files but no
+ *   `.pvl-generated` marker, so the compiler didn't write it.
+ *
+ * ```ts
+ * await checkDestination('/repo/.pvl')     // [] when absent, empty or written by the compiler
+ * await checkDestination('/repo/src')      // [DESTINATION_NOT_EMPTY]
+ * await checkDestination('/repo/notes.md') // [DESTINATION_UNWRITABLE]: a file
+ * ```
  */
-export const checkWritable = async (path: string): Promise<Diagnostic[]> => {
+export const checkDestination = async (path: string): Promise<Diagnostic[]> => {
   const existing = await statOrUndefined(path);
-  if (existing?.isDirectory()) {
-    return [createUnwritableDiagnostic(path, 'it is a directory, and destination names a file')];
+  if (existing !== undefined && !existing.isDirectory()) {
+    return [createUnwritableDiagnostic(path, 'it is a file, and destination names a directory')];
   }
-  if (existing !== undefined) {
-    return (await isWritable(path))
-      ? []
-      : [createUnwritableDiagnostic(path, 'the file is read-only')];
+  if (existing !== undefined && !(await isReplaceableDirectory(path))) {
+    return [
+      createDiagnostic({
+        code: DIAGNOSTIC_CODE.DESTINATION_NOT_EMPTY,
+        message: `${path} holds files the compiler didn't write, so it won't be replaced. Point destination at a new or empty directory.`,
+        file: path,
+      }),
+    ];
   }
   let ancestor = dirname(path);
   let ancestorStat = await statOrUndefined(ancestor);
@@ -88,47 +136,101 @@ export const checkWritable = async (path: string): Promise<Diagnostic[]> => {
     : [createUnwritableDiagnostic(path, `the directory ${ancestor} is read-only`)];
 };
 
+export type CheckDestinationNotIncludedArgs = {
+  /** The directory relative paths resolve against. */
+  baseDirectory: string;
+  include: ReadonlyArray<string>;
+  /** The Destination Directory's absolute path. */
+  destination: string;
+  /** The files the Destination Directory will hold, relative to it. */
+  mirroredFilePaths: ReadonlyArray<string>;
+};
+
 /**
- * Reports each `include` pattern that matches the destination, inside the
- * base directory or out of it (`../shared/**`).
+ * Reports each `include` pattern that matches the Destination Directory or
+ * a file written into it, inside the base directory or out of it
+ * (`../shared/**`).
+ *
+ * ```ts
+ * // include: ['src/**\/*.ts'], destination: 'src/compiled'
+ * // → DESTINATION_INSIDE_INCLUDE: src/compiled/schemas/user.ts would match
+ * // include: ['src/schemas/**\/*.ts'], destination: '.pvl' → []
+ * ```
  */
 export const checkDestinationNotIncluded = ({
   baseDirectory,
   include,
   destination,
-}: ScanScope): Diagnostic[] => {
-  const fromBaseDirectory = relative(baseDirectory, destination);
+  mirroredFilePaths,
+}: CheckDestinationNotIncludedArgs): Diagnostic[] => {
+  const destinationFromBaseDirectory = relative(baseDirectory, destination);
   // On another drive (Windows), no relative pattern can reach it.
-  if (isAbsolute(fromBaseDirectory)) {
+  if (isAbsolute(destinationFromBaseDirectory)) {
     return [];
   }
-  const asPosix = fromBaseDirectory.split(sep).join(posix.sep);
+  const destinationAsPosix = toPosixPath(destinationFromBaseDirectory);
+  const writtenPaths = [
+    destinationAsPosix,
+    ...mirroredFilePaths.map((mirroredFilePath) =>
+      posix.join(destinationAsPosix, mirroredFilePath),
+    ),
+  ];
   return include
-    .filter((pattern) => matchesGlob(asPosix, posix.normalize(pattern)))
+    .filter((pattern) =>
+      writtenPaths.some((writtenPath) => matchesGlob(writtenPath, posix.normalize(pattern))),
+    )
     .map((pattern) =>
       createDiagnostic({
         code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-        message: `The destination ${asPosix} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+        message: `The destination ${destinationAsPosix} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
         file: destination,
       }),
     );
 };
 
-/** Writes `content` to `path`, creating its directory; a failure comes back as a diagnostic. */
-export type WriteDestinationFileArgs = {
-  path: string;
-  content: string;
+export type WriteDestinationArgs = {
+  destination: Destination;
+  mirroredFiles: ReadonlyArray<MirroredFile>;
 };
 
-export const writeDestinationFile = async ({
-  path,
-  content,
-}: WriteDestinationFileArgs): Promise<Diagnostic[]> => {
+/**
+ * Writes the Destination Directory in one move: every mirrored file, the
+ * `.pvl-generated` marker and, for the default destination, a `.gitignore`
+ * of `*` go into a temporary sibling directory, which then replaces the
+ * previous Destination Directory. A failure leaves the previous one as it
+ * was, removes the temporary directory and comes back as a
+ * DESTINATION_UNWRITABLE diagnostic.
+ *
+ * ```text
+ * /repo/.pvl.pvl-tmp/  ← written first
+ * /repo/.pvl/          ← removed, then the temporary directory is renamed to it
+ * ```
+ */
+export const writeDestination = async ({
+  destination,
+  mirroredFiles,
+}: WriteDestinationArgs): Promise<Diagnostic[]> => {
+  const temporaryPath = join(dirname(destination.path), `${basename(destination.path)}.pvl-tmp`);
+  const filesToWrite: ReadonlyArray<MirroredFile> = [
+    ...mirroredFiles,
+    { relativePath: GENERATED_MARKER_FILE_NAME, text: GENERATED_MARKER_TEXT },
+    ...(destination.isDefault
+      ? [{ relativePath: GITIGNORE_FILE_NAME, text: DEFAULT_DESTINATION_GITIGNORE_TEXT }]
+      : []),
+  ];
   try {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, content);
+    await rm(temporaryPath, { recursive: true, force: true });
+    await mkdir(temporaryPath, { recursive: true });
+    for (const { relativePath, text } of filesToWrite) {
+      const filePath = join(temporaryPath, relativePath);
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, text);
+    }
+    await rm(destination.path, { recursive: true, force: true });
+    await rename(temporaryPath, destination.path);
     return [];
   } catch (error) {
-    return [createUnwritableDiagnostic(path, errorMessage(error))];
+    await rm(temporaryPath, { recursive: true, force: true });
+    return [createUnwritableDiagnostic(destination.path, errorMessage(error))];
   }
 };

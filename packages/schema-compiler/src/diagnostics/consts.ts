@@ -23,19 +23,21 @@ export const DIAGNOSTIC_CODE = {
   INVALID_CONFIG: 'INVALID_CONFIG',
   /** `include` matched no file. */
   NO_INPUT_FILES: 'NO_INPUT_FILES',
-  /** The destination is a directory, or can't be created or written. */
+  /** The destination is a file, or can't be created or written. */
   DESTINATION_UNWRITABLE: 'DESTINATION_UNWRITABLE',
-  /** `include` would match the Destination File, so the compiler would read its own output. */
+  /** The destination holds files the compiler didn't write, so it won't be replaced. */
+  DESTINATION_NOT_EMPTY: 'DESTINATION_NOT_EMPTY',
+  /** `include` would match the Destination Directory, so the compiler would read its own output. */
   DESTINATION_INSIDE_INCLUDE: 'DESTINATION_INSIDE_INCLUDE',
-  /** Two scanned files export the same name, bound to different things. */
+  /** Two scanned files export the same name bound to different things, so the barrel can't re-export both. */
   DUPLICATE_EXPORT: 'DUPLICATE_EXPORT',
   /** A scanned file isn't valid syntax, so it can't be mirrored. */
   PARSE_FAILED: 'PARSE_FAILED',
-  /** Scanned files import each other at runtime, which the one shared scope can't order. */
-  IMPORT_CYCLE: 'IMPORT_CYCLE',
-  /** A namespace import or re-export names a scanned file, which would then be evaluated twice. */
-  NAMESPACE_IMPORT_OF_SCANNED_FILE: 'NAMESPACE_IMPORT_OF_SCANNED_FILE',
-  /** A side-effecting top-level statement was copied, so it now runs from two modules (a warning). */
+  /** A scanned file isn't under `rootDir`, so it has no place in the mirror. */
+  FILE_OUTSIDE_ROOT_DIR: 'FILE_OUTSIDE_ROOT_DIR',
+  /** A scanned file has a default export; export it by name instead. */
+  DEFAULT_EXPORT: 'DEFAULT_EXPORT',
+  /** A side-effecting top-level statement was copied, so it runs again wherever the mirror is loaded (a warning). */
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
@@ -56,7 +58,7 @@ export const DIAGNOSTIC_CODE = {
 export type DiagnosticCode = ValueOfEnum<typeof DIAGNOSTIC_CODE>;
 
 /**
- * How serious a diagnostic is. Any `ERROR` stops the Destination File from
+ * How serious a diagnostic is. Any `ERROR` stops the Destination Directory from
  * being written; a `WARNING` doesn't, unless the run is strict.
  *
  * @example
@@ -100,11 +102,12 @@ export const DIAGNOSTIC_SEVERITY = {
   INVALID_CONFIG: SEVERITY.ERROR,
   NO_INPUT_FILES: SEVERITY.ERROR,
   DESTINATION_UNWRITABLE: SEVERITY.ERROR,
+  DESTINATION_NOT_EMPTY: SEVERITY.ERROR,
   DESTINATION_INSIDE_INCLUDE: SEVERITY.ERROR,
   DUPLICATE_EXPORT: SEVERITY.ERROR,
   PARSE_FAILED: SEVERITY.ERROR,
-  IMPORT_CYCLE: SEVERITY.ERROR,
-  NAMESPACE_IMPORT_OF_SCANNED_FILE: SEVERITY.ERROR,
+  FILE_OUTSIDE_ROOT_DIR: SEVERITY.ERROR,
+  DEFAULT_EXPORT: SEVERITY.ERROR,
   FILE_EXPORTS_NOTHING: SEVERITY.WARNING,
   SIDE_EFFECT_COPIED: SEVERITY.WARNING,
   INVALID_ARGUMENTS: SEVERITY.ERROR,
