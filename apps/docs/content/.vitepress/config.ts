@@ -27,6 +27,9 @@ export default defineConfig({
   title: '@pvl/schema',
   description: 'Compose schemas and validate values against them at runtime.',
   cleanUrls: true,
+  // The repo-root `assets/` folder is the site's public directory, so the
+  // banner has one copy, shared with the README.
+  vite: { publicDir: fileURLToPath(new URL('../../../../assets', import.meta.url)) },
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
