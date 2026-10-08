@@ -23,7 +23,7 @@ export default defineConfig(
   {
     files: ['src/**/*.ts'],
     // Outside the barrel on purpose, so TypeDoc never publishes them.
-    ignores: ['src/modifiers.ts', 'src/utils.ts'],
+    ignores: ['src/modifiers/**', 'src/utils.ts'],
     plugins: { jsdoc },
     rules: {
       'jsdoc/require-jsdoc': ['error', { require: {}, contexts: DOCUMENTED }],

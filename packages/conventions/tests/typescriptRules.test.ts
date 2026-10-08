@@ -140,9 +140,27 @@ typescriptTester.run('enum-shape', enumShape, {
     'const HTTP_STATUS = { OK_200: 200, BELOW: -1 } as const;',
     'const options = { depth: null, breakLength: Infinity } as const;',
     "const config = { name: 'x' };",
+    {
+      code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
+      filename: join(typesRoot, 'packages/other/src/enums.ts'),
+    },
+    {
+      code: 'export const OPTIONS = { depth: 1, name: foo() } as const;',
+      filename: join(typesRoot, 'packages/other/src/options.ts'),
+    },
   ],
   invalid: [
     { code: "const systemRole = { OWNER: 'OWNER' } as const;", errors: [{ messageId: 'name' }] },
+    {
+      code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
+      filename: join(typesRoot, 'packages/other/src/consts.ts'),
+      errors: [{ messageId: 'file' }],
+    },
+    {
+      code: "const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;\nexport { SYSTEM_ROLE };",
+      filename: join(typesRoot, 'packages/other/src/roles.ts'),
+      errors: [{ messageId: 'file' }],
+    },
     {
       code: "const SYSTEM_ROLE = { owner: 'OWNER', 'member-role': 'MEMBER' } as const;",
       errors: [{ messageId: 'key' }, { messageId: 'key' }],

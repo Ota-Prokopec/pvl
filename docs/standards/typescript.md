@@ -72,4 +72,4 @@ const isAdmin = (user: Admin | Guest): user is Admin => {
 
 ## Barrels
 
-A module whose exports aren't public API (e.g. `src/modifiers.ts` in `@pvl/schema`) stays out of its package's barrel, and the barrel names it in a comment saying why. Every other module is exported through the barrel.
+A module whose exports aren't public API (e.g. `src/modifiers/` in `@pvl/schema`) stays out of its package's barrel, and the barrel names it in a comment saying why. Every other module is exported through the barrel.

@@ -1,5 +1,6 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
-import { ISSUE_CODE, Issue } from '../issue.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';

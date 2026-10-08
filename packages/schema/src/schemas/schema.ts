@@ -3,7 +3,8 @@ import { VENDOR } from '../consts.js';
 import type { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
-import { MODIFIER_TAG, type Modifier, type ModifierShape } from '../modifiers.js';
+import { MODIFIER_TAG } from '../modifiers/enums.js';
+import type { Modifier, ModifierShape } from '../modifiers/modifiers.js';
 import type { PreModifiersResult } from '../types.js';
 
 // Whether `modifier` was built by one of the modifier factories in
