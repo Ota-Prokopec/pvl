@@ -11,6 +11,10 @@ The user-facing documentation site for [`@pvl/schema`](../../packages/schema/AGE
 
 VitePress serves only `content/`, so `package.json`, `typedoc.json` and this file stay off the site by construction. Keep it that way: at the package root, this file would publish as `/AGENTS`, and a `srcExclude` list breaks silently the next time a root-level markdown file appears.
 
+## The banner lives in the root `assets/`
+
+`vite.publicDir` in `config.ts` points at the repo-root `assets/` folder, so `assets/banner.jpeg` is one file shared by the README and the landing page (`content/.vitepress/theme/index.ts` renders it above the hero). Anything added to `assets/` is published at the site root.
+
 ## `content/api/` is generated
 
 TypeDoc writes `content/api/` (one page per exported symbol, plus `typedoc-sidebar.json`) from `packages/schema/src/index.ts`. It is gitignored and prettier-ignored, and the next `docs:api` run overwrites it. To change what the reference says, change the TSDoc in `packages/schema/src`, following [`tsdoc.md`](../../docs/standards/tsdoc.md). `docs:api` runs before both `dev` and `build`, so a fresh clone runs `pnpm docs:dev` with no extra step.

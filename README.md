@@ -1,5 +1,7 @@
 # pvl
 
+![PVL, the Precompiled Validation Library](./assets/banner.jpeg)
+
 `PVL` (Precompiled Validation Library) is a schema-validation library that can compile schemas into optimized code (plain `if`/`for` statements) for fast runtime validation. It's a pnpm + Turborepo TypeScript monorepo: [`MONOREPO.md`](./MONOREPO.md) lists its workspace entries.
 
 Requires Node 24 or newer and pnpm (the version is pinned in `package.json`'s `packageManager`). `pnpm install` also installs the lefthook git hooks.
