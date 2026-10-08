@@ -1,6 +1,7 @@
 // Builds a diagnostic with its code's own severity; internal, so outside
 // the diagnostics barrel.
-import { DIAGNOSTIC_SEVERITY, type DiagnosticCode } from './consts.js';
+import { DIAGNOSTIC_SEVERITY } from './consts.js';
+import type { DiagnosticCode } from './enums.js';
 import type { Diagnostic } from './diagnostic.js';
 
 export type CreateDiagnosticArgs = {

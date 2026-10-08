@@ -280,12 +280,10 @@ describe('pvl.array()', () => {
 
     it('rejects a replacement element, at the type level and at runtime', () => {
       const schema = pvl.array(pvl.string());
-      const replaceElement = (): void => {
+      expect((): void => {
         // @ts-expect-error `element` is read-only
         schema.element = pvl.number();
-      };
-
-      expect(replaceElement).toThrow(TypeError);
+      }).toThrow(TypeError);
       expect(schema.validate(['a']).issues).toBeUndefined();
     });
   });

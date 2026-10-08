@@ -14,7 +14,7 @@ describe('configJsonSchema()', () => {
             "type": "string",
           },
           "destination": {
-            "description": "Where to write the Destination File, relative to this file. Unset, it goes to node_modules/.pvl/compiled-schemas and is imported as @pvl/compiled-schemas.",
+            "description": "The Destination Directory to write, relative to this file. Unset, it is .pvl, which also gets a .gitignore. The compiler only replaces a directory it wrote itself.",
             "type": "string",
           },
           "include": {
@@ -26,6 +26,11 @@ describe('configJsonSchema()', () => {
               "type": "string",
             },
             "type": "array",
+          },
+          "rootDir": {
+            "default": "src",
+            "description": "The source root the Destination Directory mirrors, relative to this file: a scanned file at <rootDir>/schemas/user.ts is mirrored to <destination>/schemas/user.ts. Every scanned file must sit under it.",
+            "type": "string",
           },
           "watch": {
             "default": false,

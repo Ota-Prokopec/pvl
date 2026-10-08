@@ -15,7 +15,7 @@ Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSch
 
 Every Modifier is a method on the instance returning a schema, not a wrapping function or static combinator — `pvl.string().min(3).optional()`, not `pvl.optional(pvl.string().min(3))` ([ADR-0006](../../adr/0006-chained-instance-method-api-via-shared-base-schema-class.md)). Every class keeps its own type through every Modifier, primitives included, via its type-only `'~kind'` and `RetypedSchema<this, Input, Output>`; `.transform()` is the one exception (see [Transformation](#transformation)).
 
-Each Modifier method builds one `Modifier` value (`src/modifiers.ts`) and appends it, on a clone, to one of two arrays through `_withPreModifier`/`_withPostModifier`:
+Each Modifier method builds one `Modifier` value (`src/modifiers/modifiers.ts`) and appends it, on a clone, to one of two arrays through `_withPreModifier`/`_withPostModifier`:
 
 | Modifier                                                             | Array                  | Tags                                              |
 | -------------------------------------------------------------------- | ---------------------- | ------------------------------------------------- |

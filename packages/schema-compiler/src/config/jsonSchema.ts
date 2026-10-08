@@ -11,7 +11,7 @@ import {
   type Schema,
 } from '@pvl/schema';
 import { configSchema, type PvlConfig } from './config.js';
-import { DEFAULT_INCLUDE, DEFAULT_WATCH, DEFAULT_WITH_TYPES } from './consts.js';
+import { DEFAULT_INCLUDE, DEFAULT_ROOT_DIR, DEFAULT_WATCH, DEFAULT_WITH_TYPES } from './consts.js';
 
 /**
  * The subset of JSON Schema (draft-07) the config's schema is expressed in.
@@ -41,14 +41,17 @@ const DESCRIPTIONS: Readonly<Record<keyof PvlConfig, string>> = {
   $schema: 'The JSON Schema this file is checked against, for editor autocomplete.',
   include:
     'Globs selecting the schema files to compile, relative to this file. node_modules and the destination are never included.',
+  rootDir:
+    'The source root the Destination Directory mirrors, relative to this file: a scanned file at <rootDir>/schemas/user.ts is mirrored to <destination>/schemas/user.ts. Every scanned file must sit under it.',
   destination:
-    'Where to write the Destination File, relative to this file. Unset, it goes to node_modules/.pvl/compiled-schemas and is imported as @pvl/compiled-schemas.',
+    'The Destination Directory to write, relative to this file. Unset, it is .pvl, which also gets a .gitignore. The compiler only replaces a directory it wrote itself.',
   withTypes: "Whether to generate each compiled Schema's Data and Input type aliases.",
   watch: 'Whether `pvl compile` keeps running and recompiles on every change.',
 };
 
 const DEFAULTS: Readonly<Partial<Record<keyof PvlConfig, unknown>>> = {
   include: DEFAULT_INCLUDE,
+  rootDir: DEFAULT_ROOT_DIR,
   withTypes: DEFAULT_WITH_TYPES,
   watch: DEFAULT_WATCH,
 };

@@ -4,8 +4,14 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { Issue } from '@pvl/schema';
 import { configSchema, type PvlConfig, type SettingOverrides, type Settings } from './config.js';
-import { CONFIG_FILE_NAME, DEFAULT_INCLUDE, DEFAULT_WATCH, DEFAULT_WITH_TYPES } from './consts.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/consts.js';
+import {
+  CONFIG_FILE_NAME,
+  DEFAULT_INCLUDE,
+  DEFAULT_ROOT_DIR,
+  DEFAULT_WATCH,
+  DEFAULT_WITH_TYPES,
+} from './consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage } from '../utils.js';
@@ -18,7 +24,10 @@ const fail = (diagnostics: Diagnostic[]): ResolveSettingsPayload => {
   return { diagnostics, settings: undefined, baseDirectory: undefined };
 };
 
-const invalidConfig = (issues: ReadonlyArray<Issue>, file: string | undefined): Diagnostic[] => {
+const invalidConfigDiagnostics = (
+  issues: ReadonlyArray<Issue>,
+  file: string | undefined,
+): Diagnostic[] => {
   // Without a file, the setting came in as an override (a CLI flag).
   const source = file === undefined ? 'override' : 'setting';
   return issues.map((issue) => {
@@ -34,7 +43,7 @@ const invalidConfig = (issues: ReadonlyArray<Issue>, file: string | undefined): 
   });
 };
 
-const unreadable = (file: string, reason: string): Diagnostic => {
+const unreadableDiagnostic = (file: string, reason: string): Diagnostic => {
   return createDiagnostic({
     code: DIAGNOSTIC_CODE.CONFIG_UNREADABLE,
     message: `Can't read the config file: ${reason}.`,
@@ -69,7 +78,7 @@ export const resolveSettings = async ({
   const given = definedOnly(overrides);
   const overrideIssues = configSchema.validate(given).issues;
   if (overrideIssues) {
-    return fail(invalidConfig(overrideIssues, undefined));
+    return fail(invalidConfigDiagnostics(overrideIssues, undefined));
   }
 
   const file = resolve(cwd, configPath ?? CONFIG_FILE_NAME);
@@ -80,7 +89,7 @@ export const resolveSettings = async ({
     // Only the implicit lookup may come up empty: a path the user named
     // has to exist.
     if (configPath !== undefined || !isMissingFile(error)) {
-      return fail([unreadable(file, errorMessage(error))]);
+      return fail([unreadableDiagnostic(file, errorMessage(error))]);
     }
   }
 
@@ -99,11 +108,11 @@ export const resolveSettings = async ({
     try {
       json = JSON.parse(text);
     } catch (error) {
-      return fail([unreadable(file, `it is not valid JSON (${errorMessage(error)})`)]);
+      return fail([unreadableDiagnostic(file, `it is not valid JSON (${errorMessage(error)})`)]);
     }
     const result = configSchema.validate(json);
     if (result.issues) {
-      return fail(invalidConfig(result.issues, file));
+      return fail(invalidConfigDiagnostics(result.issues, file));
     }
     config = result.value;
   }
@@ -112,6 +121,7 @@ export const resolveSettings = async ({
     diagnostics: [],
     settings: {
       include: given.include ?? config.include ?? [...DEFAULT_INCLUDE],
+      rootDir: given.rootDir ?? config.rootDir ?? DEFAULT_ROOT_DIR,
       destination: given.destination ?? config.destination,
       withTypes: given.withTypes ?? config.withTypes ?? DEFAULT_WITH_TYPES,
       watch: given.watch ?? config.watch ?? DEFAULT_WATCH,

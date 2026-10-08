@@ -11,14 +11,15 @@ import { pvl, type InferOutput } from '@pvl/schema';
  * ```ts
  * import { configSchema } from '@pvl/schema-compiler';
  *
- * configSchema.validate({ destination: 'src/generated/schemas.ts' }); // { value: { ... } }
- * configSchema.validate({ destinaton: 'typo.ts' }); // { issues: [{ code: 'UNRECOGNIZED_KEY', ... }] }
+ * configSchema.validate({ destination: 'src/generated' }); // { value: { ... } }
+ * configSchema.validate({ destinaton: 'typo' }); // { issues: [{ code: 'UNRECOGNIZED_KEY', ... }] }
  * ```
  */
 export const configSchema = pvl
   .object({
     $schema: pvl.string().optional(),
     include: pvl.array(pvl.string()).optional(),
+    rootDir: pvl.string().optional(),
     destination: pvl.string().optional(),
     withTypes: pvl.boolean().optional(),
     watch: pvl.boolean().optional(),
@@ -53,7 +54,9 @@ export type PvlConfig = InferOutput<typeof configSchema>;
 export type Settings = {
   /** Globs selecting the files to scan. `node_modules` and the destination are never scanned. */
   include: string[];
-  /** The Destination File's path; unset means the default `node_modules` destination. */
+  /** The Root Directory: the source root the Destination Directory mirrors, which every scanned file sits under. */
+  rootDir: string;
+  /** The Destination Directory's path; unset means the default `.pvl` directory. */
   destination: string | undefined;
   /** Whether to generate a type alias for each Schema's input and output. */
   withTypes: boolean;
@@ -69,7 +72,7 @@ export type Settings = {
  * ```ts
  * import { compile, type SettingOverrides } from '@pvl/schema-compiler';
  *
- * const overrides: SettingOverrides = { destination: 'out/schemas.ts' };
+ * const overrides: SettingOverrides = { destination: 'out/schemas' };
  * await compile({ cwd: process.cwd(), overrides });
  * ```
  */
