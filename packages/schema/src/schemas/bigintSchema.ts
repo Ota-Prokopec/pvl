@@ -5,6 +5,19 @@ import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
 
+/**
+ * The default message of every Issue `BigintSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const BIGINT_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected bigint',
+  min: (minValue: bigint): string => `Bigint must be greater than or equal to ${minValue}`,
+  max: (maxValue: bigint): string => `Bigint must be less than or equal to ${maxValue}`,
+} as const;
+
 interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
   readonly type: BigintSchema<this['Input'], this['Output']>;
 }
@@ -69,7 +82,7 @@ export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_SMALL,
                   path,
-                  options?.message ?? `Bigint must be greater than or equal to ${minValue}`,
+                  options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
                 ),
               ],
             };
@@ -100,7 +113,7 @@ export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_BIG,
                   path,
-                  options?.message ?? `Bigint must be less than or equal to ${maxValue}`,
+                  options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
                 ),
               ],
             };
@@ -117,7 +130,9 @@ export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSche
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
     if (typeof value !== 'bigint') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected bigint')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, BIGINT_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
     return { value };

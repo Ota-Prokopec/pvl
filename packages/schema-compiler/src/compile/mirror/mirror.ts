@@ -3,6 +3,11 @@
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { hasError } from '../../diagnostics/diagnostic.js';
 import { BARREL_FILE_NAME, GENERATED_HEADER } from '../consts.js';
+import {
+  applyCompiledSchemas,
+  readCompiledSchemas,
+  type ReadCompiledSchemasPayload,
+} from '../generate/compiledSchemas.js';
 import { renderBarrel } from './barrel.js';
 import { rewriteModuleSpecifiers } from './moduleSpecifiers.js';
 import { Precheck } from './precheck.js';
@@ -37,7 +42,8 @@ export type MirrorScannedFilesArgs = {
  * Builds the Destination Directory's files from the scanned files (ADR-0005):
  * one mirrored module per scanned file, at its path relative to the Root
  * Directory, under the `@generated` header and with its module specifiers
- * rewritten for its new location, plus the generated barrel unless
+ * rewritten for its new location and each `pvl.compile(...)` call compiled
+ * to straight-line code, plus the generated barrel unless
  * `<rootDir>/index.ts` is itself scanned.
  *
  * ```ts
@@ -60,6 +66,9 @@ export type MirrorScannedFilesArgs = {
  * - DEFAULT_EXPORT: a file has a default export.
  * - DUPLICATE_EXPORT: two files export one name bound to different things,
  *   checked only for a generated barrel.
+ * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_NOT_COMPOSITE,
+ *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
+ *   can't be compiled (see readCompiledSchemas).
  * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
  */
 export const mirrorScannedFiles = ({
@@ -95,6 +104,12 @@ export const mirrorScannedFiles = ({
     ...(hasScannedBarrel ? [] : Precheck.findDuplicateExportsDiagnostics(parsedModules)),
     ...parsedModules.flatMap((scannedModule) => Precheck.findWarningsDiagnostics(scannedModule)),
   ];
+  const compiledSchemasByPath: ReadonlyMap<string, ReadCompiledSchemasPayload> = new Map(
+    parsedModules.map((scannedModule) => [scannedModule.path, readCompiledSchemas(scannedModule)]),
+  );
+  for (const { diagnostics: compiledSchemaDiagnostics } of compiledSchemasByPath.values()) {
+    diagnostics.push(...compiledSchemaDiagnostics);
+  }
   if (hasError(diagnostics)) {
     return { diagnostics, mirroredFiles: [] };
   }
@@ -103,6 +118,10 @@ export const mirrorScannedFiles = ({
     scannedModules.map(({ path, mirroredPath }) => [path, mirroredPath]),
   );
   const mirroredModules: MirroredFile[] = scannedModules.map((scannedModule) => {
+    applyCompiledSchemas(
+      scannedModule.sourceFile,
+      compiledSchemasByPath.get(scannedModule.path)?.sites ?? [],
+    );
     rewriteModuleSpecifiers({ tsMorphProject, scannedModule, mirroredPathByScannedPath });
     return {
       relativePath: scannedModule.relativePath,

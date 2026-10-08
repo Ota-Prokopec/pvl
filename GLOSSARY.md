@@ -57,8 +57,11 @@ Turning a Schema into a Compiled Schema before the program runs, as opposed to v
 _Avoid_: JIT, runtime compilation.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Validator, Runtime validator.
+
+**Emitter**:
+The class in `@pvl/schema-compiler` that writes the Instructions for one schema type (`StringSchemaEmitter` for `StringSchema`), with one static method per method of that schema type, sharing its name and parameters. See [ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md) and [code-generation.md](./docs/specification/schema-compiler/code-generation.md).
 
 **Instruction**:
 One primitive operation — a conditional check, a loop, a direct property read or assignment — the compiler emits as literal inline JavaScript in a mirrored module of the Destination Directory. An Instruction is generated source text, never a data structure an interpreter later walks.

@@ -102,6 +102,17 @@ export const listFixtureFiles = async (
 export const diagnosticCodes = (payload: Pick<CompilePayload, 'diagnostics'>): DiagnosticCode[] =>
   payload.diagnostics.map((diagnostic) => diagnostic.code);
 
+/**
+ * A scanned file holding `source` under the `pvl` import every Schema needs.
+ *
+ * ```ts
+ * schemaFile('export const user = pvl.object({});')
+ * // "import { pvl } from '@pvl/schema';\n\nexport const user = pvl.object({});\n"
+ * ```
+ */
+export const schemaFile = (source: string): string =>
+  ["import { pvl } from '@pvl/schema';", '', source, ''].join('\n');
+
 /** A `pvlconfig.json` body. */
 export const configJson = (config: Readonly<Record<string, unknown>>): string =>
   JSON.stringify(config);

@@ -12,8 +12,9 @@ import {
   configJson,
   createFixture,
   diagnosticCodes,
-  readFixtureFile,
   type FixtureFiles,
+  readFixtureFile,
+  schemaFile,
 } from './helpers.js';
 
 type CliRun = {
@@ -254,6 +255,34 @@ const ERROR_CASES: ReadonlyArray<{
   {
     code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
     files: { 'src/schemas/user.ts': 'export default 1;\n' },
+    argv: ['--destination', 'out'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+    files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());') },
+    argv: ['--destination', 'out'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
+    files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(pvl.string());') },
+    argv: ['--destination', 'out'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
+    files: {
+      'src/schemas/user.ts': schemaFile(
+        'export const user = pvl.compile(pvl.object({})).optional();',
+      ),
+    },
+    argv: ['--destination', 'out'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+    files: {
+      'src/schemas/user.ts': schemaFile(
+        'export const user = pvl.compile(pvl.object({ tags: pvl.array(pvl.string()) }));',
+      ),
+    },
     argv: ['--destination', 'out'],
   },
   {

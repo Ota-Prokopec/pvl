@@ -42,6 +42,14 @@ export const DIAGNOSTIC_CODE = {
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
+  /** A `pvl.compile(...)` argument can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one. */
+  COMPILE_ARGUMENT_UNRESOLVABLE: 'COMPILE_ARGUMENT_UNRESOLVABLE',
+  /** A `pvl.compile(...)` argument isn't an object or array Schema. */
+  COMPILE_ARGUMENT_NOT_COMPOSITE: 'COMPILE_ARGUMENT_NOT_COMPOSITE',
+  /** Something is chained onto the result of `pvl.compile(...)`, which takes no Modifier: chain it inside the call. */
+  COMPILE_RESULT_MODIFIED: 'COMPILE_RESULT_MODIFIED',
+  /** A `pvl.compile(...)` argument uses something the compiler can't compile yet, such as a nested composite or `.refine()`. */
+  UNSUPPORTED_SCHEMA: 'UNSUPPORTED_SCHEMA',
   /** The CLI was given an unknown flag, a flag value of the wrong type, or no command. */
   INVALID_ARGUMENTS: 'INVALID_ARGUMENTS',
 } as const;

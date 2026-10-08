@@ -6,6 +6,15 @@ How `@pvl/schema-compiler` finds a schema marked with `pvl.compile(...)` and wha
 
 The compiler never runs or imports the user's schema code. It statically parses the TS/JS source of the files matched by `include` in the user's `pvlconfig.json`, using ts-morph, looking for `pvl.compile(...)` call expressions. See [ADR-0002](../../adr/0002-static-ast-compilation-via-ts-morph.md) for why (never executing user code; the trade-off is that only statically-resolvable schema expressions are compilable, and marking one that isn't is an error rather than a silent fallback).
 
+## What reads statically
+
+A call is recognised when `pvl` is imported from `@pvl/schema` under any name. Its argument may be a `pvl.*` call chain written in place, or a top-level `const` of the same file holding one, followed through any number of `const`s. A method's arguments may be literals (`3`, `-1`, `10n`, `'a'`, `{ message: 'too short' }`) or `const`s holding them. A plain `__proto__: …` in an object literal sets the prototype rather than adding a key, so it is no field, while `['__proto__']: …` is one. Anything else gets one error per call, and nothing is written:
+
+- `COMPILE_ARGUMENT_UNRESOLVABLE`: the argument, or a method argument, is imported, built by a function call, spread, or held in a `let`.
+- `COMPILE_ARGUMENT_NOT_COMPOSITE`: the argument is a primitive, a literal or an enum, not an object or an array.
+- `COMPILE_RESULT_MODIFIED`: something other than `.validate()` is read off the result (`pvl.compile(x).optional()`).
+- `UNSUPPORTED_SCHEMA`: the Schema uses what isn't compiled yet. Today that is anything beyond a flat object or array of primitives, literals and enums with their Constraints and `.optional()`/`.nullable()`: a nested composite, a union, `.coerce()`, `.refine()`, `.transform()`, or a Modifier on the wrapped Schema itself.
+
 ## Compilation unit: exactly what `pvl.compile()` wraps
 
 `pvl.compile()` is per-call-site: each call produces its own Compiled Schema for exactly the schema it wraps, whether that's a whole top-level schema (`pvl.compile(pvl.object({...}))`) or one nested field (`pvl.object({ key: pvl.compile(pvl.object({...})) })`). Compiling a nested field does **not** reach up and compile its containing schema — the parent stays an ordinary interpreted `Schema` regardless; if a fully-compiled top-level schema is wanted, wrap the top-level schema itself.

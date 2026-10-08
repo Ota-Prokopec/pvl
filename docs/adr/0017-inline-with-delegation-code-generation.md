@@ -9,3 +9,5 @@ Each Compiled Schema is a subclass of `@pvl/schema`'s `Schema` whose `_checkType
 `.refine()` and `.transform()` bodies are never compiled. They are arbitrary user code; the emitted validator imports the original function by reference and calls it, so compiling can never silently drop the custom logic a developer attached.
 
 The accepted cost is readability versus density: emitted code is meant to be read by a developer debugging a validation failure, so it stays as literal `if` statements with the source Schema's own key names rather than being minified or table-driven. Bundlers can shrink it afterwards; the compiler's own output optimises for being diffable and legible.
+
+> Superseded in part by [ADR-0023](./0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md): a Compiled Schema now inlines nested Schemas into its single `_checkType` rather than delegating at composite boundaries.
