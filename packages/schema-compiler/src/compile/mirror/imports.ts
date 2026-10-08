@@ -1,7 +1,7 @@
 // The Destination File's import block: every import from outside the set,
-// hoisted and merged into one declaration per specifier and binding kind,
-// sorted so the same input always prints the same block.
-import type { ImportBinding } from './context.js';
+// hoisted and merged into one declaration per module specifier and binding
+// kind, sorted so the same input always prints the same block.
+import type { ImportBinding } from './moduleContextReader.js';
 
 // Orders two import bindings alphabetically by their local name, for
 // `Array.prototype.sort`, so the names in an import's braces never move
@@ -21,22 +21,23 @@ const formatNamedImportSpecifier = (
   { importedName, localName, isTypeOnly }: ImportBinding,
   isWholeImportTypeOnly: boolean,
 ): string => {
-  const specifierText = importedName === localName ? localName : `${importedName} as ${localName}`;
-  return isTypeOnly && !isWholeImportTypeOnly ? `type ${specifierText}` : specifierText;
+  const importSpecifierText =
+    importedName === localName ? localName : `${importedName} as ${localName}`;
+  return isTypeOnly && !isWholeImportTypeOnly ? `type ${importSpecifierText}` : importSpecifierText;
 };
 
 export type RenderImportBlockArgs = {
   externalImports: ReadonlyArray<ImportBinding>;
-  /** Specifiers imported for their side effect only. */
-  sideEffectImportSpecifiers: ReadonlyArray<string>;
+  /** Module specifiers imported for their side effect only. */
+  sideEffectModuleSpecifiers: ReadonlyArray<string>;
 };
 
 /**
  * The import block at the top of the Destination File: every import from
- * outside the scanned set, merged into one declaration per specifier, with
- * the specifiers in alphabetical order. The same name imported by several
- * modules is imported once, and as `type` only if every module imported it
- * as a type.
+ * outside the scanned set, merged into one declaration per module specifier,
+ * the declarations sorted by module specifier. The same name imported by
+ * several modules is imported once, and as `type` only if every module
+ * imported it as a type.
  *
  * ```ts
  * // user.ts: import { pvl } from '@pvl/schema';  import '../setup.js';
@@ -53,56 +54,56 @@ export type RenderImportBlockArgs = {
  */
 export const renderImportBlock = ({
   externalImports,
-  sideEffectImportSpecifiers,
+  sideEffectModuleSpecifiers,
 }: RenderImportBlockArgs): string => {
   // The same binding imported by several modules is one import, type-only
   // only when every module imported it as a type.
   const mergedBindingByKey = new Map<string, ImportBinding>();
   for (const importBinding of externalImports) {
-    const bindingKey = `${importBinding.rewrittenSpecifier}\0${importBinding.importedName}\0${importBinding.localName}`;
+    const bindingKey = `${importBinding.rewrittenModuleSpecifier}\0${importBinding.importedName}\0${importBinding.localName}`;
     const isTypeOnly =
       importBinding.isTypeOnly && (mergedBindingByKey.get(bindingKey)?.isTypeOnly ?? true);
     mergedBindingByKey.set(bindingKey, { ...importBinding, isTypeOnly });
   }
-  const bindingsBySpecifier = new Map<string, ImportBinding[]>(
-    sideEffectImportSpecifiers.map((specifier) => [specifier, []]),
+  const bindingsByModuleSpecifier = new Map<string, ImportBinding[]>(
+    sideEffectModuleSpecifiers.map((moduleSpecifier) => [moduleSpecifier, []]),
   );
   for (const importBinding of mergedBindingByKey.values()) {
-    bindingsBySpecifier.set(importBinding.rewrittenSpecifier, [
-      ...(bindingsBySpecifier.get(importBinding.rewrittenSpecifier) ?? []),
+    bindingsByModuleSpecifier.set(importBinding.rewrittenModuleSpecifier, [
+      ...(bindingsByModuleSpecifier.get(importBinding.rewrittenModuleSpecifier) ?? []),
       importBinding,
     ]);
   }
 
   const importLines: string[] = [];
-  for (const specifier of [...bindingsBySpecifier.keys()].sort()) {
-    const bindingsOfSpecifier = [...(bindingsBySpecifier.get(specifier) ?? [])].sort(
-      compareByLocalName,
-    );
-    const fromClause = `from '${specifier}';`;
-    if (bindingsOfSpecifier.length === 0) {
-      importLines.push(`import '${specifier}';`);
+  for (const moduleSpecifier of [...bindingsByModuleSpecifier.keys()].sort()) {
+    const bindingsOfModuleSpecifier = [
+      ...(bindingsByModuleSpecifier.get(moduleSpecifier) ?? []),
+    ].sort(compareByLocalName);
+    const fromClause = `from '${moduleSpecifier}';`;
+    if (bindingsOfModuleSpecifier.length === 0) {
+      importLines.push(`import '${moduleSpecifier}';`);
     }
-    for (const { localName, isTypeOnly } of bindingsOfSpecifier.filter(
+    for (const { localName, isTypeOnly } of bindingsOfModuleSpecifier.filter(
       ({ importedName }) => importedName === 'default',
     )) {
       importLines.push(`import ${isTypeOnly ? 'type ' : ''}${localName} ${fromClause}`);
     }
-    for (const { localName, isTypeOnly } of bindingsOfSpecifier.filter(
+    for (const { localName, isTypeOnly } of bindingsOfModuleSpecifier.filter(
       ({ importedName }) => importedName === '*',
     )) {
       importLines.push(`import ${isTypeOnly ? 'type ' : ''}* as ${localName} ${fromClause}`);
     }
-    const namedBindings = bindingsOfSpecifier.filter(
+    const namedBindings = bindingsOfModuleSpecifier.filter(
       ({ importedName }) => importedName !== 'default' && importedName !== '*',
     );
     if (namedBindings.length > 0) {
       const isWholeImportTypeOnly = namedBindings.every(({ isTypeOnly }) => isTypeOnly);
-      const namedSpecifierList = namedBindings
+      const importSpecifierList = namedBindings
         .map((importBinding) => formatNamedImportSpecifier(importBinding, isWholeImportTypeOnly))
         .join(', ');
       importLines.push(
-        `import ${isWholeImportTypeOnly ? 'type ' : ''}{ ${namedSpecifierList} } ${fromClause}`,
+        `import ${isWholeImportTypeOnly ? 'type ' : ''}{ ${importSpecifierList} } ${fromClause}`,
       );
     }
   }

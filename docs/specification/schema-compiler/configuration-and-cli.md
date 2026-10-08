@@ -30,7 +30,7 @@ The programmatic entry point is `compile({ cwd, configPath, overrides, strict })
 
 ## Diagnostics
 
-Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text. The codes are `DIAGNOSTIC_CODE`'s values, and the severity each is raised with is `DIAGNOSTIC_SEVERITY`'s.
+Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text. The codes are `DIAGNOSTIC_CODE`'s values, and the severity each is raised with is `DIAGNOSTIC_SEVERITY`'s. A run reports every diagnostic it finds together rather than stopping at the first, so one run lists everything to fix; the one exception is a file that raises `PARSE_FAILED`, which gets no other diagnostic until it parses.
 
 | Code                               | Severity  | Raised when                                                                                                                                            |
 | ---------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |

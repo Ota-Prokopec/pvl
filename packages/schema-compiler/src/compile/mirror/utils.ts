@@ -1,4 +1,4 @@
-// Path helpers and the module-graph order the Destination File is emitted in.
+// Path helpers, free-name lookup and the module-graph order the Destination File is emitted in.
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { ScannedModule } from './tsMorphProject.js';
 
@@ -29,41 +29,61 @@ export const toDisplayPath = (baseDirectory: string, path: string): string => {
 };
 
 /**
+ * The first of `name`, `name_2`, `name_3`, … that `isTaken` rejects, so a
+ * binding renamed to it can't clash with one already holding a name.
+ *
+ * ```ts
+ * findFreeName('user', (candidate) => candidate === 'other')          // 'user'
+ * findFreeName('user', (candidate) => candidate === 'user')           // 'user_2'
+ * findFreeName('user', (candidate) => ['user', 'user_2'].includes(candidate)) // 'user_3'
+ * ```
+ */
+export const findFreeName = (name: string, isTaken: (candidate: string) => boolean): string => {
+  let freeName = name;
+  let suffix = 1;
+  while (isTaken(freeName)) {
+    suffix += 1;
+    freeName = `${name}_${String(suffix)}`;
+  }
+  return freeName;
+};
+
+/**
  * Whether `moduleSpecifier` names a file by its path, rather than a package
  * that resolves through `node_modules`.
  *
  * ```ts
- * isRelativeOrAbsoluteSpecifier('./user.js')        // true
- * isRelativeOrAbsoluteSpecifier('../helpers.js')    // true
- * isRelativeOrAbsoluteSpecifier('/repo/src/a.js')   // true
- * isRelativeOrAbsoluteSpecifier('@pvl/schema')      // false
- * isRelativeOrAbsoluteSpecifier('node:path')        // false
+ * isRelativeOrAbsoluteModuleSpecifier('./user.js')        // true
+ * isRelativeOrAbsoluteModuleSpecifier('../helpers.js')    // true
+ * isRelativeOrAbsoluteModuleSpecifier('/repo/src/a.js')   // true
+ * isRelativeOrAbsoluteModuleSpecifier('@pvl/schema')      // false
+ * isRelativeOrAbsoluteModuleSpecifier('node:path')        // false
  * ```
  */
-export const isRelativeOrAbsoluteSpecifier = (moduleSpecifier: string): boolean => {
+export const isRelativeOrAbsoluteModuleSpecifier = (moduleSpecifier: string): boolean => {
   return moduleSpecifier.startsWith('.') || isAbsolute(moduleSpecifier);
 };
 
 /**
- * `moduleSpecifier`, rewritten so that imported from a file in
- * `outputDirectory` it reaches the same file it reached from `importerPath`.
- * A package specifier resolves the same from anywhere, so it is kept.
+ * `moduleSpecifier` is rewritten to a path so it can be imported from
+ * `outputDirectory`. It reaches the same file it reached from `importerPath`.
+ * A package name module specifier (`@pvl/schema`) is kept, as it resolves the same.
  *
  * With `importerPath` `/repo/src/schemas/user.ts` and `outputDirectory`
  * `/repo/src/generated`:
  *
  * ```ts
- * rewriteSpecifierForOutputDirectory('../helpers.js', …) // '../helpers.js'
- * rewriteSpecifierForOutputDirectory('./tags.js', …)     // '../schemas/tags.js'
- * rewriteSpecifierForOutputDirectory('@pvl/schema', …)   // '@pvl/schema', kept
+ * rewriteModuleSpecifierForOutputDirectory('../helpers.js', …) // '../helpers.js'
+ * rewriteModuleSpecifierForOutputDirectory('./tags.js', …)     // '../schemas/tags.js'
+ * rewriteModuleSpecifierForOutputDirectory('@pvl/schema', …)   // '@pvl/schema', kept
  * ```
  */
-export const rewriteSpecifierForOutputDirectory = (
+export const rewriteModuleSpecifierForOutputDirectory = (
   moduleSpecifier: string,
   importerPath: string,
   outputDirectory: string,
 ): string => {
-  if (!isRelativeOrAbsoluteSpecifier(moduleSpecifier)) {
+  if (!isRelativeOrAbsoluteModuleSpecifier(moduleSpecifier)) {
     return moduleSpecifier;
   }
   const pathFromOutputDirectory = toPosixPath(

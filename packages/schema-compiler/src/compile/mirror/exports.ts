@@ -5,17 +5,10 @@ import type { ExportDeclaration, ExportSpecifier, SourceFile } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from '../../diagnostics/consts.js';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { getAliasOrOwnName, type ModuleContext } from './context.js';
-import { resolveToScannedFile } from './tsMorphProject.js';
-import { toDisplayPath, rewriteSpecifierForOutputDirectory } from './utils.js';
-import {
-  ORIGIN_KIND,
-  toOriginKey,
-  findExportOrigin,
-  findLocalNameOrigin,
-  type Origin,
-  type OriginLookup,
-} from './origins.js';
+import { ModuleContextReader, type ModuleContext } from './moduleContextReader.js';
+import { TsMorphProject } from './tsMorphProject.js';
+import { toDisplayPath, rewriteModuleSpecifierForOutputDirectory } from './utils.js';
+import { ORIGIN_KIND, OriginTracer, type Origin, type OriginLookup } from './origins.js';
 
 /** One name a module exports, and the binding behind it. */
 export type ExportedBinding = {
@@ -39,7 +32,7 @@ export type ExportDeclarationRewrite = {
 
 export type PlanExportsPayload = {
   diagnostics: Diagnostic[];
-  /** The export declarations to rewrite; any other keeps its text, its specifier rewritten. */
+  /** The export declarations to rewrite; any other keeps its text, its module specifier rewritten. */
   rewriteByDeclaration: Map<ExportDeclaration, ExportDeclarationRewrite>;
 };
 
@@ -76,11 +69,11 @@ const readDeclaredExports = (
   if (
     sourceFile.getExportAssignments().some((exportAssignment) => !exportAssignment.isExportEquals())
   ) {
-    const localName = moduleContext.localNameByExportedName.get('default');
+    const aliasedName = moduleContext.aliasedNameByExportedName.get('default');
     const bindingOrigin: Origin =
-      localName === undefined
+      aliasedName === undefined
         ? { kind: ORIGIN_KIND.LOCAL, modulePath: path, declarationName: 'default' }
-        : findLocalNameOrigin(originLookup, moduleContext, localName);
+        : OriginTracer.findLocalNameOrigin(originLookup, moduleContext, aliasedName);
     exportedBindings.push({ exportedName: 'default', bindingOrigin });
   }
   return exportedBindings;
@@ -116,7 +109,7 @@ type ClassifyExportDeclarationArgs = {
 // Sorts the names one export declaration exports into `ownExports`, bound
 // in the module itself or outside the scanned set and kept as written, and
 // `forwardedExports`, bound in another scanned file. A declaration with any
-// forward `needsRewrite`, since its specifier points at a file the
+// forward `needsRewrite`, since its module specifier points at a file the
 // Destination File no longer imports.
 //
 //   export { post };                          // own, kept
@@ -138,8 +131,12 @@ const classifyExportDeclaration = ({
   if (moduleSpecifier === undefined) {
     // `export { … }`: a name bound in this module stays as written.
     const exportedBindings = namedExports.map((exportSpecifier) => ({
-      exportedName: getAliasOrOwnName(exportSpecifier),
-      bindingOrigin: findLocalNameOrigin(originLookup, moduleContext, exportSpecifier.getName()),
+      exportedName: ModuleContextReader.getAliasOrOwnNameOfImportOrExportSpecifier(exportSpecifier),
+      bindingOrigin: OriginTracer.findLocalNameOrigin(
+        originLookup,
+        moduleContext,
+        exportSpecifier.getName(),
+      ),
       isTypeOnly: isTypeOnlyExport(exportDeclaration, exportSpecifier),
     }));
     const forwardedExports = exportedBindings.filter(
@@ -150,12 +147,12 @@ const classifyExportDeclaration = ({
     );
     return { ownExports, forwardedExports, needsRewrite: forwardedExports.length > 0 };
   }
-  const scannedTargetPath = resolveToScannedFile(
+  const scannedTargetPath = TsMorphProject.findAbsoluteScannedFilePath(
     moduleSpecifier,
     path,
     originLookup.scannedFilePaths,
   );
-  const rewrittenSpecifier = rewriteSpecifierForOutputDirectory(
+  const rewrittenModuleSpecifier = rewriteModuleSpecifierForOutputDirectory(
     moduleSpecifier,
     path,
     originLookup.outputDirectory,
@@ -164,7 +161,7 @@ const classifyExportDeclaration = ({
   if (namespaceExportNode !== undefined) {
     const bindingOrigin: Origin = {
       kind: ORIGIN_KIND.EXTERNAL,
-      rewrittenSpecifier,
+      rewrittenModuleSpecifier,
       importedName: '*',
     };
     return {
@@ -175,10 +172,10 @@ const classifyExportDeclaration = ({
   }
   if (scannedTargetPath === undefined) {
     const ownExports = namedExports.map((exportSpecifier) => ({
-      exportedName: getAliasOrOwnName(exportSpecifier),
+      exportedName: ModuleContextReader.getAliasOrOwnNameOfImportOrExportSpecifier(exportSpecifier),
       bindingOrigin: {
         kind: ORIGIN_KIND.EXTERNAL,
-        rewrittenSpecifier,
+        rewrittenModuleSpecifier,
         importedName: exportSpecifier.getName(),
       } satisfies Origin,
     }));
@@ -187,8 +184,12 @@ const classifyExportDeclaration = ({
   // Into the set: `export *` is dropped, as every name it re-exports is
   // already exported by the module that binds it.
   const forwardedExports = namedExports.map((exportSpecifier) => ({
-    exportedName: getAliasOrOwnName(exportSpecifier),
-    bindingOrigin: findExportOrigin(originLookup, scannedTargetPath, exportSpecifier.getName()) ?? {
+    exportedName: ModuleContextReader.getAliasOrOwnNameOfImportOrExportSpecifier(exportSpecifier),
+    bindingOrigin: OriginTracer.findExportOrigin(
+      originLookup,
+      scannedTargetPath,
+      exportSpecifier.getName(),
+    ) ?? {
       kind: ORIGIN_KIND.LOCAL,
       modulePath: scannedTargetPath,
       declarationName: exportSpecifier.getName(),
@@ -223,12 +224,12 @@ const registerExportedName = (
   const alreadyExported = exportedNameRegistry.exportByName.get(exportedBinding.exportedName);
   if (alreadyExported === undefined) {
     exportedNameRegistry.exportByName.set(exportedBinding.exportedName, {
-      originKey: toOriginKey(exportedBinding.bindingOrigin),
+      originKey: OriginTracer.toOriginKey(exportedBinding.bindingOrigin),
       modulePath,
     });
     return true;
   }
-  if (alreadyExported.originKey !== toOriginKey(exportedBinding.bindingOrigin)) {
+  if (alreadyExported.originKey !== OriginTracer.toOriginKey(exportedBinding.bindingOrigin)) {
     exportedNameRegistry.diagnostics.push(
       createDiagnostic({
         code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
@@ -326,7 +327,7 @@ const typeKeywordPrefix = (isTypeOnly: boolean): string => {
   return isTypeOnly ? 'type ' : '';
 };
 
-// The specifier text exporting the binding `localName` as `exportedName`.
+// The export specifier text exporting the binding `localName` as `exportedName`.
 //
 //   formatExportSpecifier('user', 'user')     // 'user'
 //   formatExportSpecifier('user', 'account')  // 'user as account'
@@ -335,7 +336,7 @@ const formatExportSpecifier = (localName: string, exportedName: string): string 
 };
 
 // The statements replacing an export declaration that needs rewriting: one
-// `export { … }` with the specifiers it keeps and each forward into the
+// `export { … }` with the export specifiers it keeps and each forward into the
 // scanned set pointing at its binding's final name, then a separate
 // `export … from` for each forward that ends outside the set.
 //
@@ -357,33 +358,38 @@ const renderRewrittenExportStatements = (
   declarationRewrite: ExportDeclarationRewrite,
   finalNameByOriginKey: ReadonlyMap<string, string>,
 ): string[] => {
-  const keptSpecifierTexts = exportDeclaration
+  const keptExportSpecifierTexts = exportDeclaration
     .getNamedExports()
     .filter(
       (exportSpecifier) =>
-        !declarationRewrite.forwardedNames.has(getAliasOrOwnName(exportSpecifier)),
+        !declarationRewrite.forwardedNames.has(
+          ModuleContextReader.getAliasOrOwnNameOfImportOrExportSpecifier(exportSpecifier),
+        ),
     )
     .map((exportSpecifier) => exportSpecifier.getText());
   const externalReExportStatements: string[] = [];
   for (const { exportedName, bindingOrigin, isTypeOnly } of declarationRewrite.forwardsToEmit) {
     if (bindingOrigin.kind === ORIGIN_KIND.LOCAL) {
       const localName =
-        finalNameByOriginKey.get(toOriginKey(bindingOrigin)) ?? bindingOrigin.declarationName;
-      keptSpecifierTexts.push(
+        finalNameByOriginKey.get(OriginTracer.toOriginKey(bindingOrigin)) ??
+        bindingOrigin.declarationName;
+      keptExportSpecifierTexts.push(
         `${typeKeywordPrefix(isTypeOnly)}${formatExportSpecifier(localName, exportedName)}`,
       );
     } else if (bindingOrigin.importedName === '*') {
       externalReExportStatements.push(
-        `export * as ${exportedName} from '${bindingOrigin.rewrittenSpecifier}';`,
+        `export * as ${exportedName} from '${bindingOrigin.rewrittenModuleSpecifier}';`,
       );
     } else {
       externalReExportStatements.push(
-        `export { ${typeKeywordPrefix(isTypeOnly)}${formatExportSpecifier(bindingOrigin.importedName, exportedName)} } from '${bindingOrigin.rewrittenSpecifier}';`,
+        `export { ${typeKeywordPrefix(isTypeOnly)}${formatExportSpecifier(bindingOrigin.importedName, exportedName)} } from '${bindingOrigin.rewrittenModuleSpecifier}';`,
       );
     }
   }
   return [
-    ...(keptSpecifierTexts.length > 0 ? [`export { ${keptSpecifierTexts.join(', ')} };`] : []),
+    ...(keptExportSpecifierTexts.length > 0
+      ? [`export { ${keptExportSpecifierTexts.join(', ')} };`]
+      : []),
     ...externalReExportStatements,
   ];
 };
@@ -400,12 +406,12 @@ export type RewriteExportsArgs = {
  * Rewrites one module's export declarations for the Destination File: each
  * one `exportPlan` rewrites is replaced by its new statements, or removed
  * when none are left, and every other `export … from` keeps its text with
- * its specifier rewritten to resolve from the output directory.
+ * its module specifier rewritten to resolve from the output directory.
  *
  * ```ts
  * export { user as account } from './user.js'; // planned: → export { user as account };
  * export * from './user.js';                   // planned: removed
- * export { helper } from '../helpers.js';      // specifier rewritten for the output directory
+ * export { helper } from '../helpers.js';      // module specifier rewritten for the output directory
  * export { post };                             // unchanged
  * ```
  */
@@ -431,7 +437,7 @@ export const rewriteExports = ({
       }
     } else if (moduleSpecifier !== undefined) {
       exportDeclaration.setModuleSpecifier(
-        rewriteSpecifierForOutputDirectory(
+        rewriteModuleSpecifierForOutputDirectory(
           moduleSpecifier,
           sourceFile.getFilePath(),
           outputDirectory,
