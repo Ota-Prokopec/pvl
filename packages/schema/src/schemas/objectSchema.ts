@@ -1,5 +1,6 @@
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
-import type { Modifier } from '../modifiers.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue, type IssueEditableProps } from '../issue.js';
+import type { Modifier } from '../modifiers/modifiers.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';

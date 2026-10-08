@@ -61,9 +61,21 @@ The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compi
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Instruction**:
-One primitive operation — a conditional check, a loop, a direct property read or assignment — the compiler emits as literal inline JavaScript in the Destination File. An Instruction is generated source text, never a data structure an interpreter later walks.
+One primitive operation — a conditional check, a loop, a direct property read or assignment — the compiler emits as literal inline JavaScript in a mirrored module of the Destination Directory. An Instruction is generated source text, never a data structure an interpreter later walks.
 _Avoid_: Opcode.
 
-**Destination File**:
-The single aggregate module `@pvl/schema-compiler` writes, mirroring every export of every scanned file — marked Schemas as Compiled Schemas, everything else copied through unchanged. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) for why it exists and [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands.
-_Avoid_: Generated file, output bundle, artifact directory.
+**Destination Directory**:
+The directory `@pvl/schema-compiler` writes: a mirror of the Root Directory holding one mirrored module per scanned file at the same relative path — marked Schemas as Compiled Schemas, everything else copied through, only module specifiers rewritten — plus a generated `index.ts` barrel. An application adopts it by pointing an alias at it. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-directory-and-rewrites-nothing.md) for why it exists, [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands, and [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md) for its layout.
+_Avoid_: Destination File (the rejected single aggregate module), generated file, output bundle.
+
+**Root Directory**:
+The application's source root, set by `rootDir` (default `src`), that the Destination Directory mirrors: a scanned file at `<rootDir>/schemas/user.ts` is mirrored to `<destination>/schemas/user.ts`. Every scanned file must sit under it. See [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md#a-complete-mirror-of-the-source-root).
+_Avoid_: Source folder, schemas folder.
+
+**Base Directory**:
+The directory every relative path in a compiler run resolves against: the one holding `pvlconfig.json`, or the working directory for a run with no config file. It is what makes running from the repo root match running from the application directory, and keeps two applications' output apart. See [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) and [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#the-base-directory).
+_Avoid_: Root, base directory, project directory.
+
+**Diagnostic**:
+One problem a compiler run reports: a stable public code, a severity (`ERROR` stops anything being written; `WARNING` doesn't, unless the run is strict), a message and, where there is one, the file. Distinct from an Issue, which is a validation failure at runtime. See [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#diagnostics).
+_Avoid_: Compiler error (a warning is a Diagnostic too).

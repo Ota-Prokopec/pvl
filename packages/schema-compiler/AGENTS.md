@@ -1,17 +1,18 @@
 # `@pvl/schema-compiler`
 
-The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Implementation hasn't started: this directory holds only this file, which documents the conventions the package will be built under. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination File`).
+The ahead-of-time compiler for `@pvl/schema`. Turns a `Schema` marked with `pvl.compile(...)` into a `Compiled Schema`: a [Standard Schema](../../docs/specification/standard-schema.md)-conformant object whose `validate` runs emitted `Instruction`s instead of walking the schema tree at runtime. Built so far: `pvlconfig.json` and the `pvl compile` CLI, which resolve settings and report diagnostics, and the mirror, which writes every scanned file into the Destination Directory. Compiling Schemas comes next. See [`MONOREPO.md`](../../MONOREPO.md) for how it relates to `@pvl/schema`, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`AOT Compilation`, `Compiled Schema`, `Instruction`, `Destination Directory`, `Root Directory`).
 
 Each section below says when it applies and which file to read. Read only the sections the current task needs.
 
 ## Technology
 
-- TypeScript, ESM source. Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), yargs for the CLI, and tsup for building the default destination.
-- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md).
+- TypeScript, ESM source. Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), and yargs for the CLI.
+- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The same build writes `dist/json-schema.json` from `configSchema` (`tsup.config.ts`), and declarations come from `tsc --project tsconfig.build.json`, as in `@pvl/schema`.
+- The `pvl` bin is `dist/bin.js`. Run the local build against a project with `node packages/schema-compiler/dist/bin.js compile` from that project's directory, after `pnpm build`.
 
 ## Implementation rules
 
-- **Every emit template lives in this package.** A validation rule is split on purpose: its runtime half (`code`, `message`, `test`) sits in the `@pvl/schema` class, its codegen half (the source text emitted into the `Destination File`) sits here. Emit strings are never executed at runtime, and class members can't be tree-shaken, so placing them in `@pvl/schema` would ship dead weight in every consumer's bundle. The cost is that each constraint is written twice and the halves can drift, which the differential test catches.
+- **Every emit template lives in this package.** A validation rule is split on purpose: its runtime half (`code`, `message`, `test`) sits in the `@pvl/schema` class, its codegen half (the source text emitted into the `Destination Directory`) sits here. Emit strings are never executed at runtime, and class members can't be tree-shaken, so placing them in `@pvl/schema` would ship dead weight in every consumer's bundle. The cost is that each constraint is written twice and the halves can drift, which the differential test catches.
 - Generated output is a build artifact: keep the templates/codegen that produce it easy to diff and reason about, since it's the thing users will actually read when debugging a `Compiled Schema`.
 
 ## `pvl.compile()`
@@ -22,9 +23,9 @@ Read [`compile.md`](../../docs/specification/schema/compile.md) before you work 
 
 Read [`compilation.md`](../../docs/specification/schema-compiler/compilation.md) before you work on discovery or on which schema a marker compiles. It covers static AST discovery, the per-call-site compilation unit, and how Modifiers are baked in.
 
-## Destination File
+## Destination Directory
 
-Read [`destination-file.md`](../../docs/specification/schema-compiler/destination-file.md) before you change the compiler's output, its layout, or where it lands.
+Read [`destination-directory.md`](../../docs/specification/schema-compiler/destination-directory.md) before you change the compiler's output, its layout, or where it lands.
 
 ## Code generation
 
@@ -36,4 +37,4 @@ Read [`configuration-and-cli.md`](../../docs/specification/schema-compiler/confi
 
 ## Tests
 
-Read [`TESTS.md`](../../TESTS.md) before you write, change or review a test. The compiler's suite diffs compiled `validate()` against interpreted `validate()`, as [`code-generation.md`](../../docs/specification/schema-compiler/code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing) explains.
+Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `compile()` and the CLI.
