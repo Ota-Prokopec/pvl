@@ -146,20 +146,35 @@ export const toRelativeModuleSpecifier = (
 };
 
 /**
- * The module specifier the barrel re-exports the mirrored module at
- * `relativePath` (relative to the Destination Directory) through, with the
- * `.js` family extension a TypeScript import of it spells.
+ * Whether `filePath` is a declaration file, which holds only types.
  *
  * ```ts
- * toBarrelModuleSpecifier('schemas/user.ts')  // './schemas/user.js'
- * toBarrelModuleSpecifier('schemas/legacy.mts') // './schemas/legacy.mjs'
- * toBarrelModuleSpecifier('schemas/plain.js') // './schemas/plain.js'
+ * isDeclarationFile('schemas/types.d.ts')  // true
+ * isDeclarationFile('schemas/types.d.mts') // true
+ * isDeclarationFile('schemas/user.ts')     // false
+ * ```
+ */
+export const isDeclarationFile = (filePath: string): boolean => {
+  return DECLARATION_FILE_SUFFIXES.some((suffix) => filePath.endsWith(suffix));
+};
+
+/**
+ * The module specifier the barrel re-exports the mirrored module at
+ * `relativePath` (relative to the Destination Directory) through, with the
+ * `.js` family extension a TypeScript import of it spells. A declaration
+ * file is named by the module it describes.
+ *
+ * ```ts
+ * toBarrelModuleSpecifier('schemas/user.ts')     // './schemas/user.js'
+ * toBarrelModuleSpecifier('schemas/legacy.mts')  // './schemas/legacy.mjs'
+ * toBarrelModuleSpecifier('schemas/types.d.ts')  // './schemas/types.js'
+ * toBarrelModuleSpecifier('schemas/types.d.cts') // './schemas/types.cjs'
+ * toBarrelModuleSpecifier('schemas/plain.js')    // './schemas/plain.js'
  * ```
  */
 export const toBarrelModuleSpecifier = (relativePath: string): string => {
-  const extension = extname(relativePath);
-  const barrelExtension = BARREL_EXTENSION_BY_SOURCE_EXTENSION.get(extension) ?? extension;
-  return toDotRelativeModuleSpecifier(
-    `${relativePath.slice(0, relativePath.length - extension.length)}${barrelExtension}`,
-  );
+  const sourceExtension = extname(relativePath);
+  const barrelExtension =
+    BARREL_EXTENSION_BY_SOURCE_EXTENSION.get(sourceExtension) ?? sourceExtension;
+  return toDotRelativeModuleSpecifier(`${stripFileExtension(relativePath)}${barrelExtension}`);
 };

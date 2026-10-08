@@ -86,11 +86,11 @@ export const listFixtureFiles = async (
 ): Promise<string[] | undefined> => {
   const directory = join(root, path);
   try {
-    const entries = await readdir(directory, { recursive: true, withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile())
-      .map((entry) =>
-        relative(directory, join(entry.parentPath, entry.name)).split(sep).join(posix.sep),
+    const filesAndDirectories = await readdir(directory, { recursive: true, withFileTypes: true });
+    return filesAndDirectories
+      .filter((fileOrDirectory) => fileOrDirectory.isFile())
+      .map((file) =>
+        relative(directory, join(file.parentPath, file.name)).split(sep).join(posix.sep),
       )
       .sort();
   } catch {

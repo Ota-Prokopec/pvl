@@ -5,6 +5,8 @@ import { join, posix } from 'node:path';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
+import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from './consts.js';
+import { toDestinationSiblingPath } from './destination.js';
 
 /** What a run scans, and the destination it must never scan. */
 export type ScanScope = {
@@ -16,8 +18,10 @@ export type ScanScope = {
 };
 
 /**
- * The absolute paths `include` matches under `baseDirectory`, sorted. `node_modules`
- * and `destination` are never matched.
+ * The absolute paths `include` matches under `baseDirectory`, sorted.
+ * `node_modules`, `destination` and the temporary and backup directories a
+ * run keeps beside it (`<destination>.pvl-tmp`, `<destination>.pvl-old`) are
+ * never matched.
  */
 export const findInputFiles = async ({
   baseDirectory,
@@ -25,13 +29,18 @@ export const findInputFiles = async ({
   destination,
 }: ScanScope): Promise<string[]> => {
   const files = new Set<string>();
+  const excludedPaths = new Set([
+    destination,
+    toDestinationSiblingPath(destination, TEMPORARY_DESTINATION_SUFFIX),
+    toDestinationSiblingPath(destination, BACKUP_DESTINATION_SUFFIX),
+  ]);
   const entries = glob(
     include.map((pattern) => posix.normalize(pattern)),
     {
       cwd: baseDirectory,
       withFileTypes: true,
       exclude: (entry) =>
-        entry.name === 'node_modules' || join(entry.parentPath, entry.name) === destination,
+        entry.name === 'node_modules' || excludedPaths.has(join(entry.parentPath, entry.name)),
     },
   );
   for await (const entry of entries) {

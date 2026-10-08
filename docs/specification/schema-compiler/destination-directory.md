@@ -15,7 +15,7 @@ Each mirrored module is its source's code under a `@generated` header, with only
 - **A relative import of a scanned file** stays as written: the layout is the same, so it already reaches the mirrored file.
 - **A relative import of anything else** (an unscanned helper, a `.json` file) is rewritten to reach the original file from the mirrored module's directory.
 - **An alias import** (`@/schemas/user`), resolved through the `paths` of `<baseDirectory>/tsconfig.json` when it exists, is rewritten to a relative path: to the mirrored module when it names a scanned file, to the original file otherwise. Left as an alias, it would load the original from inside the mirror.
-- **A package import** (`@pvl/schema`) is kept.
+- **A package import** (`@pvl/schema`) is kept, even when tsconfig `paths` also maps it, as a workspace often maps its own packages: a bare module specifier that `node_modules` resolves is a package.
 
 Import and export declarations, a dynamic `import()`, an `import x = require()` and an `import('…')` type all follow these rules; a computed `import()` is left alone.
 
@@ -23,11 +23,11 @@ A default export would have no name in the barrel and a different import shape f
 
 ### The barrel
 
-`<destination>/index.ts` re-exports every mirrored module that exports something (`export * from './schemas/user.js';`, sorted by path), so `from '<destination>'` imports everything at once. Two scanned files exporting the same name bound to different things would make the barrel's export ambiguous, so that is the `DUPLICATE_EXPORT` error. A re-export of the same binding under the same name isn't a clash. When `<rootDir>/index.ts` is itself scanned, it already sits where the barrel goes, so it is mirrored as the barrel, nothing is generated, and `DUPLICATE_EXPORT` isn't checked: TypeScript reports clashes in a hand-written barrel. The barrel only exists in the mirror, so an import of it has no development counterpart unless the application wrote its own `<rootDir>/index.ts`.
+`<destination>/index.ts` re-exports every mirrored module that exports something (`export * from './schemas/user.js';`, sorted by path; a declaration file gets `export type * from './schemas/types.js';`, naming the module it describes), so `from '<destination>'` imports everything at once. Two scanned files exporting the same name bound to different things would make the barrel's export ambiguous, so that is the `DUPLICATE_EXPORT` error. A re-export of the same binding under the same name isn't a clash. When `<rootDir>/index.ts` is itself scanned, it already sits where the barrel goes, so it is mirrored as the barrel, nothing is generated, and `DUPLICATE_EXPORT` isn't checked: TypeScript reports clashes in a hand-written barrel. The barrel only exists in the mirror, so an import of it has no development counterpart unless the application wrote its own `<rootDir>/index.ts`.
 
 ### Writing it
 
-Output is byte-stable across runs with unchanged input. The compiler marks every Destination Directory it writes with a `.pvl-generated` file, and only ever replaces a directory that is absent, empty or carries that marker; anything else is the `DESTINATION_NOT_EMPTY` error, so a `destination` pointed at real source can't be wiped. The mirror is written to a temporary sibling directory first and moved into place, so a run either replaces the whole directory or leaves it as it was.
+Output is byte-stable across runs with unchanged input. The compiler marks every Destination Directory it writes with a `.pvl-generated` file, and only ever replaces a directory that is absent, empty or carries that marker; anything else is the `DESTINATION_NOT_EMPTY` error, so a `destination` pointed at real source can't be wiped. The mirror is written to a temporary sibling directory (`<destination>.pvl-tmp`) first. The previous directory is then renamed aside to `<destination>.pvl-old`, the new one renamed into place, and only then is the old one removed; a failure at any step puts the old one back. So a run either replaces the whole directory or leaves it as it was. Both sibling directories are never scanned, and a later run replaces any a crashed run left behind.
 
 ## Adopting it
 

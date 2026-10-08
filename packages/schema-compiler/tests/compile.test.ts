@@ -289,12 +289,28 @@ describe('compile(): writing the Destination Directory', () => {
     );
   });
 
-  it('never scans a temporary directory a failed run left behind', async () => {
+  it('never scans the directories a failed run left beside the destination', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({ include: ['**/*.ts'], rootDir: '.', destination: 'gen' }),
       'schemas/user.ts': SCHEMA_FILE,
       'gen.pvl-tmp/schemas/user.ts': SCHEMA_FILE,
       'gen.pvl-old/schemas/user.ts': SCHEMA_FILE,
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expect(diagnosticCodes(payload)).toEqual([DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE]);
+  });
+
+  it('replaces the destination over the directories a failed run left beside it', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({ destination: 'gen' }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'gen/.pvl-generated': '',
+      'gen/stale.ts': 'export const stale = 1;\n',
+      'gen.pvl-tmp/half-written.ts': '',
+      'gen.pvl-old/.pvl-generated': '',
+      'gen.pvl-old/older.ts': 'export const older = 1;\n',
     });
 
     const payload = await compile({ cwd: root });
@@ -305,6 +321,8 @@ describe('compile(): writing the Destination Directory', () => {
       'index.ts',
       'schemas/user.ts',
     ]);
+    expect(await listFixtureFiles(root, 'gen.pvl-tmp')).toBe(undefined);
+    expect(await listFixtureFiles(root, 'gen.pvl-old')).toBe(undefined);
   });
 
   it('writes into an existing empty directory', async () => {

@@ -17,11 +17,13 @@ import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage } from '../utils.js';
 import {
+  BACKUP_DESTINATION_SUFFIX,
   DEFAULT_DESTINATION_DIRECTORY,
   DEFAULT_DESTINATION_GITIGNORE_TEXT,
   GENERATED_MARKER_FILE_NAME,
   GENERATED_MARKER_TEXT,
   GITIGNORE_FILE_NAME,
+  TEMPORARY_DESTINATION_SUFFIX,
 } from './consts.js';
 import type { MirroredFile } from './mirror/mirror.js';
 import { toPosixPath } from './mirror/utils.js';
@@ -47,6 +49,19 @@ export const resolveDestination = (baseDirectory: string, settings: Settings): D
   return settings.destination === undefined
     ? { path: join(baseDirectory, DEFAULT_DESTINATION_DIRECTORY), isDefault: true }
     : { path: resolve(baseDirectory, settings.destination), isDefault: false };
+};
+
+/**
+ * The path of the sibling directory a run keeps beside the Destination
+ * Directory at `destinationPath`: its name with `suffix` appended.
+ *
+ * ```ts
+ * toDestinationSiblingPath('/repo/.pvl', '.pvl-tmp')      // '/repo/.pvl.pvl-tmp'
+ * toDestinationSiblingPath('/repo/generated', '.pvl-old') // '/repo/generated.pvl-old'
+ * ```
+ */
+export const toDestinationSiblingPath = (destinationPath: string, suffix: string): string => {
+  return join(dirname(destinationPath), `${basename(destinationPath)}${suffix}`);
 };
 
 // A DESTINATION_UNWRITABLE diagnostic for `path`, saying why.
@@ -210,20 +225,26 @@ export type WriteDestinationArgs = {
  * Writes the Destination Directory in one move: every mirrored file, the
  * `.pvl-generated` marker and, for the default destination, a `.gitignore`
  * of `*` go into a temporary sibling directory, which then replaces the
- * previous Destination Directory. A failure leaves the previous one as it
- * was, removes the temporary directory and comes back as a
- * DESTINATION_UNWRITABLE diagnostic.
+ * previous Destination Directory. The previous one is renamed aside, not
+ * removed, until the new one is in place, so a failure at any step puts it
+ * back as it was, removes the temporary directory and comes back as a
+ * DESTINATION_UNWRITABLE diagnostic. Directories a crashed run left at
+ * either sibling path are replaced.
  *
  * ```text
- * /repo/.pvl.pvl-tmp/  ← written first
- * /repo/.pvl/          ← removed, then the temporary directory is renamed to it
+ * /repo/.pvl.pvl-tmp/  ← 1. written
+ * /repo/.pvl.pvl-old/  ← 2. the previous /repo/.pvl/, renamed aside
+ * /repo/.pvl/          ← 3. the temporary directory, renamed into place
+ *                         4. .pvl.pvl-old/ removed
  * ```
  */
 export const writeDestination = async ({
   destination,
   mirroredFiles,
 }: WriteDestinationArgs): Promise<Diagnostic[]> => {
-  const temporaryPath = join(dirname(destination.path), `${basename(destination.path)}.pvl-tmp`);
+  const temporaryPath = toDestinationSiblingPath(destination.path, TEMPORARY_DESTINATION_SUFFIX);
+  const backupPath = toDestinationSiblingPath(destination.path, BACKUP_DESTINATION_SUFFIX);
+  let isPreviousDestinationAside = false;
 
   const filesToWrite: ReadonlyArray<MirroredFile> = [
     ...mirroredFiles,
@@ -241,11 +262,19 @@ export const writeDestination = async ({
       await fs.mkdir(dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, text);
     }
-    await fs.rm(destination.path, { recursive: true, force: true });
+    await fs.rm(backupPath, { recursive: true, force: true });
+    if ((await statOrUndefined(destination.path)) !== undefined) {
+      await fs.rename(destination.path, backupPath);
+      isPreviousDestinationAside = true;
+    }
     await fs.rename(temporaryPath, destination.path);
-    return [];
   } catch (error) {
+    if (isPreviousDestinationAside) {
+      await fs.rename(backupPath, destination.path);
+    }
     await fs.rm(temporaryPath, { recursive: true, force: true });
     return [createDestinationUnwritableDiagnostic(destination.path, errorMessage(error))];
   }
+  await fs.rm(backupPath, { recursive: true, force: true });
+  return [];
 };

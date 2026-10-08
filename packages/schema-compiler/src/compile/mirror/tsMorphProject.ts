@@ -3,6 +3,7 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Project, ts } from 'ts-morph';
+import { isPathModuleSpecifier } from './utils.js';
 
 /** The file a module specifier resolves to. */
 export type ResolvedModuleFile = {
@@ -53,7 +54,9 @@ export class TsMorphProject {
 
   /**
    * The file `moduleSpecifier`, written in the file `importerPath`, resolves
-   * to, or `undefined` when it resolves to none.
+   * to, or `undefined` when it resolves to none. A bare module specifier that
+   * tsconfig `paths` maps but `node_modules` also holds, as a workspace
+   * package often is, counts as a package: the mirror keeps it as written.
    *
    * ```ts
    * TsMorphProject.resolveModuleFile(tsMorphProject, './user.js', …)
@@ -62,6 +65,7 @@ export class TsMorphProject {
    * // { path: '/repo/src/lib/helpers.ts', isPackage: false }: through tsconfig `paths`
    * TsMorphProject.resolveModuleFile(tsMorphProject, '@pvl/schema', …)
    * // { path: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isPackage: true }
+   * // the same when `paths` maps '@pvl/schema' to ./packages/schema/src/index.ts
    * TsMorphProject.resolveModuleFile(tsMorphProject, './missing.js', …) // undefined
    * ```
    */
@@ -70,17 +74,34 @@ export class TsMorphProject {
     moduleSpecifier: string,
     importerPath: string,
   ): ResolvedModuleFile | undefined {
+    const compilerOptions = tsMorphProject.getCompilerOptions();
     const resolvedModule = ts.resolveModuleName(
       moduleSpecifier,
       importerPath,
-      tsMorphProject.getCompilerOptions(),
+      compilerOptions,
       ts.sys,
     ).resolvedModule;
-    return resolvedModule === undefined
-      ? undefined
-      : {
-          path: resolve(resolvedModule.resolvedFileName),
-          isPackage: resolvedModule.isExternalLibraryImport ?? false,
-        };
+    if (resolvedModule === undefined) {
+      return undefined;
+    }
+    if (
+      resolvedModule.isExternalLibraryImport !== true &&
+      !isPathModuleSpecifier(moduleSpecifier) &&
+      compilerOptions.paths !== undefined
+    ) {
+      const resolvedPackage = ts.resolveModuleName(
+        moduleSpecifier,
+        importerPath,
+        { ...compilerOptions, paths: undefined },
+        ts.sys,
+      ).resolvedModule;
+      if (resolvedPackage?.isExternalLibraryImport === true) {
+        return { path: resolve(resolvedPackage.resolvedFileName), isPackage: true };
+      }
+    }
+    return {
+      path: resolve(resolvedModule.resolvedFileName),
+      isPackage: resolvedModule.isExternalLibraryImport ?? false,
+    };
   }
 }
