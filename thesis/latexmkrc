@@ -1,0 +1,6 @@
+# Strict PDF build: an undefined reference or citation, a missing package or a
+# missing \lstinputlisting source must fail the build, never degrade the PDF.
+$pdf_mode = 1;
+$pdflatex = 'pdflatex -interaction=nonstopmode -halt-on-error %O %S';
+$bibtex_use = 2;
+$out_dir = 'build';

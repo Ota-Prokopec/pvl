@@ -44,3 +44,10 @@ apps/docs/content/api
 # leading `**/` is what makes them match at any depth)
 **/.vitepress/cache
 **/.vitepress/dist
+
+# Thesis: the faculty scaffolding (manual, sample PDFs, the licensed GT America
+# font installer) stays local; only what the build needs is copied out of it.
+# LaTeX build artefacts too.
+thesis/scaffolding/
+thesis/**/install/
+thesis/build/
