@@ -237,6 +237,11 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'src/schemas/out'],
   },
   {
+    code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE,
+    files: { 'src/schemas/user.ts': SCHEMA_FILE, 'tsconfig.json': '{ "compilerOptions": ' },
+    argv: ['--destination', 'out'],
+  },
+  {
     code: DIAGNOSTIC_CODE.PARSE_FAILED,
     files: { 'src/schemas/user.ts': 'export const = ;\n' },
     argv: ['--destination', 'out'],

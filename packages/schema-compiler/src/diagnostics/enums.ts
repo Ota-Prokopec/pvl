@@ -30,6 +30,8 @@ export const DIAGNOSTIC_CODE = {
   DESTINATION_INSIDE_INCLUDE: 'DESTINATION_INSIDE_INCLUDE',
   /** Two scanned files export the same name bound to different things, so the barrel can't re-export both. */
   DUPLICATE_EXPORT: 'DUPLICATE_EXPORT',
+  /** `<baseDirectory>/tsconfig.json` can't be read or parsed, or names a file it extends that can't be, so alias imports can't be resolved. */
+  TSCONFIG_UNREADABLE: 'TSCONFIG_UNREADABLE',
   /** A scanned file isn't valid syntax, so it can't be mirrored. */
   PARSE_FAILED: 'PARSE_FAILED',
   /** A scanned file isn't under `rootDir`, so it has no place in the mirror. */

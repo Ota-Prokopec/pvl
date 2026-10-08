@@ -14,7 +14,7 @@ Each mirrored module is its source's code under a `@generated` header, with only
 
 - **A relative import of a scanned file** stays as written: the layout is the same, so it already reaches the mirrored file.
 - **A relative import of anything else** (an unscanned helper, a `.json` file) is rewritten to reach the original file from the mirrored module's directory.
-- **An alias import** (`@/schemas/user`), resolved through the `paths` of `<baseDirectory>/tsconfig.json` when it exists, is rewritten to a relative path: to the mirrored module when it names a scanned file, to the original file otherwise. Left as an alias, it would load the original from inside the mirror.
+- **An alias import** (`@/schemas/user`), resolved through the `paths` of `<baseDirectory>/tsconfig.json` (and whatever it extends) when it exists, is rewritten to a relative path: to the mirrored module when it names a scanned file, to the original file otherwise. Left as an alias, it would load the original from inside the mirror. A tsconfig that can't be read or parsed, or whose `extends` names a file that can't, is the `TSCONFIG_UNREADABLE` error, since mirroring without its `paths` would quietly leave every alias pointing at the originals.
 - **A package import** (`@pvl/schema`) is kept, even when tsconfig `paths` also maps it, as a workspace often maps its own packages: a bare module specifier that `node_modules` resolves is a package.
 
 Import and export declarations, a dynamic `import()`, an `import x = require()` and an `import('…')` type all follow these rules; a computed `import()` is left alone.

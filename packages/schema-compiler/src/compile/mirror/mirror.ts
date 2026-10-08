@@ -51,6 +51,8 @@ export type MirrorScannedFilesArgs = {
  * Returns the warnings with the files, or, when a scanned file can't be
  * mirrored, every error and warning found and no files:
  *
+ * - TSCONFIG_UNREADABLE: `<baseDirectory>/tsconfig.json` can't be read, so
+ *   alias imports can't be resolved. Reported alone, before any file is read.
  * - PARSE_FAILED: a file isn't valid syntax. It gets no other diagnostic, as
  *   the tree TypeScript recovers from broken code holds statements nobody
  *   wrote.
@@ -66,7 +68,11 @@ export const mirrorScannedFiles = ({
   rootDirectory,
   destinationDirectory,
 }: MirrorScannedFilesArgs): MirrorScannedFilesPayload => {
-  const tsMorphProject = TsMorphProject.create(baseDirectory);
+  const { tsMorphProject, diagnostics: tsConfigDiagnostics } = TsMorphProject.create(baseDirectory);
+  if (tsMorphProject === undefined) {
+    return { diagnostics: tsConfigDiagnostics, mirroredFiles: [] };
+  }
+
   const scannedModules = readScannedModules({
     tsMorphProject,
     scannedFilePaths,

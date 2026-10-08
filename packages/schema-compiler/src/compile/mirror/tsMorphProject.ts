@@ -3,7 +3,15 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Project, ts } from 'ts-morph';
+import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from '../../diagnostics/enums.js';
 import { isPathModuleSpecifier } from './utils.js';
+
+/** The project the mirror reads into, or why the application's tsconfig stops it from being built. */
+export type CreateTsMorphProjectPayload =
+  | { tsMorphProject: Project; diagnostics: [] }
+  | { tsMorphProject: undefined; diagnostics: [Diagnostic] };
 
 /** The file a module specifier resolves to. */
 export type ResolvedModuleFile = {
@@ -32,24 +40,98 @@ export class TsMorphProject {
   };
 
   /**
+   * TypeScript's "No inputs were found in config file" error, which says
+   * nothing about resolution: the mirror adds the scanned files itself.
+   */
+  private static readonly NO_INPUTS_FOUND_ERROR_CODE = 18003 as const;
+
+  /**
    * An empty ts-morph project that resolves module specifiers the way a
    * bundler does, through the `paths` of `<baseDirectory>/tsconfig.json`
-   * when there is one. None of the tsconfig's files are added: the mirror
-   * adds the scanned files itself.
+   * (and whatever it extends) when there is one. None of the tsconfig's
+   * files are added: the mirror adds the scanned files itself.
    *
    * ```ts
    * // /repo/tsconfig.json: { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }
-   * const tsMorphProject = TsMorphProject.create('/repo');
-   * // '@/schemas/user' now resolves to /repo/src/schemas/user.ts
+   * TsMorphProject.create('/repo')
+   * // { tsMorphProject, diagnostics: [] }: '@/schemas/user' resolves to /repo/src/schemas/user.ts
+   * // /repo/tsconfig.json: { "compilerOptions":
+   * // { tsMorphProject: undefined, diagnostics: [TSCONFIG_UNREADABLE] }
+   * // /repo/tsconfig.json: { "extends": "./missing.json" }
+   * // { tsMorphProject: undefined, diagnostics: [TSCONFIG_UNREADABLE] }
    * ```
+   *
+   * A tsconfig whose own `include` matches no file is fine.
    */
-  public static create(baseDirectory: string): Project {
+  public static create(baseDirectory: string): CreateTsMorphProjectPayload {
     const tsConfigFilePath = join(baseDirectory, TsMorphProject.TSCONFIG_FILE_NAME);
-    return new Project({
-      ...(existsSync(tsConfigFilePath) ? { tsConfigFilePath } : {}),
-      skipAddingFilesFromTsConfig: true,
-      compilerOptions: TsMorphProject.BUNDLER_COMPILER_OPTIONS,
-    });
+    const tsConfig = existsSync(tsConfigFilePath)
+      ? TsMorphProject.readTsConfig(tsConfigFilePath, baseDirectory)
+      : { compilerOptions: {} };
+    if ('reason' in tsConfig) {
+      return {
+        tsMorphProject: undefined,
+        diagnostics: [
+          createDiagnostic({
+            code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE,
+            message: `This tsconfig can't be read, so alias imports can't be resolved: ${tsConfig.reason}`,
+            file: tsConfigFilePath,
+          }),
+        ],
+      };
+    }
+    return {
+      tsMorphProject: new Project({
+        skipAddingFilesFromTsConfig: true,
+        compilerOptions: {
+          ...tsConfig.compilerOptions,
+          ...TsMorphProject.BUNDLER_COMPILER_OPTIONS,
+        },
+      }),
+      diagnostics: [],
+    };
+  }
+
+  // The compiler options the existing tsconfig at `tsConfigFilePath` sets,
+  // following `extends`, or why they can't be read, in TypeScript's words.
+  //
+  //   { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }  // { compilerOptions: { paths: … } }
+  //   { "compilerOptions":                                        // { reason: 'Expression expected.' }
+  //   { "extends": "./missing.json" }                              // { reason: "Cannot read file '/repo/missing.json'." }
+  //   a file the process may not read                              // { reason: 'The file could not be read.' }
+  //   { "include": ["app/**/*.ts"] } with no file there            // { compilerOptions: {} }
+  private static readTsConfig(
+    tsConfigFilePath: string,
+    baseDirectory: string,
+  ): { compilerOptions: ts.CompilerOptions } | { reason: string } {
+    const tsConfigText = ts.sys.readFile(tsConfigFilePath);
+    if (tsConfigText === undefined) {
+      return { reason: 'The file could not be read.' };
+    }
+    const tsConfigJson = ts.parseConfigFileTextToJson(tsConfigFilePath, tsConfigText);
+    if (tsConfigJson.error !== undefined) {
+      return { reason: ts.flattenDiagnosticMessageText(tsConfigJson.error.messageText, ' ') };
+    }
+    const parsedTsConfig = ts.parseJsonConfigFileContent(
+      tsConfigJson.config,
+      ts.sys,
+      baseDirectory,
+      undefined,
+      tsConfigFilePath,
+    );
+    const tsConfigError = parsedTsConfig.errors.find(
+      ({ code }) => code !== TsMorphProject.NO_INPUTS_FOUND_ERROR_CODE,
+    );
+    return tsConfigError === undefined
+      ? { compilerOptions: parsedTsConfig.options }
+      : { reason: ts.flattenDiagnosticMessageText(tsConfigError.messageText, ' ') };
+  }
+
+  // An empty ts-morph project with `compilerOptions`.
+  //
+  //   TsMorphProject.createProject({ moduleResolution: Bundler, … })  // Project with no files
+  private static createProject(compilerOptions: ts.CompilerOptions): Project {
+    return new Project({ skipAddingFilesFromTsConfig: true, compilerOptions });
   }
 
   /**

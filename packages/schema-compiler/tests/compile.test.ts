@@ -668,6 +668,66 @@ describe('compile(): diagnostics', () => {
     expect(await listFixtureFiles(root, 'src/app')).toEqual(['main.ts']);
   });
 
+  it('TSCONFIG_UNREADABLE: the tsconfig is not valid JSON', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'tsconfig.json': '{ "compilerOptions": ',
+      'src/schemas/user.ts': SCHEMA_FILE,
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
+  it('TSCONFIG_UNREADABLE: the tsconfig extends a file that does not exist', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'tsconfig.json': JSON.stringify({ extends: './missing.json' }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
+    ]);
+  });
+
+  it('TSCONFIG_UNREADABLE: the tsconfig exists but may not be read', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'tsconfig.json': '{}',
+      'src/schemas/user.ts': SCHEMA_FILE,
+    });
+    await chmod(join(root, 'tsconfig.json'), 0o000);
+
+    try {
+      const payload = await compile({ cwd: root });
+
+      expectFailure(payload, [
+        { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
+      ]);
+    } finally {
+      await chmod(join(root, 'tsconfig.json'), 0o644);
+    }
+  });
+
+  it('TSCONFIG_UNREADABLE: not raised for a tsconfig whose include matches no file', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'tsconfig.json': JSON.stringify({ include: ['app/**/*.ts'] }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expect(payload.diagnostics).toEqual([]);
+  });
+
   it('PARSE_FAILED: a scanned file is not valid syntax', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),

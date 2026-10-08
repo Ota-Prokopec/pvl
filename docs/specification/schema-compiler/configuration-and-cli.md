@@ -32,19 +32,20 @@ The programmatic entry point is `compile({ cwd, configPath, overrides, strict })
 
 Every diagnostic carries a stable, publicly documented code, so users and tests refer to codes rather than message text. The codes are `DIAGNOSTIC_CODE`'s values, and the severity each is raised with is `DIAGNOSTIC_SEVERITY`'s. A run reports every diagnostic it finds together rather than stopping at the first, so one run lists everything to fix; the one exception is a file that raises `PARSE_FAILED`, which gets no other diagnostic until it parses.
 
-| Code                         | Severity  | Raised when                                                                                                                                           |
-| ---------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NO_CONFIG`                  | `ERROR`   | No `pvlconfig.json` in the working directory, no `--config`, and no setting passed as a flag                                                          |
-| `CONFIG_UNREADABLE`          | `ERROR`   | The config file named by `--config` doesn't exist, or the config file can't be read or isn't valid JSON                                               |
-| `INVALID_CONFIG`             | `ERROR`   | A setting, from the config file or a flag, fails `configSchema` (wrong type, unknown key); one diagnostic per failing setting                         |
-| `NO_INPUT_FILES`             | `ERROR`   | `include` matched no file                                                                                                                             |
-| `DESTINATION_UNWRITABLE`     | `ERROR`   | `destination` is a file, a parent of it is a file, or it can't be created or written                                                                  |
-| `DESTINATION_NOT_EMPTY`      | `ERROR`   | `destination` is a directory holding files but no `.pvl-generated` marker, so it wasn't written by the compiler and won't be replaced                 |
-| `DESTINATION_INSIDE_INCLUDE` | `ERROR`   | An `include` pattern matches the destination or a file written into it, so the compiler would read its own output, inside the base directory or not   |
-| `PARSE_FAILED`               | `ERROR`   | A scanned file isn't valid syntax; one diagnostic per file, naming the line of its first error                                                        |
-| `FILE_OUTSIDE_ROOT_DIR`      | `ERROR`   | A scanned file isn't under `rootDir`, so it has no place in the mirror                                                                                |
-| `DEFAULT_EXPORT`             | `ERROR`   | A scanned file has a default export (`export default`, `export =`, `export { x as default }`); one per statement                                      |
-| `DUPLICATE_EXPORT`           | `ERROR`   | Two scanned files export the same name bound to different things, so the generated barrel can't re-export both; reported on the later file by path    |
-| `FILE_EXPORTS_NOTHING`       | `WARNING` | A scanned file has no export, so nothing can be imported from its mirrored module or the barrel                                                       |
-| `SIDE_EFFECT_COPIED`         | `WARNING` | A top-level statement that isn't a declaration (a call, an `if`, a loop) is copied, so it runs again wherever the mirror is loaded; one per statement |
-| `INVALID_ARGUMENTS`          | `ERROR`   | The CLI got an unknown flag, a flag value of the wrong type, or no command (CLI only)                                                                 |
+| Code                         | Severity  | Raised when                                                                                                                                                      |
+| ---------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NO_CONFIG`                  | `ERROR`   | No `pvlconfig.json` in the working directory, no `--config`, and no setting passed as a flag                                                                     |
+| `CONFIG_UNREADABLE`          | `ERROR`   | The config file named by `--config` doesn't exist, or the config file can't be read or isn't valid JSON                                                          |
+| `INVALID_CONFIG`             | `ERROR`   | A setting, from the config file or a flag, fails `configSchema` (wrong type, unknown key); one diagnostic per failing setting                                    |
+| `NO_INPUT_FILES`             | `ERROR`   | `include` matched no file                                                                                                                                        |
+| `DESTINATION_UNWRITABLE`     | `ERROR`   | `destination` is a file, a parent of it is a file, or it can't be created or written                                                                             |
+| `DESTINATION_NOT_EMPTY`      | `ERROR`   | `destination` is a directory holding files but no `.pvl-generated` marker, so it wasn't written by the compiler and won't be replaced                            |
+| `DESTINATION_INSIDE_INCLUDE` | `ERROR`   | An `include` pattern matches the destination or a file written into it, so the compiler would read its own output, inside the base directory or not              |
+| `TSCONFIG_UNREADABLE`        | `ERROR`   | `<baseDirectory>/tsconfig.json` can't be read or parsed, or a file it extends can't, so alias imports can't be resolved; reported alone, before any file is read |
+| `PARSE_FAILED`               | `ERROR`   | A scanned file isn't valid syntax; one diagnostic per file, naming the line of its first error                                                                   |
+| `FILE_OUTSIDE_ROOT_DIR`      | `ERROR`   | A scanned file isn't under `rootDir`, so it has no place in the mirror                                                                                           |
+| `DEFAULT_EXPORT`             | `ERROR`   | A scanned file has a default export (`export default`, `export =`, `export { x as default }`); one per statement                                                 |
+| `DUPLICATE_EXPORT`           | `ERROR`   | Two scanned files export the same name bound to different things, so the generated barrel can't re-export both; reported on the later file by path               |
+| `FILE_EXPORTS_NOTHING`       | `WARNING` | A scanned file has no export, so nothing can be imported from its mirrored module or the barrel                                                                  |
+| `SIDE_EFFECT_COPIED`         | `WARNING` | A top-level statement that isn't a declaration (a call, an `if`, a loop) is copied, so it runs again wherever the mirror is loaded; one per statement            |
+| `INVALID_ARGUMENTS`          | `ERROR`   | The CLI got an unknown flag, a flag value of the wrong type, or no command (CLI only)                                                                            |
