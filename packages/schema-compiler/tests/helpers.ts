@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect } from 'vitest';
 import { SEVERITY, type CompilePayload, type DiagnosticCode } from '../src/index.js';
 
@@ -27,6 +28,30 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
     await writeFile(join(root, path), content);
   }
   return root;
+};
+
+/**
+ * Symlinks the workspace's built `@pvl/schema` into the fixture at `root`
+ * as `node_modules/@pvl/schema`, so both the Destination File and the
+ * source it mirrors can be imported and run, to compare their behaviour.
+ *
+ * ```ts
+ * const root = await createFixture({ 'src/schemas/order.ts': ORDER_SOURCE, … });
+ * await linkSchemaPackage(root);
+ * await compile({ cwd: root });
+ * const mirrored = await import(join(root, 'out.ts'));
+ * const source = await import(join(root, 'src/schemas/order.ts'));
+ * ```
+ *
+ * Needs `@pvl/schema` built first; `pnpm test` builds it through Turborepo.
+ */
+export const linkSchemaPackage = async (root: string): Promise<void> => {
+  await mkdir(join(root, 'node_modules/@pvl'), { recursive: true });
+  await symlink(
+    fileURLToPath(new URL('../../schema', import.meta.url)),
+    join(root, 'node_modules/@pvl/schema'),
+    'dir',
+  );
 };
 
 /** The contents of `path` under `root`, or `undefined` when it doesn't exist. */

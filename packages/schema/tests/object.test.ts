@@ -323,12 +323,10 @@ describe('pvl.object()', () => {
 
     it('rejects a replacement shape, at the type level and at runtime', () => {
       const schema = pvl.object({ name: pvl.string() });
-      const replaceShape = (): void => {
+      expect((): void => {
         // @ts-expect-error `shape` is read-only
         schema.shape = { name: pvl.number() };
-      };
-
-      expect(replaceShape).toThrow(TypeError);
+      }).toThrow(TypeError);
       expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
     });
 

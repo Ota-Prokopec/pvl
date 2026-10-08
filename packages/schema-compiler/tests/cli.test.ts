@@ -223,6 +223,32 @@ const ERROR_CASES: ReadonlyArray<{
     files: { 'src/schemas/user.ts': SCHEMA_FILE },
     argv: ['--destination', 'src/schemas/out.ts'],
   },
+  {
+    code: DIAGNOSTIC_CODE.PARSE_FAILED,
+    files: { 'src/schemas/user.ts': 'export const = ;\n' },
+    argv: ['--destination', 'out.ts'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.IMPORT_CYCLE,
+    files: {
+      'src/schemas/a.ts': "import { b } from './b.js';\nexport const a = () => b;\n",
+      'src/schemas/b.ts': "import { a } from './a.js';\nexport const b = () => a;\n",
+    },
+    argv: ['--destination', 'out.ts'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
+    files: { 'src/schemas/a.ts': SCHEMA_FILE, 'src/schemas/b.ts': SCHEMA_FILE },
+    argv: ['--destination', 'out.ts'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.NAMESPACE_IMPORT_OF_SCANNED_FILE,
+    files: {
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/a.ts': "import * as schemas from './user.js';\nexport const a = schemas;\n",
+    },
+    argv: ['--destination', 'out.ts'],
+  },
   // A usage error still comes back as JSON under `--json`.
   {
     code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS,
@@ -243,49 +269,56 @@ describe('pvl compile: errors exit non-zero and write nothing', () => {
   });
 });
 
-describe('pvl compile: warnings', () => {
-  const files = {
-    'src/schemas/user.ts': SCHEMA_FILE,
-    'src/schemas/setup.ts': 'console.log("side effect");\n',
-  };
+// One row per warning: the fixture that raises it.
+const WARNING_CASES: ReadonlyArray<{ code: DiagnosticCode; files: FixtureFiles }> = [
+  {
+    code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
+    files: { 'src/schemas/user.ts': SCHEMA_FILE, 'src/schemas/setup.ts': 'const internal = 1;\n' },
+  },
+  {
+    code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
+    files: { 'src/schemas/user.ts': `${SCHEMA_FILE}console.log(user);\n` },
+  },
+];
 
-  it('FILE_EXPORTS_NOTHING: exits zero and still writes', async () => {
+describe('pvl compile: warnings', () => {
+  it.each(WARNING_CASES)('$code: exits zero and still writes', async ({ code, files }) => {
     const root = await createFixture(files);
 
     const { exitCode, payload } = await runJson(root, ['compile', '--destination', 'out.ts']);
 
     expect(exitCode).toBe(0);
     expect(payload.diagnostics).toEqual([
-      expect.objectContaining({
-        code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
-        severity: SEVERITY.WARNING,
-      }),
+      expect.objectContaining({ code, severity: SEVERITY.WARNING }),
     ]);
     expect(payload.written).toBe(true);
   });
 
-  it('--strict promotes it to an error: exits non-zero and writes nothing', async () => {
-    const root = await createFixture(files);
+  it.each(WARNING_CASES)(
+    '$code: --strict promotes it to an error, exits non-zero and writes nothing',
+    async ({ code, files }) => {
+      const root = await createFixture(files);
 
-    const { exitCode, payload } = await runJson(root, [
-      'compile',
-      '--destination',
-      'out.ts',
-      '--strict',
-    ]);
+      const { exitCode, payload } = await runJson(root, [
+        'compile',
+        '--destination',
+        'out.ts',
+        '--strict',
+      ]);
 
-    expect(exitCode).toBe(1);
-    expect(payload.diagnostics).toEqual([
-      expect.objectContaining({
-        code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
-        severity: SEVERITY.ERROR,
-      }),
-    ]);
-    expect(await readFixtureFile(root, 'out.ts')).toBe(undefined);
-  });
+      expect(exitCode).toBe(1);
+      expect(payload.diagnostics).toEqual([
+        expect.objectContaining({ code, severity: SEVERITY.ERROR }),
+      ]);
+      expect(await readFixtureFile(root, 'out.ts')).toBe(undefined);
+    },
+  );
 
   it('prints a warning on stderr without failing the run', async () => {
-    const root = await createFixture(files);
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
 
     const { exitCode, stderr } = await run(root, ['compile', '--destination', 'out.ts']);
 

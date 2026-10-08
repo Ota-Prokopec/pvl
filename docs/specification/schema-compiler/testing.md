@@ -6,13 +6,14 @@ Tests exercise external behaviour only: what the compiler writes and reports, an
 
 ## Runner and layout
 
-Vitest, with [`fast-check`](https://fast-check.dev) once there is emitted code to diff. Tests live in `packages/schema-compiler/tests/` as `*.test.ts`, one file per seam or concern. `tests/helpers.ts` builds fixture projects in a temporary directory (`createFixture`, removed after each test), reads diagnostics back by code (`diagnosticCodes`), and asserts a failed run's errors with their `file`, plus that nothing was written (`expectFailure`).
+Vitest, with [`fast-check`](https://fast-check.dev) once there is emitted code to diff. Tests live in `packages/schema-compiler/tests/` as `*.test.ts`, one file per seam or concern. `tests/helpers.ts` builds fixture projects in a temporary directory (`createFixture`, removed after each test), links the workspace's built `@pvl/schema` into one so its Destination File can be imported and run (`linkSchemaPackage`), reads diagnostics back by code (`diagnosticCodes`), and asserts a failed run's errors with their `file`, plus that nothing was written (`expectFailure`).
 
 ## The two seams
 
 1. **The programmatic entry point, `compile()`**, run against a fixture project. One seam, three assertion styles:
    - the returned diagnostics, asserted by **code** (never by message wording), plus `written` and the file on disk, since nothing may be written once an error fired;
-   - an inline snapshot of the emitted Destination File, to catch unintended churn in generated output;
+   - an inline snapshot of the emitted Destination File, written by hand as the expected output, to catch unintended churn in generated output;
+   - importing the emitted Destination File and diffing its `validate()` against the source module it mirrors, which shows the mirror runs as its source did;
    - once Schemas are compiled, a differential test: import the generated output and diff its `validate()` against the equivalent interpreted Schema under `fast-check`, comparing accepted values, Issue messages and Issue paths ([code-generation.md](./code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)).
 
    Example: `tests/compile.test.ts`.

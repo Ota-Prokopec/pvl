@@ -1,11 +1,10 @@
 // The programmatic entry point: one compilation run, from settings to the
 // written Destination File. The CLI and any future bundler plugin wrap it.
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { SettingOverrides, Settings } from '../config/config.js';
 import { resolveSettings } from '../config/settings.js';
 import { SEVERITY } from '../diagnostics/consts.js';
 import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
-import { GENERATED_HEADER } from './consts.js';
 import {
   checkDestinationNotIncluded,
   checkWritable,
@@ -14,12 +13,8 @@ import {
   writeDestinationFile,
   type Destination,
 } from './destination.js';
-import {
-  checkExports,
-  createNoInputFilesDiagnostic,
-  findInputFiles,
-  type ScanScope,
-} from './scan.js';
+import { mirrorScannedFiles, type MirrorScannedFilesPayload } from './mirror/mirror.js';
+import { createNoInputFilesDiagnostic, findInputFiles, type ScanScope } from './scan.js';
 
 /**
  * What a {@link compile} run reports.
@@ -143,7 +138,14 @@ export const compile = async ({
   if (files.length === 0) {
     found.push(createNoInputFilesDiagnostic(settings.include));
   }
-  found.push(...checkExports(files));
+  const mirroredScannedFiles: MirrorScannedFilesPayload = mirrorScannedFiles({
+    scannedFilePaths: files,
+    baseDirectory,
+    // The default destination is a package directory holding `index.ts`.
+    outputDirectory:
+      destination.kind === DESTINATION_KIND.FILE ? dirname(destination.path) : destination.path,
+  });
+  found.push(...mirroredScannedFiles.diagnostics);
 
   const payload = unwrittenPayload({
     diagnostics: found,
@@ -158,7 +160,7 @@ export const compile = async ({
   }
   const writeFailure = await writeDestinationFile({
     path: destination.path,
-    content: `${GENERATED_HEADER}\n`,
+    content: mirroredScannedFiles.destinationFileText,
   });
   return writeFailure.length > 0
     ? { ...payload, diagnostics: [...payload.diagnostics, ...writeFailure] }
