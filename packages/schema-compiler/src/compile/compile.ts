@@ -2,16 +2,10 @@
 // written Destination Directory. The CLI and any future bundler plugin wrap it.
 import path from 'node:path';
 import type { SettingOverrides, Settings } from '../config/config.js';
-import { resolveSettings } from '../config/settings.js';
+import { SettingsResolver } from '../config/settingsResolver.js';
 import { promoteDiagnosticsSeverity } from '../diagnostics/createDiagnostic.js';
 import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
-import {
-  checkDestination,
-  checkDestinationNotIncluded,
-  resolveDestination,
-  writeDestination,
-  type Destination,
-} from './destination.js';
+import { DestinationWriter, type Destination } from './destinationWriter.js';
 import { mirrorScannedFiles } from './mirror/mirror.js';
 import {
   createNoInputFilesDiagnostic,
@@ -130,7 +124,7 @@ export const compile = async ({
   overrides = {},
   strict = false,
 }: CompileArgs): Promise<CompilePayload> => {
-  const resolvedSettingsPayload = await resolveSettings({
+  const resolvedSettingsPayload = await SettingsResolver.resolveSettings({
     cwd: path.resolve(cwd),
     configPath,
     overrides,
@@ -147,7 +141,7 @@ export const compile = async ({
   }
 
   const { settings, baseDirectory } = resolvedSettingsPayload;
-  const destination: Destination = resolveDestination(baseDirectory, settings);
+  const destination: Destination = DestinationWriter.resolveDestination(baseDirectory, settings);
   const rootDirectory = path.resolve(baseDirectory, settings.rootDir);
 
   const scanScope: ScanScope = {
@@ -159,8 +153,8 @@ export const compile = async ({
   //TODO: filesand and checkDestination could be in a Promise.all()
 
   const foundDiagnostics: Diagnostic[] = [
-    ...checkDestinationNotIncluded({ include: settings.include, destination }),
-    ...(await checkDestination(destination.absolutePath)),
+    ...DestinationWriter.checkDestinationNotIncluded({ include: settings.include, destination }),
+    ...(await DestinationWriter.checkDestination(destination.absolutePath)),
   ];
 
   const filePaths = await findScanningInputFilePaths(scanScope);
@@ -187,10 +181,11 @@ export const compile = async ({
     });
   }
 
-  const { isWritten, diagnostics: writeDestinationDiagnostics } = await writeDestination({
-    destination,
-    mirroredFiles: mirroredScannedFiles.mirroredFiles,
-  });
+  const { isWritten, diagnostics: writeDestinationDiagnostics } =
+    await DestinationWriter.writeDestination({
+      destination,
+      mirroredFiles: mirroredScannedFiles.mirroredFiles,
+    });
 
   return createCompilePayload({
     diagnostics: [...foundDiagnostics, ...writeDestinationDiagnostics],

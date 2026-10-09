@@ -5,6 +5,7 @@
 import type { CompatiblePlugin } from 'typescript-eslint';
 import { argsTypeAboveFunction } from './rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from './rules/barrelExportsOnly.ts';
+import { classFileName } from './rules/classFileName.ts';
 import { constantShape } from './rules/constantShape.ts';
 import { entryHasAgentsMd } from './rules/entryHasAgentsMd.ts';
 import { enumShape } from './rules/enumShape.ts';
@@ -25,6 +26,7 @@ const plugin = {
   rules: {
     'args-type-above-function': argsTypeAboveFunction,
     'barrel-exports-only': barrelExportsOnly,
+    'class-file-name': classFileName,
     'constant-shape': constantShape,
     'entry-has-agents-md': entryHasAgentsMd,
     'enum-shape': enumShape,

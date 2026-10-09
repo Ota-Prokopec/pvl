@@ -83,6 +83,7 @@ export const config: Linter.Config[] = defineConfig(
       '@repo/conventions/constant-shape': 'error',
       '@repo/conventions/args-type-above-function': 'error',
       '@repo/conventions/no-local-functions': 'error',
+      '@repo/conventions/class-file-name': 'error',
       'turbo/no-undeclared-env-vars': 'error',
     },
   },

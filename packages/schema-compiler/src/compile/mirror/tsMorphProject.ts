@@ -21,6 +21,10 @@ export type ResolvedModuleFile = {
   isPackage: boolean;
 };
 
+/**
+ * Builds the ts-morph project the mirror reads the scanned files into, from the
+ * application's tsconfig, and resolves a module specifier to the file it names.
+ */
 export class TsMorphProject {
   /** The application's tsconfig, read for its `paths` aliases when it exists. */
   private static readonly TSCONFIG_FILE_NAME = 'tsconfig.json' as const;
@@ -65,9 +69,11 @@ export class TsMorphProject {
    */
   public static create(baseDirectory: string): CreateTsMorphProjectPayload {
     const tsConfigFilePath = join(baseDirectory, TsMorphProject.TSCONFIG_FILE_NAME);
+
     const tsConfig = existsSync(tsConfigFilePath)
       ? TsMorphProject.readTsConfig(tsConfigFilePath, baseDirectory)
       : { compilerOptions: {} };
+
     if ('reason' in tsConfig) {
       return {
         tsMorphProject: undefined,
@@ -80,6 +86,7 @@ export class TsMorphProject {
         ],
       };
     }
+
     return {
       tsMorphProject: new Project({
         skipAddingFilesFromTsConfig: true,
@@ -92,14 +99,18 @@ export class TsMorphProject {
     };
   }
 
-  // The compiler options the existing tsconfig at `tsConfigFilePath` sets,
-  // following `extends`, or why they can't be read, in TypeScript's words.
-  //
-  //   { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }  // { compilerOptions: { paths: … } }
-  //   { "compilerOptions":                                        // { reason: 'Expression expected.' }
-  //   { "extends": "./missing.json" }                              // { reason: "Cannot read file '/repo/missing.json'." }
-  //   a file the process may not read                              // { reason: 'The file could not be read.' }
-  //   { "include": ["app/**/*.ts"] } with no file there            // { compilerOptions: {} }
+  /**
+   * The compiler options the existing tsconfig at `tsConfigFilePath` sets,
+   * following `extends`, or why they can't be read, in TypeScript's words.
+   *
+   * ```ts
+   * { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } } // { compilerOptions: { paths: … } }
+   * { "compilerOptions":                                       // { reason: 'Expression expected.' }
+   * { "extends": "./missing.json" }                            // { reason: "Cannot read file '/repo/missing.json'." }
+   * a file the process may not read                            // { reason: 'The file could not be read.' }
+   * { "include": ["app/**\/*.ts"] } with no file there          // { compilerOptions: {} }: "No inputs were found" is ignored
+   * ```
+   */
   private static readTsConfig(
     tsConfigFilePath: string,
     baseDirectory: string,
@@ -108,10 +119,12 @@ export class TsMorphProject {
     if (tsConfigText === undefined) {
       return { reason: 'The file could not be read.' };
     }
+
     const tsConfigJson = ts.parseConfigFileTextToJson(tsConfigFilePath, tsConfigText);
     if (tsConfigJson.error !== undefined) {
       return { reason: ts.flattenDiagnosticMessageText(tsConfigJson.error.messageText, ' ') };
     }
+
     const parsedTsConfig = ts.parseJsonConfigFileContent(
       tsConfigJson.config,
       ts.sys,
@@ -119,6 +132,7 @@ export class TsMorphProject {
       undefined,
       tsConfigFilePath,
     );
+
     const tsConfigError = parsedTsConfig.errors.find(
       ({ code }) => code !== TsMorphProject.NO_INPUTS_FOUND_ERROR_CODE,
     );
@@ -127,28 +141,24 @@ export class TsMorphProject {
       : { reason: ts.flattenDiagnosticMessageText(tsConfigError.messageText, ' ') };
   }
 
-  // An empty ts-morph project with `compilerOptions`.
-  //
-  //   TsMorphProject.createProject({ moduleResolution: Bundler, … })  // Project with no files
-  private static createProject(compilerOptions: ts.CompilerOptions): Project {
-    return new Project({ skipAddingFilesFromTsConfig: true, compilerOptions });
-  }
-
   /**
    * The file `moduleSpecifier`, written in the file `importerPath`, resolves
-   * to, or `undefined` when it resolves to none. A bare module specifier that
-   * tsconfig `paths` maps but `node_modules` also holds, as a workspace
-   * package often is, counts as a package: the mirror keeps it as written.
+   * to, and whether it is a package's, or `undefined` when it resolves to none.
+   * A bare module specifier that tsconfig `paths` maps but `node_modules` also
+   * holds, as a workspace package often is, counts as a package, so the mirror
+   * keeps it as written.
    *
    * ```ts
-   * TsMorphProject.resolveModuleFile(tsMorphProject, './user.js', …)
-   * // { path: '/repo/src/schemas/user.ts', isPackage: false }
-   * TsMorphProject.resolveModuleFile(tsMorphProject, '@/lib/helpers', …)
-   * // { path: '/repo/src/lib/helpers.ts', isPackage: false }: through tsconfig `paths`
-   * TsMorphProject.resolveModuleFile(tsMorphProject, '@pvl/schema', …)
-   * // { path: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isPackage: true }
-   * // the same when `paths` maps '@pvl/schema' to ./packages/schema/src/index.ts
-   * TsMorphProject.resolveModuleFile(tsMorphProject, './missing.js', …) // undefined
+   * // importerPath: '/repo/src/schemas/order.ts'
+   * // tsconfig `paths`: { "@/*": ["./src/*"], "@pvl/schema": ["./packages/schema/src/index.ts"] }
+   * './user.js'         // { path: '/repo/src/schemas/user.ts', isPackage: false }
+   * '../lib/helpers.js' // { path: '/repo/src/lib/helpers.ts', isPackage: false }
+   * '@/lib/helpers'     // { path: '/repo/src/lib/helpers.ts', isPackage: false }: through `paths`
+   * '@pvl/schema'       // { path: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isPackage: true }
+   *                     // not './packages/schema/src/index.ts': `node_modules` wins over `paths`
+   *                     // '/repo/packages/schema/dist/index.d.ts' when node_modules/@pvl/schema is a symlink
+   * './missing.js'      // undefined
+   * 'not-installed'     // undefined
    * ```
    */
   public static resolveModuleFile(
@@ -157,30 +167,47 @@ export class TsMorphProject {
     importerPath: string,
   ): ResolvedModuleFile | undefined {
     const compilerOptions = tsMorphProject.getCompilerOptions();
-    const resolvedModule = ts.resolveModuleName(
+
+    // Resolve the way the application's build does: tsconfig `paths` first,
+    // then relative paths and `node_modules`.
+    const { resolvedModule } = ts.resolveModuleName(
       moduleSpecifier,
       importerPath,
       compilerOptions,
       ts.sys,
-    ).resolvedModule;
+    );
+
     if (resolvedModule === undefined) {
       return undefined;
     }
+
+    // TypeScript tries `paths` before `node_modules`, so a bare module
+    // specifier that `paths` maps resolves to a local file even when it is
+    // also an installed package, as a workspace package mapped to its source
+    // often is. Only a bare module specifier can be one, and only when `paths`
+    // is set and the first resolution didn't already land in `node_modules`.
     if (
       resolvedModule.isExternalLibraryImport !== true &&
       !isPathModuleSpecifier(moduleSpecifier) &&
       compilerOptions.paths !== undefined
     ) {
+      // Resolve it again without `paths`: when `node_modules` holds it, it is
+      // a package, and the mirror keeps it as written instead of pointing
+      // into the package's source.
+      // resolvedPackage.resolvedFileName is an absolute path to the file (ts-morph documentation)
       const resolvedPackage = ts.resolveModuleName(
         moduleSpecifier,
         importerPath,
         { ...compilerOptions, paths: undefined },
         ts.sys,
       ).resolvedModule;
+
       if (resolvedPackage?.isExternalLibraryImport === true) {
         return { path: resolve(resolvedPackage.resolvedFileName), isPackage: true };
       }
     }
+
+    // Normalised to an absolute path, the form the mirror's paths are keyed by.
     return {
       path: resolve(resolvedModule.resolvedFileName),
       isPackage: resolvedModule.isExternalLibraryImport ?? false,

@@ -56,16 +56,16 @@ _Avoid_: Read-only Schema (for a Schema that is not chainable, which is just a S
 Turning a Schema into a Compiled Schema before the program runs, as opposed to validating by walking the Schema tree at request time.
 _Avoid_: JIT, runtime compilation.
 
-**Compile-Marked Schema**:
+**Marked-to-Compile Schema**:
 A Schema passed to `pvl.compile(...)` in a scanned file, as the compiler reads it from the source before emitting anything. Each one that compiles becomes a Compiled Schema. See [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Schema (for the Schema before it is compiled).
 
 **Compilable Schema**:
-A Compile-Marked Schema the compiler can turn into a Compiled Schema: an object or an array whose own methods, and whose fields' or element's Schemas, are all ones an Emitter compiles, with literal arguments. Today that is a flat object or array of primitives, literals and enums with their Constraints and `.optional()`/`.nullable()`. One that isn't gets a Diagnostic per problem, and nothing is written. In code, `findUncompilableDiagnostics` decides it: none means compilable. See [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
+A Marked-to-Compile Schema the compiler can turn into a Compiled Schema: an object or an array whose own methods, and whose fields' or element's Schemas, are all ones an Emitter compiles, with literal arguments. Today that is a flat object or array of primitives, literals and enums with their Constraints and `.optional()`/`.nullable()`. One that isn't gets a Diagnostic per problem, and nothing is written. In code, `CompiledSchemaWriter.findUncompilableDiagnostics` decides it: none means compilable. See [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
 _Avoid_: Supported Schema, valid Schema.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Compile-Marked Schema: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+The artifact `@pvl/schema-compiler` produces for a Marked-to-Compile Schema: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Emitter**:

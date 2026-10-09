@@ -26,7 +26,7 @@ export const FLAT_EMITTER_BY_FACTORY: Readonly<
 
 /**
  * The emitter of a field's or an element's Schema. Only called on a
- * SchemaModel `findUncompilableDiagnostics` found nothing in; throws for a
+ * SchemaModel `CompiledSchemaWriter.findUncompilableDiagnostics` found nothing in; throws for a
  * nested composite, which is a bug in the compiler, never a user error.
  *
  * ```ts
