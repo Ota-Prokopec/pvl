@@ -13,7 +13,7 @@ A call is recognised when `pvl` is imported from `@pvl/schema` under any name. I
 - `COMPILE_ARGUMENT_UNRESOLVABLE`: the argument, or a method argument, is imported, built by a function call, spread, or held in a `let`.
 - `COMPILE_ARGUMENT_NOT_COMPOSITE`: the argument is a primitive, a literal or an enum, not an object or an array.
 - `COMPILE_RESULT_MODIFIED`: something other than `.validate()` is read off the result (`pvl.compile(x).optional()`).
-- `UNSUPPORTED_SCHEMA`: the Schema uses what isn't compiled yet. Today that is anything beyond a flat object or array of primitives, literals and enums with their Constraints and `.optional()`/`.nullable()`: a nested composite, a union, `.coerce()`, `.refine()`, `.transform()`, or a Modifier on the wrapped Schema itself.
+- `UNSUPPORTED_SCHEMA`: the Schema uses what isn't compiled yet. Today that is anything beyond an object or array of primitives, literals, enums and nested objects and arrays, with their Constraints, `.strict()`/`.passthrough()` and `.optional()`/`.nullable()`, at any depth: a union, `.coerce()`, `.refine()`, `.transform()`, or a Modifier on the wrapped Schema itself.
 
 ## Compilation unit: exactly what `pvl.compile()` wraps
 

@@ -48,7 +48,7 @@ export const DIAGNOSTIC_CODE = {
   COMPILE_ARGUMENT_NOT_COMPOSITE: 'COMPILE_ARGUMENT_NOT_COMPOSITE',
   /** Something is chained onto the result of `pvl.compile(...)`, which takes no Modifier: chain it inside the call. */
   COMPILE_RESULT_MODIFIED: 'COMPILE_RESULT_MODIFIED',
-  /** A `pvl.compile(...)` argument uses something the compiler can't compile yet, such as a nested composite or `.refine()`. */
+  /** A `pvl.compile(...)` argument uses something the compiler can't compile yet, such as a union or `.refine()`. */
   UNSUPPORTED_SCHEMA: 'UNSUPPORTED_SCHEMA',
   /** The CLI was given an unknown flag, a flag value of the wrong type, or no command. */
   INVALID_ARGUMENTS: 'INVALID_ARGUMENTS',

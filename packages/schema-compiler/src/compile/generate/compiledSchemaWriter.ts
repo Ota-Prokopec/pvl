@@ -1,7 +1,7 @@
 // Turns a SchemaModel into the class a Compiled Schema is: a subclass of
 // `@pvl/schema`'s `Schema` whose single `_checkType` holds every check of
-// the whole Schema as straight-line code, nested Schemas inlined rather than
-// called (ADR-0023). Finds the emitter of the Schema `pvl.compile()` wraps,
+// the whole Schema as straight-line code, nested objects and arrays inlined
+// rather than called (ADR-0023). Finds the emitter of the Schema `pvl.compile()` wraps,
 // which does the emitting, and reports what can't be compiled yet.
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
@@ -9,11 +9,46 @@ import { DIAGNOSTIC_CODE } from '../../diagnostics/enums.js';
 import { COMPOSITE_FACTORIES, EMITTER_BY_FACTORY } from './consts.js';
 import { SCHEMA_FACTORY } from './enums.js';
 import { ChainableSchemaEmitter } from './emitters/chainableSchemaEmitter.js';
+import type { FindEmitter } from './emitters/emitScope.js';
 import type { EmitCompiledSchemaArgs, Emitter } from './emitters/emitter.js';
-import { FLAT_EMITTER_BY_FACTORY } from './emitters/flatEmitters.js';
 import type { SchemaMethodCall, SchemaModel } from './schemaModel.js';
 
-export type { EmitCompiledSchemaArgs } from './emitters/emitter.js';
+/** What `CompiledSchemaWriter.emitCompiledSchema` writes a class for. */
+export type WriteCompiledSchemaArgs = Omit<EmitCompiledSchemaArgs, 'findEmitter'>;
+
+/**
+ * The emitter of a Schema nested in a Compiled Schema. Only called on a
+ * SchemaModel `CompiledSchemaWriter.findUncompilableDiagnostics` found
+ * nothing in; throws for a Schema with no emitter, which is a bug in the
+ * compiler, never a user error.
+ *
+ * ```ts
+ * findEmitter(<pvl.string()>)                       // StringSchemaEmitter
+ * findEmitter(<pvl.union([pvl.string()])>)           // throws
+ * ```
+ */
+const findEmitter: FindEmitter = (schema) => {
+  const emitter = EMITTER_BY_FACTORY[schema.factory];
+  if (emitter === undefined) {
+    throw new Error(`A pvl.${schema.factory}() has no emitter.`);
+  }
+  return emitter;
+};
+
+/**
+ * The fields' or the element's Schemas of a composite, none for any other.
+ *
+ * ```ts
+ * findChildSchemas(<pvl.object({ a: pvl.string(), b: pvl.number() })>) // [<pvl.string()>, <pvl.number()>]
+ * findChildSchemas(<pvl.array(pvl.string())>)                          // [<pvl.string()>]
+ * ```
+ */
+const findChildSchemas = (schema: SchemaModel): ReadonlyArray<SchemaModel> => {
+  if (schema.factory === SCHEMA_FACTORY.OBJECT) {
+    return schema.shape.map(({ schema: fieldSchema }) => fieldSchema);
+  }
+  return schema.factory === SCHEMA_FACTORY.ARRAY ? [schema.element] : [];
+};
 
 /**
  * Writes the class a Compiled Schema is, through the emitter of the Schema
@@ -33,8 +68,8 @@ export class CompiledSchemaWriter {
    *
    * - COMPILE_ARGUMENT_NOT_COMPOSITE: it is a primitive, a literal or an enum.
    *   Reported alone, as nothing else of it is checked.
-   * - UNSUPPORTED_SCHEMA: it, or a field or element of it, uses what isn't
-   *   compiled yet: a nested composite, a union, `.coerce()`, `.refine()`,
+   * - UNSUPPORTED_SCHEMA: it, or a Schema nested in it at any depth, uses
+   *   what isn't compiled yet: a union, `.coerce()`, `.refine()`,
    *   `.transform()`, or `.optional()`/`.nullable()` on the wrapped Schema.
    * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's arguments aren't
    *   literals.
@@ -42,7 +77,8 @@ export class CompiledSchemaWriter {
    * ```ts
    * pvl.object({ name: pvl.string().min(3) })        // []
    * pvl.string()                                     // [COMPILE_ARGUMENT_NOT_COMPOSITE]
-   * pvl.object({ tags: pvl.array(pvl.string()) })   // [UNSUPPORTED_SCHEMA]
+   * pvl.object({ tags: pvl.array(pvl.string()) })   // []
+   * pvl.object({ ids: pvl.array(pvl.union([…])) })   // [UNSUPPORTED_SCHEMA]
    * pvl.array(pvl.number().refine((n) => n > 0))    // [UNSUPPORTED_SCHEMA]
    * ```
    */
@@ -65,17 +101,13 @@ export class CompiledSchemaWriter {
         }),
       ];
     }
-    const children =
-      schema.factory === SCHEMA_FACTORY.OBJECT
-        ? schema.shape.map(({ schema: fieldSchema }) => fieldSchema)
-        : schema.factory === SCHEMA_FACTORY.ARRAY
-          ? [schema.element]
-          : [];
     return [
       ...schema.calls.flatMap(
         (call) => CompiledSchemaWriter.findUncompilableCallDiagnostic(emitter, call, true) ?? [],
       ),
-      ...children.flatMap((child) => CompiledSchemaWriter.findUncompilableChildDiagnostics(child)),
+      ...findChildSchemas(schema).flatMap((child) =>
+        CompiledSchemaWriter.findUncompilableChildDiagnostics(child),
+      ),
     ];
   }
 
@@ -89,12 +121,8 @@ export class CompiledSchemaWriter {
    * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
    * ```
    */
-  public static emitCompiledSchema(args: EmitCompiledSchemaArgs): string {
-    const emitter = EMITTER_BY_FACTORY[args.schema.factory];
-    if (emitter === undefined) {
-      throw new Error(`A pvl.${args.schema.factory}() has no emitter.`); //TODO: Maybe make this as a diagnostic or remove all diagnostics and throw errors and catch them in compile() function
-    }
-    return emitter.emitCompiledSchema(args);
+  public static emitCompiledSchema(args: WriteCompiledSchemaArgs): string {
+    return findEmitter(args.schema).emitCompiledSchema({ ...args, findEmitter });
   }
 
   /**
@@ -131,16 +159,17 @@ export class CompiledSchemaWriter {
   }
 
   /**
-   * The diagnostics for a field's or an element's Schema: one per problem,
-   * none when it can be compiled.
+   * The diagnostics for a field's or an element's Schema and every Schema
+   * nested in it: one per problem, none when it can be compiled.
    *
    * ```ts
-   * findUncompilableChildDiagnostics(<pvl.string().min(3)>)    // []
-   * findUncompilableChildDiagnostics(<pvl.array(pvl.string())>) // [UNSUPPORTED_SCHEMA]
+   * findUncompilableChildDiagnostics(<pvl.string().min(3)>)                   // []
+   * findUncompilableChildDiagnostics(<pvl.array(pvl.object({ a: pvl.string() }))>) // []
+   * findUncompilableChildDiagnostics(<pvl.array(pvl.union([…]))>)             // [UNSUPPORTED_SCHEMA]
    * ```
    */
   private static findUncompilableChildDiagnostics(schema: SchemaModel): Diagnostic[] {
-    const emitter = FLAT_EMITTER_BY_FACTORY[schema.factory];
+    const emitter = EMITTER_BY_FACTORY[schema.factory];
     if (emitter === undefined) {
       return [
         createDiagnostic({
@@ -149,8 +178,13 @@ export class CompiledSchemaWriter {
         }),
       ];
     }
-    return schema.calls.flatMap(
-      (call) => CompiledSchemaWriter.findUncompilableCallDiagnostic(emitter, call, false) ?? [],
-    );
+    return [
+      ...schema.calls.flatMap(
+        (call) => CompiledSchemaWriter.findUncompilableCallDiagnostic(emitter, call, false) ?? [],
+      ),
+      ...findChildSchemas(schema).flatMap((child) =>
+        CompiledSchemaWriter.findUncompilableChildDiagnostics(child),
+      ),
+    ];
   }
 }

@@ -3,6 +3,7 @@
 // pipeline runs under, since a value it accepts skips every later check.
 // Every schema's emitter extends it, as every schema extends `ChainableSchema`.
 import type { SchemaMethodCall, SchemaModel } from '../schemaModel.js';
+import type { EmitScope } from './emitScope.js';
 import { Emitter } from './emitter.js';
 import { js, type EmitTarget, type SchemaTypes } from './utils.js';
 
@@ -62,13 +63,17 @@ export class ChainableSchemaEmitter extends Emitter {
    * only once every Modifier's condition holds.
    *
    * ```ts
-   * StringSchemaEmitter._emitChecks(<pvl.string().optional()>, { value: 'field0', path })
+   * StringSchemaEmitter._emitChecks(<pvl.string().optional()>, { value: 'field0', path }, scope)
    * // if (field0 !== undefined) {
    * //   if (typeof field0 !== "string") { … }
    * // }
    * ```
    */
-  public static override _emitChecks(schema: SchemaModel, target: EmitTarget): string {
+  public static override _emitChecks(
+    schema: SchemaModel,
+    target: EmitTarget,
+    scope: EmitScope,
+  ): string {
     const continuesWhen = schema.calls
       .filter((call) => ChainableSchemaEmitter._isModifier(call.name))
       .map((call) => this.emitCallText(call, target));
@@ -78,6 +83,7 @@ export class ChainableSchemaEmitter extends Emitter {
         calls: schema.calls.filter((call) => !ChainableSchemaEmitter._isModifier(call.name)),
       },
       target,
+      scope,
     );
     return continuesWhen.length === 0
       ? checks
@@ -89,12 +95,12 @@ export class ChainableSchemaEmitter extends Emitter {
    * `.optional()` and `.nullable()`, in chain order.
    *
    * ```ts
-   * StringSchemaEmitter._emitTypes(<pvl.string().nullable().optional()>)
+   * StringSchemaEmitter._emitTypes(<pvl.string().nullable().optional()>, scope)
    * // { input: 'string | null | undefined', output: <the same> }
    * ```
    */
-  public static override _emitTypes(schema: SchemaModel): SchemaTypes {
-    const { input, output } = super._emitTypes(schema);
+  public static override _emitTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
+    const { input, output } = super._emitTypes(schema, scope);
     return { input: widenType(input, schema.calls), output: widenType(output, schema.calls) };
   }
 }

@@ -280,7 +280,7 @@ const ERROR_CASES: ReadonlyArray<{
     code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
     files: {
       'src/schemas/user.ts': schemaFile(
-        'export const user = pvl.compile(pvl.object({ tags: pvl.array(pvl.string()) }));',
+        'export const user = pvl.compile(pvl.object({ tags: pvl.array(pvl.union([pvl.string()])) }));',
       ),
     },
     argv: ['--destination', 'out'],

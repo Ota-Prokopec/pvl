@@ -4,6 +4,7 @@
 // writing a Compiled Schema's class around the body a composite emitter
 // writes. A subclass only adds the templates and overrides the `_` hooks.
 import type { SchemaMethodCall, SchemaModel, StaticValue } from '../schemaModel.js';
+import { EmitScope, type FindEmitter } from './emitScope.js';
 import { js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';
 
 const INDENT = '  ' as const;
@@ -36,6 +37,8 @@ export type EmitCompiledSchemaArgs = {
   className: string;
   /** The line of the `pvl.compile()` call, named in the class's comment. */
   line: number;
+  /** The emitter of each Schema nested in `schema`. */
+  findEmitter: FindEmitter;
 };
 
 /**
@@ -51,8 +54,8 @@ export type EmitCompiledSchemaArgs = {
  */
 export class Emitter {
   /**
-   * The type check of a flat Schema at a target, taking the target and then
-   * the factory's own argument, if it reads one. Every flat emitter
+   * The type check of a Schema at a target, taking the target and then
+   * the factory's own argument, if it reads one. Every schema's emitter
    * overrides it; this one throws, which is a bug in an emitter, never a
    * user error.
    */
@@ -72,13 +75,13 @@ export class Emitter {
   }
 
   /**
-   * Every check of a flat field or element at `target`, inlined, each
-   * failure pushed onto `issues`: the type check, then its Constraints in
-   * chain order once it has passed. `ChainableSchemaEmitter` wraps it in the
+   * Every check of a field or element at `target`, inlined, each failure
+   * pushed onto `issues`: the type check, then what `_emitTypedChecks`
+   * writes once it has passed. `ChainableSchemaEmitter` wraps it in the
    * Modifiers' guard.
    *
    * ```ts
-   * StringSchemaEmitter._emitChecks(<pvl.string().min(3)>, { value: 'field0', path })
+   * StringSchemaEmitter._emitChecks(<pvl.string().min(3)>, { value: 'field0', path }, scope)
    * // if (typeof field0 !== "string") {
    * //   issues.push({ code: "INVALID_TYPE", … });
    * // } else {
@@ -88,12 +91,47 @@ export class Emitter {
    * // }
    * ```
    */
-  public static _emitChecks(schema: SchemaModel, target: EmitTarget): string {
-    const constraintChecks = schema.calls.map((call) => this.emitCallCheck(call, target));
+  public static _emitChecks(schema: SchemaModel, target: EmitTarget, scope: EmitScope): string {
     const typeChecked = Emitter.emitPushIssueIfFails(this._emitTypeCheck(schema, target));
-    return constraintChecks.length === 0
+    const typedChecks = this._emitTypedChecks(schema, target, scope);
+    return typedChecks === ''
       ? typeChecked
-      : `${typeChecked} else {\n${Emitter.indent(constraintChecks.map((check) => Emitter.emitPushIssueIfFails(check)).join('\n'))}\n}`;
+      : `${typeChecked} else {\n${Emitter.indent(typedChecks)}\n}`;
+  }
+
+  /**
+   * What is checked of a field or element at `target` once its type check
+   * has passed: its Constraints in chain order, or nothing. A composite's
+   * emitter overrides it to inline its fields' or element's checks and put
+   * the output it builds back on `target`.
+   *
+   * ```ts
+   * StringSchemaEmitter._emitTypedChecks(<pvl.string().min(3)>, { value: 'field0', path }, scope)
+   * // if (field0.length < 3) {
+   * //   issues.push({ code: "TOO_SMALL", … });
+   * // }
+   * StringSchemaEmitter._emitTypedChecks(<pvl.string()>, { value: 'field0', path }, scope) // ''
+   * ```
+   */
+  public static _emitTypedChecks(
+    ...[schema, target]: [schema: SchemaModel, target: EmitTarget, scope: EmitScope]
+  ): string {
+    return schema.calls
+      .map((call) => Emitter.emitPushIssueIfFails(this.emitCallCheck(call, target)))
+      .join('\n');
+  }
+
+  /**
+   * How a field's or an element's value is declared: `const`, unless its
+   * checks replace it with the output they build, as a composite's do.
+   *
+   * ```ts
+   * StringSchemaEmitter._spellValueDeclaration() // 'const'
+   * ObjectSchemaEmitter._spellValueDeclaration() // 'let'
+   * ```
+   */
+  public static _spellValueDeclaration(): 'const' | 'let' {
+    return 'const';
   }
 
   /**
@@ -101,7 +139,7 @@ export class Emitter {
    * compiles at the root. Only a composite's emitter overrides it; this one
    * throws, which is a bug in the compiler, never a user error.
    */
-  public static _emitBody(schema: SchemaModel): string {
+  public static _emitBody(...[schema]: [schema: SchemaModel, scope: EmitScope]): string {
     throw new Error(`A pvl.${schema.factory}() can't be compiled at the root.`);
   }
 
@@ -110,7 +148,7 @@ export class Emitter {
    * them. Defaults to the factory's name, which is the type of a primitive
    * (`pvl.string()` types as `string`); the other emitters override it.
    */
-  public static _spellTypes(schema: SchemaModel): SchemaTypes {
+  public static _spellTypes(...[schema]: [schema: SchemaModel, scope: EmitScope]): SchemaTypes {
     return { input: schema.factory, output: schema.factory };
   }
 
@@ -119,8 +157,8 @@ export class Emitter {
    * Schema's own inferred types are. `ChainableSchemaEmitter` widens them
    * for its Modifiers.
    */
-  public static _emitTypes(schema: SchemaModel): SchemaTypes {
-    return this._spellTypes(schema);
+  public static _emitTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
+    return this._spellTypes(schema, scope);
   }
 
   /**
@@ -193,8 +231,14 @@ export class Emitter {
    * // }
    * ```
    */
-  public static emitCompiledSchema({ schema, className, line }: EmitCompiledSchemaArgs): string {
-    const { input, output } = this._emitTypes(schema);
+  public static emitCompiledSchema({
+    schema,
+    className,
+    line,
+    findEmitter,
+  }: EmitCompiledSchemaArgs): string {
+    const scope = new EmitScope(findEmitter);
+    const { input, output } = this._emitTypes(schema, scope);
 
     return [
       `// pvl.compile() on line ${String(line)}`,
@@ -202,7 +246,7 @@ export class Emitter {
         `class ${className} extends PvlSchema<${input}, ${output}>`,
         Emitter.emitBlock(
           'override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown>',
-          this._emitBody(schema),
+          this._emitBody(schema, scope),
         ),
       ),
     ].join('\n');
