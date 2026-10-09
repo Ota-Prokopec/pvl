@@ -9,6 +9,7 @@ At the type level it returns a plain `Schema<InferInput<x>, InferOutput<x>>`; th
 What keeps that swap working, and must stay aligned with `@pvl/schema-compiler`:
 
 - **Fields, elements and union members are `@pvl/schema` Schemas only**, typed as `Schema` so a transformed or compiled child fits, and called through their own `_validate` with the parent's path extended. A Standard Schema from another library is rejected at the type level ([ADR-0018](../../adr/0018-composite-fields-are-pvl-schemas-only.md)).
-- **`_checkType` is the one hook a Compiled Schema fills in.** Every Modifier is baked into the emitted code, so its modifier arrays stay empty and the `_validate` it inherits reduces to `_checkType`, which must report every `Issue` at the `path` it is handed.
+- **`_checkType` is the one hook a Compiled Schema fills in.** Every Modifier is baked into the emitted code, so its modifier arrays stay empty and the `_validate` it inherits reduces to `_checkType`, which must report every `Issue` at the `path` it is handed. It holds the checks of the whole tree, nested Schemas inlined rather than called ([ADR-0023](../../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)).
+- **Default Issue messages are shared.** Each schema file exports an `@internal` `<SCHEMA>_SCHEMA_ISSUE_MESSAGE` object, one function per method, which the schema class calls at runtime and the compiler calls to write each message as a literal.
 
 See [`schema-compiler/compilation.md`](../schema-compiler/compilation.md) for what the compiler does with a marked schema.

@@ -75,6 +75,9 @@ importers:
       '@pvl/schema':
         specifier: workspace:*
         version: link:../../packages/schema
+      '@pvl/schema-compiler':
+        specifier: workspace:*
+        version: link:../../packages/schema-compiler
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -91,6 +94,9 @@ importers:
       jiti:
         specifier: 2.7.0
         version: 2.7.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -227,7 +233,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.1
-        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/schema-compiler:
     dependencies:
@@ -237,6 +243,12 @@ importers:
       '@repo/types':
         specifier: workspace:*
         version: link:../types
+      dedent:
+        specifier: ^1.7.2
+        version: 1.7.2
+      minimatch:
+        specifier: ^10.2.6
+        version: 10.2.6
       ts-morph:
         specifier: ^28.0.0
         version: 28.0.0
@@ -259,6 +271,9 @@ importers:
       eslint:
         specifier: 10.9.1
         version: 10.9.1(jiti@2.7.0)(supports-color@5.5.0)
+      fast-check:
+        specifier: ^4.10.1
+        version: 4.10.1
       jiti:
         specifier: 2.7.0
         version: 2.7.0
@@ -273,7 +288,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.1
-        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/types:
     devDependencies:
@@ -1808,6 +1823,14 @@ packages:
 
   decode-named-character-reference@1.3.0:
     resolution: {integrity: sha512-GtpQYB283KrPp6nRw50q3U9/VfOutZOe103qlN7BPP6Ad27xYnOIWv4lPzo8HCAL+mMZofJ9KEy30fq6MfaK6Q==}
+
+  dedent@1.7.2:
+    resolution: {integrity: sha512-WzMx3mW98SN+zn3hgemf4OzdmyNhhhKz5Ay0pUfQiMQ3e1g+xmTJWp/pKdwKVXhdSkAEGIIzqeuWrL3mV/AXbA==}
+    peerDependencies:
+      babel-plugin-macros: ^3.1.0
+    peerDependenciesMeta:
+      babel-plugin-macros:
+        optional: true
 
   deep-is@0.1.4:
     resolution: {integrity: sha512-oIPzksmTg4/MriiaYGO+okXDT7ztn/w3Eptv/+gSIdMdKsJo0u4CfYNFJPy+4SKMuCqGw2wxnA+URMg3t8a/bQ==}
@@ -4634,6 +4657,8 @@ snapshots:
   decode-named-character-reference@1.3.0:
     dependencies:
       character-entities: 2.0.2
+
+  dedent@1.7.2: {}
 
   deep-is@0.1.4: {}
 

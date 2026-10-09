@@ -889,6 +889,115 @@ describe('compile(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe('previous output');
   });
 
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument or a method argument that is not written in the file', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        "import { user } from './user.js';",
+        '',
+        'const makeSchema = () => pvl.object({});',
+        'let limit = 3;',
+        'export const imported = pvl.compile(user);',
+        'export const built = pvl.compile(makeSchema());',
+        'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
+        'export const variableLimit = pvl.compile(pvl.array(pvl.string()).max(limit));',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 4 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        file: join(root, path),
+      })),
+    );
+  });
+
+  it('COMPILE_ARGUMENT_NOT_COMPOSITE: pvl.compile() wraps a primitive, a literal or an enum', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'export const name = pvl.compile(pvl.string().min(1));',
+        "export const kind = pvl.compile(pvl.literal('user'));",
+        "export const role = pvl.compile(pvl.enum(['A', 'B']));",
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 3 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
+        file: join(root, path),
+      })),
+    );
+  });
+
+  it('COMPILE_RESULT_MODIFIED: a Modifier chained onto the result, but not validate()', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'export const user = pvl.compile(pvl.object({})).optional();',
+        'export const tags = pvl.compile(pvl.array(pvl.string())).min(1);',
+        'export const checked = pvl.compile(pvl.object({})).validate({});',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 2 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
+        file: join(root, path),
+      })),
+    );
+  });
+
+  it('UNSUPPORTED_SCHEMA: what is not compiled yet, one diagnostic per problem', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'export const nested = pvl.compile(pvl.object({ tags: pvl.array(pvl.string()) }));',
+        'export const refined = pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)));',
+        'export const coerced = pvl.compile(pvl.object({ age: pvl.number().coerce() }));',
+        'export const optionalRoot = pvl.compile(pvl.object({}).optional());',
+        'export const transformed = pvl.compile(pvl.array(pvl.string()).transform((v) => v.length));',
+        'export const union = pvl.compile(pvl.union([pvl.string(), pvl.number()]));',
+        "export const twice = pvl.compile(pvl.object({ age: pvl.number().coerce(), name: pvl.string().refine((v) => v !== '') }));",
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await compile({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 8 }, () => ({
+        code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+        file: join(root, path),
+      })),
+    );
+  });
+
   it('reports every error from one run together', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({ include: ['src/**/*.ts'], destination: 'src/out' }),

@@ -81,6 +81,18 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
   [Key in keyof Shape]: InferOutput<Shape[Key]>;
 }>;
 
+/**
+ * The default message of every Issue `ObjectSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const OBJECT_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected object',
+  strict: (key: string): string => `Unrecognized key "${key}"`,
+} as const;
+
 // What `.passthrough()` does to an output type that a modifier may already
 // have widened. Distributive, so `{ … } | undefined` gains the index
 // signature on the object branch and leaves the `undefined` branch alone.
@@ -126,7 +138,7 @@ const unknownKeysStrictModifier = (
         new Issue(
           ISSUE_CODE.UNRECOGNIZED_KEY,
           [...path, key],
-          options?.message ?? `Unrecognized key "${key}"`,
+          options?.message ?? OBJECT_SCHEMA_ISSUE_MESSAGE.strict(key),
         ),
     );
     return issues.length > 0 ? { issues } : null;
@@ -297,7 +309,9 @@ export class ObjectSchema<
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected object')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, OBJECT_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
 

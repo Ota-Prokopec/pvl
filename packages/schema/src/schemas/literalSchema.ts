@@ -20,6 +20,18 @@ import { ChainableSchema } from './chainableSchema.js';
  */
 export type PossibleLiteralValue = string | number | boolean | bigint;
 
+/**
+ * The default message of every Issue `LiteralSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const LITERAL_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (literalValue: PossibleLiteralValue): string =>
+    `Expected ${Issue.formatIssueMessageValue(literalValue)}`,
+} as const;
+
 interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends SchemaKind<
   LiteralSchema<LiteralValue, unknown, unknown>
 > {
@@ -96,7 +108,7 @@ export class LiteralSchema<
           new Issue(
             ISSUE_CODE.INVALID_VALUE,
             path,
-            `Expected ${Issue.formatIssueMessageValue(this.literalValue)}`,
+            LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(this.literalValue),
           ),
         ],
       };

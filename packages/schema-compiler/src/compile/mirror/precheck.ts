@@ -36,7 +36,7 @@ export class Precheck {
     tsMorphProject: Project,
     scannedModules: ReadonlyArray<ScannedModule>,
   ): Diagnostic[] {
-    return scannedModules.flatMap(({ path, sourceFile }) =>
+    return scannedModules.flatMap(({ absolutePath, sourceFile }) =>
       tsMorphProject
         .getProgram()
         .getSyntacticDiagnostics(sourceFile)
@@ -45,7 +45,7 @@ export class Precheck {
           createDiagnostic({
             code: DIAGNOSTIC_CODE.PARSE_FAILED,
             message: `This file doesn't parse, so it can't be mirrored: ${ts.flattenDiagnosticMessageText(syntaxDiagnostic.compilerObject.messageText, ' ')} (line ${String(syntaxDiagnostic.getLineNumber())}).`,
-            file: path,
+            file: absolutePath,
           }),
         ),
     );
@@ -66,12 +66,12 @@ export class Precheck {
     rootDirectory: string,
   ): Diagnostic[] {
     return scannedModules
-      .filter(({ relativePath }) => isOutsideRootDirectory(relativePath))
-      .map(({ path }) =>
+      .filter((scannedModule) => isOutsideRootDirectory(scannedModule))
+      .map(({ absolutePath }) =>
         createDiagnostic({
           code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
           message: `This file isn't under rootDir (${rootDirectory}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
-          file: path,
+          file: absolutePath,
         }),
       );
   }
@@ -90,7 +90,10 @@ export class Precheck {
    * export const user = pvl.object({ … });     // fine
    * ```
    */
-  public static findDefaultExportsDiagnostics({ path, sourceFile }: ScannedModule): Diagnostic[] {
+  public static findDefaultExportsDiagnostics({
+    absolutePath,
+    sourceFile,
+  }: ScannedModule): Diagnostic[] {
     return sourceFile
       .getStatements()
       .filter((statement) => Precheck.exportsDefault(statement))
@@ -98,7 +101,7 @@ export class Precheck {
         createDiagnostic({
           code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
           message: `The statement on line ${String(statement.getStartLineNumber())} exports a default, which would have no name in the barrel. Export it by name instead.`,
-          file: path,
+          file: absolutePath,
         }),
       );
   }
@@ -121,8 +124,8 @@ export class Precheck {
   ): Diagnostic[] {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
-    for (const { path, relativePath, sourceFile } of [...scannedModules].sort((first, second) =>
-      first.relativePath < second.relativePath ? -1 : 1,
+    for (const { absolutePath, relative, sourceFile } of [...scannedModules].sort(
+      (first, second) => (first.relative.path < second.relative.path ? -1 : 1),
     )) {
       for (const [exportedName, declarations] of sourceFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
@@ -130,13 +133,16 @@ export class Precheck {
           continue;
         }
         if (firstExport === undefined) {
-          firstExportByExportedName.set(exportedName, { relativePath, declarations });
+          firstExportByExportedName.set(exportedName, {
+            relativePath: relative.path,
+            declarations,
+          });
         } else if (!Precheck.isSameBinding(firstExport.declarations, declarations)) {
           duplicateExportDiagnostics.push(
             createDiagnostic({
               code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
               message: `\`${exportedName}\` is also exported by ${firstExport.relativePath}, bound to something else, so the barrel can't re-export both. Rename one of them.`,
-              file: path,
+              file: absolutePath,
             }),
           );
         }
@@ -155,7 +161,7 @@ export class Precheck {
    *   `console.log('loaded');`, which runs again wherever the mirror is
    *   loaded.
    */
-  public static findWarningsDiagnostics({ path, sourceFile }: ScannedModule): Diagnostic[] {
+  public static findWarningsDiagnostics({ absolutePath, sourceFile }: ScannedModule): Diagnostic[] {
     const topLevelStatements = sourceFile.getStatements();
     const exportsNothingWarnings = Precheck.hasExport(topLevelStatements)
       ? []
@@ -164,7 +170,7 @@ export class Precheck {
             code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
             message:
               'This file exports nothing, so nothing can be imported from its mirrored module or the barrel.',
-            file: path,
+            file: absolutePath,
           }),
         ];
 
@@ -174,7 +180,7 @@ export class Precheck {
         createDiagnostic({
           code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
           message: `The top-level statement on line ${String(statement.getStartLineNumber())} is copied into the mirror, so it runs again wherever the mirrored module is loaded.`,
-          file: path,
+          file: absolutePath,
         }),
       );
     return [...exportsNothingWarnings, ...sideEffectWarnings];

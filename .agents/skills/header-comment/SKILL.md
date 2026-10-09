@@ -12,9 +12,9 @@ Write the header comment for the declaration named `$ARGUMENTS`. The rules for w
 3. **Pick the form** from the declaration's kind and visibility:
    - Exported in a published package's barrel: `/** */` TSDoc for a consumer, per [`docs/standards/tsdoc.md`](../../../docs/standards/tsdoc.md).
    - Any other exported declaration: `/** */`.
-   - Not exported: `//` lines directly above it.
+   - Not exported, or a class member: `/** */` too. Never `//`: an editor shows only a JSDoc comment on hover.
 4. **Write the comment** for the kind:
-   - **Function**: a first line saying what it returns or changes, in the domain's words (a predicate opens with "Whether"). Then examples, each with its result beside it, covering what it handles, what it reports or rewrites and into what, and what it ignores or blocks. Wrap them in a ```` ```ts ```` fence in a `/** */` comment and indent them in a `//` comment.
+   - **Function**: a first line saying what it returns or changes, in the domain's words (a predicate opens with "Whether"). Then examples, each with its result beside it, covering what it handles, what it reports or rewrites and into what, and what it ignores or blocks. Wrap them in a ```` ```ts ```` fence inside the `/** */` comment, and write a step list as a Markdown list.
    - **Type**: one sentence saying what the type models and who produces or consumes it. Add a short example value when the shape alone doesn't show it. A property whose meaning isn't obvious from its name gets its own one-line comment.
    - **Variable or constant**: one line saying what the value is and why it has that value, when the name and initializer don't already say.
 5. **Verify every example** against the code and its tests. It is done when each example's result is one the code produces.
@@ -35,10 +35,14 @@ export const isRelativeModuleSpecifier = (moduleSpecifier: string): boolean => {
 ```
 
 ```ts
-// Whether an import declaration only runs its module and binds no name.
-//
-//   import './setup.js';                  // true
-//   import { user } from './user.js';     // false
+/**
+ * Whether an import declaration only runs its module and binds no name.
+ *
+ * ```ts
+ * import './setup.js';              // true
+ * import { user } from './user.js'; // false
+ * ```
+ */
 const isSideEffectOnlyImport = (declaration: ImportDeclaration): boolean => {
 ```
 

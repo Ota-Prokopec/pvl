@@ -4,14 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "compile": "pvl compile",
+    "start": "run-s compile start:run",
+    "start:run": "tsx src/index.ts",
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit"
+    "check-types": "run-s compile check-types:tsc",
+    "check-types:tsc": "tsc --noEmit"
   },
   "dependencies": {
-    "@pvl/schema": "workspace:*"
+    "@pvl/schema": "workspace:*",
+    "@pvl/schema-compiler": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -19,6 +21,7 @@
     "@types/node": "^26.4.1",
     "eslint": "10.9.1",
     "jiti": "2.7.0",
+    "npm-run-all": "^4.1.5",
     "tsx": "^4.23.15",
     "typescript": "6.0.3"
   }

@@ -5,6 +5,21 @@ import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
 
+/**
+ * The default message of every Issue `StringSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const STRING_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected string',
+  min: (minLength: number): string => `String must contain at least ${minLength} character(s)`,
+  max: (maxLength: number): string => `String must contain at most ${maxLength} character(s)`,
+  length: (exactLength: number): string =>
+    `String must contain exactly ${exactLength} character(s)`,
+} as const;
+
 interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
   readonly type: StringSchema<this['Input'], this['Output']>;
 }
@@ -62,7 +77,7 @@ export class StringSchema<Input = string, Output = string> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_SMALL,
                   path,
-                  options?.message ?? `String must contain at least ${minLength} character(s)`,
+                  options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
                 ),
               ],
             };
@@ -92,7 +107,7 @@ export class StringSchema<Input = string, Output = string> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_BIG,
                   path,
-                  options?.message ?? `String must contain at most ${maxLength} character(s)`,
+                  options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
                 ),
               ],
             };
@@ -123,7 +138,7 @@ export class StringSchema<Input = string, Output = string> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.INVALID_LENGTH,
                   path,
-                  options?.message ?? `String must contain exactly ${exactLength} character(s)`,
+                  options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
                 ),
               ],
             };
@@ -140,7 +155,9 @@ export class StringSchema<Input = string, Output = string> extends ChainableSche
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<string> {
     if (typeof value !== 'string') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected string')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, STRING_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
     return { value };

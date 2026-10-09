@@ -5,6 +5,20 @@ import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
 
+/**
+ * The default message of every Issue `NumberSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const NUMBER_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected number',
+  min: (minValue: number): string => `Number must be greater than or equal to ${minValue}`,
+  max: (maxValue: number): string => `Number must be less than or equal to ${maxValue}`,
+  int: (): string => 'Number must be an integer',
+} as const;
+
 interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
   readonly type: NumberSchema<this['Input'], this['Output']>;
 }
@@ -67,7 +81,7 @@ export class NumberSchema<Input = number, Output = number> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_SMALL,
                   path,
-                  options?.message ?? `Number must be greater than or equal to ${minValue}`,
+                  options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.min(minValue),
                 ),
               ],
             };
@@ -97,7 +111,7 @@ export class NumberSchema<Input = number, Output = number> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.TOO_BIG,
                   path,
-                  options?.message ?? `Number must be less than or equal to ${maxValue}`,
+                  options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.max(maxValue),
                 ),
               ],
             };
@@ -129,7 +143,7 @@ export class NumberSchema<Input = number, Output = number> extends ChainableSche
                 new Issue(
                   ISSUE_CODE.NOT_INTEGER,
                   path,
-                  options?.message ?? 'Number must be an integer',
+                  options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.int(),
                 ),
               ],
             };
@@ -146,7 +160,9 @@ export class NumberSchema<Input = number, Output = number> extends ChainableSche
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<number> {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected number')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, NUMBER_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
     return { value };

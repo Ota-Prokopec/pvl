@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { argsTypeAboveFunction } from '../src/eslint/rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from '../src/eslint/rules/barrelExportsOnly.ts';
+import { classFileName } from '../src/eslint/rules/classFileName.ts';
 import { constantShape } from '../src/eslint/rules/constantShape.ts';
 import { enumShape } from '../src/eslint/rules/enumShape.ts';
 import { noImportAlias } from '../src/eslint/rules/noImportAlias.ts';
@@ -10,6 +11,32 @@ import { noJavascriptFiles } from '../src/eslint/rules/noJavascriptFiles.ts';
 import { noLocalFunctions } from '../src/eslint/rules/noLocalFunctions.ts';
 import { noRegex } from '../src/eslint/rules/noRegex.ts';
 import { createFixture, typescriptTester } from './helpers.ts';
+
+typescriptTester.run('class-file-name', classFileName, {
+  valid: [
+    { code: 'export class DestinationWriter {}', filename: '/repo/src/destinationWriter.ts' },
+    { code: 'export default class Precheck {}', filename: '/repo/src/precheck.ts' },
+    { code: 'class SchemaReader {}\nexport const read = 1;', filename: '/repo/src/readSchema.ts' },
+    { code: 'export default class {}', filename: '/repo/src/anything.ts' },
+  ],
+  invalid: [
+    {
+      code: 'export class DestinationWriter {}',
+      filename: '/repo/src/destination.ts',
+      errors: [
+        {
+          messageId: 'fileName',
+          data: { name: 'DestinationWriter', expected: 'destinationWriter' },
+        },
+      ],
+    },
+    {
+      code: 'export default class Precheck {}',
+      filename: '/repo/src/Precheck.ts',
+      errors: [{ messageId: 'fileName', data: { name: 'Precheck', expected: 'precheck' } }],
+    },
+  ],
+});
 
 typescriptTester.run('no-interface', noInterface, {
   valid: [
