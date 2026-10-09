@@ -1,11 +1,12 @@
 // The code a `NumberSchema` compiles to, one static method per method of
 // `NumberSchema` it mirrors.
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type IssueEditableProps } from '@pvl/schema';
+import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitIssue, emitLiteral, js, type EmitTarget, type EmittedCheck } from './utils.js';
 
-export class NumberSchemaEmitter {
+export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
-  public static _checkType({ value, path }: EmitTarget): EmittedCheck {
+  public static override _checkType({ value, path }: EmitTarget): EmittedCheck {
     return {
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
       issue: emitIssue(ISSUE_CODE.INVALID_TYPE, NUMBER_SCHEMA_ISSUE_MESSAGE._checkType(), path),

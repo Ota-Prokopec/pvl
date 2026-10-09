@@ -3,10 +3,11 @@
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { hasError } from '../../diagnostics/diagnostic.js';
 import { BARREL_FILE_NAME, GENERATED_HEADER } from '../consts.js';
+import type { Destination } from '../destination.js';
 import {
   applyCompiledSchemas,
-  readCompiledSchemas,
-  type ReadCompiledSchemasPayload,
+  readCompileMarkedSchemas,
+  type ReadCompileMarkedSchemasPayload,
 } from '../generate/compiledSchemas.js';
 import { renderBarrel } from './barrel.js';
 import { rewriteModuleSpecifiers } from './moduleSpecifiers.js';
@@ -35,7 +36,7 @@ export type MirrorScannedFilesArgs = {
   /** The Root Directory's absolute path, which the mirror reproduces. */
   rootDirectory: string;
   /** The Destination Directory's absolute path, which module specifiers are rewritten against. */
-  destinationDirectory: string;
+  destination: Destination;
 };
 
 /**
@@ -68,14 +69,14 @@ export type MirrorScannedFilesArgs = {
  *   checked only for a generated barrel.
  * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_NOT_COMPOSITE,
  *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
- *   can't be compiled (see readCompiledSchemas).
+ *   can't be compiled (see readCompileMarkedSchemas).
  * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
  */
 export const mirrorScannedFiles = ({
   scannedFilePaths,
   baseDirectory,
   rootDirectory,
-  destinationDirectory,
+  destination,
 }: MirrorScannedFilesArgs): MirrorScannedFilesPayload => {
   const { tsMorphProject, diagnostics: tsConfigDiagnostics } = TsMorphProject.create(baseDirectory);
   if (tsMorphProject === undefined) {
@@ -86,17 +87,25 @@ export const mirrorScannedFiles = ({
     tsMorphProject,
     scannedFilePaths,
     rootDirectory,
-    destinationDirectory,
+    destinationDirectory: destination.relativePath, //TODO: readScannedModules should take whole Destination type
   });
 
-  const parseFailures = Precheck.findParseFailuresDiagnostics(tsMorphProject, scannedModules);
-  const unparsedFilePaths = new Set(parseFailures.map(({ file }) => file));
+  /**  TS parsing */
+  const parseFailuresDiagnostics = Precheck.findParseFailuresDiagnostics(
+    tsMorphProject,
+    scannedModules,
+  );
+  const unparsedFilePaths = new Set(parseFailuresDiagnostics.map(({ file }) => file));
   const parsedModules = scannedModules.filter(({ path }) => !unparsedFilePaths.has(path));
+
+  /** Do scanned files include a barrel file (index.ts) */
   const hasScannedBarrel = scannedModules.some(
     ({ relativePath }) => relativePath === BARREL_FILE_NAME,
   );
+
+  /** Run diagnostis */
   const diagnostics = [
-    ...parseFailures,
+    ...parseFailuresDiagnostics,
     ...Precheck.findFilesOutsideRootDirectoryDiagnostics(scannedModules, rootDirectory),
     ...parsedModules.flatMap((scannedModule) =>
       Precheck.findDefaultExportsDiagnostics(scannedModule),
@@ -104,11 +113,16 @@ export const mirrorScannedFiles = ({
     ...(hasScannedBarrel ? [] : Precheck.findDuplicateExportsDiagnostics(parsedModules)),
     ...parsedModules.flatMap((scannedModule) => Precheck.findWarningsDiagnostics(scannedModule)),
   ];
-  const compiledSchemasByPath: ReadonlyMap<string, ReadCompiledSchemasPayload> = new Map(
-    parsedModules.map((scannedModule) => [scannedModule.path, readCompiledSchemas(scannedModule)]),
+  const compileMarkedSchemasByPath: ReadonlyMap<string, ReadCompileMarkedSchemasPayload> = new Map(
+    parsedModules.map((scannedModule) => [
+      scannedModule.path,
+      readCompileMarkedSchemas(scannedModule),
+    ]),
   );
-  for (const { diagnostics: compiledSchemaDiagnostics } of compiledSchemasByPath.values()) {
-    diagnostics.push(...compiledSchemaDiagnostics);
+  for (const {
+    diagnostics: compileMarkedSchemaDiagnostics,
+  } of compileMarkedSchemasByPath.values()) {
+    diagnostics.push(...compileMarkedSchemaDiagnostics);
   }
   if (hasError(diagnostics)) {
     return { diagnostics, mirroredFiles: [] };
@@ -120,7 +134,7 @@ export const mirrorScannedFiles = ({
   const mirroredModules: MirroredFile[] = scannedModules.map((scannedModule) => {
     applyCompiledSchemas(
       scannedModule.sourceFile,
-      compiledSchemasByPath.get(scannedModule.path)?.sites ?? [],
+      compileMarkedSchemasByPath.get(scannedModule.path)?.sites ?? [],
     );
     rewriteModuleSpecifiers({ tsMorphProject, scannedModule, mirroredPathByScannedPath });
     return {

@@ -969,7 +969,7 @@ describe('compile(): diagnostics', () => {
     );
   });
 
-  it('UNSUPPORTED_SCHEMA: what is not compiled yet, one diagnostic per pvl.compile()', async () => {
+  it('UNSUPPORTED_SCHEMA: what is not compiled yet, one diagnostic per problem', async () => {
     const path = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -982,6 +982,7 @@ describe('compile(): diagnostics', () => {
         'export const optionalRoot = pvl.compile(pvl.object({}).optional());',
         'export const transformed = pvl.compile(pvl.array(pvl.string()).transform((v) => v.length));',
         'export const union = pvl.compile(pvl.union([pvl.string(), pvl.number()]));',
+        "export const twice = pvl.compile(pvl.object({ age: pvl.number().coerce(), name: pvl.string().refine((v) => v !== '') }));",
         '',
       ].join('\n'),
     });
@@ -990,7 +991,7 @@ describe('compile(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 6 }, () => ({
+      Array.from({ length: 8 }, () => ({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         file: join(root, path),
       })),

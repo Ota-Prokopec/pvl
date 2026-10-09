@@ -14,9 +14,6 @@ import {
 import { SCHEMA_FACTORY, type SchemaFactory } from './enums.js';
 import type { ObjectField, SchemaMethodCall, SchemaModel, StaticValue } from './schemaModel.js';
 
-/** The Schema read, or the first piece of source that couldn't be. */
-export type ReadSchemaPayload = { schema: SchemaModel } | { unresolvedNode: Node };
-
 // Thrown from anywhere in the walk at the first node that can't be read, and
 // caught by readSchema.
 class UnresolvedNodeError extends Error {
@@ -46,37 +43,69 @@ const isEnumMember = (value: StaticValue): value is EnumMember =>
 
 class SchemaReader {
   private readonly sourceFile: SourceFile;
-  private readonly pvlNames: ReadonlySet<string>;
+  private readonly pvlImportLocalNames: ReadonlySet<string>;
   // The `const`s being followed, so a cycle (`const a = b; const b = a;`)
   // is unresolvable rather than endless.
   private readonly followedConstNames = new Set<string>();
 
-  public constructor({ sourceFile, pvlNames }: Omit<ReadSchemaArgs, 'expression'>) {
+  public constructor({ sourceFile, pvlImportLocalNames }: Omit<ReadSchemaArgs, 'expression'>) {
     this.sourceFile = sourceFile;
-    this.pvlNames = pvlNames;
+    this.pvlImportLocalNames = pvlImportLocalNames;
   }
 
-  // `expression` as a Schema: a `pvl.*` factory call with methods chained
-  // onto it, or a `const` holding one.
-  //
-  //   pvl.string().min(3)         // { factory: 'string', calls: [min(3)] }
-  //   user                        // what `const user = …` holds
-  //   pvl.compile(pvl.string())   // { factory: 'string' }: compile() is identity
-  //   makeSchema()                // unresolvable
+  /**
+   * `expression` as a Schema: a `pvl.*` factory call with methods chained
+   * onto it, or a `const` holding one. Reads the chain from the outside in:
+   *
+   * 1. Sees through parentheses, `as const` and a top-level `const`.
+   * 2. Requires a call on a property access, `<receiver>.<name>(…)`.
+   * 3. If the receiver is `pvl`, the call is the factory and the chain's
+   *    start: `readFactoryCall` reads it.
+   * 4. Otherwise `<name>` is a method: reads the receiver as a Schema the
+   *    same way, then appends the method call to its `calls`, with its
+   *    arguments as literals, or `undefined` when one isn't.
+   *
+   * ```ts
+   * pvl.string().min(3)       // { factory: 'string', calls: [min(3)] }
+   * pvl.string().refine(isOk) // { factory: 'string', calls: [refine(args: undefined)] }
+   * user                      // what `const user = …` holds
+   * pvl.compile(pvl.string()) // { factory: 'string' }: compile() is identity
+   * makeSchema()              // unresolvable: not a property access
+   * z.string()                // unresolvable: `z` is no `pvl` name nor a local const
+   * ```
+   */
+  // `expression` is the source node to read, as written: `pvl.string().min(3)`,
+  // `user`, `(pvl.string())`. It may still be an identifier or wrapped.
   public readSchemaExpression(expression: Node): SchemaModel {
+    // `node` is `expression` with the wrapping seen through: the identifier
+    // replaced by its `const` initializer, parentheses and `as const` dropped.
+    // `const user = pvl.string()` makes `user` read as `pvl.string()`.
     const node = this.followConst(expression);
     if (!Node.isCallExpression(node)) {
       throw new UnresolvedNodeError(node);
     }
+
+    // `callee` is what `node` calls, the part before the parentheses. For
+    // `pvl.string().min(3)` it is `pvl.string().min`. It must be a property
+    // access, `<receiver>.<name>`; a bare `makeSchema()` is unresolvable.
     const callee = node.getExpression();
     if (!Node.isPropertyAccessExpression(callee)) {
       throw new UnresolvedNodeError(node);
     }
+
+    // `name` is the property the call goes through, the last segment of
+    // `callee`: `min` for `pvl.string().min(3)`, `string` for `pvl.string()`.
     const name = callee.getName();
+    // `receiver` is what `name` is read from, the part before the last dot:
+    // `pvl.string()` for `pvl.string().min(3)`, `pvl` for `pvl.string()`. It is
+    // either the `pvl` import, which makes the call a factory, or an earlier
+    // link of the chain, which is a Schema itself.
     const receiver = callee.getExpression();
-    if (Node.isIdentifier(receiver) && this.pvlNames.has(receiver.getText())) {
+
+    if (Node.isIdentifier(receiver) && this.pvlImportLocalNames.has(receiver.getText())) {
       return this.readFactoryCall(name, node.getArguments(), node);
     }
+
     const schema = this.readSchemaExpression(receiver);
     const call: SchemaMethodCall = {
       name,
@@ -86,7 +115,24 @@ class SchemaReader {
     return { ...schema, calls: [...schema.calls, call] };
   }
 
-  // `pvl.<name>(...args)` as a Schema with nothing chained onto it yet.
+  /**
+   * `pvl.<name>(...args)` as a Schema with nothing chained onto it yet. Each
+   * factory reads its first argument its own way; `compile` reads through to
+   * its argument, and a name that is no factory is unresolvable.
+   *
+   * ```ts
+   * pvl.string()                            // { factory: 'string', calls: [] }
+   * pvl.literal('a')                        // { factory: 'literal', literalValue: 'a', … }
+   * pvl.enum(['A', 'B'])                    // { factory: 'enum', members: ['A', 'B'], … }
+   * pvl.object({ name: pvl.string() })      // { factory: 'object', shape: [{ key: 'name', … }], … }
+   * pvl.array(pvl.number())                 // { factory: 'array', element: { factory: 'number', … }, … }
+   * pvl.union([pvl.string(), pvl.number()]) // { factory: 'union', members: [string, number], … }
+   * pvl.compile(pvl.string())               // { factory: 'string', calls: [] }: the argument's Schema
+   * pvl.compile()                           // unresolvable: nothing to read through to
+   * pvl.literal()                           // unresolvable: the required argument is missing
+   * pvl.union(members)                      // unresolvable unless `members` is an array literal
+   * ```
+   */
   private readFactoryCall(name: string, args: ReadonlyArray<Node>, call: Node): SchemaModel {
     const line = call.getStartLineNumber();
     const [firstArgument] = args;
@@ -348,8 +394,8 @@ class SchemaReader {
 export type ReadSchemaArgs = {
   expression: Expression;
   sourceFile: SourceFile;
-  /** The local names `pvl` is imported under from `@pvl/schema`. */
-  pvlNames: ReadonlySet<string>;
+  /** The Local Names `pvl` is imported under from `@pvl/schema`. */
+  pvlImportLocalNames: ReadonlySet<string>;
 };
 
 /**
@@ -364,7 +410,10 @@ export type ReadSchemaArgs = {
  * readSchema({ expression: <importedUser>, … }) // { unresolvedNode: <importedUser> }
  * ```
  */
-export const readSchema = ({ expression, ...readerOptions }: ReadSchemaArgs): ReadSchemaPayload => {
+export const readSchema = ({
+  expression,
+  ...readerOptions
+}: ReadSchemaArgs): { schema: SchemaModel } | { unresolvedNode: Node } => {
   try {
     return { schema: new SchemaReader(readerOptions).readSchemaExpression(expression) };
   } catch (error) {

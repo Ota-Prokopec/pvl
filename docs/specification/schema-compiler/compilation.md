@@ -8,7 +8,7 @@ The compiler never runs or imports the user's schema code. It statically parses 
 
 ## What reads statically
 
-A call is recognised when `pvl` is imported from `@pvl/schema` under any name. Its argument may be a `pvl.*` call chain written in place, or a top-level `const` of the same file holding one, followed through any number of `const`s. A method's arguments may be literals (`3`, `-1`, `10n`, `'a'`, `{ message: 'too short' }`) or `const`s holding them. A plain `__proto__: …` in an object literal sets the prototype rather than adding a key, so it is no field, while `['__proto__']: …` is one. Anything else gets one error per call, and nothing is written:
+A call is recognised when `pvl` is imported from `@pvl/schema` under any name. Its argument may be a `pvl.*` call chain written in place, or a top-level `const` of the same file holding one, followed through any number of `const`s. A method's arguments may be literals (`3`, `-1`, `10n`, `'a'`, `{ message: 'too short' }`) or `const`s holding them. A plain `__proto__: …` in an object literal sets the prototype rather than adding a key, so it is no field, while `['__proto__']: …` is one. Anything else gets an error, and nothing is written. A call that can't be read, or whose result is modified, gets one; a call that reads but isn't a Compilable Schema gets one per problem, except that a non-composite argument is reported alone:
 
 - `COMPILE_ARGUMENT_UNRESOLVABLE`: the argument, or a method argument, is imported, built by a function call, spread, or held in a `let`.
 - `COMPILE_ARGUMENT_NOT_COMPOSITE`: the argument is a primitive, a literal or an enum, not an object or an array.

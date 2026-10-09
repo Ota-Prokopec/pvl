@@ -36,6 +36,8 @@
   "dependencies": {
     "@pvl/schema": "workspace:*",
     "@repo/types": "workspace:*",
+    "dedent": "^1.7.2",
+    "minimatch": "^10.2.6",
     "ts-morph": "^28.0.0",
     "yargs": "^18.2.0"
   },

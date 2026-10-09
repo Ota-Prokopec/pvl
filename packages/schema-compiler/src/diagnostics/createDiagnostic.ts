@@ -1,7 +1,7 @@
-// Builds a diagnostic with its code's own severity; internal, so outside
-// the diagnostics barrel.
+// Builds a diagnostic with its code's own severity, and promotes it under
+// `strict`; internal, so outside the diagnostics barrel.
 import { DIAGNOSTIC_SEVERITY } from './consts.js';
-import type { DiagnosticCode } from './enums.js';
+import { SEVERITY, type DiagnosticCode } from './enums.js';
 import type { Diagnostic } from './diagnostic.js';
 
 export type CreateDiagnosticArgs = {
@@ -18,4 +18,14 @@ export const createDiagnostic = ({ code, message, file }: CreateDiagnosticArgs):
     message,
     ...(file === undefined ? {} : { file }),
   };
+};
+
+/**
+ * Every diagnostic as an error, which is what `strict` reports. An error
+ * stays an error, so promoting twice changes nothing.
+ */
+export const promoteDiagnosticsSeverity = (
+  diagnostics: ReadonlyArray<Diagnostic>,
+): Diagnostic[] => {
+  return diagnostics.map((diagnostic) => ({ ...diagnostic, severity: SEVERITY.ERROR }));
 };

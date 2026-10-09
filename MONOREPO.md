@@ -5,7 +5,7 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 ```
 apps/
 ├── docs/              (docs, private)       — documentation site for @pvl/schema
-└── playground/        (playground, private) — scratch app for watching @pvl/schema work
+└── playground/        (playground, private) — scratch app for watching @pvl/schema-compiler compile a Schema
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
 ├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler and its `pvl` CLI (in progress)

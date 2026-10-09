@@ -1,16 +1,8 @@
 // Where the Destination Directory goes, whether it can go there, and writing
 // it in one move.
 import fs from 'node:fs/promises';
-import {
-  basename,
-  dirname,
-  isAbsolute,
-  join,
-  matchesGlob,
-  posix,
-  relative,
-  resolve,
-} from 'node:path';
+import { basename, dirname, join, posix, relative, resolve } from 'node:path';
+import { minimatch } from 'minimatch';
 import type { Settings } from '../config/config.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
@@ -30,8 +22,9 @@ import { toPosixPath } from './mirror/utils.js';
 
 /** Where the Destination Directory goes. */
 export type Destination = {
-  /** Absolute. */
-  path: string;
+  absolutePath: string;
+  /** Relative to the base directory, POSIX-separated, the form `include` patterns match against. */
+  relativePath: string;
   /** Whether `destination` was unset, so the default `.pvl` directory is used. */
   isDefault: boolean;
 };
@@ -41,14 +34,23 @@ export type Destination = {
  * directory, or the default `<baseDirectory>/.pvl`.
  *
  * ```ts
- * resolveDestination('/repo', { destination: undefined, … })   // { path: '/repo/.pvl', isDefault: true }
- * resolveDestination('/repo', { destination: 'generated', … }) // { path: '/repo/generated', isDefault: false }
+ * resolveDestination('/repo', { destination: undefined, … })
+ * // { absolutePath: '/repo/.pvl', relativePath: '.pvl', isDefault: true }
+ * resolveDestination('/repo', { destination: './out/../generated', … })
+ * // { absolutePath: '/repo/generated', relativePath: 'generated', isDefault: false }
  * ```
  */
 export const resolveDestination = (baseDirectory: string, settings: Settings): Destination => {
-  return settings.destination === undefined
-    ? { path: join(baseDirectory, DEFAULT_DESTINATION_DIRECTORY), isDefault: true }
-    : { path: resolve(baseDirectory, settings.destination), isDefault: false };
+  const isDefault = settings.destination === undefined;
+  const absolutePath = resolve(
+    baseDirectory,
+    settings.destination ?? DEFAULT_DESTINATION_DIRECTORY,
+  );
+  return {
+    absolutePath,
+    relativePath: toPosixPath(relative(baseDirectory, absolutePath)),
+    isDefault,
+  };
 };
 
 /**
@@ -163,57 +165,45 @@ export const checkDestination = async (path: string): Promise<Diagnostic[]> => {
 };
 
 export type CheckDestinationNotIncludedArgs = {
-  /** The directory relative paths resolve against. */
-  baseDirectory: string;
   include: ReadonlyArray<string>;
-  /** The Destination Directory's absolute path. */
-  destination: string;
-  /** The files the Destination Directory will hold, relative to it. */
-  mirroredFilePaths: ReadonlyArray<string>;
+  destination: Destination;
 };
 
 /**
  * Reports each `include` pattern that matches the Destination Directory or
- * a file written into it, inside the base directory or out of it
+ * could match anything inside it, inside the base directory or out of it
  * (`../shared/**`).
  *
  * ```ts
  * // include: ['src/**\/*.ts'], destination: 'src/compiled'
- * // → DESTINATION_INSIDE_INCLUDE: src/compiled/schemas/user.ts would match
+ * // → DESTINATION_INSIDE_INCLUDE: src/compiled/… would match
  * // include: ['src/schemas/**\/*.ts'], destination: '.pvl' → []
  * ```
  */
 export const checkDestinationNotIncluded = ({
-  baseDirectory,
   include,
   destination,
-  mirroredFilePaths,
 }: CheckDestinationNotIncludedArgs): Diagnostic[] => {
-  const destinationFromBaseDirectory = relative(baseDirectory, destination);
-  // On another drive (Windows), no relative pattern can reach it.
-  if (isAbsolute(destinationFromBaseDirectory)) {
-    return [];
-  }
-  const destinationAsPosix = toPosixPath(destinationFromBaseDirectory);
-
-  const writtenPaths = [
-    destinationAsPosix,
-    ...mirroredFilePaths.map((mirroredFilePath) =>
-      posix.join(destinationAsPosix, mirroredFilePath),
-    ),
-  ];
-
   return include
     .filter((pattern) =>
-      writtenPaths.some((writtenPath) => matchesGlob(writtenPath, posix.normalize(pattern))),
+      // `partial`: the pattern matches the destination or could match something inside it.
+      minimatch(destination.relativePath, posix.normalize(pattern), { partial: true }),
     )
     .map((pattern) =>
       createDiagnostic({
         code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-        message: `The destination ${destinationAsPosix} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
-        file: destination,
+        message: `The destination ${destination.relativePath} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+        file: destination.absolutePath,
       }),
     );
+};
+
+/** What {@link writeDestination} did: whether the Destination Directory is in place, and why not. */
+export type WriteDestinationPayload = {
+  /** Whether the new Destination Directory replaced the previous one. */
+  isWritten: boolean;
+  /** Empty when `written`; otherwise the one DESTINATION_UNWRITABLE diagnostic. */
+  diagnostics: Diagnostic[];
 };
 
 export type WriteDestinationArgs = {
@@ -227,9 +217,9 @@ export type WriteDestinationArgs = {
  * of `*` go into a temporary sibling directory, which then replaces the
  * previous Destination Directory. The previous one is renamed aside, not
  * removed, until the new one is in place, so a failure at any step puts it
- * back as it was, removes the temporary directory and comes back as a
- * DESTINATION_UNWRITABLE diagnostic. Directories a crashed run left at
- * either sibling path are replaced.
+ * back as it was, removes the temporary directory and comes back as
+ * `written: false` with a DESTINATION_UNWRITABLE diagnostic. Directories a
+ * crashed run left at either sibling path are replaced.
  *
  * ```text
  * /repo/.pvl.pvl-tmp/  ← 1. written
@@ -237,13 +227,22 @@ export type WriteDestinationArgs = {
  * /repo/.pvl/          ← 3. the temporary directory, renamed into place
  *                         4. .pvl.pvl-old/ removed
  * ```
+ *
+ * ```ts
+ * await writeDestination({ destination, mirroredFiles }) // { written: true, diagnostics: [] }
+ * // the parent directory is read-only:
+ * await writeDestination({ destination, mirroredFiles }) // { written: false, diagnostics: [DESTINATION_UNWRITABLE] }
+ * ```
  */
 export const writeDestination = async ({
   destination,
   mirroredFiles,
-}: WriteDestinationArgs): Promise<Diagnostic[]> => {
-  const temporaryPath = toDestinationSiblingPath(destination.path, TEMPORARY_DESTINATION_SUFFIX);
-  const backupPath = toDestinationSiblingPath(destination.path, BACKUP_DESTINATION_SUFFIX);
+}: WriteDestinationArgs): Promise<WriteDestinationPayload> => {
+  const temporaryPath = toDestinationSiblingPath(
+    destination.absolutePath,
+    TEMPORARY_DESTINATION_SUFFIX,
+  );
+  const backupPath = toDestinationSiblingPath(destination.absolutePath, BACKUP_DESTINATION_SUFFIX);
   let isPreviousDestinationAside = false;
 
   const filesToWrite: ReadonlyArray<MirroredFile> = [
@@ -263,18 +262,23 @@ export const writeDestination = async ({
       await fs.writeFile(filePath, text);
     }
     await fs.rm(backupPath, { recursive: true, force: true });
-    if ((await statOrUndefined(destination.path)) !== undefined) {
-      await fs.rename(destination.path, backupPath);
+    if ((await statOrUndefined(destination.absolutePath)) !== undefined) {
+      await fs.rename(destination.absolutePath, backupPath);
       isPreviousDestinationAside = true;
     }
-    await fs.rename(temporaryPath, destination.path);
+    await fs.rename(temporaryPath, destination.absolutePath);
   } catch (error) {
     if (isPreviousDestinationAside) {
-      await fs.rename(backupPath, destination.path);
+      await fs.rename(backupPath, destination.absolutePath);
     }
     await fs.rm(temporaryPath, { recursive: true, force: true });
-    return [createDestinationUnwritableDiagnostic(destination.path, errorMessage(error))];
+    return {
+      isWritten: false,
+      diagnostics: [
+        createDestinationUnwritableDiagnostic(destination.absolutePath, errorMessage(error)),
+      ],
+    };
   }
   await fs.rm(backupPath, { recursive: true, force: true });
-  return [];
+  return { isWritten: true, diagnostics: [] };
 };

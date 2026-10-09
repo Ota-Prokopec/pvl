@@ -23,7 +23,7 @@ export type ScanScope = {
  * run keeps beside it (`<destination>.pvl-tmp`, `<destination>.pvl-old`) are
  * never matched.
  */
-export const findInputFiles = async ({
+export const findScanningInputFilePaths = async ({
   baseDirectory,
   include,
   destination,

@@ -1,11 +1,12 @@
 // The code a `BigintSchema` compiles to, one static method per method of
 // `BigintSchema` it mirrors.
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type IssueEditableProps } from '@pvl/schema';
+import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitIssue, emitLiteral, js, type EmitTarget, type EmittedCheck } from './utils.js';
 
-export class BigintSchemaEmitter {
+export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
-  public static _checkType({ value, path }: EmitTarget): EmittedCheck {
+  public static override _checkType({ value, path }: EmitTarget): EmittedCheck {
     return {
       failsWhen: js`typeof ${value} !== "bigint"`,
       issue: emitIssue(ISSUE_CODE.INVALID_TYPE, BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(), path),
