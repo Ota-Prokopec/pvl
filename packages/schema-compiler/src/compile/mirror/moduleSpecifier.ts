@@ -98,18 +98,16 @@ export class ModuleSpecifier {
   private rewriteModuleSpecifier(moduleSpecifier: string): string {
     // Resolved from the scanned module's original location, where the module
     // specifier was written, not from its mirrored one.
-    const resolvedModuleFile = TsMorphProject.resolveModuleFile(
+    const moduleFile = TsMorphProject.resolveModuleFile(
       this.tsMorphProject,
       moduleSpecifier,
-      this.scannedModule.path,
+      this.scannedModule.absolutePath,
     );
 
     // The application's own file the module specifier reaches. A package, or a
     // module specifier that resolves to nothing, has none.
     const localFilePath =
-      resolvedModuleFile === undefined || resolvedModuleFile.isPackage
-        ? undefined
-        : resolvedModuleFile.path;
+      moduleFile === undefined || moduleFile.isPackage ? undefined : moduleFile.absolutePath;
 
     // When that file was scanned too, its mirrored module, which the mirrored
     // module should import instead of the original.
@@ -130,7 +128,11 @@ export class ModuleSpecifier {
     // so it keeps its spelling, and one that resolves to nothing still points
     // where it did.
     if (mirroredTargetPath === undefined && isPathModuleSpecifier(moduleSpecifier)) {
-      return rewritePathModuleSpecifier(moduleSpecifier, this.scannedModule.path, outputDirectory);
+      return rewritePathModuleSpecifier(
+        moduleSpecifier,
+        this.scannedModule.absolutePath,
+        outputDirectory,
+      );
     }
 
     // A package, or an alias that resolves to nothing, reads the same from

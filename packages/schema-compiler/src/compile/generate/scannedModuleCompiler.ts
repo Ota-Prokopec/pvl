@@ -35,13 +35,13 @@ export type MarkedToCompileSchemaSite = {
  * ```
  */
 export class ScannedModuleCompiler {
-  private readonly path: string;
+  private readonly absolutePath: string;
   private readonly sourceFile: SourceFile;
   /** The Local Names `pvl` is imported under in the module. */
   private readonly pvlImportLocalNames: ReadonlySet<string>;
 
-  public constructor({ path, sourceFile }: ScannedModule) {
-    this.path = path;
+  public constructor({ absolutePath, sourceFile }: ScannedModule) {
+    this.absolutePath = absolutePath;
     this.sourceFile = sourceFile;
     this.pvlImportLocalNames = ScannedModuleCompiler.findPvlImportLocalNames(sourceFile);
   }
@@ -83,7 +83,7 @@ export class ScannedModuleCompiler {
           createDiagnostic({
             code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
             message: `\`.${modifierName}\` is chained onto the result of pvl.compile() on line ${String(line)}, which is a plain Schema. Chain it inside: pvl.compile(schema.${modifierName}(…)).`,
-            file: this.path,
+            file: this.absolutePath,
           }),
         );
         continue;
@@ -105,7 +105,7 @@ export class ScannedModuleCompiler {
           createDiagnostic({
             code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
             message: `The argument of pvl.compile() on line ${String(line)} can't be read statically: \`${schemaPayload.unresolvedNode.getText()}\` on line ${String(schemaPayload.unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one.`,
-            file: this.path,
+            file: this.absolutePath,
           }),
         );
         continue;
@@ -116,7 +116,10 @@ export class ScannedModuleCompiler {
       );
       if (uncompilableDiagnostics.length > 0) {
         diagnostics.push(
-          ...uncompilableDiagnostics.map((diagnostic) => ({ ...diagnostic, file: this.path })),
+          ...uncompilableDiagnostics.map((diagnostic) => ({
+            ...diagnostic,
+            file: this.absolutePath,
+          })),
         );
         continue;
       }

@@ -6,7 +6,7 @@ import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from './consts.js';
-import { DestinationWriter } from './destinationWriter.js';
+import { DestinationWriter, type Destination } from './destinationWriter.js';
 
 /**
  * The absolute path of a scanned file. Branded so it can't be mixed up with
@@ -20,7 +20,7 @@ export type ScannedPath = string & { readonly __brand: 'ScannedPath' };
  * builds it from the resolved settings and passes it to `findScanningInputFilePaths`.
  *
  * ```ts
- * { baseDirectory: '/repo', include: ['src/**\/*.ts'], destination: '/repo/.pvl' }
+ * { baseDirectory: '/repo', include: ['src/**\/*.ts'], destination: { absolutePath: '/repo/.pvl', … } }
  * ```
  */
 export type ScanScope = {
@@ -28,8 +28,8 @@ export type ScanScope = {
   baseDirectory: string;
   /** The config's `include` globs, relative to `baseDirectory`. */
   include: ReadonlyArray<string>;
-  /** The Destination Directory's absolute path. */
-  destination: string;
+  /** The Destination Directory, which is never scanned. */
+  destination: Destination;
 };
 
 /**
@@ -39,7 +39,7 @@ export type ScanScope = {
  * keeps beside it are never entered.
  *
  * ```ts
- * // baseDirectory '/repo', destination '/repo/gen'
+ * // baseDirectory '/repo', destination.absolutePath '/repo/gen'
  * ['src/**\/*.ts']             // ['/repo/src/a.ts', '/repo/src/b/c.ts']
  * ['./src/*.ts', 'src/a.ts']   // ['/repo/src/a.ts']: normalized, then deduplicated
  * ['src/*']                    // ['/repo/src/a.ts']: the directory `src/b` is dropped
@@ -53,9 +53,12 @@ export const findScanningInputFilePaths = async ({
 }: ScanScope): Promise<ScannedPath[]> => {
   const files = new Set<ScannedPath>();
   const excludedPaths = new Set([
-    destination,
-    DestinationWriter.toDestinationSiblingPath(destination, TEMPORARY_DESTINATION_SUFFIX),
-    DestinationWriter.toDestinationSiblingPath(destination, BACKUP_DESTINATION_SUFFIX),
+    destination.absolutePath,
+    DestinationWriter.toDestinationSiblingPath(
+      destination.absolutePath,
+      TEMPORARY_DESTINATION_SUFFIX,
+    ),
+    DestinationWriter.toDestinationSiblingPath(destination.absolutePath, BACKUP_DESTINATION_SUFFIX),
   ]);
 
   const entries = glob(

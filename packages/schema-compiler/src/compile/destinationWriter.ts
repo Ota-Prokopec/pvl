@@ -18,13 +18,13 @@ import {
   TEMPORARY_DESTINATION_SUFFIX,
 } from './consts.js';
 import type { MirroredFile } from './mirror/mirror.js';
-import { toPosixPath } from './mirror/utils.js';
+import { toPath, type Path } from './path.js';
 
-/** Where the Destination Directory goes. */
-export type Destination = {
-  absolutePath: string;
-  /** Relative to the base directory, POSIX-separated, the form `include` patterns match against. */
-  relativePath: string;
+/**
+ * Where the Destination Directory goes. Its `relative.path` is relative to the
+ * base directory, the form `include` patterns match against.
+ */
+export type Destination = Required<Path> & {
   /** Whether `destination` was unset, so the default `.pvl` directory is used. */
   isDefault: boolean;
 };
@@ -79,8 +79,9 @@ export type WriteDestinationArgs = {
  * - `settings`: the run's `Settings`; only `destination` is read. `undefined` means
  *   the default `.pvl` directory.
  *
- * **Output** (`Destination`): `{ absolutePath, relativePath, isDefault }`, where
- * `relativePath` is POSIX-separated and relative to `baseDirectory`.
+ * **Output** (`Destination`): `{ absolutePath, relative, isDefault }`, where
+ * `relative.path` is POSIX-separated and relative to `relative.absoluteBase`, the
+ * `baseDirectory`.
  *
  * ### `DestinationWriter.toDestinationSiblingPath(destinationPath, suffix)`
  *
@@ -136,9 +137,9 @@ export class DestinationWriter {
    *
    * ```ts
    * resolveDestination('/repo', { destination: undefined, … })
-   * // { absolutePath: '/repo/.pvl', relativePath: '.pvl', isDefault: true }
+   * // { absolutePath: '/repo/.pvl', relative: { absoluteBase: '/repo', path: '.pvl' }, isDefault: true }
    * resolveDestination('/repo', { destination: './out/../generated', … })
-   * // { absolutePath: '/repo/generated', relativePath: 'generated', isDefault: false }
+   * // { absolutePath: '/repo/generated', relative: { absoluteBase: '/repo', path: 'generated' }, isDefault: false }
    * ```
    */
   public static resolveDestination(baseDirectory: string, settings: Settings): Destination {
@@ -149,11 +150,7 @@ export class DestinationWriter {
       settings.destination ?? DEFAULT_DESTINATION_DIRECTORY,
     );
 
-    return {
-      absolutePath,
-      relativePath: toPosixPath(path.relative(baseDirectory, absolutePath)),
-      isDefault,
-    };
+    return { ...toPath(absolutePath, baseDirectory), isDefault };
   }
 
   /**
@@ -232,12 +229,12 @@ export class DestinationWriter {
     return include
       .filter((pattern) =>
         // `partial`: the pattern matches the destination or could match something inside it.
-        minimatch(destination.relativePath, path.posix.normalize(pattern), { partial: true }),
+        minimatch(destination.relative.path, path.posix.normalize(pattern), { partial: true }),
       )
       .map((pattern) =>
         createDiagnostic({
           code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-          message: `The destination ${destination.relativePath} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+          message: `The destination ${destination.relative.path} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
           file: destination.absolutePath,
         }),
       );

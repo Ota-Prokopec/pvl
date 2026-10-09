@@ -4,6 +4,7 @@ import { isAbsolute, join, relative } from 'node:path';
 import type { Project, SourceFile } from 'ts-morph';
 import { toPosixPath } from './utils.js';
 import type { Destination } from '../destinationWriter.js';
+import type { Path } from '../path.js';
 import type { ScannedPath } from '../scan.js';
 
 /**
@@ -13,14 +14,15 @@ import type { ScannedPath } from '../scan.js';
  */
 export type MirroredPath = string & { readonly __brand: 'MirroredPath' };
 
-/** One scanned file. */
-export type ScannedModule = {
+/**
+ * One scanned file. Its `relative.path` is relative to the Root Directory,
+ * which is also its path inside the Destination Directory.
+ */
+export type ScannedModule = Required<Path> & {
   /** The file's absolute path. */
-  path: ScannedPath;
+  absolutePath: ScannedPath;
   /** Its ts-morph source file, which the mirror reads and rewrites in place. */
   sourceFile: SourceFile;
-  /** Its path relative to the Root Directory, with `/` separators: also its path inside the Destination Directory. */
-  relativePath: string;
   /** The absolute path of its mirrored module. */
   mirroredPath: MirroredPath;
 };
@@ -37,15 +39,16 @@ export type ReadScannedModulesArgs = {
 /**
  * Adds each scanned file to `tsMorphProject` and places it in the mirror,
  * keeping the order of `scannedFilePaths`. A file outside the Root Directory
- * gets a `relativePath` starting with `..` (or an absolute one, on another
+ * gets a `relative.path` starting with `..` (or an absolute one, on another
  * drive), which FILE_OUTSIDE_ROOT_DIR reports.
  *
  * With Root Directory `/repo/src` and Destination Directory `/repo/.pvl`:
  *
  * ```ts
- * readScannedModules({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] })
- * // [{ path: '/repo/src/schemas/user.ts', sourceFile: <user.ts>,
- * //    relativePath: 'schemas/user.ts', mirroredPath: '/repo/.pvl/schemas/user.ts' }]
+ * getScannedModules({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] })
+ * // [{ absolutePath: '/repo/src/schemas/user.ts',
+ * //    relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' },
+ * //    sourceFile: <user.ts>, mirroredPath: '/repo/.pvl/schemas/user.ts' }]
  * ```
  *
  * Throws ts-morph's error when a path can't be read from disk.
@@ -59,23 +62,23 @@ export const getScannedModules = ({
   return scannedFilePaths.map((path) => {
     const relativePath = toPosixPath(relative(rootDirectory, path));
     return {
-      path,
+      absolutePath: path,
+      relative: { absoluteBase: rootDirectory, path: relativePath },
       sourceFile: tsMorphProject.addSourceFileAtPath(path),
-      relativePath,
       mirroredPath: join(destination.absolutePath, relativePath) as MirroredPath,
     };
   });
 };
 
 /**
- * Whether a path relative to the Root Directory leads outside it, so the
- * file there has no place in the mirror.
+ * Whether a path's `relative.path`, relative to the Root Directory, leads
+ * outside it, so the file there has no place in the mirror.
  *
  * ```ts
- * isOutsideRootDirectory('schemas/user.ts') // false
- * isOutsideRootDirectory('../lib/user.ts')  // true
+ * isOutsideRootDirectory({ …, relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' } }) // false
+ * isOutsideRootDirectory({ …, relative: { absoluteBase: '/repo/src', path: '../lib/user.ts' } })  // true
  * ```
  */
-export const isOutsideRootDirectory = (relativePath: string): boolean => {
-  return relativePath === '..' || relativePath.startsWith('../') || isAbsolute(relativePath);
+export const isOutsideRootDirectory = ({ relative: { path } }: Required<Path>): boolean => {
+  return path === '..' || path.startsWith('../') || isAbsolute(path);
 };

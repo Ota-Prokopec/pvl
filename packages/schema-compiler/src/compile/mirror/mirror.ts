@@ -92,7 +92,7 @@ export const mirrorScannedFiles = ({
   // Lets a rewritten import that points at another scanned file point at that
   // file's mirror instead.
   const mirroredPathByScannedPath = new Map<string, MirroredPath>(
-    scannedModules.map(({ path, mirroredPath }) => [path, mirroredPath]),
+    scannedModules.map(({ absolutePath, mirroredPath }) => [absolutePath, mirroredPath]),
   );
 
   // A file with syntax errors gets PARSE_FAILED and nothing else: the tree
@@ -106,12 +106,14 @@ export const mirrorScannedFiles = ({
   const unparsedFilePaths: Set<string | undefined> = new Set(
     parseFailuresDiagnostics.map(({ file }) => file),
   );
-  const parsedModules = scannedModules.filter(({ path }) => !unparsedFilePaths.has(path));
+  const parsedModules = scannedModules.filter(
+    ({ absolutePath }) => !unparsedFilePaths.has(absolutePath),
+  );
 
   // A scanned `<rootDir>/index.ts` is mirrored like any other file and replaces
   // the generated barrel, which also skips the barrel's DUPLICATE_EXPORT check.
   const hasScannedBarrel = scannedModules.some(
-    ({ relativePath }) => relativePath === BARREL_FILE_NAME,
+    ({ relative }) => relative.path === BARREL_FILE_NAME,
   );
 
   // Read each parsed file's `pvl.compile(...)` calls up front: their diagnostics
@@ -120,7 +122,7 @@ export const mirrorScannedFiles = ({
     parsedModules.map((scannedModule) => {
       const scannedModuleCompiler = new ScannedModuleCompiler(scannedModule);
       return [
-        scannedModule.path,
+        scannedModule.absolutePath,
         { scannedModuleCompiler, ...scannedModuleCompiler.readMarkedToCompileSchemas() },
       ];
     }),
@@ -151,7 +153,7 @@ export const mirrorScannedFiles = ({
   // specifiers at the right files from the mirrored location, then prepend
   // the `@generated` header.
   const mirroredModules: MirroredFile[] = scannedModules.map((scannedModule) => {
-    const markedToCompileSchemas = markedToCompileSchemasByPath.get(scannedModule.path);
+    const markedToCompileSchemas = markedToCompileSchemasByPath.get(scannedModule.absolutePath);
     markedToCompileSchemas?.scannedModuleCompiler.applyCompiledSchemas(
       markedToCompileSchemas.sites,
     );
@@ -163,7 +165,7 @@ export const mirrorScannedFiles = ({
     }).rewriteModuleSpecifiers();
 
     return {
-      relativePath: scannedModule.relativePath,
+      relativePath: scannedModule.relative.path,
       text: `${GENERATED_HEADER}\n${scannedModule.sourceFile.getFullText()}`,
     };
   });

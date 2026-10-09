@@ -147,7 +147,7 @@ export const compile = async ({
   const scanScope: ScanScope = {
     baseDirectory,
     include: settings.include,
-    destination: destination.absolutePath,
+    destination,
   };
 
   //TODO: filesand and checkDestination could be in a Promise.all()

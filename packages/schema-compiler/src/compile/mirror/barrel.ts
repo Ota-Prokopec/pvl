@@ -27,7 +27,7 @@ import { isDeclarationFile, toBarrelModuleSpecifier } from './utils.js';
 export const renderBarrel = (scannedModules: ReadonlyArray<ScannedModule>): string => {
   const reExportLines = scannedModules
     .filter(({ sourceFile }) => Precheck.hasExport(sourceFile.getStatements()))
-    .map(({ relativePath }) => relativePath)
+    .map(({ relative }) => relative.path)
     .sort()
     .map(
       (relativePath) =>

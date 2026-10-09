@@ -6,6 +6,7 @@ import { Project, ts } from 'ts-morph';
 import { createDiagnostic } from '../../diagnostics/createDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../../diagnostics/enums.js';
+import type { Path } from '../path.js';
 import { isPathModuleSpecifier } from './utils.js';
 
 /** The project the mirror reads into, or why the application's tsconfig stops it from being built. */
@@ -14,9 +15,7 @@ export type CreateTsMorphProjectPayload =
   | { tsMorphProject: undefined; diagnostics: [Diagnostic] };
 
 /** The file a module specifier resolves to. */
-export type ResolvedModuleFile = {
-  /** The file's absolute path. */
-  path: string;
+export type ModuleFile = Path & {
   /** Whether it was found through `node_modules`, as a package, rather than by path or alias. */
   isPackage: boolean;
 };
@@ -151,10 +150,10 @@ export class TsMorphProject {
    * ```ts
    * // importerPath: '/repo/src/schemas/order.ts'
    * // tsconfig `paths`: { "@/*": ["./src/*"], "@pvl/schema": ["./packages/schema/src/index.ts"] }
-   * './user.js'         // { path: '/repo/src/schemas/user.ts', isPackage: false }
-   * '../lib/helpers.js' // { path: '/repo/src/lib/helpers.ts', isPackage: false }
-   * '@/lib/helpers'     // { path: '/repo/src/lib/helpers.ts', isPackage: false }: through `paths`
-   * '@pvl/schema'       // { path: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isPackage: true }
+   * './user.js'         // { absolutePath: '/repo/src/schemas/user.ts', isPackage: false }
+   * '../lib/helpers.js' // { absolutePath: '/repo/src/lib/helpers.ts', isPackage: false }
+   * '@/lib/helpers'     // { absolutePath: '/repo/src/lib/helpers.ts', isPackage: false }: through `paths`
+   * '@pvl/schema'       // { absolutePath: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isPackage: true }
    *                     // not './packages/schema/src/index.ts': `node_modules` wins over `paths`
    *                     // '/repo/packages/schema/dist/index.d.ts' when node_modules/@pvl/schema is a symlink
    * './missing.js'      // undefined
@@ -165,7 +164,7 @@ export class TsMorphProject {
     tsMorphProject: Project,
     moduleSpecifier: string,
     importerPath: string,
-  ): ResolvedModuleFile | undefined {
+  ): ModuleFile | undefined {
     const compilerOptions = tsMorphProject.getCompilerOptions();
 
     // Resolve the way the application's build does: tsconfig `paths` first,
@@ -203,13 +202,13 @@ export class TsMorphProject {
       ).resolvedModule;
 
       if (resolvedPackage?.isExternalLibraryImport === true) {
-        return { path: resolve(resolvedPackage.resolvedFileName), isPackage: true };
+        return { absolutePath: resolve(resolvedPackage.resolvedFileName), isPackage: true };
       }
     }
 
     // Normalised to an absolute path, the form the mirror's paths are keyed by.
     return {
-      path: resolve(resolvedModule.resolvedFileName),
+      absolutePath: resolve(resolvedModule.resolvedFileName),
       isPackage: resolvedModule.isExternalLibraryImport ?? false,
     };
   }
