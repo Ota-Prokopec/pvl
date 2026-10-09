@@ -322,7 +322,9 @@ export class DestinationWriter {
       if (isPreviousDestinationAside) {
         await fsPromises.rename(backupPath, destination.absolutePath);
       }
-      await fsPromises.rm(temporaryPath, { recursive: true, force: true });
+      // `force` only ignores a missing path, so a parent that is a file (ENOTDIR)
+      // would throw here too; the diagnostic below already reports the failure.
+      await fsPromises.rm(temporaryPath, { recursive: true, force: true }).catch(() => undefined);
       return {
         isWritten: false,
         diagnostics: [

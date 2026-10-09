@@ -171,14 +171,17 @@ export const compile = async ({
 
   foundDiagnostics.push(...mirroredScannedFiles.diagnostics);
 
-  if (hasError(foundDiagnostics)) {
-    return createCompilePayload({
-      diagnostics: foundDiagnostics,
-      settings,
-      destination: destination.absolutePath,
-      written: false,
-      strict,
-    });
+  // Built before the error check, so `strict` has promoted every warning by then.
+  const unwrittenPayload = createCompilePayload({
+    diagnostics: foundDiagnostics,
+    settings,
+    destination: destination.absolutePath,
+    written: false,
+    strict,
+  });
+
+  if (hasError(unwrittenPayload.diagnostics)) {
+    return unwrittenPayload;
   }
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
