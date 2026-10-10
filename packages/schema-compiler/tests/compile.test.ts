@@ -976,13 +976,14 @@ describe('compile(): diagnostics', () => {
       [path]: [
         "import { pvl } from '@pvl/schema';",
         '',
-        'export const nested = pvl.compile(pvl.object({ tags: pvl.array(pvl.string()) }));',
+        'export const deepUnion = pvl.compile(pvl.object({ tags: pvl.array(pvl.object({ id: pvl.union([pvl.string()]), age: pvl.number().coerce() })) }));',
         'export const refined = pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)));',
         'export const coerced = pvl.compile(pvl.object({ age: pvl.number().coerce() }));',
         'export const optionalRoot = pvl.compile(pvl.object({}).optional());',
         'export const transformed = pvl.compile(pvl.array(pvl.string()).transform((v) => v.length));',
         'export const union = pvl.compile(pvl.union([pvl.string(), pvl.number()]));',
         "export const twice = pvl.compile(pvl.object({ age: pvl.number().coerce(), name: pvl.string().refine((v) => v !== '') }));",
+        'export const deepRefined = pvl.compile(pvl.array(pvl.array(pvl.number().refine((n) => n > 0))));',
         '',
       ].join('\n'),
     });
@@ -991,7 +992,7 @@ describe('compile(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 8 }, () => ({
+      Array.from({ length: 10 }, () => ({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         file: join(root, path),
       })),
