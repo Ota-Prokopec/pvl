@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "pvlconfig.json",
+  "description": "Configuration for `pvl compile` (@pvl/schema-compiler).",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "The JSON Schema this file is checked against, for editor autocomplete.",
+      "type": "string"
+    },
+    "include": {
+      "description": "Globs selecting the schema files to compile, relative to this file. node_modules and the destination are never included.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "src/schemas/**/*.ts"
+      ]
+    },
+    "rootDir": {
+      "description": "The source root the Destination Directory mirrors, relative to this file: a scanned file at <rootDir>/schemas/user.ts is mirrored to <destination>/schemas/user.ts. Every scanned file must sit under it.",
+      "type": "string",
+      "default": "src"
+    },
+    "destination": {
+      "description": "The Destination Directory to write, relative to this file. Unset, it is .pvl, which also gets a .gitignore. The compiler only replaces a directory it wrote itself.",
+      "type": "string"
+    },
+    "withTypes": {
+      "description": "Whether to generate each compiled Schema's Data and Input type aliases.",
+      "type": "boolean",
+      "default": true
+    },
+    "watch": {
+      "description": "Whether `pvl compile` keeps running and recompiles on every change.",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "additionalProperties": false
+}

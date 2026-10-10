@@ -17,7 +17,6 @@ import { pvl, type InferOutput } from '@pvl/schema';
  */
 export const configSchema = pvl
   .object({
-    $schema: pvl.string().optional(),
     include: pvl.array(pvl.string()).optional(),
     rootDir: pvl.string().optional(),
     destination: pvl.string().optional(),
@@ -36,44 +35,9 @@ export const configSchema = pvl
  * const config: PvlConfig = { include: ['src/schemas/**\/*.ts'], withTypes: false };
  * ```
  */
-export type PvlConfig = InferOutput<typeof configSchema>;
-
-/**
- * Every setting the compiler runs with, once flags, the config file and the
- * defaults are merged. Relative paths are relative to the base directory: the
- * directory holding `pvlconfig.json`, or the working directory without one.
- *
- * @example
- * ```ts
- * import { compile } from '@pvl/schema-compiler';
- *
- * const { settings } = await compile({ cwd: process.cwd() });
- * settings?.include; // ['src/schemas/**\/*.ts'] unless configured
- * ```
- */
-export type Settings = {
-  /** Globs selecting the files to scan. `node_modules` and the destination are never scanned. */
-  include: string[];
-  /** The Root Directory: the source root the Destination Directory mirrors, which every scanned file sits under. */
-  rootDir: string;
-  /** The Destination Directory's path; unset means the default `.pvl` directory. */
-  destination: string | undefined;
-  /** Whether to generate a type alias for each Schema's input and output. */
-  withTypes: boolean;
-  /** Whether to recompile on every change. */
-  watch: boolean;
+export type PvlConfig = Required<InferOutput<typeof configSchema>> & {
+  destination?: string | undefined;
 };
 
-/**
- * Settings that take precedence over the config file — what each CLI flag
- * sets.
- *
- * @example
- * ```ts
- * import { compile, type SettingOverrides } from '@pvl/schema-compiler';
- *
- * const overrides: SettingOverrides = { destination: 'out/schemas' };
- * await compile({ cwd: process.cwd(), overrides });
- * ```
- */
-export type SettingOverrides = Partial<Settings>;
+//TODO: make header comment
+export type PvlConfigOverrides = Partial<PvlConfig>;

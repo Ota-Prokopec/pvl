@@ -10,7 +10,7 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
 
 ## The two seams
 
-1. **The programmatic entry point, `compile()`**, run against a fixture project. One seam, three assertion styles:
+1. **The programmatic entry point, `runCompilation()`**, run against a fixture project. One seam, three assertion styles:
    - the returned diagnostics, asserted by **code** (never by message wording), plus `written` and the file on disk, since nothing may be written once an error fired;
    - an inline snapshot of each emitted mirrored module, written by hand as the expected output, to catch unintended churn in generated output;
    - importing an emitted mirrored module and diffing its `validate()` against the source module it mirrors, which shows the mirror runs as its source did;

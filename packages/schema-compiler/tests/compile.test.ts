@@ -2,7 +2,7 @@ import { chmod, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Schema } from '@pvl/schema';
 import { describe, expect, it } from 'vitest';
-import { compile, DIAGNOSTIC_CODE, SEVERITY } from '../src/index.js';
+import { runCompilation, DIAGNOSTIC_CODE, SEVERITY } from '../src/index.js';
 import { SCHEMA_FILE } from './consts.js';
 import {
   configJson,
@@ -26,7 +26,7 @@ const ORDER_FILE = [
   '',
 ].join('\n');
 
-describe('compile(): writing the Destination Directory', () => {
+describe('runCompilation(): writing the Destination Directory', () => {
   it('mirrors each scanned file at its path relative to rootDir, under the generated header, with a barrel', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -40,7 +40,7 @@ describe('compile(): writing the Destination Directory', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(payload.written).toBe(true);
@@ -77,7 +77,7 @@ describe('compile(): writing the Destination Directory', () => {
     });
     await linkSchemaPackage(root);
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
     const source = (await import(join(root, 'src/schemas/order.ts'))) as OrderModule;
     const mirrored = (await import(join(root, '.pvl/schemas/order.ts'))) as OrderModule;
     const barrel = (await import(join(root, '.pvl/index.ts'))) as OrderModule;
@@ -112,7 +112,7 @@ describe('compile(): writing the Destination Directory', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, 'generated/schemas/user.ts')).toMatchInlineSnapshot(`
@@ -148,7 +148,7 @@ describe('compile(): writing the Destination Directory', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/order.ts')).toMatchInlineSnapshot(`
@@ -172,7 +172,7 @@ describe('compile(): writing the Destination Directory', () => {
       'src/schemas/other-user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe(
@@ -189,7 +189,7 @@ describe('compile(): writing the Destination Directory', () => {
       'src/schemas/b.ts': b,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/a.ts')).toContain(a);
@@ -206,7 +206,7 @@ describe('compile(): writing the Destination Directory', () => {
       'app/models/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await listFixtureFiles(root, 'compiled')).toEqual([
@@ -223,10 +223,10 @@ describe('compile(): writing the Destination Directory', () => {
       'src/schemas/order.ts': ORDER_FILE,
     });
 
-    await compile({ cwd: root });
+    await runCompilation({ cwd: root });
     const first = await readFixtureFile(root, '.pvl/schemas/order.ts');
     const firstBarrel = await readFixtureFile(root, '.pvl/index.ts');
-    await compile({ cwd: root });
+    await runCompilation({ cwd: root });
 
     expect(await readFixtureFile(root, '.pvl/schemas/order.ts')).toBe(first);
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe(firstBarrel);
@@ -238,10 +238,10 @@ describe('compile(): writing the Destination Directory', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
       'src/schemas/order.ts': ORDER_FILE,
     });
-    await compile({ cwd: root });
+    await runCompilation({ cwd: root });
     await rm(join(root, 'src/schemas/order.ts'));
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.written).toBe(true);
     expect(await listFixtureFiles(root, '.pvl')).toEqual([
@@ -259,7 +259,7 @@ describe('compile(): writing the Destination Directory', () => {
       'src/schemas/types.d.ts': 'export type UserId = string;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/index.ts')).toMatchInlineSnapshot(`
@@ -281,7 +281,7 @@ describe('compile(): writing the Destination Directory', () => {
     });
     await linkSchemaPackage(root);
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/user.ts')).toContain(
@@ -297,7 +297,7 @@ describe('compile(): writing the Destination Directory', () => {
       'gen.pvl-old/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(diagnosticCodes(payload)).toEqual([DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE]);
   });
@@ -313,7 +313,7 @@ describe('compile(): writing the Destination Directory', () => {
       'gen.pvl-old/older.ts': 'export const older = 1;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await listFixtureFiles(root, 'gen')).toEqual([
@@ -332,7 +332,7 @@ describe('compile(): writing the Destination Directory', () => {
     });
     await mkdir(join(root, 'generated'));
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await listFixtureFiles(root, 'generated')).toEqual([
@@ -343,14 +343,14 @@ describe('compile(): writing the Destination Directory', () => {
   });
 });
 
-describe('compile(): settings', () => {
+describe('runCompilation(): settings', () => {
   it('applies the defaults when the config sets nothing', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.settings).toEqual({
       include: ['src/schemas/**/*.ts'],
@@ -374,7 +374,7 @@ describe('compile(): settings', () => {
       'schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.settings).toEqual({
       include: ['schemas/*.ts'],
@@ -396,7 +396,7 @@ describe('compile(): settings', () => {
       'schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({
+    const payload = await runCompilation({
       cwd: root,
       overrides: { rootDir: 'schemas', destination: 'from-override', withTypes: true },
     });
@@ -415,7 +415,7 @@ describe('compile(): settings', () => {
   it('runs with no config file when overrides are given, resolving paths from the working directory', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const payload = await compile({ cwd: root, overrides: { destination: 'out' } });
+    const payload = await runCompilation({ cwd: root, overrides: { destination: 'out' } });
 
     expect(payload.diagnostics).toEqual([]);
     expect(payload.destination).toBe(join(root, 'out'));
@@ -430,11 +430,11 @@ describe('compile(): settings', () => {
     const fromRepoRoot = await createFixture(files);
     const fromApp = await createFixture(files);
 
-    const rootPayload = await compile({
+    const rootPayload = await runCompilation({
       cwd: fromRepoRoot,
       configPath: 'apps/web/pvlconfig.json',
     });
-    const appPayload = await compile({ cwd: join(fromApp, 'apps/web') });
+    const appPayload = await runCompilation({ cwd: join(fromApp, 'apps/web') });
 
     expect(rootPayload.diagnostics).toEqual([]);
     expect(appPayload.diagnostics).toEqual([]);
@@ -452,18 +452,18 @@ describe('compile(): settings', () => {
       'node_modules/dep/index.ts': 'console.log("side effect");\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     // `index.ts` exports nothing, so scanning it would have warned.
     expect(payload.diagnostics).toEqual([]);
   });
 });
 
-describe('compile(): diagnostics', () => {
+describe('runCompilation(): diagnostics', () => {
   it('NO_CONFIG: no config file and no overrides', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [{ code: DIAGNOSTIC_CODE.NO_CONFIG }]);
   });
@@ -471,7 +471,7 @@ describe('compile(): diagnostics', () => {
   it('CONFIG_UNREADABLE: an explicit config path that does not exist', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const payload = await compile({ cwd: root, configPath: 'missing.json' });
+    const payload = await runCompilation({ cwd: root, configPath: 'missing.json' });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.CONFIG_UNREADABLE, file: join(root, 'missing.json') },
@@ -484,7 +484,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.CONFIG_UNREADABLE, file: join(root, 'pvlconfig.json') },
@@ -497,7 +497,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     const file = join(root, 'pvlconfig.json');
     expectFailure(payload, [
@@ -516,7 +516,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.INVALID_CONFIG, file: join(root, 'pvlconfig.json') },
@@ -531,7 +531,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.INVALID_CONFIG, file: join(root, 'pvlconfig.json') },
@@ -541,7 +541,7 @@ describe('compile(): diagnostics', () => {
   it('INVALID_CONFIG: an override of the wrong type, with no file', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const payload = await compile({
+    const payload = await runCompilation({
       cwd: root,
       overrides: { destination: 42 as unknown as string },
     });
@@ -555,7 +555,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [{ code: DIAGNOSTIC_CODE.NO_INPUT_FILES }]);
     expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
@@ -567,7 +567,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [{ code: DIAGNOSTIC_CODE.NO_INPUT_FILES }]);
   });
@@ -578,7 +578,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE, file: join(root, 'src/compiled') },
@@ -596,7 +596,7 @@ describe('compile(): diagnostics', () => {
       'shared/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: join(root, 'app') });
+    const payload = await runCompilation({ cwd: join(root, 'app') });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE, file: join(root, 'shared/out') },
@@ -610,7 +610,7 @@ describe('compile(): diagnostics', () => {
       out: 'notes',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE, file: join(root, 'out') },
@@ -625,7 +625,7 @@ describe('compile(): diagnostics', () => {
       'notes.txt': '',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE, file: join(root, 'notes.txt/out') },
@@ -642,7 +642,7 @@ describe('compile(): diagnostics', () => {
     await chmod(join(root, 'locked'), 0o555);
 
     try {
-      const payload = await compile({ cwd: root });
+      const payload = await runCompilation({ cwd: root });
 
       expectFailure(payload, [
         { code: DIAGNOSTIC_CODE.DESTINATION_UNWRITABLE, file: join(root, 'locked/nested/out') },
@@ -660,7 +660,7 @@ describe('compile(): diagnostics', () => {
       'src/app/main.ts': 'start();\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DESTINATION_NOT_EMPTY, file: join(root, 'src/app') },
@@ -675,7 +675,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
@@ -690,7 +690,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
@@ -706,7 +706,7 @@ describe('compile(): diagnostics', () => {
     await chmod(join(root, 'tsconfig.json'), 0o000);
 
     try {
-      const payload = await compile({ cwd: root });
+      const payload = await runCompilation({ cwd: root });
 
       expectFailure(payload, [
         { code: DIAGNOSTIC_CODE.TSCONFIG_UNREADABLE, file: join(root, 'tsconfig.json') },
@@ -723,7 +723,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
   });
@@ -735,7 +735,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/broken.ts': 'export const = pvl.object({;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.PARSE_FAILED, file: join(root, 'src/schemas/broken.ts') },
@@ -750,7 +750,7 @@ describe('compile(): diagnostics', () => {
       'lib/helpers.ts': 'export const label = 1;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR, file: join(root, 'lib/helpers.ts') },
@@ -767,7 +767,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/e.ts': 'const e = 1;\nexport = e;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(
       payload,
@@ -785,7 +785,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/a.ts': "export { default as legacy } from '../lib/legacy.js';\n",
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
   });
@@ -797,7 +797,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/b.ts': SCHEMA_FILE,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT, file: join(root, 'src/schemas/b.ts') },
@@ -812,7 +812,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/reexport.ts': "import { user } from './user.js';\nexport { user };\n",
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
   });
@@ -824,7 +824,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/setup.ts': 'const internal = 1;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toStrictEqual([
       {
@@ -845,7 +845,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': `${SCHEMA_FILE}\nif (process.env.DEBUG) {\n  console.log(user);\n}\n`,
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toStrictEqual([
       {
@@ -865,7 +865,7 @@ describe('compile(): diagnostics', () => {
       'src/schemas/user.ts': `${SCHEMA_FILE}console.log(user);\n`,
     });
 
-    const payload = await compile({ cwd: root, strict: true });
+    const payload = await runCompilation({ cwd: root, strict: true });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED, file: join(root, 'src/schemas/user.ts') },
@@ -881,7 +881,7 @@ describe('compile(): diagnostics', () => {
       '.pvl/index.ts': 'previous output',
     });
 
-    const payload = await compile({ cwd: root, strict: true });
+    const payload = await runCompilation({ cwd: root, strict: true });
 
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING, file: join(root, 'src/schemas/setup.ts') },
@@ -908,7 +908,7 @@ describe('compile(): diagnostics', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(
       payload,
@@ -933,7 +933,7 @@ describe('compile(): diagnostics', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(
       payload,
@@ -958,7 +958,7 @@ describe('compile(): diagnostics', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(
       payload,
@@ -988,7 +988,7 @@ describe('compile(): diagnostics', () => {
       ].join('\n'),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expectFailure(
       payload,
@@ -1004,7 +1004,7 @@ describe('compile(): diagnostics', () => {
       'pvlconfig.json': configJson({ include: ['src/**/*.ts'], destination: 'src/out' }),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(diagnosticCodes(payload)).toEqual([
       DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
@@ -1023,7 +1023,7 @@ describe('compile(): diagnostics', () => {
       'lib/helpers.ts': 'export const label = 1;\n',
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(
       payload.diagnostics.map(({ code, severity, file }) => ({ code, severity, file })),

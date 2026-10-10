@@ -4,7 +4,7 @@ import { runCli } from '../src/cli/runCli.js';
 import {
   DIAGNOSTIC_CODE,
   SEVERITY,
-  type CompilePayload,
+  type RunCompilationPayload,
   type DiagnosticCode,
 } from '../src/index.js';
 import { SCHEMA_FILE } from './consts.js';
@@ -34,13 +34,13 @@ const run = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> =>
   return { exitCode, stdout, stderr };
 };
 
-// `--json` prints one CompilePayload, so a test reads it back as one.
+// `--json` prints one RunCompilationPayload, so a test reads it back as one.
 const runJson = async (
   cwd: string,
   argv: ReadonlyArray<string>,
-): Promise<CliRun & { payload: CompilePayload }> => {
+): Promise<CliRun & { payload: RunCompilationPayload }> => {
   const result = await run(cwd, [...argv, '--json']);
-  return { ...result, payload: JSON.parse(result.stdout) as CompilePayload };
+  return { ...result, payload: JSON.parse(result.stdout) as RunCompilationPayload };
 };
 
 describe('pvl compile: settings from flags', () => {

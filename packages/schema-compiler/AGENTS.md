@@ -37,4 +37,4 @@ Read [`configuration-and-cli.md`](../../docs/specification/schema-compiler/confi
 
 ## Tests
 
-Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `compile()` and the CLI.
+Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `runCompilation()` and the CLI.

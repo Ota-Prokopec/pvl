@@ -3,7 +3,7 @@ import type { Issue, Result, Schema } from '@pvl/schema';
 import fc from 'fast-check';
 import { Project, ts } from 'ts-morph';
 import { describe, expect, it } from 'vitest';
-import { compile, type CompilePayload } from '../src/index.js';
+import { runCompilation, type RunCompilationPayload } from '../src/index.js';
 import {
   configJson,
   createFixture,
@@ -12,7 +12,7 @@ import {
   schemaFile,
 } from './helpers.js';
 
-describe('compile(): emitting Compiled Schemas', () => {
+describe('runCompilation(): emitting Compiled Schemas', () => {
   it('compiles a flat object to straight-line code in its mirrored module', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -21,7 +21,7 @@ describe('compile(): emitting Compiled Schemas', () => {
       ),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/user.ts')).toMatchInlineSnapshot(`
@@ -74,7 +74,7 @@ describe('compile(): emitting Compiled Schemas', () => {
       ),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/lists.ts')).toMatchInlineSnapshot(`
@@ -163,7 +163,7 @@ describe('compile(): emitting Compiled Schemas', () => {
       ),
     });
 
-    const payload = await compile({ cwd: root });
+    const payload = await runCompilation({ cwd: root });
 
     expect(payload.diagnostics).toEqual([]);
     expect(await readFixtureFile(root, '.pvl/schemas/order.ts')).toMatchInlineSnapshot(`
@@ -399,13 +399,16 @@ type CasesModule = Readonly<Record<string, Pick<Schema<unknown>, 'validate'>>>;
 
 // A fixture holding DIFFERENTIAL_FILE, with `@pvl/schema` linked so both it
 // and its mirror run, compiled.
-const compileDifferentialFixture = async (): Promise<{ root: string; payload: CompilePayload }> => {
+const compileDifferentialFixture = async (): Promise<{
+  root: string;
+  payload: RunCompilationPayload;
+}> => {
   const root = await createFixture({
     'pvlconfig.json': configJson({}),
     'src/schemas/cases.ts': DIFFERENTIAL_FILE,
   });
   await linkSchemaPackage(root);
-  return { root, payload: await compile({ cwd: root }) };
+  return { root, payload: await runCompilation({ cwd: root }) };
 };
 
 // A file asserting, for every case, that the compiled export's inferred
@@ -424,7 +427,7 @@ const TYPE_CHECK_FILE = [
   '',
 ].join('\n');
 
-describe('compile(): Compiled Schemas validate as the interpreted path does', () => {
+describe('runCompilation(): Compiled Schemas validate as the interpreted path does', () => {
   it('returns the same value, Issue messages and Issue paths for generated inputs', async () => {
     const { root, payload } = await compileDifferentialFixture();
     const interpreted = (await import(join(root, 'src/schemas/cases.ts'))) as CasesModule;
@@ -447,7 +450,7 @@ describe('compile(): Compiled Schemas validate as the interpreted path does', ()
   });
 });
 
-describe('compile(): Compiled Schemas type as the interpreted path does', () => {
+describe('runCompilation(): Compiled Schemas type as the interpreted path does', () => {
   it('emits code that typechecks strictly, inferring the Input and Output pvl.compile() does', async () => {
     const { root, payload } = await compileDifferentialFixture();
     const project = new Project({
@@ -516,16 +519,16 @@ const deepValue = (depth: number, brokenDepth?: number): unknown => {
 /** A fixture exporting `deepSchema(depth)` compiled, with its compile payload and emitted module. */
 const compileDeepFixture = async (
   depth: number,
-): Promise<{ root: string; payload: CompilePayload; emitted: string | undefined }> => {
+): Promise<{ root: string; payload: RunCompilationPayload; emitted: string | undefined }> => {
   const root = await createFixture({
     'pvlconfig.json': configJson({}),
     'src/schemas/deep.ts': schemaFile(`export const deep = pvl.compile(${deepSchema(depth)});`),
   });
-  const payload = await compile({ cwd: root });
+  const payload = await runCompilation({ cwd: root });
   return { root, payload, emitted: await readFixtureFile(root, '.pvl/schemas/deep.ts') };
 };
 
-describe('compile(): deeply nested Schemas', () => {
+describe('runCompilation(): deeply nested Schemas', () => {
   it('emits output that grows linearly with depth, not faster', async () => {
     // Indentation is left out: each nested block indents its lines once
     // more, which a bundler strips, and is all that grows with depth.

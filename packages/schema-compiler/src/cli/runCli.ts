@@ -1,11 +1,11 @@
 // `pvl compile`, in process: argv in, an exit code out, every byte of output
 // through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
-import { compile, type CompilePayload } from '../compile/compile.js';
+import { runCompilation, type RunCompilationPayload } from '../compilation/runCompilation.js';
 import type { SettingOverrides } from '../config/config.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { createDiagnostic } from '../diagnostics/createDiagnostic.js';
-import { hasError, type Diagnostic } from '../diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from '../enums.js';
+import { Diagnostic } from '../diagnostics/diagnostic.js';
+import { Diagnostics } from '../diagnostics/diagnostics.js';
 
 /** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
 export type CliStream = {
@@ -33,7 +33,7 @@ const formatDiagnostic = ({ severity, code, message, file }: Diagnostic): string
 };
 
 type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
-  payload: CompilePayload;
+  payload: RunCompilationPayload;
   json: boolean;
 };
 
@@ -54,7 +54,7 @@ const runCompile = async (
   flags: CompileFlags,
   { cwd, stdout, stderr }: RunCliOptions,
 ): Promise<number> => {
-  const payload = await compile({
+  const payload = await runCompilation({
     cwd,
     configPath: flags.config,
     overrides: {
@@ -67,7 +67,7 @@ const runCompile = async (
     strict: flags.strict,
   });
   report({ payload, json: flags.json, stdout, stderr });
-  return hasError(payload.diagnostics) ? 1 : 0;
+  return Diagnostics.hasError(payload.diagnostics) ? 1 : 0;
 };
 
 /**
@@ -149,7 +149,7 @@ export const runCli = async (
     // yargs failed before it could parse `--json`, so look for it by hand.
     report({
       payload: {
-        diagnostics: [createDiagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
+        diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
         settings: undefined,
         destination: undefined,
         written: false,

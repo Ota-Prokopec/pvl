@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, expect } from 'vitest';
-import { SEVERITY, type CompilePayload, type DiagnosticCode } from '../src/index.js';
+import { SEVERITY, type RunCompilationPayload, type DiagnosticCode } from '../src/index.js';
 
 /** A fixture project's files, keyed by path relative to its root. */
 export type FixtureFiles = Readonly<Record<string, string>>;
@@ -47,7 +47,7 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
  * ```ts
  * const root = await createFixture({ 'src/schemas/order.ts': ORDER_SOURCE, … });
  * await linkSchemaPackage(root);
- * await compile({ cwd: root });
+ * await runCompilation({ cwd: root });
  * const mirrored = await import(join(root, '.pvl/schemas/order.ts'));
  * const source = await import(join(root, 'src/schemas/order.ts'));
  * ```
@@ -99,8 +99,9 @@ export const listFixtureFiles = async (
 };
 
 /** Each diagnostic's code, in the order the compiler reported them. */
-export const diagnosticCodes = (payload: Pick<CompilePayload, 'diagnostics'>): DiagnosticCode[] =>
-  payload.diagnostics.map((diagnostic) => diagnostic.code);
+export const diagnosticCodes = (
+  payload: Pick<RunCompilationPayload, 'diagnostics'>,
+): DiagnosticCode[] => payload.diagnostics.map((diagnostic) => diagnostic.code);
 
 /**
  * A scanned file holding `source` under the `pvl` import every Schema needs.
@@ -129,7 +130,7 @@ export type ExpectedError = {
  * `file`, and wrote nothing.
  */
 export const expectFailure = (
-  payload: CompilePayload,
+  payload: RunCompilationPayload,
   expected: ReadonlyArray<ExpectedError>,
 ): void => {
   expect(payload.diagnostics).toStrictEqual(
