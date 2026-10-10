@@ -3,9 +3,9 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Project, ts } from 'ts-morph';
-import { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { DIAGNOSTIC_CODE } from '../../enums.js';
-import { Path } from '../path.js';
+import { Diagnostic } from './diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from './enums.js';
+import { Path } from './path.js';
 import { Specifier } from './specifier.js';
 
 /** The project the mirror reads into, or why the application's tsconfig stops it from being built. */

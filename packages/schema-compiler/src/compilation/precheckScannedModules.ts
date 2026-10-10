@@ -6,9 +6,9 @@ import {
   ScannedModuleCompiler,
   type MarkedToCompileSchemaSite,
 } from './generate/scannedModuleCompiler.js';
-import { hasScannedBarrel } from './mirror/barrel.js';
+import { Barrel } from '../barrel.js';
 import { Precheck } from '../precheck.js';
-import type { Module } from './mirror/module.js';
+import type { Module } from '../module.js';
 
 /** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
 export type ScannedModuleCompilation = {
@@ -98,7 +98,7 @@ export const precheckScannedModules = ({
       ),
       // A scanned `<rootDir>/index.ts` replaces the generated barrel, so no
       // export can clash in it.
-      ...(hasScannedBarrel(scannedModules)
+      ...(Barrel.hasScannedBarrel(scannedModules)
         ? []
         : Precheck.findDuplicateExportsDiagnostics(parsedModules)),
       ...parsedModules.flatMap((scannedModule) => Precheck.findWarningsDiagnostics(scannedModule)),

@@ -4,7 +4,7 @@
 import { Node, type CallExpression, type SourceFile } from 'ts-morph';
 import { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../../enums.js';
-import type { Module } from '../mirror/module.js';
+import type { Module } from '../../module.js';
 import { COMPILED_SCHEMA_IMPORT } from '../../consts.js';
 import { CompiledSchemaWriter } from './compiledSchemaWriter.js';
 import { readSchema } from './schemaReader.js';
@@ -39,7 +39,7 @@ export class ScannedModuleCompiler {
   /** The Local Names `pvl` is imported under in the module. */
   private readonly pvlImportLocalNames: ReadonlySet<string>;
 
-  public constructor({ absolutePath, sourceFile }: Module) {
+  public constructor({ absolutePath, moduleFile: sourceFile }: Module) {
     this.absolutePath = absolutePath;
     this.sourceFile = sourceFile;
     this.pvlImportLocalNames = ScannedModuleCompiler.findPvlImportLocalNames(sourceFile);

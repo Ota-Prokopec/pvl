@@ -11,7 +11,7 @@ import {
   GENERATED_MARKER_TEXT,
   GITIGNORE_FILE_NAME,
 } from '../consts.js';
-import type { MirroredFile } from '../compilation/mirror/module.js';
+import type { MirroredFile } from '../module.js';
 import type { Destination } from './destination.js';
 
 /** What {@link DestinationWriter.writeDestination} did: whether the Destination Directory is in place, and why not. */

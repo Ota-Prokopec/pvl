@@ -2,10 +2,10 @@
 // (ADR-0005): `Module.compile` handles each module, and this one adds the barrel.
 import type { Project } from 'ts-morph';
 import { BARREL_FILE_NAME } from '../consts.js';
-import { hasScannedBarrel, renderBarrel } from './mirror/barrel.js';
-import type { MirroredFile, MirroredPath } from './mirror/module.js';
+import { Barrel } from '../barrel.js';
+import type { MirroredFile, MirroredPath } from '../module.js';
 import type { ScannedModuleCompilation } from './precheckScannedModules.js';
-import type { ScannedPath } from './scan.js';
+import type { ScannedPath } from '../scanner.js';
 
 export type CompileAllArgs = {
   tsMorphProject: Project;
@@ -47,9 +47,9 @@ export const compileAll = ({ tsMorphProject, compilations }: CompileAllArgs): Mi
       }),
   );
 
-  const barrel: MirroredFile[] = hasScannedBarrel(scannedModules)
+  const barrel: MirroredFile[] = Barrel.hasScannedBarrel(scannedModules)
     ? []
-    : [{ relativePath: BARREL_FILE_NAME, text: renderBarrel(scannedModules) }];
+    : [{ relativePath: BARREL_FILE_NAME, text: Barrel.renderBarrelFile(scannedModules) }];
 
   return [...barrel, ...mirroredModules].sort((first, second) =>
     first.relativePath < second.relativePath ? -1 : 1,

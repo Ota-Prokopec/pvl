@@ -3,7 +3,7 @@
 import { Node, ts, type Project, type Statement } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from './enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
-import type { Module } from './compilation/mirror/module.js';
+import type { Module } from './module.js';
 
 /** Names `export *` never re-exports, so they can't clash in the barrel: DEFAULT_EXPORT reports them instead. */
 const NAMES_SKIPPED_BY_EXPORT_STAR: ReadonlySet<string> = new Set(['default', 'export=']);
@@ -35,10 +35,10 @@ export class Precheck {
     tsMorphProject: Project,
     scannedModules: ReadonlyArray<Module>,
   ): Diagnostic[] {
-    return scannedModules.flatMap(({ absolutePath, sourceFile }) =>
+    return scannedModules.flatMap(({ absolutePath, moduleFile }) =>
       tsMorphProject
         .getProgram()
-        .getSyntacticDiagnostics(sourceFile)
+        .getSyntacticDiagnostics(moduleFile)
         .slice(0, 1)
         .map(
           (syntaxDiagnostic) =>
@@ -91,11 +91,8 @@ export class Precheck {
    * export const user = pvl.object({ … });     // fine
    * ```
    */
-  public static findDefaultExportsDiagnostics({
-    absolutePath,
-    sourceFile,
-  }: Module): Diagnostic[] {
-    return sourceFile
+  public static findDefaultExportsDiagnostics({ absolutePath, moduleFile }: Module): Diagnostic[] {
+    return moduleFile
       .getStatements()
       .filter((statement) => Precheck.exportsDefault(statement))
       .map(
@@ -126,10 +123,10 @@ export class Precheck {
   ): Diagnostic[] {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
-    for (const { absolutePath, relative, sourceFile } of [...scannedModules].sort(
+    for (const { absolutePath, relative, moduleFile } of [...scannedModules].sort(
       (first, second) => (first.relative.path < second.relative.path ? -1 : 1),
     )) {
-      for (const [exportedName, declarations] of sourceFile.getExportedDeclarations()) {
+      for (const [exportedName, declarations] of moduleFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
         if (NAMES_SKIPPED_BY_EXPORT_STAR.has(exportedName)) {
           continue;
@@ -164,7 +161,7 @@ export class Precheck {
    *   loaded.
    */
   public static findWarningsDiagnostics(scannedModule: Module): Diagnostic[] {
-    const { absolutePath, sourceFile } = scannedModule;
+    const { absolutePath, moduleFile } = scannedModule;
     const exportsNothingWarnings = scannedModule.hasExport()
       ? []
       : [
@@ -176,7 +173,7 @@ export class Precheck {
           }),
         ];
 
-    const sideEffectWarnings = sourceFile
+    const sideEffectWarnings = moduleFile
       .getStatements()
       .filter((statement) => Precheck.hasTopLevelSideEffect(statement))
       .map(

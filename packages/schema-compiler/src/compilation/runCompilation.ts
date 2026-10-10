@@ -12,13 +12,13 @@ import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../enums.js';
 import { findPatternsMatchingPath } from '../utils.js';
-import { Module } from './mirror/module.js';
-import { TsMorphProject } from './mirror/tsMorphProject.js';
+import { Module } from '../module.js';
+import { TsMorphProject } from '../tsMorphProject.js';
 import {
   precheckScannedModules,
   type PrecheckScannedModulesPayload,
 } from './precheckScannedModules.js';
-import { createNoInputFilesDiagnostic, findScanningInputFilePaths } from './scan.js';
+import { Scanner } from '../scanner.js';
 
 /**
  * What a {@link runCompilation} run reports.
@@ -185,7 +185,7 @@ export const runCompilation = async ({
 
   const [destinationDiagnostics, scannedFilePaths] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
-    findScanningInputFilePaths({ baseDirectory, include: settings.include, destination }),
+    Scanner.findScanningInputFilePaths({ baseDirectory, include: settings.include, destination }),
   ]);
 
   const { tsMorphProject, diagnostics: tsMorphProjectDiagnostics } =
@@ -212,7 +212,9 @@ export const runCompilation = async ({
       createDestinationInsideIncludeDiagnostic(destination, pattern),
     ),
     ...destinationDiagnostics,
-    ...(scannedFilePaths.length === 0 ? [createNoInputFilesDiagnostic(settings.include)] : []),
+    ...(scannedFilePaths.length === 0
+      ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
+      : []),
     ...tsMorphProjectDiagnostics,
     ...scannedModulesDiagnostics,
   ];

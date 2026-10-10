@@ -1,6 +1,6 @@
 // Where the Destination Directory and the sibling directories a run keeps
 // beside it go. Pure: touches no file.
-import { Path } from '../compilation/path.js';
+import { Path } from '../path.js';
 import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from '../consts.js';
 
 /**
