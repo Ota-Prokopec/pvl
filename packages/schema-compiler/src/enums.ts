@@ -45,6 +45,8 @@ export const DIAGNOSTIC_CODE = {
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
   /** A `pvl.compile(...)` argument can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one. */
   COMPILE_ARGUMENT_UNRESOLVABLE: 'COMPILE_ARGUMENT_UNRESOLVABLE',
+  /** A `pvl.compile(...)` argument, or an argument of a method chained in it, follows a `const` that refers back to itself, so reading it would never end. */
+  COMPILE_ARGUMENT_CYCLE: 'COMPILE_ARGUMENT_CYCLE',
   /** A `pvl.compile(...)` argument isn't an object or array Schema. */
   COMPILE_ARGUMENT_NOT_COMPOSITE: 'COMPILE_ARGUMENT_NOT_COMPOSITE',
   /** Something is chained onto the result of `pvl.compile(...)`, which takes no Modifier: chain it inside the call. */

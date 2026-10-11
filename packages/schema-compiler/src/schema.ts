@@ -2,7 +2,11 @@
 // from source statically (ADR-0002), and compiled into its Compiled Schema. Only a `pvl.*` call chain, a literal or a top-level `const` of the
 // same file holding one is understood. Nothing is imported or executed.
 import type { EnumMember, PossibleLiteralValue } from '@pvl/schema';
-import { Node, SyntaxKind, VariableDeclarationKind, type CallExpression } from 'ts-morph';
+import type { Node } from 'ts-morph';
+import { ConstCycleError } from './ast/constCycleError.js';
+import { GenericAst, type FollowedConsts, type StaticValue } from './ast/genericAst.js';
+import { PvlAst, type CallChainLink } from './ast/pvlAst.js';
+import { UnresolvedNodeError } from './ast/unresolvedNodeError.js';
 import { COMPOSITE_FACTORIES } from './consts.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import { ArraySchemaEmitter } from './emitters/arraySchemaEmitter.js';
@@ -18,15 +22,6 @@ import { ObjectSchemaEmitter } from './emitters/objectSchemaEmitter.js';
 import { StringSchemaEmitter } from './emitters/stringSchemaEmitter.js';
 import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from './enums.js';
 import type { Module } from './module.js';
-
-/** An argument written as a literal in source: `3`, `'a'`, `10n`, `{ message: 'too short' }`. */
-export type StaticValue =
-  | string
-  | number
-  | boolean
-  | bigint
-  | ReadonlyArray<StaticValue>
-  | { readonly [key: string]: StaticValue };
 
 /** One method chained onto a Schema: `.min(3, { message: 'too short' })`. */
 export type SchemaMethodCall = {
@@ -82,16 +77,6 @@ export type ReadSchemaArgs = {
   pvlImportLocalNames: ReadonlySet<string>;
 };
 
-// Thrown at the first node that can't be read, and caught by `Schema.read`.
-class UnresolvedNodeError extends Error {
-  public readonly unresolvedNode: Node;
-
-  public constructor(unresolvedNode: Node) {
-    super(`Can't read ${unresolvedNode.getText()} statically.`);
-    this.unresolvedNode = unresolvedNode;
-  }
-}
-
 const SCHEMA_FACTORIES: ReadonlySet<string> = new Set(Object.values(SCHEMA_FACTORY));
 
 // Every emitter, by the factory whose Schema it compiles. A union has none
@@ -131,11 +116,9 @@ export class Schema {
 
   // The Local Names `pvl` is imported under, which mark a factory call.
   private readonly pvlImportLocalNames: ReadonlySet<string>;
-  // The `const`s being followed, so a cycle (`const a = b; const b = a;`)
-  // is unresolvable rather than endless.
-  private readonly followedConstNames = new Set<string>();
 
-  // Throws an UnresolvedNodeError at the first node that can't be read.
+  // Throws an UnresolvedNodeError at the first node that can't be read, or a
+  // ConstCycleError at a `const` that reaches itself.
   private constructor({ module, expression, pvlImportLocalNames }: ReadSchemaArgs) {
     this.module = module;
     this.expression = expression;
@@ -144,8 +127,9 @@ export class Schema {
   }
 
   /**
-   * The Schema `expression` holds, or a COMPILE_ARGUMENT_UNRESOLVABLE error
-   * on its Module's file naming the first node that can't be read statically.
+   * The Schema `expression` holds, or an error on its Module's file:
+   * COMPILE_ARGUMENT_UNRESOLVABLE naming the first node that can't be read
+   * statically, or COMPILE_ARGUMENT_CYCLE naming a `const` that reaches itself.
    *
    * ```ts
    * // const MIN = 3;
@@ -155,12 +139,24 @@ export class Schema {
    * Schema.read({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <Schema> }: not marked, still read
    * // export const home = pvl.compile(importedAddress);
    * Schema.read({ expression: <pvl.compile(importedAddress)>, … }) // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
+   * // const user = pvl.object({ friend: user });
+   * Schema.read({ expression: <pvl.compile(user)>, … })            // { diagnostic: COMPILE_ARGUMENT_CYCLE }
    * ```
    */
   public static read(args: ReadSchemaArgs): { schema: Schema } | { diagnostic: Diagnostic } {
     try {
       return { schema: new Schema(args) };
     } catch (error) {
+      if (error instanceof ConstCycleError) {
+        const { cycleNode } = error;
+        return {
+          diagnostic: new Diagnostic({
+            code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
+            message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be read statically: the const \`${cycleNode.getText()}\` refers back to itself on line ${String(cycleNode.getStartLineNumber())}, so reading it would never end.`,
+            file: args.module.path.absolutePath,
+          }),
+        };
+      }
       if (!(error instanceof UnresolvedNodeError)) {
         throw error;
       }
@@ -175,32 +171,31 @@ export class Schema {
     }
   }
 
-  // A `pvl.<factory>(…)` call with methods chained onto it, read from the
-  // outside in: `<receiver>.<name>(…)` is the factory when `receiver` is
-  // `pvl`, and otherwise a method appended to the receiver's Schema.
+  // A `pvl.<factory>(…)` call with methods chained onto it, following
+  // `const`s (see `PvlAst.readCallChain`).
   //
   //   pvl.string().min(3)       // { factory: 'string', calls: [min(3)] }
   //   pvl.string().refine(isOk) // { factory: 'string', calls: [refine(args: undefined)] }
   //   user                      // what `const user = …` holds
   //   makeSchema(), z.string()  // unresolvable
-  private readSchema(expression: Node): SchemaModel {
-    const call = this.followConst(expression);
-    const callee = Node.isCallExpression(call) ? call.getExpression() : undefined;
-
-    // Only for: pvl.string() or pvl.string().min()
-    // not for: pvl.string().min or pvl.string
-    if (!Node.isCallExpression(call) || !Node.isPropertyAccessExpression(callee)) {
-      throw new UnresolvedNodeError(call);
-    }
-    const name = callee.getName(); // from pvl.string => "string"
-    const receiver = callee.getExpression(); // from pvl.string => pvl
-
-    if (Node.isIdentifier(receiver) && this.pvlImportLocalNames.has(receiver.getText())) {
-      return this.getFactory(name, call);
-    }
-    const schema = this.readSchema(receiver);
-    const args = this.tryReadStaticValues(call.getArguments());
-    return { ...schema, calls: [...schema.calls, { name, args, line: call.getStartLineNumber() }] };
+  private readSchema(expression: Node, followed?: FollowedConsts): SchemaModel {
+    const { factory, methods } = PvlAst.readCallChain(
+      expression,
+      this.pvlImportLocalNames,
+      followed,
+    );
+    const schema = this.readFactory(factory);
+    return {
+      ...schema,
+      calls: [
+        ...schema.calls,
+        ...methods.map(({ call, methodName, followed: argumentsFollowed }) => ({
+          name: methodName,
+          args: Schema.tryReadStaticValues(call.getArguments(), argumentsFollowed),
+          line: call.getStartLineNumber(),
+        })),
+      ],
+    };
   }
 
   /**
@@ -369,16 +364,16 @@ export class Schema {
   //   pvl.array(pvl.number())                 // { factory: 'array', element: { factory: 'number', … }, … }
   //   pvl.union([pvl.string(), pvl.number()]) // { factory: 'union', members: [string, number], … }
   //   pvl.compile(pvl.string())               // the argument's Schema
-  private getFactory(name: string, call: CallExpression): SchemaModel {
+  private readFactory({ call, methodName, followed }: CallChainLink): SchemaModel {
     const [argument] = call.getArguments();
     const base = { calls: [], line: call.getStartLineNumber() };
-    if (name === 'compile' && argument !== undefined) {
-      return this.readSchema(argument);
+    if (methodName === 'compile' && argument !== undefined) {
+      return this.readSchema(argument, followed);
     }
-    if (!SCHEMA_FACTORIES.has(name)) {
+    if (!SCHEMA_FACTORIES.has(methodName)) {
       throw new UnresolvedNodeError(call);
     }
-    const factory = name as SchemaFactory;
+    const factory = methodName as SchemaFactory;
     if (
       factory === SCHEMA_FACTORY.STRING ||
       factory === SCHEMA_FACTORY.NUMBER ||
@@ -392,36 +387,39 @@ export class Schema {
     }
     switch (factory) {
       case SCHEMA_FACTORY.LITERAL:
-        return { ...base, factory, literalValue: this.readLiteralValue(argument) };
+        return { ...base, factory, literalValue: Schema.readLiteralValue(argument, followed) };
       case SCHEMA_FACTORY.ENUM:
-        return { ...base, factory, members: this.readEnumMembers(argument) };
+        return { ...base, factory, members: Schema.readEnumMembers(argument, followed) };
       case SCHEMA_FACTORY.OBJECT:
         return {
           ...base,
           factory,
-          shape: Object.entries(this.readObject(argument, (node) => this.readSchema(node))).map(
-            ([key, schema]) => ({ key, schema }),
-          ),
+          shape: Object.entries(
+            GenericAst.readObject(
+              argument,
+              (field, fieldFollowed) => this.readSchema(field, fieldFollowed),
+              followed,
+            ),
+          ).map(([key, schema]) => ({ key, schema })),
         };
       case SCHEMA_FACTORY.ARRAY:
-        return { ...base, factory, element: this.readSchema(argument) };
-      case SCHEMA_FACTORY.UNION: {
-        const members = this.followConst(argument);
-        if (!Node.isArrayLiteralExpression(members)) {
-          throw new UnresolvedNodeError(members);
-        }
+        return { ...base, factory, element: this.readSchema(argument, followed) };
+      case SCHEMA_FACTORY.UNION:
         return {
           ...base,
           factory,
-          members: members.getElements().map((member) => this.readSchema(member)),
+          members: GenericAst.readArray(
+            argument,
+            (member, memberFollowed) => this.readSchema(member, memberFollowed),
+            followed,
+          ),
         };
-      }
     }
   }
 
   // `pvl.literal()`'s argument: a literal that isn't an object or an array.
-  private readLiteralValue(argument: Node): PossibleLiteralValue {
-    const value = this.readStaticValue(argument);
+  private static readLiteralValue(argument: Node, followed: FollowedConsts): PossibleLiteralValue {
+    const value = GenericAst.readStaticValue(argument, followed);
     if (typeof value === 'object') {
       throw new UnresolvedNodeError(argument);
     }
@@ -433,8 +431,8 @@ export class Schema {
   //
   //   ['A', 'B', 'A']  // ['A', 'B']
   //   { A: 'a', B: 1 } // ['a', 1]
-  private readEnumMembers(argument: Node): EnumMember[] {
-    const value = this.readStaticValue(argument);
+  private static readEnumMembers(argument: Node, followed: FollowedConsts): EnumMember[] {
+    const value = GenericAst.readStaticValue(argument, followed);
     const members = typeof value === 'object' ? Object.values(value) : [];
     if (
       members.length === 0 ||
@@ -447,136 +445,19 @@ export class Schema {
     return [...new Set(members)];
   }
 
-  // A method's arguments, or `undefined` when one isn't a literal.
-  private tryReadStaticValues(args: ReadonlyArray<Node>): StaticValue[] | undefined {
+  // A method's arguments, or `undefined` when one isn't a literal. A `const`
+  // that reaches itself is still thrown: it is no "not a literal".
+  private static tryReadStaticValues(
+    args: ReadonlyArray<Node>,
+    followed: FollowedConsts,
+  ): StaticValue[] | undefined {
     try {
-      return args.map((argument) => this.readStaticValue(argument));
+      return args.map((argument) => GenericAst.readStaticValue(argument, followed));
     } catch (error) {
       if (error instanceof UnresolvedNodeError) {
         return undefined;
       }
       throw error;
-    }
-  }
-
-  // `node` as a literal value, following `const`s:
-  //
-  //   3, -1, 10n, 'a', `a`, true    // as written
-  //   { message: 'x' }, ['A', 'B']  // the object or array
-  //   MIN                            // what `const MIN = 3` holds
-  //   Math.max(1, 2)                 // unresolvable
-  private readStaticValue(node: Node): StaticValue {
-    const value = this.followConst(node);
-    if (
-      Node.isStringLiteral(value) ||
-      Node.isNoSubstitutionTemplateLiteral(value) ||
-      Node.isNumericLiteral(value) ||
-      Node.isTrueLiteral(value) ||
-      Node.isFalseLiteral(value)
-    ) {
-      return value.getLiteralValue();
-    }
-    if (Node.isBigIntLiteral(value)) {
-      return value.getLiteralValue() as bigint;
-    }
-    if (Node.isPrefixUnaryExpression(value) && value.getOperatorToken() === SyntaxKind.MinusToken) {
-      const operand = this.readStaticValue(value.getOperand());
-      if (typeof operand === 'number' || typeof operand === 'bigint') {
-        return -operand;
-      }
-    }
-    if (Node.isArrayLiteralExpression(value)) {
-      return value.getElements().map((element) => this.readStaticValue(element));
-    }
-    if (Node.isObjectLiteralExpression(value)) {
-      // Spread back onto a plain object, which keeps an own `__proto__` key.
-      return { ...this.readObject(value, (property) => this.readStaticValue(property)) };
-    }
-    throw new UnresolvedNodeError(value);
-  }
-
-  // An object literal's own keys, each value read with `readValue`, in the
-  // order they take at runtime: integer-like keys first, ascending, then the
-  // rest as written. A key written twice keeps its first place and its last
-  // value. A plain `__proto__: …` sets the prototype, so it is no key.
-  //
-  //   { name: pvl.string(), 'e-mail': email, age } // three keys
-  //   { b: 1, 1: 2 }                                // '1', then 'b'
-  //   { ['__proto__']: 1 }                          // one key, `__proto__`
-  //   { ...base }, { [key]: 1 }                     // unresolvable
-  private readObject<Value>(node: Node, readValue: (node: Node) => Value): Record<string, Value> {
-    const object = this.followConst(node);
-    if (!Node.isObjectLiteralExpression(object)) {
-      throw new UnresolvedNodeError(object);
-    }
-    // No prototype, so every key, `__proto__` included, is an own key.
-    const valueByKey = Object.create(null) as Record<string, Value>;
-    for (const property of object.getProperties()) {
-      if (Node.isShorthandPropertyAssignment(property)) {
-        valueByKey[property.getName()] = readValue(property.getNameNode());
-        continue;
-      }
-      const initializer = Node.isPropertyAssignment(property)
-        ? property.getInitializer()
-        : undefined;
-      if (!Node.isPropertyAssignment(property) || initializer === undefined) {
-        throw new UnresolvedNodeError(property);
-      }
-      const nameNode = property.getNameNode();
-      const key = this.readPropertyKey(nameNode);
-      if (key === '__proto__' && !Node.isComputedPropertyName(nameNode)) {
-        continue;
-      }
-      valueByKey[key] = readValue(initializer);
-    }
-    return valueByKey;
-  }
-
-  // A property's name as a key: `name`, `'e-mail'`, `1`, `['e-mail']`.
-  private readPropertyKey(nameNode: Node): string {
-    if (Node.isIdentifier(nameNode)) {
-      return nameNode.getText();
-    }
-    if (Node.isStringLiteral(nameNode) || Node.isNumericLiteral(nameNode)) {
-      return String(nameNode.getLiteralValue());
-    }
-    if (Node.isComputedPropertyName(nameNode)) {
-      const key = this.readStaticValue(nameNode.getExpression());
-      if (typeof key === 'string' || typeof key === 'number') {
-        return String(key);
-      }
-    }
-    throw new UnresolvedNodeError(nameNode);
-  }
-
-  // `node` with parentheses, `as const` and an identifier naming a top-level
-  // `const` of this file seen through. Any other identifier (an import, a
-  // `let`, a parameter) is unresolvable.
-  private followConst(node: Node): Node {
-    if (Node.isParenthesizedExpression(node) || Node.isAsExpression(node)) {
-      return this.followConst(node.getExpression());
-    }
-
-    if (!Node.isIdentifier(node)) {
-      return node;
-    }
-
-    const variableName = node.getText();
-    const declaration = this.module.moduleFile.getVariableDeclaration(variableName);
-    const initializer = declaration?.getInitializer();
-
-    if (
-      initializer === undefined ||
-      declaration?.getVariableStatement()?.getDeclarationKind() !== VariableDeclarationKind.Const ||
-      this.followedConstNames.has(variableName)
-    ) {
-      throw new UnresolvedNodeError(node);
-    }
-    this.followedConstNames.add(variableName);
-    try {
-      return this.followConst(initializer);
-    } finally {
-      this.followedConstNames.delete(variableName);
     }
   }
 }

@@ -263,6 +263,15 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'out'],
   },
   {
+    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
+    files: {
+      'src/schemas/user.ts': schemaFile(
+        'const user = pvl.object({ friend: user });\nexport const compiled = pvl.compile(user);',
+      ),
+    },
+    argv: ['--destination', 'out'],
+  },
+  {
     code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
     files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(pvl.string());') },
     argv: ['--destination', 'out'],

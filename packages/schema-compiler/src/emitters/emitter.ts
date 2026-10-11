@@ -3,7 +3,8 @@
 // emitter method of the same name, wrapping each check in its `if`, and
 // writing a Compiled Schema's class around the body a composite emitter
 // writes. A subclass only adds the templates and overrides the `_` hooks.
-import type { SchemaMethodCall, SchemaModel, StaticValue } from '../schema.js';
+import type { StaticValue } from '../ast/genericAst.js';
+import type { SchemaMethodCall, SchemaModel } from '../schema.js';
 import { EmitScope, type FindEmitter } from './emitScope.js';
 import { js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';
 

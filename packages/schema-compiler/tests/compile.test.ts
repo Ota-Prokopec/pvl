@@ -900,10 +900,13 @@ describe('runCompilation(): diagnostics', () => {
         '',
         'const makeSchema = () => pvl.object({});',
         'let limit = 3;',
+        'const size = 3;',
         'export const imported = pvl.compile(user);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
         'export const variableLimit = pvl.compile(pvl.array(pvl.string()).max(limit));',
+        'export const preIncremented = pvl.compile(pvl.array(pvl.string()).max(++size));',
+        'export const postIncremented = pvl.compile(pvl.array(pvl.string()).max(size++));',
         '',
       ].join('\n'),
     });
@@ -912,8 +915,37 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 4 }, () => ({
+      Array.from({ length: 6 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        file: join(root, path),
+      })),
+    );
+  });
+
+  it('COMPILE_ARGUMENT_CYCLE: an argument or a method argument that reaches its own const', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'const user = pvl.object({ friend: user });',
+        'const first = second;',
+        'const second = first;',
+        'const options = { message: options };',
+        'export const selfReferencing = pvl.compile(user);',
+        'export const mutual = pvl.compile(pvl.object({ name: first }));',
+        'export const selfReferencingOptions = pvl.compile(pvl.array(pvl.string()).max(3, options));',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 3 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
         file: join(root, path),
       })),
     );

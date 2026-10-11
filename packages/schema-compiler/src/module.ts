@@ -3,14 +3,8 @@
 // compiling it into its mirrored file, module specifiers rewritten to reach
 // the right files from there.
 import * as path from 'node:path';
-import {
-  Node,
-  SyntaxKind,
-  type CallExpression,
-  type Project,
-  type SourceFile,
-  type StringLiteral,
-} from 'ts-morph';
+import { Node, SyntaxKind, type Project, type SourceFile, type StringLiteral } from 'ts-morph';
+import { PvlAst } from './ast/pvlAst.js';
 import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
 import { DIAGNOSTIC_CODE, SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
@@ -21,12 +15,6 @@ import { Schema } from './schema.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';
-
-/** The package `pvl` is imported from. */
-const PVL_PACKAGE = '@pvl/schema' as const;
-
-/** The methods that may still be read off the result of `pvl.compile(...)`. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
-const COMPILE_MARKER_ALLOWED_METHODS: ReadonlySet<string> = new Set(['validate']);
 
 /**
  * The absolute path of a scanned file's mirrored module. Branded so it can't
@@ -261,11 +249,11 @@ export class Module {
   } {
     const diagnostics: Diagnostic[] = [];
     const schemas: Schema[] = [];
-    const pvlImportLocalNames = Module.findPvlImportLocalNames(this.moduleFile);
+    const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(this.moduleFile);
 
-    for (const call of this.findCompileCalls(pvlImportLocalNames)) {
+    for (const call of PvlAst.findCompileCalls(this.moduleFile, pvlImportLocalNames)) {
       const line = call.getStartLineNumber();
-      const modifierName = Module.findModifierOnCompileMarker(call);
+      const modifierName = PvlAst.findModifierOnCompileMarker(call);
 
       if (modifierName !== undefined) {
         diagnostics.push(
@@ -346,107 +334,6 @@ export class Module {
       importCount,
       [COMPILED_SCHEMA_IMPORT, '', classDeclarations.join('\n\n')].join('\n'),
     );
-  }
-
-  /**
-   * The `pvl.compile(...)` calls in the module as an array of their syntax
-   * nodes (`CallExpression`), wherever they are nested, in source order. Each
-   * node is the whole call, not the Schema inside it, so a caller can both read
-   * its argument and replace the call. A call counts when it is
-   * `<name>.compile(…)` and `<name>` is one of `pvlImportLocalNames`, the Local
-   * Names `pvl` is imported under. A nested call follows the call around it.
-   * Empty when no call matches or the module imports no `pvl`.
-   *
-   * ```ts
-   * // pvlImportLocalNames: {'pvl'}
-   * pvl.compile(pvl.string())     // [pvl.compile(pvl.string()) ]
-   * export const user = pvl.compile(userSchema); // [pvl.compile(...)], at any depth
-   * pvl.compile(pvl.compile(x))   // [outer call, inner call]
-   * pvl.string()                  // []: not `compile`
-   * schemas.compile(pvl.string()) // []: `schemas` isn't a Local Name of `pvl`
-   * pvl.compile                   // []: not called
-   *
-   * // pvlImportLocalNames: {}
-   * pvl.compile(pvl.string())     // []: the module imports no `pvl`
-   * ```
-   */
-  private findCompileCalls(pvlImportLocalNames: ReadonlySet<string>): CallExpression[] {
-    // Without a `pvl` import there is nothing to find, so skip the walk.
-    if (pvlImportLocalNames.size === 0) {
-      return [];
-    }
-
-    // `getDescendants()` is every node of the file's syntax tree, not just
-    // statements: each statement, expression, identifier and token, at any depth,
-    // parents before their children, so in source order.
-    return this.moduleFile.getDescendants().filter((node): node is CallExpression => {
-      // `node` is the one tree node being tested. Most are not calls (`pvl`,
-      // `.compile`, `'a'`, `const user = …`), and are dropped here.
-      if (!Node.isCallExpression(node)) {
-        return false;
-      }
-
-      // `callee` is what `node` calls, the part before the parentheses: for
-      // `pvl.compile(pvl.string())` it is `pvl.compile`. It must be a property
-      // access, `<receiver>.compile`, with a Local Name of `pvl` as the receiver.
-      const callee = node.getExpression();
-      return (
-        Node.isPropertyAccessExpression(callee) &&
-        callee.getName() === 'compile' &&
-        Node.isIdentifier(callee.getExpression()) &&
-        pvlImportLocalNames.has(callee.getExpression().getText())
-      );
-    });
-  }
-
-  /**
-   * The Local Names `pvl` is imported under in `sourceFile`: one per named
-   * import whose Module Specifier is `@pvl/schema` and whose Import Name is
-   * `pvl`. An empty set means the module has no `pvl` to read.
-   *
-   * ```ts
-   * import { pvl } from '@pvl/schema';              // {'pvl'}
-   * import { pvl as p } from '@pvl/schema';         // {'p'}
-   * import { pvl as p, pvl } from '@pvl/schema';    // {'p', 'pvl'}
-   * import { pvl } from './my-pvl.js';              // {}: Module Specifier isn't `@pvl/schema`
-   * import { z } from '@pvl/schema';                // {}: Import Name isn't `pvl`
-   * import * as schema from '@pvl/schema';          // {}: not a named import
-   * ```
-   */
-  private static findPvlImportLocalNames(sourceFile: SourceFile): Set<string> {
-    return new Set(
-      sourceFile
-        .getImportDeclarations()
-        .filter((declaration) => declaration.getModuleSpecifierValue() === PVL_PACKAGE)
-        .flatMap((declaration) => declaration.getNamedImports())
-        .filter((namedImport) => namedImport.getName() === 'pvl')
-        .map((namedImport) => namedImport.getAliasNode()?.getText() ?? namedImport.getName()),
-    );
-  }
-
-  /**
-   * The name of the member read off the result of the `pvl.compile(...)` call
-   * `call`, when a Compiled Schema doesn't have it, so the module chains a
-   * Modifier, a Constraint or an unknown property onto it. `undefined` when
-   * nothing is read off the result, or only `validate`.
-   *
-   * ```ts
-   * pvl.compile(user).optional()      // 'optional'
-   * pvl.compile(tags).min(1)          // 'min'
-   * pvl.compile(user).shape           // 'shape': read, even when not called
-   * pvl.compile(user).validate(input) // undefined: a Compiled Schema has it
-   * pvl.compile(user)                 // undefined: nothing read off it
-   * pvl.compile(user)['optional']()   // undefined: an element access isn't checked
-   * ```
-   */
-  private static findModifierOnCompileMarker(call: CallExpression): string | undefined {
-    const parent = call.getParent();
-
-    return Node.isPropertyAccessExpression(parent) &&
-      parent.getExpression() === call &&
-      !COMPILE_MARKER_ALLOWED_METHODS.has(parent.getName())
-      ? parent.getName()
-      : undefined;
   }
 
   /** The class name of a module's `index`th Compiled Schema, counted in source order. */
