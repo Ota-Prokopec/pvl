@@ -1,36 +1,49 @@
 // One scanned file as the mirror sees it: its parsed source, where it lands
-// in the Destination Directory, what the mirror asks of it, and compiling it
-// into its mirrored file, module specifiers rewritten to reach the right files
-// from there.
+// in the Destination Directory, what the mirror asks of it, its precheck, and
+// compiling it into its mirrored file, module specifiers rewritten to reach
+// the right files from there.
 import * as path from 'node:path';
-import { Node, SyntaxKind, type Project, type SourceFile, type StringLiteral } from 'ts-morph';
-import { GENERATED_HEADER } from './consts.js';
-import { SPECIFIER_TARGET_KIND } from './enums.js';
+import {
+  Node,
+  SyntaxKind,
+  type CallExpression,
+  type Project,
+  type SourceFile,
+  type StringLiteral,
+} from 'ts-morph';
+import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
+import { DIAGNOSTIC_CODE, SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
-import type {
-  MarkedToCompileSchemaSite,
-  ScannedModuleCompiler,
-} from './compilation/generate/scannedModuleCompiler.js';
+import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
+import { Precheck, type ModuleCompilation } from './precheck.js';
+import { Schema } from './schema.js';
 import type { ScannedPath } from './scanner.js';
-import { Specifier, type SpecifierTarget } from './compilation/mirror/specifier.js';
+import { Specifier, type SpecifierTarget } from './specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';
+
+/** The package `pvl` is imported from. */
+const PVL_PACKAGE = '@pvl/schema' as const;
+
+/** The methods that may still be read off the result of `pvl.compile(...)`. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
+const COMPILE_MARKER_ALLOWED_METHODS: ReadonlySet<string> = new Set(['validate']);
 
 /**
  * The absolute path of a scanned file's mirrored module. Branded so it can't
- * be mixed up with the scanned file's own path: `Module.readAll` is the only
- * place one is made.
+ * be mixed up with the scanned file's own path: the `Module` constructor is
+ * the only place one is made.
  */
 export type MirroredPath = string & { readonly __brand: 'MirroredPath' };
 
-/** A scanned file's location, the project its module file is read into, and its mirrored location. */
+/** A scanned file, the project it is read into, and the directories that place it in the mirror. */
 export type ModuleOptions = {
-  /** The file's location, relative to the Root Directory. */
-  scannedPath: Required<Path>;
+  /** The scanned file's absolute path. */
+  scannedFilePath: ScannedPath;
   /** The ts-morph project the file is read into. */
   tsMorphProject: Project;
-  /** The absolute path of its mirrored module. */
-  mirroredPath: MirroredPath;
+  /** The Root Directory's absolute path. */
+  rootDirectory: string;
+  destination: Destination;
 };
 
 /** One file the Destination Directory holds. */
@@ -42,10 +55,8 @@ export type MirroredFile = {
 
 export type CompileModuleArgs = {
   tsMorphProject: Project;
-  /** The module's compiler, which read its `pvl.compile(...)` calls. */
-  scannedModuleCompiler: ScannedModuleCompiler;
-  /** The module's `pvl.compile(...)` calls that compile. */
-  sites: ReadonlyArray<MarkedToCompileSchemaSite>;
+  /** The module's Marked-to-Compile Schemas that compile. */
+  schemas: ReadonlyArray<Schema>;
   /** Lets an import of another scanned file point at that file's mirror instead. */
   mirroredPathByScannedPath: ReadonlyMap<ScannedPath, MirroredPath>;
 };
@@ -56,13 +67,10 @@ export type RewriteSpecifiersArgs = {
   mirroredPathByScannedPath: ReadonlyMap<string, MirroredPath>;
 };
 
-export type ReadAllModulesArgs = {
-  tsMorphProject: Project;
-  /** The scanned files' absolute paths. */
-  scannedFilePaths: ReadonlyArray<ScannedPath>;
-  /** The Root Directory's absolute path. */
-  rootDirectory: string;
-  destination: Destination;
+export type PrecheckModulePayload = {
+  diagnostics: Diagnostic[];
+  /** Its compilation, or `undefined` when it doesn't parse. */
+  compilation: ModuleCompilation | undefined;
 };
 
 /**
@@ -70,7 +78,7 @@ export type ReadAllModulesArgs = {
  * which is also its path inside the Destination Directory.
  *
  * ```ts
- * const [user] = Module.readAll({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] });
+ * const user = new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' });
  * user.relative.path // 'schemas/user.ts'
  * user.mirroredPath  // '/repo/.pvl/schemas/user.ts'
  * ```
@@ -86,51 +94,32 @@ export class Module extends Path {
   public readonly mirroredPath: MirroredPath;
 
   /**
-   * A `Module` of the scanned file at `scannedPath`, read into
-   * `tsMorphProject`; `Module.readAll` makes them.
-   *
-   * Throws ts-morph's error when the file can't be read from disk.
-   */
-  protected constructor({ scannedPath, tsMorphProject, mirroredPath }: ModuleOptions) {
-    super(scannedPath.absolutePath, scannedPath.relative);
-    this.moduleFile = tsMorphProject.addSourceFileAtPath(scannedPath.absolutePath);
-    this.mirroredPath = mirroredPath;
-  }
-
-  /**
-   * Adds each scanned file to `tsMorphProject` and places it in the mirror,
-   * keeping the order of `scannedFilePaths`. A file outside the Root Directory
-   * gets a `relative.path` starting with `..` (or an absolute one, on another
+   * The scanned file at `scannedFilePath`, read into `tsMorphProject` and
+   * placed in the mirror. A file outside the Root Directory gets a
+   * `relative.path` starting with `..` (or an absolute one, on another
    * drive), which FILE_OUTSIDE_ROOT_DIR reports.
    *
    * With Root Directory `/repo/src` and Destination Directory `/repo/.pvl`:
    *
    * ```ts
-   * Module.readAll({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] })
-   * // [Module { absolutePath: '/repo/src/schemas/user.ts',
-   * //    relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' },
-   * //    moduleFile: <user.ts>, mirroredPath: '/repo/.pvl/schemas/user.ts' }]
+   * new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' })
+   * // Module { absolutePath: '/repo/src/schemas/user.ts',
+   * //   relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' },
+   * //   moduleFile: <user.ts>, mirroredPath: '/repo/.pvl/schemas/user.ts' }
    * ```
    *
-   * Throws ts-morph's error when a path can't be read from disk.
+   * Throws ts-morph's error when the file can't be read from disk.
    */
-  public static readAll({
+  public constructor({
+    scannedFilePath,
     tsMorphProject,
-    scannedFilePaths,
     rootDirectory,
     destination,
-  }: ReadAllModulesArgs): Module[] {
-    return scannedFilePaths.map((scannedFilePath) => {
-      const scannedPath = Path.create(scannedFilePath, rootDirectory);
-      return new Module({
-        scannedPath,
-        tsMorphProject,
-        mirroredPath: path.join(
-          destination.absolutePath,
-          scannedPath.relative.path,
-        ) as MirroredPath,
-      });
-    });
+  }: ModuleOptions) {
+    const { relative } = Path.create(scannedFilePath, rootDirectory);
+    super(scannedFilePath, relative);
+    this.moduleFile = tsMorphProject.addSourceFileAtPath(scannedFilePath);
+    this.mirroredPath = path.join(destination.absolutePath, relative.path) as MirroredPath;
   }
 
   /**
@@ -147,6 +136,69 @@ export class Module extends Path {
   public isOutsideRootDirectory(): boolean {
     const relativePath = this.relative.path;
     return relativePath === '..' || relativePath.startsWith('../') || path.isAbsolute(relativePath);
+  }
+
+  /**
+   * Every error and warning the module raises on its own, found before its
+   * source file is rewritten, with its compilation when it parses. A clash
+   * with another module's exports (DUPLICATE_EXPORT) needs every module, so
+   * `Precheck.run` checks it.
+   *
+   * A module with syntax errors gets PARSE_FAILED, and FILE_OUTSIDE_ROOT_DIR
+   * when it applies, and has no compilation: the tree TypeScript recovers
+   * from broken code holds statements nobody wrote, so every later check
+   * needs the module to parse.
+   *
+   * - PARSE_FAILED: the file isn't valid syntax.
+   * - FILE_OUTSIDE_ROOT_DIR: the file isn't under the Root Directory.
+   * - DEFAULT_EXPORT: the file has a default export.
+   * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
+   * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_NOT_COMPOSITE,
+   *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
+   *   can't be compiled (see findMarkedToCompileSchemas).
+   *
+   * ```ts
+   * // /repo/src/schemas/user.ts
+   * export default pvl.compile(pvl.object({ name: pvl.string() }));
+   * user.precheck()
+   * // { diagnostics: [DEFAULT_EXPORT], compilation: { module: user, schemas: [<1 Schema>], … } }
+   *
+   * // /repo/src/schemas/broken.ts
+   * export const user = pvl.object({ name: pvl.string() ;
+   * broken.precheck()
+   * // { diagnostics: [PARSE_FAILED], compilation: undefined }
+   * ```
+   */
+  public precheck(): PrecheckModulePayload {
+    const parseFailureDiagnostics = Precheck.findParseFailuresDiagnostics(
+      this.moduleFile.getProject(),
+      [this],
+    );
+    const outsideRootDirectoryDiagnostics = Precheck.findFilesOutsideRootDirectoryDiagnostics(
+      [this],
+      this.relative.absoluteBase,
+    );
+    if (parseFailureDiagnostics.length > 0) {
+      return {
+        diagnostics: [...parseFailureDiagnostics, ...outsideRootDirectoryDiagnostics],
+        compilation: undefined,
+      };
+    }
+
+    const compilation: ModuleCompilation = {
+      module: this,
+      ...this.findMarkedToCompileSchemas(),
+    };
+
+    return {
+      diagnostics: [
+        ...outsideRootDirectoryDiagnostics,
+        ...Precheck.findDefaultExportsDiagnostics(this),
+        ...Precheck.findWarningsDiagnostics(this),
+        ...compilation.diagnostics,
+      ],
+      compilation,
+    };
   }
 
   /**
@@ -168,11 +220,10 @@ export class Module extends Path {
    */
   public compile({
     tsMorphProject,
-    scannedModuleCompiler,
-    sites,
+    schemas,
     mirroredPathByScannedPath,
   }: CompileModuleArgs): MirroredFile {
-    scannedModuleCompiler.applyCompiledSchemas(sites);
+    this.compileSchemas(schemas);
 
     this.rewriteSpecifiers({ tsMorphProject, mirroredPathByScannedPath });
 
@@ -180,6 +231,232 @@ export class Module extends Path {
       relativePath: this.relative.path,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
+  }
+
+  /**
+   * Finds every Marked-to-Compile Schema in the module, one per
+   * `pvl.compile(...)` call, keeping the ones that compile and reporting each
+   * one that doesn't with its errors:
+   *
+   * - COMPILE_RESULT_MODIFIED: something is chained onto the result
+   *   (`pvl.compile(user).optional()`).
+   * - COMPILE_ARGUMENT_UNRESOLVABLE: the argument can't be read statically, as
+   *   when it is imported, built by a function or spread.
+   * - COMPILE_ARGUMENT_NOT_COMPOSITE, UNSUPPORTED_SCHEMA: see
+   *   Schema.findUncompilableDiagnostics, one error per problem.
+   *
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   * import { address } from './address.js';
+   * export const user = pvl.compile(pvl.object({ name: pvl.string() })); // a Schema
+   * export const home = pvl.compile(address);                            // COMPILE_ARGUMENT_UNRESOLVABLE
+   * ```
+   *
+   * A module that doesn't import `pvl` from `@pvl/schema` has no call to read.
+   */
+  public findMarkedToCompileSchemas(): {
+    diagnostics: Diagnostic[];
+    schemas: Schema[];
+  } {
+    const diagnostics: Diagnostic[] = [];
+    const schemas: Schema[] = [];
+    const pvlImportLocalNames = Module.findPvlImportLocalNames(this.moduleFile);
+
+    for (const call of this.findCompileCalls(pvlImportLocalNames)) {
+      const line = call.getStartLineNumber();
+      const modifierName = Module.findModifierOnCompileMarker(call);
+
+      if (modifierName !== undefined) {
+        diagnostics.push(
+          new Diagnostic({
+            code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
+            message: `\`.${modifierName}\` is chained onto the result of pvl.compile() on line ${String(line)}, which is a plain Schema. Chain it inside: pvl.compile(schema.${modifierName}(…)).`,
+            file: this.absolutePath,
+          }),
+        );
+        continue;
+      }
+
+      // The whole call, which the Schema is read through and which compiling replaces.
+      const schemaPayload = Schema.read({ module: this, expression: call, pvlImportLocalNames });
+
+      if ('unresolvedNode' in schemaPayload) {
+        diagnostics.push(
+          new Diagnostic({
+            code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+            message: `The argument of pvl.compile() on line ${String(line)} can't be read statically: \`${schemaPayload.unresolvedNode.getText()}\` on line ${String(schemaPayload.unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one.`,
+            file: this.absolutePath,
+          }),
+        );
+        continue;
+      }
+
+      const uncompilableDiagnostics = schemaPayload.schema.findUncompilableDiagnostics();
+      if (uncompilableDiagnostics.length > 0) {
+        diagnostics.push(...uncompilableDiagnostics);
+        continue;
+      }
+
+      schemas.push(schemaPayload.schema);
+    }
+    return { diagnostics, schemas };
+  }
+
+  /**
+   * Compiles `schemas` into the module in place, in the order given: each
+   * Schema's expression becomes `new PvlCompiledSchema<n>()`, and the
+   * classes `schema.compile()` writes go right after the module's imports,
+   * under one import of what they extend. It compiles every Schema it is
+   * given, whether marked to compile or not; the run only passes the
+   * Marked-to-Compile Schemas `findMarkedToCompileSchemas` found compilable.
+   *
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
+   * // ↓
+   * import { pvl } from '@pvl/schema';
+   * import { Schema as PvlSchema, … } from '@pvl/schema';
+   *
+   * // pvl.compile() on line 2
+   * class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
+   *
+   * export const user = new PvlCompiledSchema0();
+   * ```
+   *
+   * Does nothing when `schemas` is empty.
+   */
+  public compileSchemas(schemas: ReadonlyArray<Schema>): void {
+    if (schemas.length === 0) {
+      // Nothing to compile is not an error: the module is mirrored as it is.
+      return;
+    }
+
+    const classDeclarations = schemas.map((schema, index) =>
+      schema.compile(Module.toCompiledSchemaClassName(index)),
+    );
+
+    // Last first, so replacing one expression leaves the earlier ones where they were.
+    for (const [index, { expression }] of [...schemas.entries()].reverse()) {
+      expression.replaceWithText(`new ${Module.toCompiledSchemaClassName(index)}()`);
+    }
+
+    const importCount = this.moduleFile
+      .getStatements()
+      .reduce(
+        (count, statement, index) => (Node.isImportDeclaration(statement) ? index + 1 : count),
+        0,
+      );
+
+    this.moduleFile.insertStatements(
+      importCount,
+      [COMPILED_SCHEMA_IMPORT, '', classDeclarations.join('\n\n')].join('\n'),
+    );
+  }
+
+  /**
+   * The `pvl.compile(...)` calls in the module as an array of their syntax
+   * nodes (`CallExpression`), wherever they are nested, in source order. Each
+   * node is the whole call, not the Schema inside it, so a caller can both read
+   * its argument and replace the call. A call counts when it is
+   * `<name>.compile(…)` and `<name>` is one of `pvlImportLocalNames`, the Local
+   * Names `pvl` is imported under. A nested call follows the call around it.
+   * Empty when no call matches or the module imports no `pvl`.
+   *
+   * ```ts
+   * // pvlImportLocalNames: {'pvl'}
+   * pvl.compile(pvl.string())     // [pvl.compile(pvl.string()) ]
+   * export const user = pvl.compile(userSchema); // [pvl.compile(...)], at any depth
+   * pvl.compile(pvl.compile(x))   // [outer call, inner call]
+   * pvl.string()                  // []: not `compile`
+   * schemas.compile(pvl.string()) // []: `schemas` isn't a Local Name of `pvl`
+   * pvl.compile                   // []: not called
+   *
+   * // pvlImportLocalNames: {}
+   * pvl.compile(pvl.string())     // []: the module imports no `pvl`
+   * ```
+   */
+  private findCompileCalls(pvlImportLocalNames: ReadonlySet<string>): CallExpression[] {
+    // Without a `pvl` import there is nothing to find, so skip the walk.
+    if (pvlImportLocalNames.size === 0) {
+      return [];
+    }
+
+    // `getDescendants()` is every node of the file's syntax tree, not just
+    // statements: each statement, expression, identifier and token, at any depth,
+    // parents before their children, so in source order.
+    return this.moduleFile.getDescendants().filter((node): node is CallExpression => {
+      // `node` is the one tree node being tested. Most are not calls (`pvl`,
+      // `.compile`, `'a'`, `const user = …`), and are dropped here.
+      if (!Node.isCallExpression(node)) {
+        return false;
+      }
+
+      // `callee` is what `node` calls, the part before the parentheses: for
+      // `pvl.compile(pvl.string())` it is `pvl.compile`. It must be a property
+      // access, `<receiver>.compile`, with a Local Name of `pvl` as the receiver.
+      const callee = node.getExpression();
+      return (
+        Node.isPropertyAccessExpression(callee) &&
+        callee.getName() === 'compile' &&
+        Node.isIdentifier(callee.getExpression()) &&
+        pvlImportLocalNames.has(callee.getExpression().getText())
+      );
+    });
+  }
+
+  /**
+   * The Local Names `pvl` is imported under in `sourceFile`: one per named
+   * import whose Module Specifier is `@pvl/schema` and whose Import Name is
+   * `pvl`. An empty set means the module has no `pvl` to read.
+   *
+   * ```ts
+   * import { pvl } from '@pvl/schema';              // {'pvl'}
+   * import { pvl as p } from '@pvl/schema';         // {'p'}
+   * import { pvl as p, pvl } from '@pvl/schema';    // {'p', 'pvl'}
+   * import { pvl } from './my-pvl.js';              // {}: Module Specifier isn't `@pvl/schema`
+   * import { z } from '@pvl/schema';                // {}: Import Name isn't `pvl`
+   * import * as schema from '@pvl/schema';          // {}: not a named import
+   * ```
+   */
+  private static findPvlImportLocalNames(sourceFile: SourceFile): Set<string> {
+    return new Set(
+      sourceFile
+        .getImportDeclarations()
+        .filter((declaration) => declaration.getModuleSpecifierValue() === PVL_PACKAGE)
+        .flatMap((declaration) => declaration.getNamedImports())
+        .filter((namedImport) => namedImport.getName() === 'pvl')
+        .map((namedImport) => namedImport.getAliasNode()?.getText() ?? namedImport.getName()),
+    );
+  }
+
+  /**
+   * The name of the member read off the result of the `pvl.compile(...)` call
+   * `call`, when a Compiled Schema doesn't have it, so the module chains a
+   * Modifier, a Constraint or an unknown property onto it. `undefined` when
+   * nothing is read off the result, or only `validate`.
+   *
+   * ```ts
+   * pvl.compile(user).optional()      // 'optional'
+   * pvl.compile(tags).min(1)          // 'min'
+   * pvl.compile(user).shape           // 'shape': read, even when not called
+   * pvl.compile(user).validate(input) // undefined: a Compiled Schema has it
+   * pvl.compile(user)                 // undefined: nothing read off it
+   * pvl.compile(user)['optional']()   // undefined: an element access isn't checked
+   * ```
+   */
+  private static findModifierOnCompileMarker(call: CallExpression): string | undefined {
+    const parent = call.getParent();
+
+    return Node.isPropertyAccessExpression(parent) &&
+      parent.getExpression() === call &&
+      !COMPILE_MARKER_ALLOWED_METHODS.has(parent.getName())
+      ? parent.getName()
+      : undefined;
+  }
+
+  /** The class name of a module's `index`th Compiled Schema, counted in source order. */
+  private static toCompiledSchemaClassName(index: number): string {
+    return `PvlCompiledSchema${String(index)}`;
   }
 
   /**

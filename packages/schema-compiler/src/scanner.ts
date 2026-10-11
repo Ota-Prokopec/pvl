@@ -2,20 +2,22 @@
 // nothing scanned is ever imported or executed.
 import { glob } from 'node:fs/promises';
 import { join, posix } from 'node:path';
+import type { Project } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from './enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import type { Destination } from './destination/destination.js';
+import { Module } from './module.js';
 
 /**
  * The absolute path of a scanned file. Branded so it can't be mixed up with
  * any other path, such as a mirrored module's or one a module specifier
- * resolves to: `Scanner.findScanningInputFilePaths` is the only place one is made.
+ * resolves to: `Scanner.scan` is the only place one is made.
  */
 export type ScannedPath = string & { readonly __brand: 'ScannedPath' };
 
 /**
  * What a run scans, and the Destination Directory it must never scan. `compile`
- * builds it from the resolved settings and passes it to `Scanner.findScanningInputFilePaths`.
+ * builds it from the resolved settings and passes it to `Scanner.scan`.
  *
  * ```ts
  * { baseDirectory: '/repo', include: ['src/**\/*.ts'], destination: { absolutePath: '/repo/.pvl', … } }
@@ -27,6 +29,15 @@ export type ScanScope = {
   /** The config's `include` globs, relative to `baseDirectory`. */
   include: ReadonlyArray<string>;
   /** The Destination Directory, which is never scanned. */
+  destination: Destination;
+};
+
+export type GetModulesArgs = {
+  tsMorphProject: Project;
+  /** The scanned files' absolute paths, from `Scanner.scan`. */
+  scannedFilePaths: ReadonlyArray<ScannedPath>;
+  /** The Root Directory's absolute path. */
+  rootDirectory: string;
   destination: Destination;
 };
 
@@ -45,7 +56,7 @@ export class Scanner {
    * ['**\/*.ts']                 // skips node_modules/, gen/, gen.pvl-tmp/ and gen.pvl-old/
    * ```
    */
-  public static async findScanningInputFilePaths({
+  public static async scan({
     baseDirectory,
     include,
     destination,
@@ -73,6 +84,21 @@ export class Scanner {
       }
     }
     return [...files].sort();
+  }
+
+  /**
+   * Reads each scanned file into `tsMorphProject` as a `Module`, keeping the
+   * order of `scannedFilePaths`.
+   *
+   * ```ts
+   * Scanner.getModules({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] })
+   * // [Module { absolutePath: '/repo/src/schemas/user.ts', mirroredPath: '/repo/.pvl/schemas/user.ts', … }]
+   * ```
+   *
+   * Throws ts-morph's error when a path can't be read from disk.
+   */
+  public static getModules({ scannedFilePaths, ...options }: GetModulesArgs): Module[] {
+    return scannedFilePaths.map((scannedFilePath) => new Module({ scannedFilePath, ...options }));
   }
 
   /**

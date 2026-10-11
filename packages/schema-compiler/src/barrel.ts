@@ -24,9 +24,9 @@ export class Barrel {
    * A module that exports nothing is left out, since `export *` of it would
    * fail to typecheck.
    */
-  public static renderBarrelFile(scannedModules: ReadonlyArray<Module>): string {
-    const reExportLines = scannedModules
-      .filter((scannedModule) => scannedModule.hasExport())
+  public static renderBarrelFile(modules: ReadonlyArray<Module>): string {
+    const reExportLines = modules
+      .filter((module) => module.hasExport())
       .map(({ relative }) => relative.path)
       .sort()
       .map((relativePath) => {
@@ -46,7 +46,7 @@ export class Barrel {
    * Barrel.hasScannedBarrel([<index.ts>, <schemas/user.ts>]) // true
    * ```
    */
-  public static hasScannedBarrel(scannedModules: ReadonlyArray<Module>): boolean {
-    return scannedModules.some(({ relative }) => relative.path === BARREL_FILE_NAME);
+  public static hasScannedBarrel(modules: ReadonlyArray<Module>): boolean {
+    return modules.some(({ relative }) => relative.path === BARREL_FILE_NAME);
   }
 }

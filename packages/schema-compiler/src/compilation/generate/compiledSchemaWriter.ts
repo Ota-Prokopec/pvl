@@ -5,19 +5,19 @@
 // which does the emitting, and reports what can't be compiled yet.
 import { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { COMPOSITE_FACTORIES } from '../../consts.js';
-import { ArraySchemaEmitter } from '../../emiters/arraySchemaEmitter.js';
-import { BigintSchemaEmitter } from '../../emiters/bigintSchemaEmitter.js';
-import { BooleanSchemaEmitter } from '../../emiters/booleanSchemaEmitter.js';
-import { ChainableSchemaEmitter } from '../../emiters/chainableSchemaEmitter.js';
-import { EnumSchemaEmitter } from '../../emiters/enumSchemaEmitter.js';
-import { LiteralSchemaEmitter } from '../../emiters/literalSchemaEmitter.js';
-import { NumberSchemaEmitter } from '../../emiters/numberSchemaEmitter.js';
-import { ObjectSchemaEmitter } from '../../emiters/objectSchemaEmitter.js';
-import { StringSchemaEmitter } from '../../emiters/stringSchemaEmitter.js';
-import type { FindEmitter } from '../../emiters/emitScope.js';
-import type { EmitCompiledSchemaArgs, Emitter } from '../../emiters/emitter.js';
+import { ArraySchemaEmitter } from '../../emitters/arraySchemaEmitter.js';
+import { BigintSchemaEmitter } from '../../emitters/bigintSchemaEmitter.js';
+import { BooleanSchemaEmitter } from '../../emitters/booleanSchemaEmitter.js';
+import { ChainableSchemaEmitter } from '../../emitters/chainableSchemaEmitter.js';
+import { EnumSchemaEmitter } from '../../emitters/enumSchemaEmitter.js';
+import { LiteralSchemaEmitter } from '../../emitters/literalSchemaEmitter.js';
+import { NumberSchemaEmitter } from '../../emitters/numberSchemaEmitter.js';
+import { ObjectSchemaEmitter } from '../../emitters/objectSchemaEmitter.js';
+import { StringSchemaEmitter } from '../../emitters/stringSchemaEmitter.js';
+import type { FindEmitter } from '../../emitters/emitScope.js';
+import type { EmitCompiledSchemaArgs, Emitter } from '../../emitters/emitter.js';
 import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from '../../enums.js';
-import type { SchemaMethodCall, SchemaModel } from './schemaModel.js';
+import type { SchemaMethodCall, SchemaModel } from '../../schema.js';
 
 /** Every emitter, by the factory whose Schema it compiles. A union has none yet, so it is unsupported. */
 const EMITTER_BY_FACTORY: Readonly<Partial<Record<SchemaFactory, typeof Emitter>>> = {

@@ -2,8 +2,8 @@
 // mirror reads and respells it: how it is shown, what kind of specifier it
 // is, and how it is spelled from a mirrored module's location.
 import * as path from 'node:path';
-import { SPECIFIER_TARGET_KIND } from '../../enums.js';
-import { Path } from '../path.js';
+import { SPECIFIER_TARGET_KIND } from './enums.js';
+import { Path } from './path.js';
 
 /** Extensions a module specifier may spell out, which a rewritten one keeps. */
 const MODULE_SPECIFIER_EXTENSIONS: ReadonlySet<string> = new Set([

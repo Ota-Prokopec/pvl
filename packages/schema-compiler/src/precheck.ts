@@ -1,9 +1,26 @@
 // What stops a scanned file from being mirrored, and what is worth a warning
 // when it is. Reads the scanned modules before anything is rewritten.
 import { Node, ts, type Project, type Statement } from 'ts-morph';
+import { Barrel } from './barrel.js';
 import { DIAGNOSTIC_CODE } from './enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import type { Module } from './module.js';
+import type { Schema } from './schema.js';
+
+/** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
+export type ModuleCompilation = {
+  module: Module;
+  /** Its Marked-to-Compile Schemas that compile. */
+  schemas: Schema[];
+  /** The errors of its `pvl.compile(...)` calls that don't. */
+  diagnostics: Diagnostic[];
+};
+
+export type RunPrecheckPayload = {
+  diagnostics: Diagnostic[];
+  /** One per scanned module that parses, in scan order. */
+  compilations: ModuleCompilation[];
+};
 
 /** Names `export *` never re-exports, so they can't clash in the barrel: DEFAULT_EXPORT reports them instead. */
 const NAMES_SKIPPED_BY_EXPORT_STAR: ReadonlySet<string> = new Set(['default', 'export=']);
@@ -16,6 +33,39 @@ type FirstExport = {
 };
 
 export class Precheck {
+  /**
+   * Every error and warning the scanned modules raise, collected before any
+   * source file is touched so one run reports all the problems instead of
+   * stopping at the first, with the compilation of each module that parses.
+   *
+   * Each module's own checks are its `Module.precheck`; on top of them,
+   * DUPLICATE_EXPORT reports two parsed modules exporting one name bound to
+   * different things, checked only for a generated barrel.
+   *
+   * ```ts
+   * // user.ts parses, broken.ts doesn't
+   * Precheck.runforAllModules([<user.ts>, <broken.ts>])
+   * // { diagnostics: […user.ts's diagnostics, PARSE_FAILED (broken.ts)],
+   * //   compilations: [{ module: <user.ts>, … }] }
+   * ```
+   */
+  public static runforAllModules(modules: ReadonlyArray<Module>): RunPrecheckPayload {
+    const modulePrechecks = modules.map((module) => module.precheck());
+    const compilations = modulePrechecks.flatMap(({ compilation }) => compilation ?? []);
+
+    return {
+      diagnostics: [
+        ...modulePrechecks.flatMap(({ diagnostics }) => diagnostics),
+        // A scanned `<rootDir>/index.ts` replaces the generated barrel, so no
+        // export can clash in it.
+        ...(Barrel.hasScannedBarrel(modules)
+          ? []
+          : Precheck.findDuplicateExportsDiagnostics(compilations.map(({ module }) => module))),
+      ],
+      compilations,
+    };
+  }
+
   /**
    * A PARSE_FAILED error for each scanned file that isn't valid syntax, read
    * from the TypeScript compiler's syntactic diagnostics. Only a file's first
@@ -33,9 +83,9 @@ export class Precheck {
    */
   public static findParseFailuresDiagnostics(
     tsMorphProject: Project,
-    scannedModules: ReadonlyArray<Module>,
+    modules: ReadonlyArray<Module>,
   ): Diagnostic[] {
-    return scannedModules.flatMap(({ absolutePath, moduleFile }) =>
+    return modules.flatMap(({ absolutePath, moduleFile }) =>
       tsMorphProject
         .getProgram()
         .getSyntacticDiagnostics(moduleFile)
@@ -62,11 +112,11 @@ export class Precheck {
    * ```
    */
   public static findFilesOutsideRootDirectoryDiagnostics(
-    scannedModules: ReadonlyArray<Module>,
+    modules: ReadonlyArray<Module>,
     rootDirectory: string,
   ): Diagnostic[] {
-    return scannedModules
-      .filter((scannedModule) => scannedModule.isOutsideRootDirectory())
+    return modules
+      .filter((module) => module.isOutsideRootDirectory())
       .map(
         ({ absolutePath }) =>
           new Diagnostic({
@@ -118,13 +168,11 @@ export class Precheck {
    * // src/schemas/c.ts: export { user } from './a.js';           // fine: the same binding
    * ```
    */
-  public static findDuplicateExportsDiagnostics(
-    scannedModules: ReadonlyArray<Module>,
-  ): Diagnostic[] {
+  public static findDuplicateExportsDiagnostics(modules: ReadonlyArray<Module>): Diagnostic[] {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
-    for (const { absolutePath, relative, moduleFile } of [...scannedModules].sort(
-      (first, second) => (first.relative.path < second.relative.path ? -1 : 1),
+    for (const { absolutePath, relative, moduleFile } of [...modules].sort((first, second) =>
+      first.relative.path < second.relative.path ? -1 : 1,
     )) {
       for (const [exportedName, declarations] of moduleFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
@@ -160,9 +208,9 @@ export class Precheck {
    *   `console.log('loaded');`, which runs again wherever the mirror is
    *   loaded.
    */
-  public static findWarningsDiagnostics(scannedModule: Module): Diagnostic[] {
-    const { absolutePath, moduleFile } = scannedModule;
-    const exportsNothingWarnings = scannedModule.hasExport()
+  public static findWarningsDiagnostics(module: Module): Diagnostic[] {
+    const { absolutePath, moduleFile } = module;
+    const exportsNothingWarnings = module.hasExport()
       ? []
       : [
           new Diagnostic({

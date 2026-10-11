@@ -3,8 +3,8 @@
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
 import path from 'node:path';
-import type { SettingOverrides, Settings } from '../config/config.js';
-import { SettingsResolver } from '../config/configResolver.js';
+import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
+import { ConfigResolver } from '../config/configResolver.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { compileAll } from './compileAll.js';
@@ -12,12 +12,8 @@ import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../enums.js';
 import { findPatternsMatchingPath } from '../utils.js';
-import { Module } from '../module.js';
 import { TsMorphProject } from '../tsMorphProject.js';
-import {
-  precheckScannedModules,
-  type PrecheckScannedModulesPayload,
-} from './precheckScannedModules.js';
+import { Precheck } from '../precheck.js';
 import { Scanner } from '../scanner.js';
 
 /**
@@ -35,7 +31,7 @@ export type RunCompilationPayload = {
   /** Every diagnostic, errors and warnings alike, in the order they were found. */
   diagnostics: Diagnostic[];
   /** The merged settings, or `undefined` when they couldn't be resolved. */
-  settings: Settings | undefined;
+  settings: PvlConfig | undefined;
   /** The Destination Directory's absolute path, once settings resolved. */
   destination: string | undefined;
   /** Whether the Destination Directory was written. Never `true` when an error fired. */
@@ -127,7 +123,7 @@ export type RunCompilationArgs = {
   /** The config file, relative to `cwd`. Defaults to `pvlconfig.json` in `cwd`, which may be absent. */
   configPath?: string;
   /** Settings that win over the config file. */
-  overrides?: SettingOverrides;
+  overrides?: PvlConfigOverrides;
   /** Promotes every warning to an error. */
   strict?: boolean;
 };
@@ -163,7 +159,7 @@ export const runCompilation = async ({
   overrides = {},
   strict = false,
 }: RunCompilationArgs): Promise<RunCompilationPayload> => {
-  const resolvedSettingsPayload = await SettingsResolver.resolveSettings({
+  const resolvedSettingsPayload = await ConfigResolver.resolveConfig({
     cwd: path.resolve(cwd),
     configPath,
     overrides,
@@ -185,7 +181,7 @@ export const runCompilation = async ({
 
   const [destinationDiagnostics, scannedFilePaths] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
-    Scanner.findScanningInputFilePaths({ baseDirectory, include: settings.include, destination }),
+    Scanner.scan({ baseDirectory, include: settings.include, destination }),
   ]);
 
   const { tsMorphProject, diagnostics: tsMorphProjectDiagnostics } =
@@ -193,19 +189,17 @@ export const runCompilation = async ({
 
   // Without a project, no file can be read, so TSCONFIG_UNREADABLE is
   // reported alone, before any scanned module.
-  const { diagnostics: scannedModulesDiagnostics, compilations }: PrecheckScannedModulesPayload =
+  const { diagnostics: moduleDiagnostics, compilations } =
     tsMorphProject === undefined
       ? { diagnostics: [], compilations: [] }
-      : precheckScannedModules({
-          tsMorphProject,
-          scannedModules: Module.readAll({
+      : Precheck.runforAllModules(
+          Scanner.getModules({
             tsMorphProject,
             scannedFilePaths,
             rootDirectory,
             destination,
           }),
-          rootDirectory,
-        });
+        );
 
   const foundDiagnostics: Diagnostic[] = [
     ...findPatternsMatchingPath(settings.include, destination.relative.path).map((pattern) =>
@@ -216,7 +210,7 @@ export const runCompilation = async ({
       ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
       : []),
     ...tsMorphProjectDiagnostics,
-    ...scannedModulesDiagnostics,
+    ...moduleDiagnostics,
   ];
 
   // Built before the error check, so `strict` has promoted every warning by then.

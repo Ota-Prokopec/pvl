@@ -1,7 +1,13 @@
 // Where the Destination Directory and the sibling directories a run keeps
 // beside it go. Pure: touches no file.
+import * as path from 'node:path';
+import type { PvlConfig } from '../config/config.js';
 import { Path } from '../path.js';
-import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from '../consts.js';
+import {
+  BACKUP_DESTINATION_SUFFIX,
+  DEFAULT_DESTINATION_DIRECTORY,
+  TEMPORARY_DESTINATION_SUFFIX,
+} from '../consts.js';
 
 /**
  * Where the Destination Directory of one compilation run goes. Its
@@ -26,6 +32,30 @@ export class Destination extends Path {
   private constructor({ absolutePath, relative }: Required<Path>, isDefault: boolean) {
     super(absolutePath, relative);
     this.isDefault = isDefault;
+  }
+
+  /**
+   * The Destination Directory `config.destination` names, resolved against
+   * `baseDirectory`, or the default `.pvl` directory there when it is unset.
+   *
+   * ```ts
+   * Destination.resolveDestination('/repo', { destination: undefined, … })
+   * // { absolutePath: '/repo/.pvl', relative: { absoluteBase: '/repo', path: '.pvl' }, isDefault: true }
+   * Destination.resolveDestination('/repo', { destination: './out/../generated', … })
+   * // { absolutePath: '/repo/generated', relative: { absoluteBase: '/repo', path: 'generated' }, isDefault: false }
+   * ```
+   */
+  public static resolveDestination(
+    baseDirectory: string,
+    config: Pick<PvlConfig, 'destination'>,
+  ): Destination {
+    return new Destination(
+      Path.create(
+        path.resolve(baseDirectory, config.destination ?? DEFAULT_DESTINATION_DIRECTORY),
+        baseDirectory,
+      ),
+      config.destination === undefined,
+    );
   }
 
   /**

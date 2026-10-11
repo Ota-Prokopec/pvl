@@ -4,13 +4,13 @@ import type { Project } from 'ts-morph';
 import { BARREL_FILE_NAME } from '../consts.js';
 import { Barrel } from '../barrel.js';
 import type { MirroredFile, MirroredPath } from '../module.js';
-import type { ScannedModuleCompilation } from './precheckScannedModules.js';
+import type { ModuleCompilation } from '../precheck.js';
 import type { ScannedPath } from '../scanner.js';
 
 export type CompileAllArgs = {
   tsMorphProject: Project;
-  /** One per scanned module, each of which passed `precheckScannedModules` without an error. */
-  compilations: ReadonlyArray<ScannedModuleCompilation>;
+  /** One per scanned module, each of which passed `Precheck.runforAllModules` without an error. */
+  compilations: ReadonlyArray<ModuleCompilation>;
 };
 
 /**
@@ -29,27 +29,25 @@ export type CompileAllArgs = {
  * ```
  */
 export const compileAll = ({ tsMorphProject, compilations }: CompileAllArgs): MirroredFile[] => {
-  const scannedModules = compilations.map(({ scannedModule }) => scannedModule);
+  const modules = compilations.map(({ module }) => module);
 
   // Lets a rewritten import that points at another scanned file point at that
   // file's mirror instead.
   const mirroredPathByScannedPath = new Map<ScannedPath, MirroredPath>(
-    scannedModules.map(({ absolutePath, mirroredPath }) => [absolutePath, mirroredPath]),
+    modules.map(({ absolutePath, mirroredPath }) => [absolutePath, mirroredPath]),
   );
 
-  const mirroredModules: MirroredFile[] = compilations.map(
-    ({ scannedModule, scannedModuleCompiler, sites }) =>
-      scannedModule.compile({
-        tsMorphProject,
-        scannedModuleCompiler,
-        sites,
-        mirroredPathByScannedPath,
-      }),
+  const mirroredModules: MirroredFile[] = compilations.map(({ module, schemas }) =>
+    module.compile({
+      tsMorphProject,
+      schemas,
+      mirroredPathByScannedPath,
+    }),
   );
 
-  const barrel: MirroredFile[] = Barrel.hasScannedBarrel(scannedModules)
+  const barrel: MirroredFile[] = Barrel.hasScannedBarrel(modules)
     ? []
-    : [{ relativePath: BARREL_FILE_NAME, text: Barrel.renderBarrelFile(scannedModules) }];
+    : [{ relativePath: BARREL_FILE_NAME, text: Barrel.renderBarrelFile(modules) }];
 
   return [...barrel, ...mirroredModules].sort((first, second) =>
     first.relativePath < second.relativePath ? -1 : 1,
