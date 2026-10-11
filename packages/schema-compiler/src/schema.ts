@@ -185,6 +185,7 @@ export class Schema {
       followed,
     );
     const schema = this.readFactory(factory);
+
     return {
       ...schema,
       calls: [

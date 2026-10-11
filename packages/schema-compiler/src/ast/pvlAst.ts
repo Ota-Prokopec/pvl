@@ -63,17 +63,18 @@ export class PvlAst {
   }
 
   /**
-   * `node` as `<pvl>.<name>(…)`, where `<pvl>` is one of `pvlImportLocalNames`,
-   * or `undefined` when it is another shape.
+   * `node` as `<pvl>.<methodName>(…)` called directly on `<pvl>`, one of
+   * `pvlImportLocalNames`, or `undefined` when it is another shape, such as a
+   * method chained onto a Schema.
    *
    * ```ts
    * // pvlImportLocalNames: {'pvl'}
-   * PvlAst.asPvlCall(<pvl.string()>, names)          // { call, methodName: 'string' }
-   * PvlAst.asPvlCall(<pvl.string().min(3)>, names)   // undefined: called on a Schema, not on `pvl`
-   * PvlAst.asPvlCall(<schemas.compile(x)>, names)    // undefined: `schemas` isn't a Local Name of `pvl`
+   * PvlAst.asDirectPvlCall(<pvl.string()>, names)          // { call, methodName: 'string' }
+   * PvlAst.asDirectPvlCall(<pvl.string().min(3)>, names)   // undefined: called on a Schema, not on `pvl`
+   * PvlAst.asDirectPvlCall(<schemas.compile(x)>, names)    // undefined: `schemas` isn't a Local Name of `pvl`
    * ```
    */
-  public static asPvlCall(
+  public static asDirectPvlCall(
     node: Node,
     pvlImportLocalNames: ReadonlySet<string>,
   ): Omit<PropertyAccessCall, 'receiver'> | undefined {
@@ -123,7 +124,7 @@ export class PvlAst {
     // depth, parents before their children, so in source order.
     return sourceFile
       .getDescendants()
-      .flatMap((node) => PvlAst.asPvlCall(node, pvlImportLocalNames) ?? [])
+      .flatMap((node) => PvlAst.asDirectPvlCall(node, pvlImportLocalNames) ?? [])
       .filter(({ methodName }) => methodName === 'compile')
       .map(({ call }) => call);
   }
@@ -172,15 +173,17 @@ export class PvlAst {
     followed: FollowedConsts = new Set(),
   ): CallChain {
     const { node, followed: reading } = GenericAst.followConst(expression, followed);
-    const pvlCall = PvlAst.asPvlCall(node, pvlImportLocalNames);
-    if (pvlCall !== undefined) {
-      return { factory: { ...pvlCall, followed: reading }, methods: [] };
+    const directPvlCall = PvlAst.asDirectPvlCall(node, pvlImportLocalNames);
+
+    if (directPvlCall !== undefined) {
+      return { factory: { ...directPvlCall, followed: reading }, methods: [] };
     }
 
     const propertyAccessCall = GenericAst.asPropertyAccessCall(node);
     if (propertyAccessCall === undefined) {
       throw new UnresolvedNodeError(node);
     }
+
     const { call, receiver, methodName } = propertyAccessCall;
     const chain = PvlAst.readCallChain(receiver, pvlImportLocalNames, reading);
     return { ...chain, methods: [...chain.methods, { call, methodName, followed: reading }] };
