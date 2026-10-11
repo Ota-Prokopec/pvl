@@ -4,8 +4,8 @@
 // nested objects' and arrays' included.
 import { ISSUE_CODE, OBJECT_SCHEMA_ISSUE_MESSAGE, type IssueEditableProps } from '@pvl/schema';
 import { ROOT_ISSUE_PATH } from '../consts.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import type { ObjectField, SchemaMethodCall, SchemaModel } from '../schema.js';
+import type { Schema, SchemaMethodCall } from '../schema.js';
+import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitScope } from './emitScope.js';
 import { emitIssue, js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';
@@ -117,7 +117,7 @@ const spellObjectType = (fields: ReadonlyArray<{ key: string; type: string }>): 
  * isOptionalField(<pvl.string()>)            // false
  * ```
  */
-const isOptionalField = (fieldSchema: SchemaModel): boolean => {
+const isOptionalField = (fieldSchema: Schema): boolean => {
   return fieldSchema.calls.some((call) => call.name === 'optional');
 };
 
@@ -191,10 +191,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * last of `.strict()`/`.passthrough()` chose (stripping when neither was
    * chained), then the output built from the fields that passed.
    */
-  public static override _emitBody(schema: SchemaModel, scope: EmitScope): string {
-    if (schema.factory !== SCHEMA_FACTORY.OBJECT) {
-      throw new Error(`ObjectSchemaEmitter can't emit a pvl.${schema.factory}().`);
-    }
+  public static override _emitBody(schema: ObjectSchema, scope: EmitScope): string {
     const rootTarget: EmitTarget = { value: 'value', path: ROOT_ISSUE_PATH };
     const locals: ObjectLocals = { input: 'input', output: 'output', path: 'path' };
     const fields = nameFields(schema.shape, scope);
@@ -242,13 +239,10 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   public static override _emitTypedChecks(
-    schema: SchemaModel,
+    schema: ObjectSchema,
     target: EmitTarget,
     scope: EmitScope,
   ): string {
-    if (schema.factory !== SCHEMA_FACTORY.OBJECT) {
-      throw new Error(`ObjectSchemaEmitter can't emit a pvl.${schema.factory}().`);
-    }
     const suffix = scope.nextLocalSuffix();
     const locals: ObjectLocals = {
       input: `input${suffix}`,
@@ -302,12 +296,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * // { input: '{ name: string; age?: number | undefined }', output: <the same> }
    * ```
    */
-  public static override _spellTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
-    if (schema.factory !== SCHEMA_FACTORY.OBJECT) {
-      throw new Error(`ObjectSchemaEmitter can't spell a pvl.${schema.factory}().`);
-    }
+  public static override _spellTypes(schema: ObjectSchema, scope: EmitScope): SchemaTypes {
     const fields = schema.shape.map(({ key, schema: fieldSchema }) => {
-      const { input, output } = scope.findEmitter(fieldSchema)._emitTypes(fieldSchema, scope);
+      const { input, output } = fieldSchema.emitter._emitTypes(fieldSchema, scope);
       return { key: `${formatKey(key)}${isOptionalField(fieldSchema) ? '?' : ''}`, input, output };
     });
     const input = spellObjectType(fields.map(({ key, input: type }) => ({ key, type })));
@@ -354,7 +345,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     scope: EmitScope,
   ): string[] {
     return fields.map(({ key, schema: fieldSchema, value }) => {
-      const emitter = scope.findEmitter(fieldSchema);
+      const { emitter } = fieldSchema;
       return [
         `// ${formatKey(key)}`,
         js`${emitter._spellValueDeclaration()} ${value} = ${locals.input}[${JSON.stringify(key)}];`,

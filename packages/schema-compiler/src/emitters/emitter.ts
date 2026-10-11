@@ -4,8 +4,8 @@
 // writing a Compiled Schema's class around the body a composite emitter
 // writes. A subclass only adds the templates and overrides the `_` hooks.
 import type { StaticValue } from '../ast/genericAst.js';
-import type { SchemaMethodCall, SchemaModel } from '../schema.js';
-import { EmitScope, type FindEmitter } from './emitScope.js';
+import type { Schema, SchemaMethodCall } from '../schema.js';
+import { EmitScope } from './emitScope.js';
 import { js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';
 
 const INDENT = '  ' as const;
@@ -33,13 +33,11 @@ const isEmittedCheck = (emitted: unknown): emitted is EmittedCheck => {
 
 /** What {@link Emitter.emitCompiledSchema} writes a class for. */
 export type EmitCompiledSchemaArgs = {
-  /** A SchemaModel `Schema.findUncompilableDiagnostics` found nothing in. */
-  schema: SchemaModel;
+  /** A Schema `Schema.findUncompilableDiagnostics` found nothing in, which this Emitter compiles. */
+  schema: Schema;
   className: string;
   /** The line of the `pvl.compile()` call, named in the class's comment. */
   line: number;
-  /** The emitter of each Schema nested in `schema`. */
-  findEmitter: FindEmitter;
 };
 
 /**
@@ -71,7 +69,7 @@ export class Emitter {
    * target alone; an emitter whose type check reads its factory's argument
    * (`pvl.literal('a')`) overrides it to pass that too.
    */
-  public static _emitTypeCheck(_schema: SchemaModel, target: EmitTarget): EmittedCheck {
+  public static _emitTypeCheck(_schema: Schema, target: EmitTarget): EmittedCheck {
     return this._checkType(target);
   }
 
@@ -92,7 +90,7 @@ export class Emitter {
    * // }
    * ```
    */
-  public static _emitChecks(schema: SchemaModel, target: EmitTarget, scope: EmitScope): string {
+  public static _emitChecks(schema: Schema, target: EmitTarget, scope: EmitScope): string {
     const typeChecked = Emitter.emitPushIssueIfFails(this._emitTypeCheck(schema, target));
     const typedChecks = this._emitTypedChecks(schema, target, scope);
     return typedChecks === ''
@@ -115,11 +113,24 @@ export class Emitter {
    * ```
    */
   public static _emitTypedChecks(
-    ...[schema, target]: [schema: SchemaModel, target: EmitTarget, scope: EmitScope]
+    ...[schema, target]: [schema: Schema, target: EmitTarget, scope: EmitScope]
   ): string {
-    return schema.calls
+    return this._findTypedCheckCalls(schema)
       .map((call) => Emitter.emitPushIssueIfFails(this.emitCallCheck(call, target)))
       .join('\n');
+  }
+
+  /**
+   * The calls of `schema` checked once its type check has passed: all of
+   * them here. `ChainableSchemaEmitter` leaves out the Modifiers, which
+   * run before the type check instead.
+   *
+   * ```ts
+   * Emitter._findTypedCheckCalls(<pvl.string().min(3)>) // [min(3)]
+   * ```
+   */
+  public static _findTypedCheckCalls(schema: Schema): ReadonlyArray<SchemaMethodCall> {
+    return schema.calls;
   }
 
   /**
@@ -140,7 +151,7 @@ export class Emitter {
    * compiles at the root. Only a composite's emitter overrides it; this one
    * throws, which is a bug in the compiler, never a user error.
    */
-  public static _emitBody(...[schema]: [schema: SchemaModel, scope: EmitScope]): string {
+  public static _emitBody(...[schema]: [schema: Schema, scope: EmitScope]): string {
     throw new Error(`A pvl.${schema.factory}() can't be compiled at the root.`);
   }
 
@@ -149,7 +160,7 @@ export class Emitter {
    * them. Defaults to the factory's name, which is the type of a primitive
    * (`pvl.string()` types as `string`); the other emitters override it.
    */
-  public static _spellTypes(...[schema]: [schema: SchemaModel, scope: EmitScope]): SchemaTypes {
+  public static _spellTypes(...[schema]: [schema: Schema, scope: EmitScope]): SchemaTypes {
     return { input: schema.factory, output: schema.factory };
   }
 
@@ -158,7 +169,7 @@ export class Emitter {
    * Schema's own inferred types are. `ChainableSchemaEmitter` widens them
    * for its Modifiers.
    */
-  public static _emitTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
+  public static _emitTypes(schema: Schema, scope: EmitScope): SchemaTypes {
     return this._spellTypes(schema, scope);
   }
 
@@ -194,7 +205,7 @@ export class Emitter {
 
   /**
    * The check `call` compiles to, such as `.min(3)`'s. Only called on a
-   * SchemaModel `Schema.findUncompilableDiagnostics` found nothing in, so the method
+   * Schema `Schema.findUncompilableDiagnostics` found nothing in, so the method
    * and its arguments are there. Throws when the method writes no check,
    * which is a bug in an emitter, never a user error.
    */
@@ -232,13 +243,8 @@ export class Emitter {
    * // }
    * ```
    */
-  public static emitCompiledSchema({
-    schema,
-    className,
-    line,
-    findEmitter,
-  }: EmitCompiledSchemaArgs): string {
-    const scope = new EmitScope(findEmitter);
+  public static emitCompiledSchema({ schema, className, line }: EmitCompiledSchemaArgs): string {
+    const scope = new EmitScope();
     const { input, output } = this._emitTypes(schema, scope);
 
     return [

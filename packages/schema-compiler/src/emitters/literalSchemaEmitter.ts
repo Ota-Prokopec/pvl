@@ -1,8 +1,7 @@
 // The code a `LiteralSchema` compiles to: its value check, as it has no
 // Constraint.
 import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE, type PossibleLiteralValue } from '@pvl/schema';
-import { SCHEMA_FACTORY } from '../enums.js';
-import type { SchemaModel } from '../schema.js';
+import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import {
   emitIssue,
@@ -35,11 +34,8 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `_checkType` with the value `pvl.literal()` was given. */
-  public static override _emitTypeCheck(schema: SchemaModel, target: EmitTarget): EmittedCheck {
-    if (schema.factory !== SCHEMA_FACTORY.LITERAL) {
-      throw new Error(`LiteralSchemaEmitter can't emit a pvl.${schema.factory}().`);
-    }
-    return this._checkType(target, schema.literalValue);
+  public static override _emitTypeCheck(schema: LiteralSchema, target: EmitTarget): EmittedCheck {
+    return this._checkType(target, schema.value);
   }
 
   /**
@@ -49,11 +45,8 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    * LiteralSchemaEmitter._spellTypes(<pvl.literal('a')>) // { input: '"a"', output: '"a"' }
    * ```
    */
-  public static override _spellTypes(schema: SchemaModel): SchemaTypes {
-    if (schema.factory !== SCHEMA_FACTORY.LITERAL) {
-      throw new Error(`LiteralSchemaEmitter can't spell a pvl.${schema.factory}().`);
-    }
-    const type = spellLiteralType(schema.literalValue);
+  public static override _spellTypes(schema: LiteralSchema): SchemaTypes {
+    const type = spellLiteralType(schema.value);
     return { input: type, output: type };
   }
 }

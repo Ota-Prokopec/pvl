@@ -1,8 +1,7 @@
 // The code an `EnumSchema` compiles to: its membership check, as it has no
 // Constraint.
 import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type EnumMember } from '@pvl/schema';
-import { SCHEMA_FACTORY } from '../enums.js';
-import type { SchemaModel } from '../schema.js';
+import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import {
   emitIssue,
@@ -34,10 +33,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `_checkType` with the members `pvl.enum()` was given. */
-  public static override _emitTypeCheck(schema: SchemaModel, target: EmitTarget): EmittedCheck {
-    if (schema.factory !== SCHEMA_FACTORY.ENUM) {
-      throw new Error(`EnumSchemaEmitter can't emit a pvl.${schema.factory}().`);
-    }
+  public static override _emitTypeCheck(schema: EnumSchema, target: EmitTarget): EmittedCheck {
     return this._checkType(target, schema.members);
   }
 
@@ -48,10 +44,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
    * EnumSchemaEmitter._spellTypes(<pvl.enum(['A', 'B'])>) // { input: '"A" | "B"', output: '"A" | "B"' }
    * ```
    */
-  public static override _spellTypes(schema: SchemaModel): SchemaTypes {
-    if (schema.factory !== SCHEMA_FACTORY.ENUM) {
-      throw new Error(`EnumSchemaEmitter can't spell a pvl.${schema.factory}().`);
-    }
+  public static override _spellTypes(schema: EnumSchema): SchemaTypes {
     const type = schema.members.map((member) => spellLiteralType(member)).join(' | ');
     return { input: type, output: type };
   }

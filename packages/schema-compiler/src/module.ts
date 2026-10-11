@@ -12,6 +12,8 @@ import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
 import { Precheck, type ModuleCompilation } from './precheck.js';
 import { Schema } from './schema.js';
+// Registers every Schema subclass, which `Schema.read` picks one from.
+import './schemas/index.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';

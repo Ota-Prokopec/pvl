@@ -2,7 +2,7 @@
 // method per Modifier it mirrors. Each returns the condition the rest of the
 // pipeline runs under, since a value it accepts skips every later check.
 // Every schema's emitter extends it, as every schema extends `ChainableSchema`.
-import type { SchemaMethodCall, SchemaModel } from '../schema.js';
+import type { Schema, SchemaMethodCall } from '../schema.js';
 import type { EmitScope } from './emitScope.js';
 import { Emitter } from './emitter.js';
 import { js, type EmitTarget, type SchemaTypes } from './utils.js';
@@ -69,25 +69,26 @@ export class ChainableSchemaEmitter extends Emitter {
    * // }
    * ```
    */
-  public static override _emitChecks(
-    schema: SchemaModel,
-    target: EmitTarget,
-    scope: EmitScope,
-  ): string {
+  public static override _emitChecks(schema: Schema, target: EmitTarget, scope: EmitScope): string {
     const continuesWhen = schema.calls
       .filter((call) => ChainableSchemaEmitter._isModifier(call.name))
       .map((call) => this.emitCallText(call, target));
-    const checks = super._emitChecks(
-      {
-        ...schema,
-        calls: schema.calls.filter((call) => !ChainableSchemaEmitter._isModifier(call.name)),
-      },
-      target,
-      scope,
-    );
+    const checks = super._emitChecks(schema, target, scope);
     return continuesWhen.length === 0
       ? checks
       : Emitter.emitBlock(`if (${continuesWhen.join(' && ')})`, checks);
+  }
+
+  /**
+   * The calls of `schema` that aren't Modifiers, as each Modifier's
+   * condition guards the checks rather than being one.
+   *
+   * ```ts
+   * StringSchemaEmitter._findTypedCheckCalls(<pvl.string().optional().min(3)>) // [min(3)]
+   * ```
+   */
+  public static override _findTypedCheckCalls(schema: Schema): ReadonlyArray<SchemaMethodCall> {
+    return schema.calls.filter((call) => !ChainableSchemaEmitter._isModifier(call.name));
   }
 
   /**
@@ -99,7 +100,7 @@ export class ChainableSchemaEmitter extends Emitter {
    * // { input: 'string | null | undefined', output: <the same> }
    * ```
    */
-  public static override _emitTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
+  public static override _emitTypes(schema: Schema, scope: EmitScope): SchemaTypes {
     const { input, output } = super._emitTypes(schema, scope);
     return { input: widenType(input, schema.calls), output: widenType(output, schema.calls) };
   }

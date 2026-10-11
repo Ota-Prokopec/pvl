@@ -4,8 +4,8 @@
 // into it, a nested object's or array's included.
 import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type IssueEditableProps } from '@pvl/schema';
 import { ROOT_ISSUE_PATH } from '../consts.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import type { SchemaModel } from '../schema.js';
+import type { Schema } from '../schema.js';
+import type { ArraySchema } from '../schemas/arraySchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitScope } from './emitScope.js';
 import { emitIssue, js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';
@@ -93,7 +93,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * with the element's checks inlined, then the array's own Constraints in
    * chain order.
    */
-  public static override _emitBody(schema: SchemaModel, scope: EmitScope): string {
+  public static override _emitBody(schema: ArraySchema, scope: EmitScope): string {
     const rootTarget: EmitTarget = { value: 'value', path: ROOT_ISSUE_PATH };
     const locals: ArrayLocals = {
       index: 'index',
@@ -108,7 +108,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
       'const issues: PvlIssue[] = [];',
       this.emitReturnIssueIfFails(this._checkType(rootTarget)),
       'const output: unknown[] = [];',
-      this._emitLoop(this._findElement(schema), 'value', locals, scope),
+      this._emitLoop(schema.element, 'value', locals, scope),
       this.emitReturnIssuesIfAny(),
       ...(constraintChecks.length === 0 ? [] : [...constraintChecks, this.emitReturnIssuesIfAny()]),
       'return { value: output };',
@@ -136,7 +136,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   public static override _emitTypedChecks(
-    schema: SchemaModel,
+    schema: ArraySchema,
     target: EmitTarget,
     scope: EmitScope,
   ): string {
@@ -148,7 +148,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
       path: `path${suffix}`,
     };
     const issueCount = `issueCount${suffix}`;
-    const constraintChecks = schema.calls.map((call) =>
+    const constraintChecks = this._findTypedCheckCalls(schema).map((call) =>
       this.emitPushIssueIfFails(
         this.emitCallCheck(call, { value: target.value, path: locals.path }),
       ),
@@ -157,7 +157,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
       js`const ${locals.path} = ${target.path};`,
       ...(constraintChecks.length === 0 ? [] : [js`const ${issueCount} = issues.length;`]),
       js`const ${locals.output}: unknown[] = [];`,
-      this._emitLoop(this._findElement(schema), target.value, locals, scope),
+      this._emitLoop(schema.element, target.value, locals, scope),
       ...(constraintChecks.length === 0
         ? []
         : [this.emitBlock(js`if (issues.length === ${issueCount})`, constraintChecks.join('\n'))]),
@@ -185,27 +185,9 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * // { input: '("A" | "B" | null)[]', output: <the same> }
    * ```
    */
-  public static override _spellTypes(schema: SchemaModel, scope: EmitScope): SchemaTypes {
-    if (schema.factory !== SCHEMA_FACTORY.ARRAY) {
-      throw new Error(`ArraySchemaEmitter can't spell a pvl.${schema.factory}().`);
-    }
-    const { input, output } = scope.findEmitter(schema.element)._emitTypes(schema.element, scope);
+  public static override _spellTypes(schema: ArraySchema, scope: EmitScope): SchemaTypes {
+    const { input, output } = schema.element.emitter._emitTypes(schema.element, scope);
     return { input: spellArrayType(input), output: spellArrayType(output) };
-  }
-
-  /**
-   * The element Schema of an array's SchemaModel. Throws for any other
-   * Schema, which is a bug in the compiler, never a user error.
-   *
-   * ```ts
-   * ArraySchemaEmitter._findElement(<pvl.array(pvl.string())>) // <pvl.string()>
-   * ```
-   */
-  private static _findElement(schema: SchemaModel): SchemaModel {
-    if (schema.factory !== SCHEMA_FACTORY.ARRAY) {
-      throw new Error(`ArraySchemaEmitter can't emit a pvl.${schema.factory}().`);
-    }
-    return schema.element;
   }
 
   /**
@@ -221,12 +203,12 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   private static _emitLoop(
-    elementSchema: SchemaModel,
+    elementSchema: Schema,
     array: string,
     { index, element, output, path }: ArrayLocals,
     scope: EmitScope,
   ): string {
-    const emitter = scope.findEmitter(elementSchema);
+    const { emitter } = elementSchema;
     return this.emitBlock(
       js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
       [
