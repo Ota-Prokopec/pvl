@@ -10,6 +10,7 @@ import { noInterface } from '../src/eslint/rules/noInterface.ts';
 import { noJavascriptFiles } from '../src/eslint/rules/noJavascriptFiles.ts';
 import { noLocalFunctions } from '../src/eslint/rules/noLocalFunctions.ts';
 import { noRegex } from '../src/eslint/rules/noRegex.ts';
+import { tsMorphThroughAst } from '../src/eslint/rules/tsMorphThroughAst.ts';
 import { createFixture, typescriptTester } from './helpers.ts';
 
 typescriptTester.run('class-file-name', classFileName, {
@@ -255,6 +256,21 @@ typescriptTester.run('no-regex', noRegex, {
     { code: 'const pattern = /^a+$/;', errors: [{ messageId: 'noRegex' }] },
     { code: "const pattern = new RegExp('a+');", errors: [{ messageId: 'noRegex' }] },
     { code: "const pattern = RegExp('a+');", errors: [{ messageId: 'noRegex' }] },
+  ],
+});
+
+typescriptTester.run('ts-morph-through-ast', tsMorphThroughAst, {
+  valid: [
+    "import { GenericAst } from './ast/genericAst.js';\nconst call = GenericAst.asPropertyAccessCall(node);",
+    "import { Node } from 'ts-morph';\nconst parent: Node = node.getParentOrThrow();",
+    "import type { Node } from 'ts-morph';\nconst isNode = (value: unknown): value is Node => value !== null;",
+    'const isElement = Node.isElement(value);',
+  ],
+  invalid: [
+    {
+      code: "import { Node } from 'ts-morph';\nconst isCall = Node.isCallExpression(node);",
+      errors: [{ messageId: 'throughAst', data: { name: 'isCallExpression' } }],
+    },
   ],
 });
 
