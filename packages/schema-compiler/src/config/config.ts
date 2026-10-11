@@ -1,5 +1,6 @@
 // `pvlconfig.json`'s own schema, defined with `@pvl/schema`. The shipped
-// JSON Schema is generated from it (`jsonSchema.ts`), so the two can't drift.
+// JSON Schema is written by hand in `json-schema.json`, so a change here needs
+// the same change there; `tests/json-schema.test.ts` catches the two drifting.
 import { pvl, type InferOutput } from '@pvl/schema';
 
 /**
@@ -27,31 +28,32 @@ export const configSchema = pvl
   .strict();
 
 /**
- * The contents of a valid `pvlconfig.json`.
+ * The contents of a valid `pvlconfig.json`: every key it may set, each optional.
  *
  * @example
  * ```ts
- * import type { PvlConfig } from '@pvl/schema-compiler';
+ * import type { PvlConfigFile } from '@pvl/schema-compiler';
  *
- * const config: PvlConfig = { include: ['src/schemas/**\/*.ts'], withTypes: false };
+ * const file: PvlConfigFile = { include: ['src/schemas/**\/*.ts'], withTypes: false };
  * ```
  */
-export type PvlConfig = InferOutput<typeof configSchema>;
+export type PvlConfigFile = InferOutput<typeof configSchema>;
 
 /**
- * Every setting the compiler runs with, once flags, the config file and the
- * defaults are merged. Relative paths are relative to the base directory: the
- * directory holding `pvlconfig.json`, or the working directory without one.
+ * Every setting the compiler runs with, once the overrides, the config file
+ * and the defaults are merged. Relative paths are relative to the base
+ * directory: the directory holding `pvlconfig.json`, or the working directory
+ * without one.
  *
  * @example
  * ```ts
- * import { compile } from '@pvl/schema-compiler';
+ * import { runCompilation } from '@pvl/schema-compiler';
  *
- * const { settings } = await compile({ cwd: process.cwd() });
+ * const { settings } = await runCompilation({ cwd: process.cwd() });
  * settings?.include; // ['src/schemas/**\/*.ts'] unless configured
  * ```
  */
-export type Settings = {
+export type PvlConfig = {
   /** Globs selecting the files to scan. `node_modules` and the destination are never scanned. */
   include: string[];
   /** The Root Directory: the source root the Destination Directory mirrors, which every scanned file sits under. */
@@ -65,15 +67,14 @@ export type Settings = {
 };
 
 /**
- * Settings that take precedence over the config file — what each CLI flag
- * sets.
+ * Settings that take precedence over the config file: what each CLI flag sets.
  *
  * @example
  * ```ts
- * import { compile, type SettingOverrides } from '@pvl/schema-compiler';
+ * import { runCompilation, type PvlConfigOverrides } from '@pvl/schema-compiler';
  *
- * const overrides: SettingOverrides = { destination: 'out/schemas' };
- * await compile({ cwd: process.cwd(), overrides });
+ * const overrides: PvlConfigOverrides = { destination: 'out/schemas' };
+ * await runCompilation({ cwd: process.cwd(), overrides });
  * ```
  */
-export type SettingOverrides = Partial<Settings>;
+export type PvlConfigOverrides = Partial<PvlConfig>;

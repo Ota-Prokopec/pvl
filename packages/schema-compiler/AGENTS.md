@@ -7,7 +7,7 @@ Each section below says when it applies and which file to read. Read only the se
 ## Technology
 
 - TypeScript, ESM source. Depends on `@pvl/schema` (for validating its own configuration), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), and yargs for the CLI.
-- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The same build writes `dist/json-schema.json` from `configSchema` (`tsup.config.ts`), and declarations come from `tsc --project tsconfig.build.json`, as in `@pvl/schema`.
+- Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The same build copies the hand-written `src/config/json-schema.json` to `dist/json-schema.json` (`tsup.config.ts`); it can drift from `configSchema`, so change both together, and declarations come from `tsc --project tsconfig.build.json`, as in `@pvl/schema`.
 - The `pvl` bin is `dist/bin.js`. Run the local build against a project with `node packages/schema-compiler/dist/bin.js compile` from that project's directory, after `pnpm build`.
 
 ## Implementation rules
@@ -37,4 +37,4 @@ Read [`configuration-and-cli.md`](../../docs/specification/schema-compiler/confi
 
 ## Tests
 
-Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `compile()` and the CLI.
+Read [`testing.md`](../../docs/specification/schema-compiler/testing.md) before you write, change or review a test. It builds on the root [`TESTS.md`](../../TESTS.md) and defines the compiler's two seams, `runCompilation()` and the CLI.

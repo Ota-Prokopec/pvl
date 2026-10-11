@@ -20,6 +20,7 @@ import { noSourceLayoutHeading } from './rules/noSourceLayoutHeading.ts';
 import { packageJsonModuleType } from './rules/packageJsonModuleType.ts';
 import { packageJsonScripts } from './rules/packageJsonScripts.ts';
 import { tsconfigExtends } from './rules/tsconfigExtends.ts';
+import { tsMorphThroughAst } from './rules/tsMorphThroughAst.ts';
 
 const plugin = {
   meta: { name: '@repo/conventions' },
@@ -41,6 +42,7 @@ const plugin = {
     'package-json-module-type': packageJsonModuleType,
     'package-json-scripts': packageJsonScripts,
     'tsconfig-extends': tsconfigExtends,
+    'ts-morph-through-ast': tsMorphThroughAst,
   },
 };
 

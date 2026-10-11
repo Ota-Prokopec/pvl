@@ -4,7 +4,7 @@ import { runCli } from '../src/cli/runCli.js';
 import {
   DIAGNOSTIC_CODE,
   SEVERITY,
-  type CompilePayload,
+  type RunCompilationPayload,
   type DiagnosticCode,
 } from '../src/index.js';
 import { SCHEMA_FILE } from './consts.js';
@@ -34,13 +34,13 @@ const run = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> =>
   return { exitCode, stdout, stderr };
 };
 
-// `--json` prints one CompilePayload, so a test reads it back as one.
+// `--json` prints one RunCompilationPayload, so a test reads it back as one.
 const runJson = async (
   cwd: string,
   argv: ReadonlyArray<string>,
-): Promise<CliRun & { payload: CompilePayload }> => {
+): Promise<CliRun & { payload: RunCompilationPayload }> => {
   const result = await run(cwd, [...argv, '--json']);
-  return { ...result, payload: JSON.parse(result.stdout) as CompilePayload };
+  return { ...result, payload: JSON.parse(result.stdout) as RunCompilationPayload };
 };
 
 describe('pvl compile: settings from flags', () => {
@@ -260,6 +260,15 @@ const ERROR_CASES: ReadonlyArray<{
   {
     code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
     files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());') },
+    argv: ['--destination', 'out'],
+  },
+  {
+    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
+    files: {
+      'src/schemas/user.ts': schemaFile(
+        'const user = pvl.object({ friend: user });\nexport const compiled = pvl.compile(user);',
+      ),
+    },
     argv: ['--destination', 'out'],
   },
   {

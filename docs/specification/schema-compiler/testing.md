@@ -10,7 +10,7 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
 
 ## The two seams
 
-1. **The programmatic entry point, `compile()`**, run against a fixture project. One seam, three assertion styles:
+1. **The programmatic entry point, `runCompilation()`**, run against a fixture project. One seam, three assertion styles:
    - the returned diagnostics, asserted by **code** (never by message wording), plus `written` and the file on disk, since nothing may be written once an error fired;
    - an inline snapshot of each emitted mirrored module, written by hand as the expected output, to catch unintended churn in generated output;
    - importing an emitted mirrored module and diffing its `validate()` against the source module it mirrors, which shows the mirror runs as its source did;
@@ -21,7 +21,7 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
 
 2. **The CLI, `runCli()`**, kept deliberately thin: argv to settings and their precedence, exit codes, the `--json` output shape, and `--strict` promoting warnings. It runs in process with captured `stdout`/`stderr`, and reads results back through `--json`. It doesn't re-test what seam 1 already covers. Example: `tests/cli.test.ts`.
 
-The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of `configJsonSchema()` (`tests/json-schema.test.ts`), so a change to the config's schema shows up as a reviewed diff of what editors see.
+The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of `src/config/json-schema.json` (`tests/json-schema.test.ts`), so a change to the config's schema shows up as a reviewed diff of what editors see. The same file checks its keys against `configSchema` and its defaults against the compiler's, since it is written by hand and can drift.
 
 ## Required cases
 

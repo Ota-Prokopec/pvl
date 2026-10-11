@@ -256,6 +256,9 @@ importers:
         specifier: ^18.2.0
         version: 18.2.0
     devDependencies:
+      '@repo/conventions':
+        specifier: workspace:*
+        version: link:../conventions
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
