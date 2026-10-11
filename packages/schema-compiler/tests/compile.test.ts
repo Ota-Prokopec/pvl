@@ -826,7 +826,7 @@ describe('runCompilation(): diagnostics', () => {
 
     const payload = await runCompilation({ cwd: root });
 
-    expect(payload.diagnostics).toStrictEqual([
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual([
       {
         code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
         severity: SEVERITY.WARNING,
@@ -847,7 +847,7 @@ describe('runCompilation(): diagnostics', () => {
 
     const payload = await runCompilation({ cwd: root });
 
-    expect(payload.diagnostics).toStrictEqual([
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual([
       {
         code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
         severity: SEVERITY.WARNING,
@@ -1029,14 +1029,14 @@ describe('runCompilation(): diagnostics', () => {
       payload.diagnostics.map(({ code, severity, file }) => ({ code, severity, file })),
     ).toStrictEqual([
       {
-        code: DIAGNOSTIC_CODE.PARSE_FAILED,
-        severity: SEVERITY.ERROR,
-        file: join(root, 'src/schemas/broken.ts'),
-      },
-      {
         code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
         severity: SEVERITY.ERROR,
         file: join(root, 'lib/helpers.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.PARSE_FAILED,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'src/schemas/broken.ts'),
       },
       {
         code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
@@ -1044,14 +1044,14 @@ describe('runCompilation(): diagnostics', () => {
         file: join(root, 'src/schemas/legacy.ts'),
       },
       {
-        code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-        severity: SEVERITY.ERROR,
-        file: join(root, 'src/schemas/user.ts'),
-      },
-      {
         code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
         severity: SEVERITY.WARNING,
         file: join(root, 'src/schemas/setup.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'src/schemas/user.ts'),
       },
     ]);
     expect(payload.written).toBe(false);

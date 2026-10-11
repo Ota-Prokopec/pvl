@@ -32,7 +32,7 @@ const isEmittedCheck = (emitted: unknown): emitted is EmittedCheck => {
 
 /** What {@link Emitter.emitCompiledSchema} writes a class for. */
 export type EmitCompiledSchemaArgs = {
-  /** A SchemaModel `CompiledSchemaWriter.findUncompilableDiagnostics` found nothing in. */
+  /** A SchemaModel `Schema.findUncompilableDiagnostics` found nothing in. */
   schema: SchemaModel;
   className: string;
   /** The line of the `pvl.compile()` call, named in the class's comment. */
@@ -193,7 +193,7 @@ export class Emitter {
 
   /**
    * The check `call` compiles to, such as `.min(3)`'s. Only called on a
-   * SchemaModel `CompiledSchemaWriter.findUncompilableDiagnostics` found nothing in, so the method
+   * SchemaModel `Schema.findUncompilableDiagnostics` found nothing in, so the method
    * and its arguments are there. Throws when the method writes no check,
    * which is a bug in an emitter, never a user error.
    */

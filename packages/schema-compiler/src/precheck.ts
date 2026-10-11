@@ -85,7 +85,7 @@ export class Precheck {
     tsMorphProject: Project,
     modules: ReadonlyArray<Module>,
   ): Diagnostic[] {
-    return modules.flatMap(({ absolutePath, moduleFile }) =>
+    return modules.flatMap(({ path: { absolutePath }, moduleFile }) =>
       tsMorphProject
         .getProgram()
         .getSyntacticDiagnostics(moduleFile)
@@ -118,7 +118,7 @@ export class Precheck {
     return modules
       .filter((module) => module.isOutsideRootDirectory())
       .map(
-        ({ absolutePath }) =>
+        ({ path: { absolutePath } }) =>
           new Diagnostic({
             code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
             message: `This file isn't under rootDir (${rootDirectory}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
@@ -141,7 +141,10 @@ export class Precheck {
    * export const user = pvl.object({ … });     // fine
    * ```
    */
-  public static findDefaultExportsDiagnostics({ absolutePath, moduleFile }: Module): Diagnostic[] {
+  public static findDefaultExportsDiagnostics({
+    path: { absolutePath },
+    moduleFile,
+  }: Module): Diagnostic[] {
     return moduleFile
       .getStatements()
       .filter((statement) => Precheck.exportsDefault(statement))
@@ -171,8 +174,11 @@ export class Precheck {
   public static findDuplicateExportsDiagnostics(modules: ReadonlyArray<Module>): Diagnostic[] {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
-    for (const { absolutePath, relative, moduleFile } of [...modules].sort((first, second) =>
-      first.relative.path < second.relative.path ? -1 : 1,
+    for (const {
+      path: { absolutePath, relative },
+      moduleFile,
+    } of [...modules].sort((first, second) =>
+      first.path.relative.path < second.path.relative.path ? -1 : 1,
     )) {
       for (const [exportedName, declarations] of moduleFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
@@ -209,7 +215,10 @@ export class Precheck {
    *   loaded.
    */
   public static findWarningsDiagnostics(module: Module): Diagnostic[] {
-    const { absolutePath, moduleFile } = module;
+    const {
+      path: { absolutePath },
+      moduleFile,
+    } = module;
     const exportsNothingWarnings = module.hasExport()
       ? []
       : [

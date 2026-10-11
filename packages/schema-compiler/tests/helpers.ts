@@ -133,7 +133,8 @@ export const expectFailure = (
   payload: RunCompilationPayload,
   expected: ReadonlyArray<ExpectedError>,
 ): void => {
-  expect(payload.diagnostics).toStrictEqual(
+  // Each Diagnostic's fields, as a plain object: `toStrictEqual` also compares prototypes.
+  expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual(
     expected.map(({ code, file }) => ({
       code,
       severity: SEVERITY.ERROR,

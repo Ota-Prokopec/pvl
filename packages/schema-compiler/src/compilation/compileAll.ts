@@ -34,7 +34,7 @@ export const compileAll = ({ tsMorphProject, compilations }: CompileAllArgs): Mi
   // Lets a rewritten import that points at another scanned file point at that
   // file's mirror instead.
   const mirroredPathByScannedPath = new Map<ScannedPath, MirroredPath>(
-    modules.map(({ absolutePath, mirroredPath }) => [absolutePath, mirroredPath]),
+    modules.map(({ path, mirroredPath }) => [path.absolutePath, mirroredPath]),
   );
 
   const mirroredModules: MirroredFile[] = compilations.map(({ module, schemas }) =>

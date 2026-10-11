@@ -3,9 +3,20 @@
 // same file holding one is understood. Nothing is imported or executed.
 import type { EnumMember, PossibleLiteralValue } from '@pvl/schema';
 import { Node, SyntaxKind, VariableDeclarationKind, type CallExpression } from 'ts-morph';
-import { CompiledSchemaWriter } from './compilation/generate/compiledSchemaWriter.js';
+import { COMPOSITE_FACTORIES } from './consts.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
-import { SCHEMA_FACTORY, type SchemaFactory } from './enums.js';
+import { ArraySchemaEmitter } from './emitters/arraySchemaEmitter.js';
+import { BigintSchemaEmitter } from './emitters/bigintSchemaEmitter.js';
+import { BooleanSchemaEmitter } from './emitters/booleanSchemaEmitter.js';
+import { ChainableSchemaEmitter } from './emitters/chainableSchemaEmitter.js';
+import type { FindEmitter } from './emitters/emitScope.js';
+import type { Emitter } from './emitters/emitter.js';
+import { EnumSchemaEmitter } from './emitters/enumSchemaEmitter.js';
+import { LiteralSchemaEmitter } from './emitters/literalSchemaEmitter.js';
+import { NumberSchemaEmitter } from './emitters/numberSchemaEmitter.js';
+import { ObjectSchemaEmitter } from './emitters/objectSchemaEmitter.js';
+import { StringSchemaEmitter } from './emitters/stringSchemaEmitter.js';
+import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from './enums.js';
 import type { Module } from './module.js';
 
 /** An argument written as a literal in source: `3`, `'a'`, `10n`, `{ message: 'too short' }`. */
@@ -83,6 +94,19 @@ class UnresolvedNodeError extends Error {
 
 const SCHEMA_FACTORIES: ReadonlySet<string> = new Set(Object.values(SCHEMA_FACTORY));
 
+// Every emitter, by the factory whose Schema it compiles. A union has none
+// yet, so it is unsupported.
+const EMITTER_BY_FACTORY: Readonly<Partial<Record<SchemaFactory, typeof Emitter>>> = {
+  [SCHEMA_FACTORY.STRING]: StringSchemaEmitter,
+  [SCHEMA_FACTORY.NUMBER]: NumberSchemaEmitter,
+  [SCHEMA_FACTORY.BOOLEAN]: BooleanSchemaEmitter,
+  [SCHEMA_FACTORY.BIGINT]: BigintSchemaEmitter,
+  [SCHEMA_FACTORY.LITERAL]: LiteralSchemaEmitter,
+  [SCHEMA_FACTORY.ENUM]: EnumSchemaEmitter,
+  [SCHEMA_FACTORY.OBJECT]: ObjectSchemaEmitter,
+  [SCHEMA_FACTORY.ARRAY]: ArraySchemaEmitter,
+};
+
 /**
  * One Schema written in a Module, which holds any number of them. Its
  * `compile` compiles it whether it is marked to compile or not; which
@@ -120,8 +144,8 @@ export class Schema {
   }
 
   /**
-   * The Schema `expression` holds, or the first node that can't be read
-   * statically.
+   * The Schema `expression` holds, or a COMPILE_ARGUMENT_UNRESOLVABLE error
+   * on its Module's file naming the first node that can't be read statically.
    *
    * ```ts
    * // const MIN = 3;
@@ -130,52 +154,25 @@ export class Schema {
    * // { schema: <Schema whose model is { factory: 'object', shape: [{ key: 'name', schema: { factory: 'string', calls: [min(3)] } }] }> }
    * Schema.read({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <Schema> }: not marked, still read
    * // export const home = pvl.compile(importedAddress);
-   * Schema.read({ expression: <pvl.compile(importedAddress)>, … }) // { unresolvedNode: <importedAddress> }
+   * Schema.read({ expression: <pvl.compile(importedAddress)>, … }) // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
    * ```
    */
-  public static read(args: ReadSchemaArgs): { schema: Schema } | { unresolvedNode: Node } {
+  public static read(args: ReadSchemaArgs): { schema: Schema } | { diagnostic: Diagnostic } {
     try {
       return { schema: new Schema(args) };
     } catch (error) {
-      if (error instanceof UnresolvedNodeError) {
-        return { unresolvedNode: error.unresolvedNode };
+      if (!(error instanceof UnresolvedNodeError)) {
+        throw error;
       }
-      throw error;
+      const { unresolvedNode } = error;
+      return {
+        diagnostic: new Diagnostic({
+          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+          message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be read statically: \`${unresolvedNode.getText()}\` on line ${String(unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one.`,
+          file: args.module.path.absolutePath,
+        }),
+      };
     }
-  }
-
-  /**
-   * Its diagnostics, one per problem, each on its Module's file; none means it
-   * is a Compilable Schema (see `CompiledSchemaWriter.findUncompilableDiagnostics`).
-   *
-   * ```ts
-   * <pvl.compile(pvl.object({ name: pvl.string() }))>.findUncompilableDiagnostics() // []
-   * <pvl.compile(pvl.string())>.findUncompilableDiagnostics()                      // [COMPILE_ARGUMENT_NOT_COMPOSITE]
-   * ```
-   */
-  public findUncompilableDiagnostics(): Diagnostic[] {
-    return CompiledSchemaWriter.findUncompilableDiagnostics(this.model).map(
-      (diagnostic) => new Diagnostic({ ...diagnostic, file: this.module.absolutePath }),
-    );
-  }
-
-  /**
-   * Its Compiled Schema: the class declaration named `className`, whose
-   * instance replaces its expression. Compiles any Schema, marked to compile
-   * or not, so long as `findUncompilableDiagnostics` found nothing.
-   *
-   * ```ts
-   * <pvl.compile(pvl.object({ name: pvl.string() })) on line 3>.compile('PvlCompiledSchema0')
-   * // // pvl.compile() on line 3
-   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
-   * ```
-   */
-  public compile(className: string): string {
-    return CompiledSchemaWriter.emitCompiledSchema({
-      schema: this.model,
-      className,
-      line: this.expression.getStartLineNumber(),
-    });
   }
 
   // A `pvl.<factory>(…)` call with methods chained onto it, read from the
@@ -189,17 +186,176 @@ export class Schema {
   private readSchema(expression: Node): SchemaModel {
     const call = this.followConst(expression);
     const callee = Node.isCallExpression(call) ? call.getExpression() : undefined;
+
+    // Only for: pvl.string() or pvl.string().min()
+    // not for: pvl.string().min or pvl.string
     if (!Node.isCallExpression(call) || !Node.isPropertyAccessExpression(callee)) {
       throw new UnresolvedNodeError(call);
     }
-    const name = callee.getName();
-    const receiver = callee.getExpression();
+    const name = callee.getName(); // from pvl.string => "string"
+    const receiver = callee.getExpression(); // from pvl.string => pvl
+
     if (Node.isIdentifier(receiver) && this.pvlImportLocalNames.has(receiver.getText())) {
       return this.getFactory(name, call);
     }
     const schema = this.readSchema(receiver);
     const args = this.tryReadStaticValues(call.getArguments());
     return { ...schema, calls: [...schema.calls, { name, args, line: call.getStartLineNumber() }] };
+  }
+
+  /**
+   * Its diagnostics, one per problem, each on its Module's file; none means it
+   * is a Compilable Schema:
+   *
+   * - COMPILE_ARGUMENT_NOT_COMPOSITE: it is a primitive, a literal or an enum.
+   *   Reported alone, as nothing else of it is checked.
+   * - UNSUPPORTED_SCHEMA: it, or a Schema nested in it at any depth, uses
+   *   what isn't compiled yet: a union, `.coerce()`, `.refine()`,
+   *   `.transform()`, or `.optional()`/`.nullable()` on the Schema itself.
+   * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's arguments aren't
+   *   literals.
+   *
+   * ```ts
+   * <pvl.compile(pvl.object({ name: pvl.string().min(3) }))>.findUncompilableDiagnostics() // []
+   * <pvl.compile(pvl.string())>.findUncompilableDiagnostics()                             // [COMPILE_ARGUMENT_NOT_COMPOSITE]
+   * <pvl.compile(pvl.object({ ids: pvl.array(pvl.union([…])) }))>.findUncompilableDiagnostics() // [UNSUPPORTED_SCHEMA]
+   * <pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)))>.findUncompilableDiagnostics()  // [UNSUPPORTED_SCHEMA]
+   * ```
+   */
+  public findUncompilableDiagnostics(): Diagnostic[] {
+    const { model } = this;
+    if (!COMPOSITE_FACTORIES.has(model.factory)) {
+      return [
+        new Diagnostic({
+          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
+          message: `pvl.compile() wraps a \`pvl.${model.factory}()\` on line ${String(model.line)}, which isn't an object or an array. Compile the object or array holding it.`,
+          file: this.module.path.absolutePath,
+        }),
+      ];
+    }
+
+    const emitter = EMITTER_BY_FACTORY[model.factory];
+    if (emitter === undefined) {
+      return [
+        new Diagnostic({
+          code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+          message: `The \`pvl.${model.factory}()\` on line ${String(model.line)} can't be compiled yet.`,
+          file: this.module.path.absolutePath,
+        }),
+      ];
+    }
+    return [
+      ...model.calls.flatMap(
+        (call) => this.findUncompilableCallDiagnostic(emitter, call, true) ?? [],
+      ),
+      ...Schema.findChildModels(model).flatMap((child) =>
+        this.findUncompilableChildDiagnostics(child),
+      ),
+    ];
+  }
+
+  /**
+   * Its Compiled Schema: the class declaration named `className`, whose
+   * instance replaces its expression, written by the emitter of its factory
+   * (see `Emitter.emitCompiledSchema`). Compiles any Schema, marked to
+   * compile or not, so long as `findUncompilableDiagnostics` found nothing.
+   *
+   * ```ts
+   * <pvl.compile(pvl.object({ name: pvl.string() })) on line 3>.compile('PvlCompiledSchema0')
+   * // // pvl.compile() on line 3
+   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
+   * ```
+   */
+  public compile(className: string): string {
+    return Schema.findEmitter(this.model).emitCompiledSchema({
+      schema: this.model,
+      className,
+      line: this.expression.getStartLineNumber(),
+      findEmitter: Schema.findEmitter,
+    });
+  }
+
+  // The emitter of a Schema in a Compiled Schema. Only called on a model
+  // `findUncompilableDiagnostics` found nothing in; throws for a Schema with
+  // no emitter, which is a bug in the compiler, never a user error.
+  //
+  //   pvl.string()               // StringSchemaEmitter
+  //   pvl.union([pvl.string()])  // throws
+  private static readonly findEmitter: FindEmitter = (model) => {
+    const emitter = EMITTER_BY_FACTORY[model.factory];
+    if (emitter === undefined) {
+      throw new Error(`A pvl.${model.factory}() has no emitter.`);
+    }
+    return emitter;
+  };
+
+  // The fields' or the element's Schemas of a composite, none for any other.
+  //
+  //   pvl.object({ a: pvl.string(), b: pvl.number() }) // [pvl.string(), pvl.number()]
+  //   pvl.array(pvl.string())                          // [pvl.string()]
+  private static findChildModels(model: SchemaModel): ReadonlyArray<SchemaModel> {
+    if (model.factory === SCHEMA_FACTORY.OBJECT) {
+      return model.shape.map(({ schema }) => schema);
+    }
+    return model.factory === SCHEMA_FACTORY.ARRAY ? [model.element] : [];
+  }
+
+  // The diagnostic for a method chained onto a Schema, if it can't be
+  // compiled: `emitter` has no method for it, a Modifier is chained onto
+  // this Schema itself (`isRoot`), or its arguments aren't literals.
+  //
+  //   .min(3) on a string                  // undefined
+  //   .refine(isOk) on a string            // UNSUPPORTED_SCHEMA
+  //   .optional() on the root object       // UNSUPPORTED_SCHEMA
+  //   .min(MIN_FROM_IMPORT) on a string    // COMPILE_ARGUMENT_UNRESOLVABLE
+  private findUncompilableCallDiagnostic(
+    emitter: typeof Emitter,
+    call: SchemaMethodCall,
+    isRoot: boolean,
+  ): Diagnostic | undefined {
+    const isRootModifier = isRoot && ChainableSchemaEmitter._isModifier(call.name);
+
+    if (emitter.findMethod(call.name) === undefined || isRootModifier) {
+      return new Diagnostic({
+        code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet${isRootModifier ? ' on the Schema pvl.compile() wraps' : ''}.`,
+        file: this.module.path.absolutePath,
+      });
+    }
+    return call.args === undefined
+      ? new Diagnostic({
+          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+          message: `The arguments of \`.${call.name}()\` on line ${String(call.line)} aren't literals, so they can't be read statically.`,
+          file: this.module.path.absolutePath,
+        })
+      : undefined;
+  }
+
+  // The diagnostics for a field's or an element's Schema and every Schema
+  // nested in it: one per problem, none when it can be compiled.
+  //
+  //   pvl.string().min(3)                          // []
+  //   pvl.array(pvl.object({ a: pvl.string() }))   // []
+  //   pvl.array(pvl.union([…]))                    // [UNSUPPORTED_SCHEMA]
+  private findUncompilableChildDiagnostics(model: SchemaModel): Diagnostic[] {
+    const emitter = EMITTER_BY_FACTORY[model.factory];
+    if (emitter === undefined) {
+      return [
+        new Diagnostic({
+          code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+          message: `The \`pvl.${model.factory}()\` on line ${String(model.line)} is nested in a compiled Schema, which can't be compiled yet.`,
+          file: this.module.path.absolutePath,
+        }),
+      ];
+    }
+    return [
+      ...model.calls.flatMap(
+        (call) => this.findUncompilableCallDiagnostic(emitter, call, false) ?? [],
+      ),
+      ...Schema.findChildModels(model).flatMap((child) =>
+        this.findUncompilableChildDiagnostics(child),
+      ),
+    ];
   }
 
   // `pvl.<name>(argument)` with nothing chained onto it yet. `compile` reads
@@ -400,24 +556,27 @@ export class Schema {
     if (Node.isParenthesizedExpression(node) || Node.isAsExpression(node)) {
       return this.followConst(node.getExpression());
     }
+
     if (!Node.isIdentifier(node)) {
       return node;
     }
-    const name = node.getText();
-    const declaration = this.module.moduleFile.getVariableDeclaration(name);
+
+    const variableName = node.getText();
+    const declaration = this.module.moduleFile.getVariableDeclaration(variableName);
     const initializer = declaration?.getInitializer();
+
     if (
       initializer === undefined ||
       declaration?.getVariableStatement()?.getDeclarationKind() !== VariableDeclarationKind.Const ||
-      this.followedConstNames.has(name)
+      this.followedConstNames.has(variableName)
     ) {
       throw new UnresolvedNodeError(node);
     }
-    this.followedConstNames.add(name);
+    this.followedConstNames.add(variableName);
     try {
       return this.followConst(initializer);
     } finally {
-      this.followedConstNames.delete(name);
+      this.followedConstNames.delete(variableName);
     }
   }
 }

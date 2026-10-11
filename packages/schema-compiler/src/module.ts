@@ -74,20 +74,19 @@ export type PrecheckModulePayload = {
 };
 
 /**
- * One scanned file. Its `relative.path` is relative to the Root Directory,
+ * One scanned file. Its `path.relative.path` is relative to the Root Directory,
  * which is also its path inside the Destination Directory.
  *
  * ```ts
  * const user = new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' });
- * user.relative.path // 'schemas/user.ts'
- * user.mirroredPath  // '/repo/.pvl/schemas/user.ts'
+ * user.path.relative.path // 'schemas/user.ts'
+ * user.mirroredPath       // '/repo/.pvl/schemas/user.ts'
  * ```
  */
-export class Module extends Path {
-  /** The file's absolute path. */
-  declare public readonly absolutePath: ScannedPath;
-  /** Its path relative to the Root Directory. */
-  declare public readonly relative: NonNullable<Path['relative']>;
+export class Module {
+  /** Where the scanned file is: its absolute path, and its path relative to the Root Directory. */
+  public readonly path: Required<Path> & { readonly absolutePath: ScannedPath };
+
   /** Its ts-morph source file, which the mirror reads and rewrites in place. */
   public readonly moduleFile: SourceFile;
   /** The absolute path of its mirrored module. */
@@ -96,15 +95,15 @@ export class Module extends Path {
   /**
    * The scanned file at `scannedFilePath`, read into `tsMorphProject` and
    * placed in the mirror. A file outside the Root Directory gets a
-   * `relative.path` starting with `..` (or an absolute one, on another
+   * `path.relative.path` starting with `..` (or an absolute one, on another
    * drive), which FILE_OUTSIDE_ROOT_DIR reports.
    *
    * With Root Directory `/repo/src` and Destination Directory `/repo/.pvl`:
    *
    * ```ts
    * new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' })
-   * // Module { absolutePath: '/repo/src/schemas/user.ts',
-   * //   relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' },
+   * // Module { path: { absolutePath: '/repo/src/schemas/user.ts',
+   * //     relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' } },
    * //   moduleFile: <user.ts>, mirroredPath: '/repo/.pvl/schemas/user.ts' }
    * ```
    *
@@ -116,14 +115,16 @@ export class Module extends Path {
     rootDirectory,
     destination,
   }: ModuleOptions) {
-    const { relative } = Path.create(scannedFilePath, rootDirectory);
-    super(scannedFilePath, relative);
+    this.path = Path.create(scannedFilePath, rootDirectory) as Module['path'];
     this.moduleFile = tsMorphProject.addSourceFileAtPath(scannedFilePath);
-    this.mirroredPath = path.join(destination.absolutePath, relative.path) as MirroredPath;
+    this.mirroredPath = path.join(
+      destination.absolutePath,
+      this.path.relative.path,
+    ) as MirroredPath;
   }
 
   /**
-   * Whether the module's `relative.path`, relative to the Root Directory,
+   * Whether the module's `path.relative.path`, relative to the Root Directory,
    * leads outside it, so the module has no place in the mirror.
    *
    * ```ts
@@ -134,7 +135,7 @@ export class Module extends Path {
    * ```
    */
   public isOutsideRootDirectory(): boolean {
-    const relativePath = this.relative.path;
+    const relativePath = this.path.relative.path;
     return relativePath === '..' || relativePath.startsWith('../') || path.isAbsolute(relativePath);
   }
 
@@ -176,7 +177,7 @@ export class Module extends Path {
     );
     const outsideRootDirectoryDiagnostics = Precheck.findFilesOutsideRootDirectoryDiagnostics(
       [this],
-      this.relative.absoluteBase,
+      this.path.relative.absoluteBase,
     );
     if (parseFailureDiagnostics.length > 0) {
       return {
@@ -228,7 +229,7 @@ export class Module extends Path {
     this.rewriteSpecifiers({ tsMorphProject, mirroredPathByScannedPath });
 
     return {
-      relativePath: this.relative.path,
+      relativePath: this.path.relative.path,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
   }
@@ -271,7 +272,7 @@ export class Module extends Path {
           new Diagnostic({
             code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
             message: `\`.${modifierName}\` is chained onto the result of pvl.compile() on line ${String(line)}, which is a plain Schema. Chain it inside: pvl.compile(schema.${modifierName}(…)).`,
-            file: this.absolutePath,
+            file: this.path.absolutePath,
           }),
         );
         continue;
@@ -280,14 +281,8 @@ export class Module extends Path {
       // The whole call, which the Schema is read through and which compiling replaces.
       const schemaPayload = Schema.read({ module: this, expression: call, pvlImportLocalNames });
 
-      if ('unresolvedNode' in schemaPayload) {
-        diagnostics.push(
-          new Diagnostic({
-            code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-            message: `The argument of pvl.compile() on line ${String(line)} can't be read statically: \`${schemaPayload.unresolvedNode.getText()}\` on line ${String(schemaPayload.unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one.`,
-            file: this.absolutePath,
-          }),
-        );
+      if ('diagnostic' in schemaPayload) {
+        diagnostics.push(schemaPayload.diagnostic);
         continue;
       }
 
@@ -516,7 +511,7 @@ export class Module extends Path {
           mirroredPathByScannedPath,
         }),
       );
-      const rewritten = specifier.rewrite({ importerPath: this, outputDirectory }).value;
+      const rewritten = specifier.rewrite({ importerPath: this.path, outputDirectory }).value;
 
       if (rewritten !== moduleSpecifier) {
         literal.setLiteralValue(rewritten);
@@ -538,7 +533,7 @@ export class Module extends Path {
     const moduleFile = TsMorphProject.resolveModuleFile(
       tsMorphProject,
       specifier,
-      this.absolutePath,
+      this.path.absolutePath,
     );
     if (moduleFile === undefined || moduleFile.isPackage) {
       return { kind: SPECIFIER_TARGET_KIND.UNRESOLVED };

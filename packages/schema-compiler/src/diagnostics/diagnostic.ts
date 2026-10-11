@@ -40,8 +40,11 @@ export class Diagnostic {
   public readonly code: DiagnosticCode;
   public readonly severity: Severity;
   public readonly message: string;
-  /** The absolute path of the file the diagnostic is about, when there is one. */
-  public readonly file?: string;
+  /**
+   * The absolute path of the file the diagnostic is about, when there is one.
+   * Declared only, so a diagnostic about no file has no `file` key at all.
+   */
+  declare public readonly file?: string;
 
   /**
    * A diagnostic with `code`'s own severity, or `severity` when given.
