@@ -339,7 +339,6 @@ export class GenericAst {
         : undefined;
 
       if (!Node.isPropertyAssignment(property) || initializer === undefined) {
-        // TODO: `!Node.isPropertyAssignment(property)` is probably useless
         throw new UnresolvedNodeError(property);
       }
 
