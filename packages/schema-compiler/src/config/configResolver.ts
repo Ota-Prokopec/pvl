@@ -3,7 +3,12 @@
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import type { Issue } from '@pvl/schema';
-import { configSchema, type PvlConfig, type SettingOverrides, type Settings } from './config.js';
+import {
+  configSchema,
+  type PvlConfig,
+  type PvlConfigFile,
+  type PvlConfigOverrides,
+} from './config.js';
 import {
   CONFIG_FILE_NAME,
   DEFAULT_INCLUDE,
@@ -16,16 +21,16 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { definedOnlyKeys, errorMessage } from '../utils.js';
 
 export type ResolveSettingsPayload =
-  | { diagnostics: Diagnostic[]; settings: Settings; baseDirectory: string }
+  | { diagnostics: Diagnostic[]; settings: PvlConfig; baseDirectory: string }
   | { diagnostics: Diagnostic[]; settings: undefined; baseDirectory: undefined };
 
 export type ParseSettingsFilePayload =
-  { diagnostics: []; config: PvlConfig } | { diagnostics: Diagnostic[]; config: undefined };
+  { diagnostics: []; config: PvlConfigFile } | { diagnostics: Diagnostic[]; config: undefined };
 
 export type ResolveSettingsArgs = {
   cwd: string;
   configPath: string | undefined;
-  overrides: SettingOverrides;
+  overrides: PvlConfigOverrides;
 };
 
 /**
@@ -35,10 +40,10 @@ export type ResolveSettingsArgs = {
  *
  * ## Public functions
  *
- * ### `SettingsResolver.resolveSettings(args)`
+ * ### `ConfigResolver.resolveConfig(args)`
  *
  * Validates the overrides, locates and reads the config file, validates it, and merges
- * everything into the final `Settings`. It never throws on bad user input: every
+ * everything into the final `PvlConfig`. It never throws on bad user input: every
  * problem comes back as a diagnostic.
  *
  * **Input** (`ResolveSettingsArgs`):
@@ -58,9 +63,9 @@ export type ResolveSettingsArgs = {
  *   - `NO_CONFIG`: there is no config file and no override was passed.
  *
  * ```ts
- * await SettingsResolver.resolveSettings({ cwd, configPath: undefined, overrides: {} })
+ * await ConfigResolver.resolveConfig({ cwd, configPath: undefined, overrides: {} })
  * // { diagnostics: [], settings: { include, rootDir, destination, withTypes, watch }, baseDirectory: cwd }
- * await SettingsResolver.resolveSettings({ cwd, configPath: 'missing.json', overrides: {} })
+ * await ConfigResolver.resolveConfig({ cwd, configPath: 'missing.json', overrides: {} })
  * // { diagnostics: [CONFIG_UNREADABLE], settings: undefined, baseDirectory: undefined }
  * ```
  */
@@ -76,7 +81,7 @@ export class ConfigResolver {
     const overrideIssues = configSchema.validate(givenOverrides).issues;
     if (overrideIssues) {
       return {
-        diagnostics: SettingsResolver.getInvalidConfigDiagnostics(overrideIssues, undefined),
+        diagnostics: ConfigResolver.getInvalidConfigDiagnostics(overrideIssues, undefined),
         settings: undefined,
         baseDirectory: undefined,
       };
@@ -89,16 +94,18 @@ export class ConfigResolver {
     } catch (error) {
       // Only the implicit lookup may come up empty: a path the user named
       // has to exist.
-      if (configPath !== undefined || !SettingsResolver.isMissingFileError(error)) {
+      if (configPath !== undefined || !ConfigResolver.isMissingFileError(error)) {
         return {
-          diagnostics: [SettingsResolver.createUnreadableDiagnostic(file, errorMessage(error))],
+          diagnostics: [
+            ConfigResolver.createConfigFileUnreadableDiagnostic(file, errorMessage(error)),
+          ],
           settings: undefined,
           baseDirectory: undefined,
         };
       }
     }
 
-    let config: PvlConfig = {};
+    let config: PvlConfigFile = {};
     if (text === undefined) {
       if (Object.keys(givenOverrides).length === 0) {
         return {
@@ -113,7 +120,7 @@ export class ConfigResolver {
         };
       }
     } else {
-      const parsed = SettingsResolver.parseSettingsFile(file, text);
+      const parsed = ConfigResolver.parseSettingsFile(file, text);
       if (parsed.config === undefined) {
         return { diagnostics: parsed.diagnostics, settings: undefined, baseDirectory: undefined };
       }
@@ -196,7 +203,7 @@ export class ConfigResolver {
     } catch (error) {
       return {
         diagnostics: [
-          SettingsResolver.createUnreadableDiagnostic(
+          ConfigResolver.createConfigFileUnreadableDiagnostic(
             file,
             `it is not valid JSON (${errorMessage(error)})`,
           ),
@@ -208,7 +215,7 @@ export class ConfigResolver {
     const result = configSchema.validate(json);
     if (result.issues) {
       return {
-        diagnostics: SettingsResolver.getInvalidConfigDiagnostics(result.issues, file),
+        diagnostics: ConfigResolver.getInvalidConfigDiagnostics(result.issues, file),
         config: undefined,
       };
     }

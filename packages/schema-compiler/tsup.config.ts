@@ -1,6 +1,5 @@
-import { writeFile } from 'node:fs/promises';
+import { copyFile } from 'node:fs/promises';
 import { defineConfig } from 'tsup';
-import { configJsonSchema } from './src/config/jsonSchema.js';
 
 export default defineConfig({
   // `bin.ts` is the `pvl` executable `package.json`'s `bin` points at.
@@ -13,9 +12,8 @@ export default defineConfig({
   dts: false,
   sourcemap: true,
   clean: true,
-  // `@pvl/schema-compiler/json-schema`, generated from the same `configSchema`
-  // the compiler validates `pvlconfig.json` with.
+  // `@pvl/schema-compiler/json-schema`, shipped as written.
   onSuccess: async (): Promise<void> => {
-    await writeFile('dist/json-schema.json', `${JSON.stringify(configJsonSchema(), null, 2)}\n`);
+    await copyFile('src/config/json-schema.json', 'dist/json-schema.json');
   },
 });

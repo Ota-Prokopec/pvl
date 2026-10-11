@@ -2,7 +2,7 @@
 // through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
 import { runCompilation, type RunCompilationPayload } from '../compilation/runCompilation.js';
-import type { SettingOverrides } from '../config/config.js';
+import type { PvlConfigOverrides } from '../config/config.js';
 import { DIAGNOSTIC_CODE } from '../enums.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
@@ -19,9 +19,9 @@ export type RunCliOptions = {
   stderr: CliStream;
 };
 
-// Every setting is also a flag, so the settings come from `SettingOverrides`
+// Every setting is also a flag, so the settings come from `PvlConfigOverrides`
 // and only the CLI's own flags are listed here.
-type CompileFlags = SettingOverrides & {
+type CompileFlags = PvlConfigOverrides & {
   config: string | undefined;
   strict: boolean;
   json: boolean;

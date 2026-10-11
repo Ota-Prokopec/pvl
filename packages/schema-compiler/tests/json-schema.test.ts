@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { configJsonSchema } from '../src/index.js';
+import configJsonSchema from '../src/config/json-schema.json' with { type: 'json' };
+import {
+  configSchema,
+  DEFAULT_INCLUDE,
+  DEFAULT_ROOT_DIR,
+  DEFAULT_WATCH,
+  DEFAULT_WITH_TYPES,
+} from '../src/index.js';
 
-describe('configJsonSchema()', () => {
+describe('json-schema.json', () => {
   it('describes every pvlconfig.json setting, with its default', () => {
-    expect(configJsonSchema()).toMatchInlineSnapshot(`
+    expect(configJsonSchema).toMatchInlineSnapshot(`
       {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "additionalProperties": false,
@@ -47,5 +54,22 @@ describe('configJsonSchema()', () => {
         "type": "object",
       }
     `);
+  });
+
+  // The file is written by hand, so these catch it drifting from `configSchema`.
+  it('has the same keys as configSchema', () => {
+    expect(Object.keys(configJsonSchema.properties).sort()).toEqual(
+      Object.keys(configSchema.shape).sort(),
+    );
+  });
+
+  it('has the defaults the compiler runs with', () => {
+    const { include, rootDir, withTypes, watch } = configJsonSchema.properties;
+    expect([include.default, rootDir.default, withTypes.default, watch.default]).toEqual([
+      DEFAULT_INCLUDE,
+      DEFAULT_ROOT_DIR,
+      DEFAULT_WITH_TYPES,
+      DEFAULT_WATCH,
+    ]);
   });
 });

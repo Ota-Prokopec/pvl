@@ -14,9 +14,7 @@
       "items": {
         "type": "string"
       },
-      "default": [
-        "src/schemas/**/*.ts"
-      ]
+      "default": ["src/schemas/**/*.ts"]
     },
     "rootDir": {
       "description": "The source root the Destination Directory mirrors, relative to this file: a scanned file at <rootDir>/schemas/user.ts is mirrored to <destination>/schemas/user.ts. Every scanned file must sit under it.",
