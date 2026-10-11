@@ -1,7 +1,7 @@
 // What emitting one Compiled Schema's class shares across every Schema
 // nested in it: the emitter of each, and fresh names for the locals the
 // emitted code declares.
-import type { SchemaModel } from '../compilation/generate/schemaModel.js';
+import type { SchemaModel } from '../schema.js';
 import type { Emitter } from './emitter.js';
 
 /** Finds the emitter of a Schema nested in a Compiled Schema. */

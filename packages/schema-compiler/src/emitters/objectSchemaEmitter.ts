@@ -5,11 +5,7 @@
 import { ISSUE_CODE, OBJECT_SCHEMA_ISSUE_MESSAGE, type IssueEditableProps } from '@pvl/schema';
 import { ROOT_ISSUE_PATH } from '../consts.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import type {
-  ObjectField,
-  SchemaMethodCall,
-  SchemaModel,
-} from '../compilation/generate/schemaModel.js';
+import type { ObjectField, SchemaMethodCall, SchemaModel } from '../schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitScope } from './emitScope.js';
 import { emitIssue, js, type EmitTarget, type EmittedCheck, type SchemaTypes } from './utils.js';

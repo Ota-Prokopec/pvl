@@ -2,7 +2,7 @@
 // method per Modifier it mirrors. Each returns the condition the rest of the
 // pipeline runs under, since a value it accepts skips every later check.
 // Every schema's emitter extends it, as every schema extends `ChainableSchema`.
-import type { SchemaMethodCall, SchemaModel } from '../compilation/generate/schemaModel.js';
+import type { SchemaMethodCall, SchemaModel } from '../schema.js';
 import type { EmitScope } from './emitScope.js';
 import { Emitter } from './emitter.js';
 import { js, type EmitTarget, type SchemaTypes } from './utils.js';

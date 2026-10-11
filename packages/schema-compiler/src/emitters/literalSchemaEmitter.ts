@@ -2,7 +2,7 @@
 // Constraint.
 import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE, type PossibleLiteralValue } from '@pvl/schema';
 import { SCHEMA_FACTORY } from '../enums.js';
-import type { SchemaModel } from '../compilation/generate/schemaModel.js';
+import type { SchemaModel } from '../schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import {
   emitIssue,
