@@ -4,7 +4,7 @@ How a user drives `@pvl/schema-compiler`. Read this before you change `pvlconfig
 
 ## `pvlconfig.json`
 
-`pvlconfig.json` carries `$schema`, `include` (default `["src/schemas/**/*.ts"]`), `rootDir` (default `"src"`: the source root the Destination Directory mirrors), `destination` (a directory, default `.pvl`), `withTypes` (default `true`) and `watch` (default `false`). Every key is optional, and an unknown key is an error, so a typo is reported rather than ignored. Its own schema is `configSchema`, defined with `@pvl/schema`; the shipped JSON Schema is generated from it at build time (`configJsonSchema()`, written to `dist/json-schema.json` and exported as `@pvl/schema-compiler/json-schema`), so the runtime check and the editor schema can't drift. Point `$schema` at `./node_modules/@pvl/schema-compiler/dist/json-schema.json` for autocomplete.
+`pvlconfig.json` carries `$schema`, `include` (default `["src/schemas/**/*.ts"]`), `rootDir` (default `"src"`: the source root the Destination Directory mirrors), `destination` (a directory, default `.pvl`), `withTypes` (default `true`) and `watch` (default `false`). Every key is optional, and an unknown key is an error, so a typo is reported rather than ignored. Its own schema is `configSchema`, defined with `@pvl/schema`. The shipped JSON Schema is written by hand in `src/config/json-schema.json`, copied to `dist/json-schema.json` at build time and exported as `@pvl/schema-compiler/json-schema`, so a change to `configSchema` needs the same change there. The two can drift; `tests/json-schema.test.ts` fails when their keys or defaults differ. Point `$schema` at `./node_modules/@pvl/schema-compiler/dist/json-schema.json` for autocomplete.
 
 `node_modules` and the destination path are always excluded from `include`, so the compiler can't read its own output.
 
@@ -16,17 +16,17 @@ Every relative path (`include`, `rootDir`, `destination`, and the same settings 
 
 The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--include <glob...>`, `--root-dir <path>`, `--destination <path>`, `--with-types`/`--no-with-types`, `--watch`), plus:
 
-| Flag              | Effect                                                                                        |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `--config <path>` | The config file to read, relative to the working directory                                    |
-| `--strict`        | Promotes every warning to an error                                                            |
-| `--json`          | Prints the run's `CompilePayload` as one JSON document on stdout only, a usage error included |
+| Flag              | Effect                                                                                               |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `--config <path>` | The config file to read, relative to the working directory                                           |
+| `--strict`        | Promotes every warning to an error                                                                   |
+| `--json`          | Prints the run's `RunCompilationPayload` as one JSON document on stdout only, a usage error included |
 
 Precedence is flags, then the config file, then defaults. A run with no config file at all is valid as long as at least one setting is passed as a flag; with neither, it fails with `NO_CONFIG`.
 
 Without `--json`, each diagnostic is printed to stderr as `<severity> <code>: <message> (<file>)`, the severity in lower case, and the written path to stdout. A one-shot run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
 
-The programmatic entry point is `compile({ cwd, configPath, overrides, strict })` from `@pvl/schema-compiler`; the CLI is a thin wrapper over it, and a bundler plugin would be another.
+The programmatic entry point is `runCompilation({ cwd, configPath, overrides, strict })` from `@pvl/schema-compiler`; the CLI is a thin wrapper over it, and a bundler plugin would be another.
 
 ## Diagnostics
 

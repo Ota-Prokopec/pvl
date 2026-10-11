@@ -21,7 +21,7 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
 
 2. **The CLI, `runCli()`**, kept deliberately thin: argv to settings and their precedence, exit codes, the `--json` output shape, and `--strict` promoting warnings. It runs in process with captured `stdout`/`stderr`, and reads results back through `--json`. It doesn't re-test what seam 1 already covers. Example: `tests/cli.test.ts`.
 
-The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of `configJsonSchema()` (`tests/json-schema.test.ts`), so a change to the config's schema shows up as a reviewed diff of what editors see.
+The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of `src/config/json-schema.json` (`tests/json-schema.test.ts`), so a change to the config's schema shows up as a reviewed diff of what editors see. The same file checks its keys against `configSchema` and its defaults against the compiler's, since it is written by hand and can drift.
 
 ## Required cases
 
