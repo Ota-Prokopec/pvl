@@ -61,14 +61,15 @@ describe('StringSchema, NumberSchema, BooleanSchema and BigintSchema', () => {
     ]);
   });
 
-  it('are no composite, so pvl.compile() can not wrap one', async () => {
-    await expectCompileFailure(
-      'export const a = pvl.compile(pvl.number());\nexport const b = pvl.compile(pvl.bigint());',
-      [
-        DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
-        DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
-      ],
-    );
+  it('read a primitive factory pvl.compile() wraps itself', async () => {
+    expect(
+      await compileClassHeads(
+        'export const a = pvl.compile(pvl.number());\nexport const b = pvl.compile(pvl.bigint().optional());',
+      ),
+    ).toEqual([
+      'class PvlCompiledSchema0 extends PvlSchema<number, number> {',
+      'class PvlCompiledSchema1 extends PvlSchema<bigint | undefined, bigint | undefined> {',
+    ]);
   });
 });
 

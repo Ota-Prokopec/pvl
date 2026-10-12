@@ -3,20 +3,22 @@
 // ADR-0010: a Schema's pre-modifiers guard its base check, and what runs once
 // that check has passed comes after it. It writes those checks where a parent
 // reads the value (`emitSchemaChecks`) and at the root, as a Compiled
-// Schema's class (`emitCompiledSchema`), and dispatches each chained method to
+// Schema's class (`emitCompiledSchema`), both through one body writer and the
+// Schema's `EmitFrame`, and dispatches each chained method to
 // the emitter method of its name. A subclass adds the methods mirroring its
 // schema's and overrides the `_` hooks.
 import type { StaticValue } from '../ast/genericAst.js';
 import { ROOT_ISSUE_PATH } from '../consts.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
+import { EmitFrame } from './emitFrame.js';
 import { EmitScope } from './emitScope.js';
 import type {
   EmittingCheckMethodInput,
   EmittingCheckMethodOutput,
   EmittingCheckMethodOutputWithCheck,
 } from './emitterTypes.js';
-import { emitBlock, emitCheck, js } from './emitterUtils.js';
+import { emitBlock, emitCheck } from './emitterUtils.js';
 
 /** An emitter method mirroring a Schema method, as found by name: what it writes is checked once it is called. */
 type EmittingMethod = (input: {
@@ -47,25 +49,6 @@ const isEmittingCheckMethodOutput = (emitted: unknown): emitted is EmittingCheck
   );
 };
 
-/**
- * `check` returning its Issue when it fails: the root's base check, after
- * which nothing else can be checked.
- *
- * ```ts
- * emitReturnIssueIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
- * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
- * ```
- */
-const emitReturnIssueIfFails = ({
-  failsWhen,
-  issue,
-}: EmittingCheckMethodOutputWithCheck): string => {
-  return emitBlock({
-    head: js`if (${failsWhen})`,
-    body: js`issues.push(${issue});` + '\nreturn { issues };',
-  });
-};
-
 /** What a hook spells types for: the Schema. */
 export type EmitSchemaArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
@@ -78,8 +61,16 @@ export type EmitChecksArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSc
   scope: EmitScope;
 };
 
-/** What {@link Emitter._emitTypedChecks} emits for: a Schema at its target, inlined at the root of `_checkType` or into a parent. */
-export type EmitTypedChecksArgs<TSchema extends Schema = Schema> = EmitChecksArgs<TSchema> & {
+/** What {@link Emitter._emitTypedChecks} emits for: a Schema in the frame its checks are inlined in, which holds its target. */
+export type EmitTypedChecksArgs<TSchema extends Schema = Schema> = Omit<
+  EmitChecksArgs<TSchema>,
+  'target'
+> & {
+  frame: EmitFrame;
+};
+
+/** What {@link Emitter.emitBody} writes one Schema's checks for: a Schema at its target, inlined at the root of `_checkType` or into a parent. */
+export type EmitBodyArgs = EmitChecksArgs & {
   isRoot: boolean;
 };
 
@@ -126,29 +117,45 @@ export class Emitter {
   }
 
   /**
-   * What is checked of `schema` at `target` once its type check (base check) has passed:
-   * its post-modifiers' checks, in chain order. A composite's emitter
-   * overrides it to inline its children's checks first, as `_checkType`
-   * runs them, then its post-modifiers' once every child has passed, then
-   * to hand on the output it builds. Only a composite is compiled at the
-   * root (`isRoot`); this one throws there, which is a bug in the compiler,
-   * never a user error.
+   * What is checked of `schema` in `frame` once its type check (base check)
+   * has passed: its post-modifiers' checks, in chain order, placed by the
+   * frame. A composite's emitter overrides it to inline its children's
+   * checks first, as `_checkType` runs them, then its post-modifiers' once
+   * every child has passed, then to build its output, which the frame hands
+   * on.
    *
    * ```ts
-   * StringSchemaEmitter._emitTypedChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', issuePath }, scope, isRoot: false })
+   * StringSchemaEmitter._emitTypedChecks({ schema: <pvl.string().optional().min(3)>, frame: <frame of field0, nested>, scope })
    * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}']
+   * StringSchemaEmitter._emitTypedChecks({ schema: <pvl.string().max(2)>, frame: <frame of value, at the root>, scope })
+   * // ['if (value.length > 2) {\n  …\n}', 'if (issues.length > 0) {\n  return { issues };\n}']
    * ```
    */
-  public static _emitTypedChecks({ schema, target, scope, isRoot }: EmitTypedChecksArgs): string[] {
-    if (isRoot) {
-      throw new Error(`A pvl.${schema.factory}() can't be compiled at the root.`);
-    }
-    return this.emitPostModifierChecks({ schema, target, scope });
+  public static _emitTypedChecks({ schema, frame, scope }: EmitTypedChecksArgs): string[] {
+    return frame.emitOnceBaseCheckPassed({
+      postModifierChecks: this.emitPostModifierChecks({ schema, target: frame.target, scope }),
+    });
+  }
+
+  /**
+   * Whether a Schema's checks build an output that replaces its value, as
+   * only a composite's do. Its frame then declares locals for it, numbered
+   * when nested, and hands the output on in place of the value. `false`
+   * here; a composite's emitter overrides it.
+   *
+   * ```ts
+   * StringSchemaEmitter._buildsOutput() // false
+   * ObjectSchemaEmitter._buildsOutput() // true
+   * ```
+   */
+  public static _buildsOutput(): boolean {
+    return false;
   }
 
   /**
    * How a field's or an element's value is declared: `const`, unless its
-   * checks put the output they build back on it, as a composite's do.
+   * checks build an output, as a composite's do, which its frame puts back
+   * on it.
    *
    * ```ts
    * StringSchemaEmitter._spellValueDeclaration() // 'const'
@@ -156,7 +163,7 @@ export class Emitter {
    * ```
    */
   public static _spellValueDeclaration(): 'const' | 'let' {
-    return 'const';
+    return this._buildsOutput() ? 'let' : 'const';
   }
 
   /**
@@ -198,27 +205,14 @@ export class Emitter {
    * ```
    */
   public static emitSchemaChecks({ schema, target, scope }: EmitChecksArgs): string {
-    const baseCheck = emitCheck(this._emitBaseCheck({ schema, target, scope }));
-
-    const typedChecks = this._emitTypedChecks({ schema, target, scope, isRoot: false });
-
-    const checks =
-      typedChecks.length === 0
-        ? baseCheck
-        : emitBlock({ head: `${baseCheck} else`, body: typedChecks.join('\n') });
-
-    const preConditions = this.emitPreModifierConditions({ schema, target, scope });
-
-    return preConditions.length === 0
-      ? checks
-      : emitBlock({ head: `if (${preConditions.join(' && ')})`, body: checks });
+    return this.emitBody({ schema, target, scope, isRoot: false }).join('\n');
   }
 
   /**
    * The class declaration a Compiled Schema is, extending `PvlSchema` (see
    * `COMPILED_SCHEMA_IMPORT`), whose `_checkType` checks `schema` at its
-   * `value`: its base check, returning the Issue when it fails, then what
-   * `_emitTypedChecks` writes at the root.
+   * `value`: its checks at the root, which return the first Issues they
+   * can, then the value they checked.
    *
    * ```ts
    * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', line: 3 })
@@ -239,8 +233,7 @@ export class Emitter {
 
     const body = [
       'const issues: PvlIssue[] = [];',
-      emitReturnIssueIfFails(this._emitBaseCheck({ schema, target: ROOT_TARGET, scope })),
-      ...this._emitTypedChecks({ schema, target: ROOT_TARGET, scope, isRoot: true }),
+      ...this.emitBody({ schema, target: ROOT_TARGET, scope, isRoot: true }),
     ];
 
     return [
@@ -313,6 +306,28 @@ export class Emitter {
    */
   protected static emitPostModifierChecks({ schema, target }: EmitChecksArgs): string[] {
     return schema.postModifierCalls.map((call) => emitCheck(this.emitCall({ call, target })));
+  }
+
+  /**
+   * One Schema's checks at `target`, as statements, at the root of
+   * `_checkType` or where a parent reads its value: its base check, then
+   * what `_emitTypedChecks` writes once that has passed, all guarded by its
+   * pre-modifiers' conditions, each placed by the Schema's frame (see
+   * `EmitFrame.emitChecks`). The frame is created first, so a composite
+   * numbers its locals before any Schema nested in it.
+   *
+   * ```ts
+   * StringSchemaEmitter.emitBody({ schema: <pvl.string().max(2)>, target: { value: 'value', issuePath: ROOT_ISSUE_PATH }, scope, isRoot: true })
+   * // ['if (typeof value !== "string") { … return { issues }; }', 'if (value.length > 2) { … }', 'if (issues.length > 0) { … }', 'return { value };']
+   * ```
+   */
+  private static emitBody({ schema, target, scope, isRoot }: EmitBodyArgs): string[] {
+    const frame = new EmitFrame({ target, scope, isRoot, buildsOutput: this._buildsOutput() });
+    return frame.emitChecks({
+      baseCheck: this._emitBaseCheck({ schema, target, scope }),
+      typedChecks: this._emitTypedChecks({ schema, frame, scope }),
+      preModifierConditions: this.emitPreModifierConditions({ schema, target, scope }),
+    });
   }
 
   /**

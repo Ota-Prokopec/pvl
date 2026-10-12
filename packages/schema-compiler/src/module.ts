@@ -145,9 +145,8 @@ export class Module {
    * - DEFAULT_EXPORT: the file has a default export.
    * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
    * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_CYCLE,
-   *   COMPILE_ARGUMENT_NOT_COMPOSITE, COMPILE_RESULT_MODIFIED,
-   *   UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call can't be compiled (see
-   *   findMarkedToCompileSchemas).
+   *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
+   *   can't be compiled (see findMarkedToCompileSchemas).
    *
    * ```ts
    * // /repo/src/schemas/user.ts
@@ -236,9 +235,9 @@ export class Module {
    *   when it is imported, built by a function or spread.
    * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
    *   to itself.
-   * - COMPILE_ARGUMENT_NOT_COMPOSITE, UNSUPPORTED_SCHEMA, and
-   *   COMPILE_ARGUMENT_UNRESOLVABLE for a method argument that isn't a
-   *   literal: see Schema.findUncompilableDiagnostics, one error per problem.
+   * - UNSUPPORTED_SCHEMA, and COMPILE_ARGUMENT_UNRESOLVABLE for a method
+   *   argument that isn't a literal: see Schema.findUncompilableDiagnostics,
+   *   one error per problem.
    *
    * ```ts
    * import { pvl } from '@pvl/schema';

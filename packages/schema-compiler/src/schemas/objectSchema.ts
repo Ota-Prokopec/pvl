@@ -44,11 +44,6 @@ export class ObjectSchema extends Schema {
     this.shape = shape;
   }
 
-  /** `true`: `pvl.compile()` may wrap an object. */
-  public override get isComposite(): boolean {
-    return true;
-  }
-
   /**
    * The `pvl.object(shape)` `link` calls, each field read through
    * `args.readNested`. Throws an UnresolvedNodeError when its shape is
