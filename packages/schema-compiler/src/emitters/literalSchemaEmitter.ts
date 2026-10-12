@@ -4,8 +4,8 @@ import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
-import type { EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, emitLiteral, js, spellLiteralType } from './utils.js';
+import type { EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
+import { emitIssue, emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class LiteralSchemaEmitter extends ChainableSchemaEmitter {

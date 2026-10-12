@@ -19,9 +19,9 @@ import type {
   EmitterMethodOf,
   EmittingCheckMethodInput,
   EmittingCheckMethodOutputWithCheck,
-} from './emittersTypes.js';
+} from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { emitBlock, emitCheck, emitIssue, js } from './utils.js';
+import { emitBlock, emitCheck, emitIssue, js } from './emitterUtils.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;

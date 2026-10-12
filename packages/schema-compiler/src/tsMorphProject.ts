@@ -192,7 +192,8 @@ export class TsMorphProject {
       // Resolve it again without `paths`: when `node_modules` holds it, it is
       // a package, and the mirror keeps it as written instead of pointing
       // into the package's source.
-      // resolvedPackage.resolvedFileName is an absolute path to the file (ts-morph documentation)
+      // `resolvedFileName` is TypeScript's (`ts.resolveModuleName`, which
+      // ts-morph re-exports), and absolute, as `importerPath` is.
       const resolvedPackage = ts.resolveModuleName(
         specifier.value,
         importerPath,

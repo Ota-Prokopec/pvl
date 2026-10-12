@@ -3,8 +3,8 @@
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, emitLiteral, js } from './utils.js';
+import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
+import { emitIssue, emitLiteral, js } from './emitterUtils.js';
 
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */

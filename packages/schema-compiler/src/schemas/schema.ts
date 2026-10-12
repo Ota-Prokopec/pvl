@@ -164,7 +164,7 @@ export abstract class Schema {
    * // const MIN = 3;
    * // export const user = pvl.compile(pvl.object({ name: pvl.string().min(MIN) }));
    * Schema.read({ expression: <pvl.compile(…)>, … })
-   * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with calls [min(3)]> }]> }
+   * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with postModifierCalls [min(3)]> }]> }
    * Schema.read({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <ObjectSchema> }: not marked, still read
    * // export const home = pvl.compile(importedAddress);
    * Schema.read({ expression: <pvl.compile(importedAddress)>, … }) // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
@@ -318,9 +318,9 @@ export abstract class Schema {
 
   /**
    * The diagnostics of it and every Schema nested in it, one per problem:
-   * a Schema with no Emitter, a method its Emitter can't compile, a Modifier
-   * chained onto the root (`isRoot`), and a compiled method's arguments that
-   * aren't literals.
+   * a Schema with no Emitter, a method its Emitter can't compile, a
+   * pre-modifier (`.optional()`, `.nullable()`) chained onto the root
+   * (`isRoot`), and a compiled method's arguments that aren't literals.
    *
    * ```ts
    * <pvl.string().min(3)>.findUncompilableNestedDiagnostics(false)                        // []
@@ -362,8 +362,8 @@ export abstract class Schema {
    * that reaches itself.
    *
    * ```ts
-   * Schema.readExpression({ expression: <pvl.string().min(3)>, … })       // <StringSchema with calls [min(3)]>
-   * Schema.readExpression({ expression: <pvl.string().refine(isOk)>, … }) // <StringSchema with calls [refine(args: undefined)]>
+   * Schema.readExpression({ expression: <pvl.string().min(3)>, … })       // <StringSchema with postModifierCalls [min(3)]>
+   * Schema.readExpression({ expression: <pvl.string().refine(isOk)>, … }) // <StringSchema with postModifierCalls [refine(args: undefined)]>
    * Schema.readExpression({ expression: <user>, … })                      // what `const user = …` holds
    * Schema.readExpression({ expression: <pvl.compile(pvl.string())>, … }) // <StringSchema> read from <pvl.compile(…)>
    * Schema.readExpression({ expression: <makeSchema()>, … })              // throws

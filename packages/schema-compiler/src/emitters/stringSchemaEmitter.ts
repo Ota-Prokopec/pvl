@@ -3,8 +3,8 @@
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, js } from './utils.js';
+import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
+import { emitIssue, js } from './emitterUtils.js';
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
   /**

@@ -15,8 +15,8 @@ import type {
   EmittingCheckMethodInput,
   EmittingCheckMethodOutput,
   EmittingCheckMethodOutputWithCheck,
-} from './emittersTypes.js';
-import { emitBlock, emitCheck, js } from './utils.js';
+} from './emitterTypes.js';
+import { emitBlock, emitCheck, js } from './emitterUtils.js';
 
 /** An emitter method mirroring a Schema method, as found by name: what it writes is checked once it is called. */
 type EmittingMethod = (input: {

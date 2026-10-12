@@ -1,3 +1,5 @@
+// The types every compiler Schema shares: one method chained onto it, and its
+// `Input` and `Output` types spelled as TypeScript.
 import type { StaticValue } from '../ast/genericAst.js';
 
 /** One method chained onto a Schema: `.min(3, { message: 'too short' })`. */
@@ -12,5 +14,9 @@ export type SchemaModifierCall = {
 /** A Schema's `Input` and `Output` types, spelled as TypeScript. */
 export type SchemaTypes = {
   input: string;
-  output: string; // `output` is not a factory type (not just "string"|"number"...all factories), it can be whatever after using transform()
+  /**
+   * Not always `input`, nor the factory's own type: `.passthrough()` widens
+   * it, and a `.transform()` can make it any type.
+   */
+  output: string;
 };

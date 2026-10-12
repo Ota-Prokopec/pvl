@@ -3,8 +3,8 @@
 import { BOOLEAN_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs } from './emitter.js';
-import type { EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, js } from './utils.js';
+import type { EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
+import { emitIssue, js } from './emitterUtils.js';
 
 export class BooleanSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "boolean"`, reporting `INVALID_TYPE`. */

@@ -218,12 +218,13 @@ export class ObjectSchema<
 
   // An accessor with no setter, returning `Readonly<Shape>`, so neither the
   // shape nor any one key can be written — a per-key write would otherwise
-  // typecheck and then silently do nothing, since `_fields` is already fixed.
+  // typecheck, then change what `_checkType` reads for that key while
+  // `_shapeKeys`, fixed at construction, stays as it was.
   // Per the parent spec nothing is frozen at runtime: immutability below the
   // accessor is the type system's job. The schemas handed back are the very
-  // instances the caller declared, so their own modifiers come with them, and
-  // `@pvl/schema-compiler`'s Compiled Schemas expose `shape` too, so a call
-  // site written against an interpreted schema survives the import swap.
+  // instances the caller declared, so their own modifiers come with them. A
+  // Compiled Schema has no `shape` (ADR-0020): a caller who validates one
+  // field on its own keeps a reference to that field's schema.
   /**
    * The schema declared for each key of this object schema, so a single field
    * can be reached and validated on its own without validating the whole

@@ -3,7 +3,7 @@
 // Issue, a value and a literal's type are spelled in the emitted code.
 import { Issue, type IssueCode, type PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type { EmittingCheckMethodOutput } from './emittersTypes.js';
+import type { EmittingCheckMethodOutput } from './emitterTypes.js';
 
 const INDENT = '  ' as const;
 

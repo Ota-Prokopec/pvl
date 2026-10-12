@@ -74,9 +74,9 @@ export class ArraySchema<
   // An accessor with no setter, so the property cannot be written. One schema
   // rather than a keyed collection, so — unlike `ObjectSchema`'s `shape` —
   // there is nothing below it to make read-only. The schema handed back is the
-  // very instance the caller declared, so its own modifiers come with it, and
-  // `@pvl/schema-compiler`'s Compiled Schemas expose `element` too, so a call
-  // site written against an interpreted schema survives the import swap.
+  // very instance the caller declared, so its own modifiers come with it. A
+  // Compiled Schema has no `element` (ADR-0020): a caller who validates one
+  // item on its own keeps a reference to the element's schema.
   /**
    * The schema every element of this array is validated against, so a single
    * item can be reached and validated on its own without validating a whole

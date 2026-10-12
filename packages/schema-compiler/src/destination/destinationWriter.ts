@@ -14,8 +14,6 @@ import {
 import type { MirroredFile } from '../module.js';
 import type { Destination } from './destination.js';
 
-/** What {@link DestinationWriter.writeDestination} did: whether the Destination Directory is in place, and why not. */
-
 /**
  * Writes the Destination Directory of one compilation run: checks that writing
  * it where `Destination.resolveDestination` put it destroys nothing the
@@ -55,7 +53,7 @@ import type { Destination } from './destination.js';
  * **Input**: `destination`, the resolved `Destination`, and
  * `mirroredFiles`, each a path relative to the Destination Directory and its text.
  *
- * **Output** (`Promise<WriteDestinationPayload>`), one of:
+ * **Output** (`Promise<{ isWritten, diagnostics }>`), one of:
  * - Success: `{ isWritten: true, diagnostics: [] }`.
  * - Failure: `{ isWritten: false, diagnostics: [DESTINATION_UNWRITABLE] }`, the previous
  *   Destination Directory left as it was.
@@ -162,19 +160,18 @@ export class DestinationWriter {
         fsPromises.rm(backupPath, { recursive: true, force: true }),
       ]);
 
-      // code directory paths
+      // Every directory a file goes in, each created once.
       const directoryPaths = new Set(
         filesToWrite.map(({ relativePath }) =>
           path.dirname(path.join(temporaryPath, relativePath)),
         ),
       );
-      // Promise to create destination files
       await Promise.all(
         [...directoryPaths].map((directoryPath) =>
           fsPromises.mkdir(directoryPath, { recursive: true }),
         ),
       );
-      // Promise to write a file
+      // Then every file, into the directories that now exist.
       await Promise.all(
         filesToWrite.map(({ relativePath, text }) =>
           fsPromises.writeFile(path.join(temporaryPath, relativePath), text),

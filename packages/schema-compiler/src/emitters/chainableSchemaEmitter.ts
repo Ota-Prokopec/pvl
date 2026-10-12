@@ -5,9 +5,9 @@
 import type { ChainableSchema } from '@pvl/schema';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { Emitter, type EmitSchemaArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emittersTypes.js';
+import type { EmitterMethodOf } from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { js } from './utils.js';
+import { js } from './emitterUtils.js';
 
 /**
  * `type` with `| undefined` or `| null` added for each `.optional()` and

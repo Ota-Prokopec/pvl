@@ -32,9 +32,6 @@ export type UnionMember = Schema<unknown, unknown>;
  */
 export type UnionMembers = ReadonlyArray<UnionMember>;
 
-// `Members[number]` is the union of the member schemas, and inferring through
-// a union of schemas yields the union of each member's own type.
-
 /**
  * The default message of every Issue `UnionSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
@@ -45,6 +42,9 @@ export type UnionMembers = ReadonlyArray<UnionMember>;
 export const UNION_SCHEMA_ISSUE_MESSAGE = {
   _checkType: (): string => 'Value matches no union member',
 } as const;
+
+// `Members[number]` is the union of the member schemas, and inferring through
+// a union of schemas yields the union of each member's own type.
 
 interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind<
   UnionSchema<Members, unknown, unknown>
@@ -78,7 +78,7 @@ interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind<
  * id.validate('a1'); // { value: 'a1' }
  * id.validate(true);
  * // { issues: [
- * //   { code: 'INVALID_UNION', message: UNION_SCHEMA_ISSUE_MESSAGE._checkType() },
+ * //   { code: 'INVALID_UNION', message: 'Value matches no union member' },
  * //   { code: 'INVALID_TYPE', message: 'Expected string' },
  * //   { code: 'INVALID_TYPE', message: 'Expected number' },
  * // ] }

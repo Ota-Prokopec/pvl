@@ -12,8 +12,8 @@ import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { CompositeFrame } from './compositeFrame.js';
 import type { EmitScope } from './emitScope.js';
 import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitBlock, emitIssue, js } from './utils.js';
+import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
+import { emitBlock, emitIssue, js } from './emitterUtils.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 

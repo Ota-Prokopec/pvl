@@ -4,8 +4,8 @@
 // it holds. A composite's emitter writes its checks once, for both, through
 // the locals and statements its frame hands it.
 import type { EmitScope } from './emitScope.js';
-import type { EmittingCheckMethodInput } from './emittersTypes.js';
-import { emitBlock, js } from './utils.js';
+import type { EmittingCheckMethodInput } from './emitterTypes.js';
+import { emitBlock, js } from './emitterUtils.js';
 
 /** What a CompositeFrame is created for. */
 export type CompositeFrameOptions = {

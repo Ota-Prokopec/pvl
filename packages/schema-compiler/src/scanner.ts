@@ -16,8 +16,9 @@ import { Module } from './module.js';
 export type ScannedPath = string & { readonly __brand: 'ScannedPath' };
 
 /**
- * What a run scans, and the Destination Directory it must never scan. `compile`
- * builds it from the resolved settings and passes it to `Scanner.scan`.
+ * What a run scans, and the Destination Directory it must never scan.
+ * `runCompilation` builds it from the resolved settings and passes it to
+ * `Scanner.scan`.
  *
  * ```ts
  * { baseDirectory: '/repo', include: ['src/**\/*.ts'], destination: { absolutePath: '/repo/.pvl', … } }
@@ -92,7 +93,7 @@ export class Scanner {
    *
    * ```ts
    * Scanner.getModules({ …, scannedFilePaths: ['/repo/src/schemas/user.ts'] })
-   * // [Module { absolutePath: '/repo/src/schemas/user.ts', mirroredPath: '/repo/.pvl/schemas/user.ts', … }]
+   * // [Module { path: { absolutePath: '/repo/src/schemas/user.ts', … }, mirroredPath: '/repo/.pvl/schemas/user.ts', … }]
    * ```
    *
    * Throws ts-morph's error when a path can't be read from disk.
