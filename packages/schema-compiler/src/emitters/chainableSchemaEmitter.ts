@@ -6,7 +6,8 @@ import type { ChainableSchema } from '@pvl/schema';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { Emitter, type EmitSchemaArgs } from './emitter.js';
 import type { EmitterMethodOf } from './emittersTypes.js';
-import { js, type SchemaTypes } from './utils.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import { js } from './utils.js';
 
 /**
  * `type` with `| undefined` or `| null` added for each `.optional()` and
@@ -41,16 +42,16 @@ export class ChainableSchemaEmitter extends Emitter {
   }) => js`${value} !== null`;
 
   /**
-   * The types `Emitter` spells, with `| undefined` or `| null` added for each
+   * The factory call's types, with `| undefined` or `| null` added for each
    * `.optional()` and `.nullable()`, in chain order.
    *
    * ```ts
-   * StringSchemaEmitter._emitTypes({ schema: <pvl.string().nullable().optional()>, scope })
+   * StringSchemaEmitter._spellTypes({ schema: <pvl.string().nullable().optional()> })
    * // { input: 'string | null | undefined', output: <the same> }
    * ```
    */
-  public static override _emitTypes(args: EmitSchemaArgs): SchemaTypes {
-    const { input, output } = super._emitTypes(args);
+  public static override _spellTypes(args: EmitSchemaArgs): SchemaTypes {
+    const { input, output } = super._spellTypes(args);
     const { preModifierCalls: calls } = args.schema;
     return { input: widenType(input, calls), output: widenType(output, calls) };
   }

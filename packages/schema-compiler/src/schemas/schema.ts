@@ -473,7 +473,7 @@ export abstract class Schema {
     call: SchemaModifierCall,
     isRootPreModifier: boolean,
   ): Diagnostic | undefined {
-    if (emitter.findMethod({ name: call.name }) === undefined || isRootPreModifier) {
+    if (emitter.findEmittingMethod({ name: call.name }) === undefined || isRootPreModifier) {
       return new Diagnostic({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet${isRootPreModifier ? ' on the Schema pvl.compile() wraps' : ''}.`,

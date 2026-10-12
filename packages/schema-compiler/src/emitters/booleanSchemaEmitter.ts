@@ -8,7 +8,7 @@ import { emitIssue, js } from './utils.js';
 
 export class BooleanSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "boolean"`, reporting `INVALID_TYPE`. */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
   }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {

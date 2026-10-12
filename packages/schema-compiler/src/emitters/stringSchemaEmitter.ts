@@ -9,11 +9,11 @@ import { emitIssue, js } from './utils.js';
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
   /**
    * ```ts
-   * StringSchemaEmitter._getBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
+   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
    * // { failsWhen: 'typeof field0 !== "string"', issue: '{ code: "INVALID_TYPE", … }' }
    * ```
    */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
   }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {

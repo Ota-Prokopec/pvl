@@ -57,7 +57,7 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  * ```
  */
 export class ArraySchema<
-  ItemSchema extends Schema<unknown, unknown>,
+  ItemSchema extends Schema = Schema,
   Input = InferInput<ItemSchema>[],
   Output = InferOutput<ItemSchema>[],
 > extends ChainableSchema<Input, Output> {

@@ -8,3 +8,9 @@ export type SchemaModifierCall = {
   /** The 1-based line it is written on. */
   line: number;
 };
+
+/** A Schema's `Input` and `Output` types, spelled as TypeScript. */
+export type SchemaTypes = {
+  input: string;
+  output: string; // `output` is not a factory type (not just "string"|"number"...all factories), it can be whatever after using transform()
+};

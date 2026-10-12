@@ -6,29 +6,16 @@ import {
   ARRAY_SCHEMA_ISSUE_MESSAGE,
   ISSUE_CODE,
   type ArraySchema as PvlArraySchema,
-  type Schema as PvlSchema,
 } from '@pvl/schema';
-import { ROOT_ISSUE_PATH } from '../consts.js';
 import type { Schema } from '../schemas/schema.js';
-import type { ArraySchema } from '../schemas/arraySchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { CompositeFrame } from './compositeFrame.js';
 import type { EmitScope } from './emitScope.js';
-import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
-import type {
-  EmitterMethodOf,
-  EmittingCheckMethodInput,
-  EmittingCheckMethodOutputWithCheck,
-} from './emittersTypes.js';
-import { emitIssue, js, type SchemaTypes } from './utils.js';
-
-/** What an array's emitted checks call its locals: `index`, `element` and `output` at the root, `index1`, `element1` and `output1` nested. */
-export type ArrayLocals = {
-  index: string;
-  element: string;
-  output: string;
-  /** The array's own Issue path, which its elements' paths extend. */
-  path: string;
-};
+import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
+import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
+import { emitBlock, emitIssue, js } from './utils.js';
+import type { ArraySchema } from '../schemas/arraySchema.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union.
@@ -42,12 +29,51 @@ const spellArrayType = (elementType: string): string => {
   return elementType.includes(' ') ? `(${elementType})[]` : `${elementType}[]`;
 };
 
-/** The `@pvl/schema` array whose methods `ArraySchemaEmitter`'s mirror, whatever its element. */
-type PvlAnyArraySchema = PvlArraySchema<PvlSchema<unknown, unknown>>;
+export type EmitLoopArgs = {
+  elementSchema: Schema;
+  /** The array looped over, as an expression. */
+  array: string;
+  frame: CompositeFrame;
+  scope: EmitScope;
+};
+/**
+ * The loop over `array` checking every element at its index, each pushed
+ * onto the output as it was read, or as its own checks rebuilt it.
+ *
+ * ```ts
+ * emitLoop({ elementSchema: <pvl.string()>, array: 'value', frame: <frame at the root>, scope })
+ * // for (let index = 0; index < value.length; index++) {
+ * //   const element: unknown = value[index];
+ * //   if (typeof element !== "string") { … path: [...path, index] … }
+ * //   output.push(element);
+ * // }
+ * ```
+ */
+const emitLoop = ({
+  elementSchema,
+  array,
+  frame: { index, element, output, path },
+  scope,
+}: EmitLoopArgs): string => {
+  const { emitter } = elementSchema;
+
+  return emitBlock({
+    head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
+    body: [
+      js`${emitter._spellValueDeclaration()} ${element}: unknown = ${array}[${index}];`,
+      emitter.emitSchemaChecks({
+        schema: elementSchema,
+        target: { value: element, issuePath: js`[...${path}, ${index}]` },
+        scope,
+      }),
+      js`${output}.push(${element});`,
+    ].join('\n'),
+  });
+};
 
 export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
   }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {
@@ -57,7 +83,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<PvlAnyArraySchema['min']> = ({
+  public static readonly min: EmitterMethodOf<PvlArraySchema['min']> = ({
     target: { value, issuePath },
     args: [minLength, options],
   }) => ({
@@ -70,7 +96,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   });
 
   /** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<PvlAnyArraySchema['max']> = ({
+  public static readonly max: EmitterMethodOf<PvlArraySchema['max']> = ({
     target: { value, issuePath },
     args: [maxLength, options],
   }) => ({
@@ -83,7 +109,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   });
 
   /** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
-  public static readonly length: EmitterMethodOf<PvlAnyArraySchema['length']> = ({
+  public static readonly length: EmitterMethodOf<PvlArraySchema['length']> = ({
     target: { value, issuePath },
     args: [exactLength, options],
   }) => ({
@@ -96,86 +122,46 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   });
 
   /**
-   * The body of a compiled array's `_checkType`: the type check, one loop
-   * with the element's checks inlined, then the array's own Constraints in
-   * chain order.
-   */
-  public static override _emitBody({ schema, scope }: EmitSchemaArgs<ArraySchema>): string {
-    const rootTarget: EmittingCheckMethodInput = { value: 'value', issuePath: ROOT_ISSUE_PATH };
-    const locals: ArrayLocals = {
-      index: 'index',
-      element: 'element',
-      output: 'output',
-      path: 'path',
-    };
-    const constraintChecks = super
-      ._getPostModifierChecks({ schema, target: rootTarget, scope })
-      .map((check) => this.emitCheck(check));
-    return [
-      'const issues: PvlIssue[] = [];',
-      this.emitReturnIssueIfFails(this._getBaseCheck({ schema, target: rootTarget, scope })),
-      'const output: unknown[] = [];',
-      this._emitLoop({ elementSchema: schema.element, array: 'value', locals, scope }),
-      this.emitReturnIssuesIfAny(),
-      ...(constraintChecks.length === 0 ? [] : [...constraintChecks, this.emitReturnIssuesIfAny()]),
-      'return { value: output };',
-    ].join('\n');
-  }
-
-  /**
-   * The post-modifiers' checks of an array nested in another Schema, at
-   * `target`: one loop with the element's checks inlined, then its own
-   * Constraints, which run only if every element passed, then the output,
-   * which replaces the value at `target`. Its locals are numbered, and its
-   * own path is kept in one, so its elements' paths stay as short at any
-   * depth.
+   * An array's checks once its type check has passed, at the root or nested
+   * in another Schema: one loop with the element's checks inlined, then its
+   * own Constraints in chain order, which run only once every element has
+   * passed, then the output, handed on.
    *
    * ```ts
-   * ArraySchemaEmitter._getPostModifierChecks({ schema: <pvl.array(pvl.string())>, target: { value: 'field0', issuePath: '[...path, "tags"]' }, scope })
+   * ArraySchemaEmitter._emitTypedChecks({ schema: <pvl.array(pvl.string()).min(1)>, target: { value: 'field0', issuePath: '[...path, "tags"]' }, scope, isRoot: false })
    * // const path1 = [...path, "tags"];
+   * // const issueCount1 = issues.length;
    * // const output1: unknown[] = [];
    * // for (let index1 = 0; index1 < field0.length; index1++) {
    * //   const element1: unknown = field0[index1];
    * //   if (typeof element1 !== "string") { … path: [...path1, index1] … }
    * //   output1.push(element1);
    * // }
+   * // if (issues.length === issueCount1) {
+   * //   if (field0.length < 1) { … path: path1 … }
+   * // }
    * // field0 = output1;
    * ```
    */
-  public static override _getPostModifierChecks({
+  public static override _emitTypedChecks({
     schema,
     target,
     scope,
-  }: EmitChecksArgs<ArraySchema>): string[] {
-    const suffix = scope.nextLocalSuffix();
-    const locals: ArrayLocals = {
-      index: `index${suffix}`,
-      element: `element${suffix}`,
-      output: `output${suffix}`,
-      path: `path${suffix}`,
-    };
-    const issueCount = `issueCount${suffix}`;
-    const constraintChecks = super
-      ._getPostModifierChecks({
-        schema,
-        target: { value: target.value, issuePath: locals.path },
-        scope,
-      })
-      .map((check) => this.emitCheck(check));
+    isRoot,
+  }: EmitTypedChecksArgs<ArraySchema>): string[] {
+    const frame = new CompositeFrame({ target, scope, isRoot });
+    const constraintChecks = this.emitPostModifierChecks({
+      schema,
+      target: { value: target.value, issuePath: frame.issuePath },
+      scope,
+    });
+
     return [
-      js`const ${locals.path} = ${target.issuePath};`,
-      ...(constraintChecks.length === 0 ? [] : [js`const ${issueCount} = issues.length;`]),
-      js`const ${locals.output}: unknown[] = [];`,
-      this._emitLoop({ elementSchema: schema.element, array: target.value, locals, scope }),
-      ...(constraintChecks.length === 0
-        ? []
-        : [
-            this.emitBlock({
-              head: js`if (issues.length === ${issueCount})`,
-              body: constraintChecks.join('\n'),
-            }),
-          ]),
-      js`${target.value} = ${locals.output};`,
+      ...frame.emitDeclarations({ readsPath: true, postModifierChecks: constraintChecks }),
+      js`const ${frame.output}: unknown[] = [];`,
+      emitLoop({ elementSchema: schema.element, array: target.value, frame, scope }),
+      ...frame.emitOnceChildrenPassed({ postModifierChecks: constraintChecks }),
+      frame.emitOutputHandoff(),
     ];
   }
 
@@ -195,51 +181,14 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * An array of the element's types.
    *
    * ```ts
-   * ArraySchemaEmitter._spellTypes({ schema: <pvl.array(pvl.enum(['A', 'B']).nullable())>, scope })
+   * ArraySchemaEmitter._spellFactoryTypes({ schema: <pvl.array(pvl.enum(['A', 'B']).nullable())> })
    * // { input: '("A" | "B" | null)[]', output: <the same> }
    * ```
    */
-  public static override _spellTypes({ schema, scope }: EmitSchemaArgs<ArraySchema>): SchemaTypes {
-    const { input, output } = schema.element.emitter._emitTypes({ schema: schema.element, scope });
+  public static override _spellFactoryTypes({
+    schema: { element },
+  }: EmitSchemaArgs<ArraySchema>): SchemaTypes {
+    const { input, output } = element.emitter._spellTypes({ schema: element });
     return { input: spellArrayType(input), output: spellArrayType(output) };
-  }
-
-  /**
-   * The loop over `array` checking every element, each pushed onto the
-   * output as it was read, or as its own checks rebuilt it.
-   *
-   * ```ts
-   * for (let index = 0; index < value.length; index++) {
-   *   const element: unknown = value[index];
-   *   if (typeof element !== "string") { … path: [...path, index] … }
-   *   output.push(element);
-   * }
-   * ```
-   */
-  private static _emitLoop({
-    elementSchema,
-    array,
-    locals: { index, element, output, path },
-    scope,
-  }: {
-    elementSchema: Schema;
-    /** The array looped over, as an expression. */
-    array: string;
-    locals: ArrayLocals;
-    scope: EmitScope;
-  }): string {
-    const { emitter } = elementSchema;
-    return this.emitBlock({
-      head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
-      body: [
-        js`${emitter._spellValueDeclaration()} ${element}: unknown = ${array}[${index}];`,
-        emitter.emitSchemaChecks({
-          schema: elementSchema,
-          target: { value: element, issuePath: js`[...${path}, ${index}]` },
-          scope,
-        }),
-        js`${output}.push(${element});`,
-      ].join('\n'),
-    });
   }
 }

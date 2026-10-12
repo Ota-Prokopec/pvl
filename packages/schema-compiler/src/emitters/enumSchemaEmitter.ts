@@ -5,14 +5,15 @@ import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
 import type { EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, emitLiteral, js, spellLiteralType, type SchemaTypes } from './utils.js';
+import { emitIssue, emitLiteral, js, spellLiteralType } from './utils.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class EnumSchemaEmitter extends ChainableSchemaEmitter {
   /**
    * `pvl.enum(['A', 'B'])` → `field0 !== "A" && field0 !== "B"`, reporting
    * `INVALID_VALUE`.
    */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
     schema: { members },
   }: EmitChecksArgs<EnumSchema>): EmittingCheckMethodOutputWithCheck {
@@ -30,10 +31,10 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
    * The union of the members' types.
    *
    * ```ts
-   * EnumSchemaEmitter._spellTypes({ schema: <pvl.enum(['A', 'B'])>, scope }) // { input: '"A" | "B"', output: '"A" | "B"' }
+   * EnumSchemaEmitter._spellFactoryTypes({ schema: <pvl.enum(['A', 'B'])> }) // { input: '"A" | "B"', output: '"A" | "B"' }
    * ```
    */
-  public static override _spellTypes({ schema }: EmitSchemaArgs<EnumSchema>): SchemaTypes {
+  public static override _spellFactoryTypes({ schema }: EmitSchemaArgs<EnumSchema>): SchemaTypes {
     const type = schema.members.map((member) => spellLiteralType(member)).join(' | ');
     return { input: type, output: type };
   }

@@ -5,7 +5,8 @@ import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
 import type { EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
-import { emitIssue, emitLiteral, js, spellLiteralType, type SchemaTypes } from './utils.js';
+import { emitIssue, emitLiteral, js, spellLiteralType } from './utils.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
   /**
@@ -13,7 +14,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    * `INVALID_VALUE`. `Object.is`, as the interpreted check uses, so `0` and
    * `-0` stay apart.
    */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
     schema: { value: literalValue },
   }: EmitChecksArgs<LiteralSchema>): EmittingCheckMethodOutputWithCheck {
@@ -31,10 +32,12 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    * The literal value's own type.
    *
    * ```ts
-   * LiteralSchemaEmitter._spellTypes({ schema: <pvl.literal('a')>, scope }) // { input: '"a"', output: '"a"' }
+   * LiteralSchemaEmitter._spellFactoryTypes({ schema: <pvl.literal('a')> }) // { input: '"a"', output: '"a"' }
    * ```
    */
-  public static override _spellTypes({ schema }: EmitSchemaArgs<LiteralSchema>): SchemaTypes {
+  public static override _spellFactoryTypes({
+    schema,
+  }: EmitSchemaArgs<LiteralSchema>): SchemaTypes {
     const type = spellLiteralType(schema.value);
     return { input: type, output: type };
   }

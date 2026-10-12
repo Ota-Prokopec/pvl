@@ -8,7 +8,7 @@ import { emitIssue, emitLiteral, js } from './utils.js';
 
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
   }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {

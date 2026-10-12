@@ -1,30 +1,35 @@
 // The base class every emitter extends, as every schema of `@pvl/schema`
-// extends `Schema`. It does the emitting: one Schema's checks are its base
-// check, its pre-modifiers' and its post-modifiers' (ADR-0010), each got by
-// its own hook, turned into source text by `emitCheck` and put together by
-// `emitSchemaChecks`. It also writes a Compiled Schema's class around the body
-// a composite emitter writes. A subclass only adds the templates and
-// overrides the `_` hooks.
+// extends `Schema`. It does the emitting, following the pipeline of
+// ADR-0010: a Schema's pre-modifiers guard its base check, and what runs once
+// that check has passed comes after it. It writes those checks where a parent
+// reads the value (`emitSchemaChecks`) and at the root, as a Compiled
+// Schema's class (`emitCompiledSchema`), and dispatches each chained method to
+// the emitter method of its name. A subclass adds the methods mirroring its
+// schema's and overrides the `_` hooks.
+import type { StaticValue } from '../ast/genericAst.js';
+import { ROOT_ISSUE_PATH } from '../consts.js';
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
+import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
 import { EmitScope } from './emitScope.js';
 import type {
   EmittingCheckMethodInput,
   EmittingCheckMethodOutput,
   EmittingCheckMethodOutputWithCheck,
 } from './emittersTypes.js';
-import { js, type SchemaTypes } from './utils.js';
+import { emitBlock, emitCheck, js } from './utils.js';
 
-const INDENT = '  ' as const;
-
-/** An emitter method mirroring a Schema method: the target, and the method's own arguments. */
-type EmitterMethod = (input: {
+/** An emitter method mirroring a Schema method, as found by name: what it writes is checked once it is called. */
+type EmittingMethod = (input: {
   target: EmittingCheckMethodInput;
-  args: NonNullable<SchemaModifierCall['args']>;
+  args: ReadonlyArray<StaticValue>;
 }) => unknown;
 
+// What a Compiled Schema's `_checkType` checks: its `value` parameter, whose
+// Issues are reported at its `path` parameter, or at none when it is empty.
+const ROOT_TARGET: EmittingCheckMethodInput = { value: 'value', issuePath: ROOT_ISSUE_PATH };
+
 /**
- * Whether an emitter method handed back a check or source text.
+ * Whether an emitter method wrote a check or source text, as each must.
  *
  * ```ts
  * isEmittingCheckMethodOutput({ failsWhen: 'x < 3', issue: '{ … }' }) // true
@@ -42,15 +47,40 @@ const isEmittingCheckMethodOutput = (emitted: unknown): emitted is EmittingCheck
   );
 };
 
-/** What a hook emits for: the Schema, and the scope that numbers the locals of the class it is emitted into. */
+/**
+ * `check` returning its Issue when it fails: the root's base check, after
+ * which nothing else can be checked.
+ *
+ * ```ts
+ * emitReturnIssueIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
+ * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
+ * ```
+ */
+const emitReturnIssueIfFails = ({
+  failsWhen,
+  issue,
+}: EmittingCheckMethodOutputWithCheck): string => {
+  return emitBlock({
+    head: js`if (${failsWhen})`,
+    body: js`issues.push(${issue});` + '\nreturn { issues };',
+  });
+};
+
+/** What a hook spells types for: the Schema. */
 export type EmitSchemaArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
+};
+
+/** What a hook emits checks for: a Schema at the target it checks, numbering its locals from `scope`. */
+export type EmitChecksArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSchema> & {
+  target: EmittingCheckMethodInput;
+  /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: EmitScope;
 };
 
-/** What a hook emits checks for: a Schema, at the target it checks. */
-export type EmitChecksArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSchema> & {
-  target: EmittingCheckMethodInput;
+/** What {@link Emitter._emitTypedChecks} emits for: a Schema at its target, inlined at the root of `_checkType` or into a parent. */
+export type EmitTypedChecksArgs<TSchema extends Schema = Schema> = EmitChecksArgs<TSchema> & {
+  isRoot: boolean;
 };
 
 /** What a chained method is emitted for: the call, at the target it checks. */
@@ -71,67 +101,54 @@ export type EmitCompiledSchemaArgs = {
 /**
  * The base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
- * `StringSchemaEmitter.emitSchemaChecks({ schema, target, scope })` dispatches
- * `.min(3)` to `StringSchemaEmitter.min`.
+ * `StringSchemaEmitter.emitSchemaChecks({ schema, target, scope })` emits
+ * `.min(3)` with `StringSchemaEmitter.min`.
  *
- * A method a subclass declares is a template mirroring a Schema method of
- * the same name, unless its name starts with `_`: the `_get…`/`_emit…`/
- * `_spell…` hooks a subclass overrides are never a chained method.
- * The methods declared here are never one either. Every method takes one
- * object, so a hook reads only the properties it needs.
+ * A static method an emitter below `Emitter` declares mirrors the Schema
+ * method of its name, unless its name starts with `_`: those are the hooks
+ * a subclass overrides. The methods declared here are never one either.
+ * Every method takes one object, so a hook reads only what it needs.
  */
 export class Emitter {
   /**
-   * The base check of `schema` at `target`: its type check, run between the
-   * pre-modifiers and the post-modifiers. Every schema's emitter overrides
-   * it, reading `schema` only when its check needs the factory's argument
-   * (`pvl.literal('a')`); this one throws, which is a bug in an emitter,
-   * never a user error.
+   * The base check of `schema` at `target`: its type check, which every
+   * schema's emitter overrides, reading `schema` only when the check needs
+   * the factory's argument (`pvl.literal('a')`). This one throws, which is a
+   * bug in an emitter, never a user error.
    *
    * ```ts
-   * StringSchemaEmitter._getBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
+   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
    * // { failsWhen: 'typeof field0 !== "string"', issue: '{ code: "INVALID_TYPE", … }' }
    * ```
    */
-  public static _getBaseCheck({ target }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
+  public static _emitBaseCheck({ target }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     throw new Error(`${this.name} has no base check to emit for \`${target.value}\`.`);
   }
 
   /**
-   * The checks of `schema.preModifierCalls` at `target`, in chain order: each
-   * one the condition the rest of its checks run under, as a value it
-   * accepts skips them.
+   * What is checked of `schema` at `target` once its type check (base check) has passed:
+   * its post-modifiers' checks, in chain order. A composite's emitter
+   * overrides it to inline its children's checks first, as `_checkType`
+   * runs them, then its post-modifiers' once every child has passed, then
+   * to hand on the output it builds. Only a composite is compiled at the
+   * root (`isRoot`); this one throws there, which is a bug in the compiler,
+   * never a user error.
    *
    * ```ts
-   * StringSchemaEmitter._getPreModifierChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', issuePath }, scope })
-   * // ['field0 !== undefined']
+   * StringSchemaEmitter._emitTypedChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', issuePath }, scope, isRoot: false })
+   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}']
    * ```
    */
-  public static _getPreModifierChecks({ schema, target }: EmitChecksArgs): string[] {
-    return schema.preModifierCalls.map((call) => this.emitCallText({ call, target }));
-  }
-
-  /**
-   * The checks of `schema.postModifierCalls` at `target`, in chain order,
-   * run once its base check has passed. A composite's
-   * emitter overrides it to inline its fields' or element's checks and put
-   * the output it builds back on `target`.
-   *
-   * ```ts
-   * StringSchemaEmitter._getPostModifierChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', issuePath }, scope })
-   * // [{ failsWhen: 'field0.length < 3', issue: '{ code: "TOO_SMALL", … }' }]
-   * ```
-   */
-  public static _getPostModifierChecks({
-    schema,
-    target,
-  }: EmitChecksArgs): EmittingCheckMethodOutput[] {
-    return schema.postModifierCalls.map((call) => this.emitCall({ call, target }));
+  public static _emitTypedChecks({ schema, target, scope, isRoot }: EmitTypedChecksArgs): string[] {
+    if (isRoot) {
+      throw new Error(`A pvl.${schema.factory}() can't be compiled at the root.`);
+    }
+    return this.emitPostModifierChecks({ schema, target, scope });
   }
 
   /**
    * How a field's or an element's value is declared: `const`, unless its
-   * checks replace it with the output they build, as a composite's do.
+   * checks put the output they build back on it, as a composite's do.
    *
    * ```ts
    * StringSchemaEmitter._spellValueDeclaration() // 'const'
@@ -143,20 +160,12 @@ export class Emitter {
   }
 
   /**
-   * The body of a Compiled Schema's `_checkType` for a `schema` this emitter
-   * compiles at the root. Only a composite's emitter overrides it; this one
-   * throws, which is a bug in the compiler, never a user error.
+   * The `Input` and `Output` types of `schema`'s factory call, before any
+   * Modifier widens them. Defaults to the factory's name, which is the type
+   * of a primitive (`pvl.string()` types as `string`); the other emitters
+   * override it.
    */
-  public static _emitBody({ schema }: EmitSchemaArgs): string {
-    throw new Error(`A pvl.${schema.factory}() can't be compiled at the root.`);
-  }
-
-  /**
-   * The `Input` and `Output` types of `schema` before any Modifier widens
-   * them. Defaults to the factory's name, which is the type of a primitive
-   * (`pvl.string()` types as `string`); the other emitters override it.
-   */
-  public static _spellTypes({ schema }: EmitSchemaArgs): SchemaTypes {
+  public static _spellFactoryTypes({ schema }: { schema: Schema }): SchemaTypes {
     return { input: schema.factory, output: schema.factory };
   }
 
@@ -165,14 +174,15 @@ export class Emitter {
    * Schema's own inferred types are. `ChainableSchemaEmitter` widens them
    * for its Modifiers.
    */
-  public static _emitTypes(args: EmitSchemaArgs): SchemaTypes {
-    return this._spellTypes(args);
+  public static _spellTypes(args: EmitSchemaArgs): SchemaTypes {
+    return this._spellFactoryTypes(args);
   }
 
   /**
-   * One Schema's checks at `target`, each failure pushed onto `issues`: the
-   * base check, then its post-modifiers' checks once it has passed, all
-   * guarded by its pre-modifiers' conditions.
+   * One Schema's checks at `target`, where a parent reads its value, each
+   * failure pushed onto `issues`: its base check, then what
+   * `_emitTypedChecks` writes once that has passed, all guarded by its
+   * pre-modifiers' conditions.
    *
    * ```ts
    * StringSchemaEmitter.emitSchemaChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', issuePath }, scope })
@@ -187,181 +197,142 @@ export class Emitter {
    * // }
    * ```
    */
-  public static emitSchemaChecks(args: EmitChecksArgs): string {
-    const continuesWhen = this._getPreModifierChecks(args);
-    const baseChecked = Emitter.emitCheck(this._getBaseCheck(args));
-    const postChecked = this._getPostModifierChecks(args)
-      .map((check) => Emitter.emitCheck(check))
-      .join('\n');
+  public static emitSchemaChecks({ schema, target, scope }: EmitChecksArgs): string {
+    const baseCheck = emitCheck(this._emitBaseCheck({ schema, target, scope }));
+
+    const typedChecks = this._emitTypedChecks({ schema, target, scope, isRoot: false });
 
     const checks =
-      postChecked === ''
-        ? baseChecked
-        : `${baseChecked} else {\n${Emitter.indent({ text: postChecked })}\n}`;
-    return continuesWhen.length === 0
+      typedChecks.length === 0
+        ? baseCheck
+        : emitBlock({ head: `${baseCheck} else`, body: typedChecks.join('\n') });
+
+    const preConditions = this.emitPreModifierConditions({ schema, target, scope });
+
+    return preConditions.length === 0
       ? checks
-      : Emitter.emitBlock({ head: `if (${continuesWhen.join(' && ')})`, body: checks });
-  }
-
-  /**
-   * This emitter's method mirroring the Schema method `name`, looked up on
-   * this emitter and the emitters it extends, below `Emitter`. `undefined`
-   * when there is none, so the method isn't compiled yet, or when `name`
-   * starts with `_`.
-   *
-   * ```ts
-   * StringSchemaEmitter.findMethod({ name: 'min' })           // StringSchemaEmitter.min
-   * StringSchemaEmitter.findMethod({ name: 'optional' })      // ChainableSchemaEmitter.optional
-   * StringSchemaEmitter.findMethod({ name: 'refine' })        // undefined
-   * StringSchemaEmitter.findMethod({ name: '_getBaseCheck' }) // undefined
-   * ```
-   */
-  public static findMethod({ name }: { name: string }): EmitterMethod | undefined {
-    if (name.startsWith('_')) {
-      return undefined;
-    }
-    for (
-      let emitter: unknown = this;
-      typeof emitter === 'function' && emitter !== Emitter;
-      emitter = Object.getPrototypeOf(emitter)
-    ) {
-      const method: unknown = Object.hasOwn(emitter, name) ? Reflect.get(emitter, name) : undefined;
-      if (typeof method === 'function') {
-        return method as EmitterMethod;
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * The check or source text `call` compiles to, such as `.min(3)`'s check
-   * or `.strict()`'s loop. Only called on a Schema
-   * `Schema.findUncompilableDiagnostics` found nothing in, so the method and
-   * its arguments are there. Throws when the method writes neither, which is
-   * a bug in an emitter, never a user error.
-   */
-  public static emitCall({ call, target }: EmitCallArgs): EmittingCheckMethodOutput {
-    const emitted = this.findMethod({ name: call.name })?.({ target, args: call.args ?? [] });
-    if (!isEmittingCheckMethodOutput(emitted)) {
-      throw new Error(`The emitter method for .${call.name}() wrote no check.`);
-    }
-    return emitted;
-  }
-
-  /**
-   * The source text `call` compiles to: `.optional()`'s condition or
-   * `.strict()`'s loop. Throws when the method writes a check instead,
-   * which is a bug in an emitter, never a user error.
-   */
-  public static emitCallText(args: EmitCallArgs): string {
-    const emitted = this.emitCall(args);
-    if (typeof emitted !== 'string') {
-      throw new Error(`The emitter method for .${args.call.name}() wrote no source text.`);
-    }
-    return emitted;
+      : emitBlock({ head: `if (${preConditions.join(' && ')})`, body: checks });
   }
 
   /**
    * The class declaration a Compiled Schema is, extending `PvlSchema` (see
-   * `COMPILED_SCHEMA_IMPORT`) with the body this emitter writes for `schema`
-   * as its `_checkType`.
+   * `COMPILED_SCHEMA_IMPORT`), whose `_checkType` checks `schema` at its
+   * `value`: its base check, returning the Issue when it fails, then what
+   * `_emitTypedChecks` writes at the root.
    *
    * ```ts
    * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', line: 3 })
    * // // pvl.compile() on line 3
    * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
-   * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> { … }
+   * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
+   * //     const issues: PvlIssue[] = [];
+   * //     if (typeof value !== "object" || …) { … return { issues }; }
+   * //     …
+   * //     return { value: output };
+   * //   }
    * // }
    * ```
    */
   public static emitCompiledSchema({ schema, className, line }: EmitCompiledSchemaArgs): string {
     const scope = new EmitScope();
-    const { input, output } = this._emitTypes({ schema, scope });
+    const { input, output } = this._spellTypes({ schema });
+
+    const body = [
+      'const issues: PvlIssue[] = [];',
+      emitReturnIssueIfFails(this._emitBaseCheck({ schema, target: ROOT_TARGET, scope })),
+      ...this._emitTypedChecks({ schema, target: ROOT_TARGET, scope, isRoot: true }),
+    ];
 
     return [
       `// pvl.compile() on line ${String(line)}`,
-      Emitter.emitBlock({
+      emitBlock({
         head: `class ${className} extends PvlSchema<${input}, ${output}>`,
-        body: Emitter.emitBlock({
+        body: emitBlock({
           head: 'override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown>',
-          body: this._emitBody({ schema, scope }),
+          body: body.join('\n'),
         }),
       }),
     ].join('\n');
   }
 
   /**
-   * A check as source text: a check pushes its Issue onto `issues` when it
-   * fails, and source text is already a statement.
+   * This emitter's method mirroring the Schema method `name`: its own, or
+   * else the one of the emitter it extends, down to `Emitter`, which has
+   * none. `undefined` when no emitter has one, so the method isn't compiled
+   * yet, or when `name` starts with `_`. Only own properties are read, so a
+   * name every class has (`toString`, `caller`) is never one.
    *
    * ```ts
-   * Emitter.emitCheck({ failsWhen: 'x < 3', issue: '{ … }' }) // 'if (x < 3) {\n  issues.push({ … });\n}'
-   * Emitter.emitCheck('field0 = output1;')                    // 'field0 = output1;'
+   * StringSchemaEmitter.findEmittingMethod({ name: 'min' })           // StringSchemaEmitter.min
+   * StringSchemaEmitter.findEmittingMethod({ name: 'optional' })      // ChainableSchemaEmitter.optional
+   * StringSchemaEmitter.findEmittingMethod({ name: 'refine' })        // undefined
+   * StringSchemaEmitter.findEmittingMethod({ name: '_emitBaseCheck' }) // undefined
+   * BooleanSchemaEmitter.findEmittingMethod({ name: 'length' })       // undefined: only its own `length` number
    * ```
    */
-  protected static emitCheck(check: EmittingCheckMethodOutput): string {
-    return typeof check === 'string'
-      ? check
-      : Emitter.emitBlock({
-          head: js`if (${check.failsWhen})`,
-          body: js`issues.push(${check.issue});`,
-        });
+  public static findEmittingMethod({ name }: { name: string }): EmittingMethod | undefined {
+    if (this === Emitter || name.startsWith('_')) {
+      return undefined;
+    }
+    const method: unknown = Object.getOwnPropertyDescriptor(this, name)?.value;
+    if (typeof method === 'function') {
+      return method as EmittingMethod;
+    }
+    const extendedEmitter: typeof Emitter = Object.getPrototypeOf(this);
+    return extendedEmitter.findEmittingMethod({ name });
   }
 
   /**
-   * `text` indented one level deeper, blank lines left blank.
-   *
-   * ```ts
-   * Emitter.indent({ text: 'a;\n\nb;' }) // '  a;\n\n  b;'
-   * ```
+   * What `call` compiles to, written by this emitter's method of its name:
+   * a check such as `.min(3)`'s, or source text such as `.strict()`'s loop.
+   * Only called on a Schema `Schema.findUncompilableDiagnostics` found
+   * nothing in, so the method and its arguments are there. Throws when the
+   * method writes neither, which is a bug in an emitter, never a user error.
    */
-  protected static indent({ text }: { text: string }): string {
-    return text
-      .split('\n')
-      .map((line) => (line === '' ? line : `${INDENT}${line}`))
-      .join('\n');
-  }
-
-  /**
-   * A block: `head {`, its body one level deeper, `}`.
-   *
-   * ```ts
-   * Emitter.emitBlock({ head: 'if (ok)', body: 'run();' }) // 'if (ok) {\n  run();\n}'
-   * ```
-   */
-  protected static emitBlock({ head, body }: { head: string; body: string }): string {
-    return `${head} {\n${Emitter.indent({ text: body })}\n}`;
-  }
-
-  /**
-   * `check` returning its Issue when it fails, for the root base check that
-   * leaves nothing else to check. Through `issues` rather than a literal
-   * array, which TypeScript would check against Standard Schema's own Issue
-   * type, which has no `code`.
-   *
-   * ```ts
-   * Emitter.emitReturnIssueIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
-   * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
-   * ```
-   */
-  protected static emitReturnIssueIfFails({
-    failsWhen,
-    issue,
-  }: EmittingCheckMethodOutputWithCheck): string {
-    return Emitter.emitBlock({
-      head: js`if (${failsWhen})`,
-      body: js`issues.push(${issue});` + '\nreturn { issues };',
+  protected static emitCall({ call, target }: EmitCallArgs): EmittingCheckMethodOutput {
+    const emittingMethod = this.findEmittingMethod({ name: call.name });
+    const emitted = emittingMethod?.({
+      target,
+      args: call.args ?? [],
     });
+
+    if (!isEmittingCheckMethodOutput(emitted)) {
+      throw new Error(`${this.name} wrote no check for .${call.name}().`);
+    }
+    return emitted;
   }
 
   /**
-   * The statement returning the Issues collected so far, if there are any.
+   * The checks of `schema.postModifierCalls` at `target`, in chain order, as
+   * statements.
    *
    * ```ts
-   * Emitter.emitReturnIssuesIfAny() // 'if (issues.length > 0) {\n  return { issues };\n}'
+   * StringSchemaEmitter.emitPostModifierChecks({ schema: <pvl.string().min(3)>, target: { value: 'field0', issuePath }, scope })
+   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}']
    * ```
    */
-  protected static emitReturnIssuesIfAny(): string {
-    return Emitter.emitBlock({ head: 'if (issues.length > 0)', body: 'return { issues };' });
+  protected static emitPostModifierChecks({ schema, target }: EmitChecksArgs): string[] {
+    return schema.postModifierCalls.map((call) => emitCheck(this.emitCall({ call, target })));
+  }
+
+  /**
+   * The conditions of `schema.preModifierCalls` at `target`, in chain order,
+   * which the rest of its checks run under, as a value a pre-modifier
+   * accepts skips them. Throws when one writes a check instead, which is a
+   * bug in an emitter, never a user error.
+   *
+   * ```ts
+   * StringSchemaEmitter.emitPreModifierConditions({ schema: <pvl.string().nullable().optional()>, target: { value: 'field0', issuePath }, scope })
+   * // ['field0 !== null', 'field0 !== undefined']
+   * ```
+   */
+  private static emitPreModifierConditions({ schema, target }: EmitChecksArgs): string[] {
+    return schema.preModifierCalls.map((call) => {
+      const condition = this.emitCall({ call, target });
+      if (typeof condition !== 'string') {
+        throw new Error(`${this.name} wrote a check for .${call.name}(), not a condition.`);
+      }
+      return condition;
+    });
   }
 }

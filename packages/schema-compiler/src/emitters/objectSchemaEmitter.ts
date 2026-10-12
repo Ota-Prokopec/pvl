@@ -8,19 +8,20 @@ import {
   type IssueEditableProps,
   type ObjectSchema as PvlObjectSchema,
 } from '@pvl/schema';
-import { ROOT_ISSUE_PATH } from '../consts.js';
+import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
-import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { CompositeFrame } from './compositeFrame.js';
 import type { EmitScope } from './emitScope.js';
-import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
+import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
 import type {
   EmitterMethodOf,
   EmittingCheckMethodInput,
   EmittingCheckMethodOutputWithCheck,
 } from './emittersTypes.js';
-import { emitIssue, js, type SchemaTypes } from './utils.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import { emitBlock, emitCheck, emitIssue, js } from './utils.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -47,14 +48,6 @@ export type NamedField = ObjectField & {
  */
 const nameFields = (shape: ReadonlyArray<ObjectField>, scope: EmitScope): NamedField[] => {
   return shape.map((field) => ({ ...field, value: scope.nextField() }));
-};
-
-/** What an object's emitted checks call its locals: `input`, `output` and `path` at the root, `input1`, `output1` and `path1` nested. */
-export type ObjectLocals = {
-  input: string;
-  output: string;
-  /** The object's own Issue path, which its fields' paths extend. */
-  path: string;
 };
 
 // Stands in for the unknown key while the default message is rendered, so
@@ -148,12 +141,80 @@ const findUnknownKeysCall = (
   return [...calls].reverse().find((call) => call.name === 'strict' || call.name === 'passthrough');
 };
 
+/**
+ * A field's checks, reading its value off the object's `input` into the
+ * name the field was given. A nested object's or array's value is declared
+ * with `let`, as its checks put the output they build back on it.
+ *
+ * ```ts
+ * emitFieldChecks({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, frame: <frame at the root>, scope })
+ * // // name
+ * // const field0 = input["name"];
+ * // if (typeof field0 !== "string") { … path: [...path, "name"] … }
+ * //
+ * ```
+ */
+const emitFieldChecks = ({
+  field: { key, schema: fieldSchema, value },
+  frame,
+  scope,
+}: {
+  field: NamedField;
+  frame: CompositeFrame;
+  scope: EmitScope;
+}): string => {
+  const { emitter } = fieldSchema;
+  const keyLiteral = JSON.stringify(key);
+  return [
+    `// ${formatKey(key)}`,
+    js`${emitter._spellValueDeclaration()} ${value} = ${frame.input}[${keyLiteral}];`,
+    emitter.emitSchemaChecks({
+      schema: fieldSchema,
+      target: { value, issuePath: js`[...${frame.path}, ${keyLiteral}]` },
+      scope,
+    }),
+    '',
+  ].join('\n');
+};
+
+/**
+ * The statement putting a passed field's value on the output. An optional
+ * field is left off when its key was omitted, and `__proto__` is defined
+ * rather than assigned, which would reparent the output instead.
+ *
+ * ```ts
+ * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input', output: 'output', … } })
+ * // 'output["name"] = field0;'
+ * emitOutputAssignment({ field: { key: 'age', schema: <pvl.number().optional()>, value: 'field1' }, objectTarget: <the same> })
+ * // 'if (field1 !== undefined || Object.hasOwn(input, "age")) {\n  output["age"] = field1;\n}'
+ * ```
+ */
+const emitOutputAssignment = ({
+  field: { key, schema: fieldSchema, value },
+  objectTarget: { value: input, output },
+}: {
+  field: NamedField;
+  objectTarget: ObjectEmittingCheckMethodInput;
+}): string => {
+  const keyLiteral = JSON.stringify(key);
+  const assignment =
+    key === '__proto__'
+      ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
+      : js`${output}[${keyLiteral}] = ${value};`;
+  return isOptionalField(fieldSchema)
+    ? emitBlock({
+        head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
+        body: assignment,
+      })
+    : assignment;
+};
+
 /** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
 type PvlAnyObjectSchema = PvlObjectSchema;
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
-  public static override _getBaseCheck({
+  public static override _emitBaseCheck({
     target: { value, issuePath },
   }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {
@@ -210,49 +271,16 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     }`;
 
   /**
-   * The body of a compiled object's `_checkType`: the type check, every
-   * field's checks inlined in shape order, then the unknown-keys handling the
-   * last of `.strict()`/`.passthrough()` chose (stripping when neither was
-   * chained), then the output built from the fields that passed.
-   */
-  public static override _emitBody({ schema, scope }: EmitSchemaArgs<ObjectSchema>): string {
-    const rootTarget: EmittingCheckMethodInput = { value: 'value', issuePath: ROOT_ISSUE_PATH };
-    const locals: ObjectLocals = { input: 'input', output: 'output', path: 'path' };
-    const fields = nameFields(schema.shape, scope);
-    const objectTarget = this._createObjectTarget({ fields, locals });
-    const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
-
-    const strictChecks =
-      unknownKeysCall?.name === 'strict'
-        ? [
-            this.emitCallText({ call: unknownKeysCall, target: objectTarget }),
-            this.emitReturnIssuesIfAny(),
-          ]
-        : [];
-
-    return [
-      'const issues: PvlIssue[] = [];',
-      this.emitReturnIssueIfFails(this._getBaseCheck({ schema, target: rootTarget, scope })),
-      'const input = value as Record<string, unknown>;',
-      '',
-      ...this._emitFieldChecks({ fields, locals, scope }),
-      this.emitReturnIssuesIfAny(),
-      ...strictChecks,
-      ...this._emitOutput({ fields, objectTarget, unknownKeysCall }),
-      'return { value: output };',
-    ].join('\n');
-  }
-
-  /**
-   * The post-modifiers' checks of an object nested in another Schema, at
-   * `target`, run once its base check has passed: every field's checks inlined in shape order, then
-   * `.strict()`'s, which run only if every field passed, then the output,
-   * which replaces the value at `target`. Its locals are numbered, and its
-   * own path is kept in one, so its fields' paths stay as short at any
-   * depth.
+   * An object's checks once its type check has passed, at the root or nested
+   * in another Schema: every field's checks inlined in shape order, then
+   * `.strict()`'s, which run only once every field has passed, then the
+   * output built from the fields, handed on. The last of `.strict()` and
+   * `.passthrough()` chained decides the keys the shape doesn't declare:
+   * `.passthrough()` copies them onto the output, and with neither they are
+   * stripped (ADR-0007).
    *
    * ```ts
-   * ObjectSchemaEmitter._getPostModifierChecks({ schema: <pvl.object({ name: pvl.string() })>, target: { value: 'field0', issuePath: '[...path, "user"]' }, scope })
+   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, target: { value: 'field0', issuePath: '[...path, "user"]' }, scope, isRoot: false })
    * // const input1 = field0 as Record<string, unknown>;
    * // const path1 = [...path, "user"];
    * //
@@ -265,39 +293,42 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * // field0 = output1;
    * ```
    */
-  public static override _getPostModifierChecks({
+  public static override _emitTypedChecks({
     schema,
     target,
     scope,
-  }: EmitChecksArgs<ObjectSchema>): string[] {
-    const suffix = scope.nextLocalSuffix();
-    const locals: ObjectLocals = {
-      input: `input${suffix}`,
-      output: `output${suffix}`,
-      path: `path${suffix}`,
-    };
+    isRoot,
+  }: EmitTypedChecksArgs<ObjectSchema>): string[] {
+    const frame = new CompositeFrame({ target, scope, isRoot });
     const fields = nameFields(schema.shape, scope);
-    const objectTarget = this._createObjectTarget({ fields, locals });
+    const objectTarget: ObjectEmittingCheckMethodInput = {
+      value: frame.input,
+      issuePath: frame.path,
+      output: frame.output,
+      declaredKeys: fields.map(({ key }) => key),
+    };
+    // `.strict()`'s loop is a post-modifier; `.passthrough()`'s builds the output.
     const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
-    const isStrict = unknownKeysCall?.name === 'strict';
-    const issueCount = `issueCount${suffix}`;
+    const unknownKeysStatements =
+      unknownKeysCall === undefined
+        ? []
+        : [emitCheck(this.emitCall({ call: unknownKeysCall, target: objectTarget }))];
+    const strictChecks = unknownKeysCall?.name === 'strict' ? unknownKeysStatements : [];
+    const passthroughCopy = unknownKeysCall?.name === 'passthrough' ? unknownKeysStatements : [];
 
     return [
-      js`const ${locals.input} = ${target.value} as Record<string, unknown>;`,
-      ...(fields.length > 0 || isStrict ? [js`const ${locals.path} = ${target.issuePath};`] : []),
-      ...(isStrict ? [js`const ${issueCount} = issues.length;`] : []),
+      js`const ${frame.input} = ${target.value} as Record<string, unknown>;`,
+      ...frame.emitDeclarations({
+        readsPath: fields.length > 0 || strictChecks.length > 0,
+        postModifierChecks: strictChecks,
+      }),
       '',
-      ...this._emitFieldChecks({ fields, locals, scope }),
-      ...(isStrict
-        ? [
-            this.emitBlock({
-              head: js`if (issues.length === ${issueCount})`,
-              body: this.emitCallText({ call: unknownKeysCall, target: objectTarget }),
-            }),
-          ]
-        : []),
-      ...this._emitOutput({ fields, objectTarget, unknownKeysCall }),
-      js`${target.value} = ${locals.output};`,
+      ...fields.map((field) => emitFieldChecks({ field, frame, scope })),
+      ...frame.emitOnceChildrenPassed({ postModifierChecks: strictChecks }),
+      js`const ${frame.output}: Record<string, unknown> = {};`,
+      ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
+      ...passthroughCopy,
+      frame.emitOutputHandoff(),
     ];
   }
 
@@ -319,137 +350,18 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * `.strict()`, as `ObjectSchema`'s own types do.
    *
    * ```ts
-   * ObjectSchemaEmitter._spellTypes({ schema: <pvl.object({ name: pvl.string(), age: pvl.number().optional() })>, scope })
+   * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ name: pvl.string(), age: pvl.number().optional() })> })
    * // { input: '{ name: string; age?: number | undefined }', output: <the same> }
    * ```
    */
-  public static override _spellTypes({ schema, scope }: EmitSchemaArgs<ObjectSchema>): SchemaTypes {
+  public static override _spellFactoryTypes({ schema }: EmitSchemaArgs<ObjectSchema>): SchemaTypes {
     const fields = schema.shape.map(({ key, schema: fieldSchema }) => {
-      const { input, output } = fieldSchema.emitter._emitTypes({ schema: fieldSchema, scope });
+      const { input, output } = fieldSchema.emitter._spellTypes({ schema: fieldSchema });
       return { key: `${formatKey(key)}${isOptionalField(fieldSchema) ? '?' : ''}`, input, output };
     });
     const input = spellObjectType(fields.map(({ key, input: type }) => ({ key, type })));
     const output = spellObjectType(fields.map(({ key, output: type }) => ({ key, type })));
     const hasPassthrough = schema.postModifierCalls.some((call) => call.name === 'passthrough');
     return { input, output: hasPassthrough ? `${output} & Record<string, unknown>` : output };
-  }
-
-  /**
-   * The target `.strict()` and `.passthrough()` are emitted at: the object's
-   * value as a record, its path, its output and its declared keys.
-   *
-   * ```ts
-   * ObjectSchemaEmitter._createObjectTarget({ fields: <fields name, age>, locals: { input: 'input1', output: 'output1', path: 'path1' } })
-   * // { value: 'input1', issuePath: 'path1', output: 'output1', declaredKeys: ['name', 'age'] }
-   * ```
-   */
-  private static _createObjectTarget({
-    fields,
-    locals,
-  }: {
-    fields: ReadonlyArray<NamedField>;
-    locals: ObjectLocals;
-  }): ObjectEmittingCheckMethodInput {
-    return {
-      value: locals.input,
-      issuePath: locals.path,
-      output: locals.output,
-      declaredKeys: fields.map(({ key }) => key),
-    };
-  }
-
-  /**
-   * Every field's checks, in shape order, each reading its value off
-   * `locals.input`. A nested object's or array's value is declared with
-   * `let`, as its checks replace it with the output they build.
-   *
-   * ```ts
-   * // name
-   * const field0 = input["name"];
-   * if (typeof field0 !== "string") { … path: [...path, "name"] … }
-   * ```
-   */
-  private static _emitFieldChecks({
-    fields,
-    locals,
-    scope,
-  }: {
-    fields: ReadonlyArray<NamedField>;
-    locals: ObjectLocals;
-    scope: EmitScope;
-  }): string[] {
-    return fields.map(({ key, schema: fieldSchema, value }) => {
-      const { emitter } = fieldSchema;
-      return [
-        `// ${formatKey(key)}`,
-        js`${emitter._spellValueDeclaration()} ${value} = ${locals.input}[${JSON.stringify(key)}];`,
-        emitter.emitSchemaChecks({
-          schema: fieldSchema,
-          target: { value, issuePath: js`[...${locals.path}, ${JSON.stringify(key)}]` },
-          scope,
-        }),
-        '',
-      ].join('\n');
-    });
-  }
-
-  /**
-   * The statements building the output from the fields that passed: the
-   * declared fields in shape order, then every unknown key when
-   * `unknownKeysCall`, the last of `.strict()`/`.passthrough()` chained, is
-   * `.passthrough()`.
-   *
-   * ```ts
-   * ObjectSchemaEmitter._emitOutput({ fields: [<field name as field0>], objectTarget: <root target>, unknownKeysCall: undefined })
-   * // ['const output: Record<string, unknown> = {};', 'output["name"] = field0;']
-   * ```
-   */
-  private static _emitOutput({
-    fields,
-    objectTarget,
-    unknownKeysCall,
-  }: {
-    fields: ReadonlyArray<NamedField>;
-    objectTarget: ObjectEmittingCheckMethodInput;
-    unknownKeysCall: SchemaModifierCall | undefined;
-  }): string[] {
-    return [
-      js`const ${objectTarget.output}: Record<string, unknown> = {};`,
-      ...fields.map((field) => this._emitOutputAssignment({ field, objectTarget })),
-      ...(unknownKeysCall?.name === 'passthrough'
-        ? [this.emitCallText({ call: unknownKeysCall, target: objectTarget })]
-        : []),
-    ];
-  }
-
-  /**
-   * The statement putting a passed field's value on the output. An optional
-   * field is left off when its key was omitted, and `__proto__` is defined
-   * rather than assigned, which would reparent the output instead.
-   *
-   * ```ts
-   * ObjectSchemaEmitter._emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input', output: 'output', … } })
-   * // 'output["name"] = field0;'
-   * ```
-   */
-  private static _emitOutputAssignment({
-    field: { key, schema: fieldSchema, value },
-    objectTarget,
-  }: {
-    field: NamedField;
-    objectTarget: ObjectEmittingCheckMethodInput;
-  }): string {
-    const { output } = objectTarget;
-    const keyLiteral = JSON.stringify(key);
-    const assignment =
-      key === '__proto__'
-        ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
-        : js`${output}[${keyLiteral}] = ${value};`;
-    return isOptionalField(fieldSchema)
-      ? this.emitBlock({
-          head: js`if (${value} !== undefined || Object.hasOwn(${objectTarget.value}, ${keyLiteral}))`,
-          body: assignment,
-        })
-      : assignment;
   }
 }
