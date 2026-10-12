@@ -3,7 +3,7 @@
 import type { CallChainLink } from '../ast/pvlAst.js';
 import { BigintSchemaEmitter } from '../emitters/bigintSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs } from '../schema.js';
+import { Schema, type ReadFactoryArgs } from './schema.js';
 
 /**
  * A `pvl.bigint()` as read from source. It reads no argument, so any it is

@@ -7,24 +7,16 @@
 // so this module never imports one: a subclass extends `Schema` as its
 // module loads, so an import back would run it before `Schema` exists.
 import type { Node } from 'ts-morph';
-import { ConstCycleError } from './ast/constCycleError.js';
-import { GenericAst, type FollowedConsts, type StaticValue } from './ast/genericAst.js';
-import { PvlAst, type CallChainLink } from './ast/pvlAst.js';
-import { UnresolvedNodeError } from './ast/unresolvedNodeError.js';
-import { Diagnostic } from './diagnostics/diagnostic.js';
-import { ChainableSchemaEmitter } from './emitters/chainableSchemaEmitter.js';
-import type { Emitter } from './emitters/emitter.js';
-import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from './enums.js';
-import type { Module } from './module.js';
-
-/** One method chained onto a Schema: `.min(3, { message: 'too short' })`. */
-export type SchemaMethodCall = {
-  name: string;
-  /** `undefined` when an argument isn't a literal, such as `.refine()`'s function. */
-  args: ReadonlyArray<StaticValue> | undefined;
-  /** The 1-based line it is written on. */
-  line: number;
-};
+import { ConstCycleError } from '../ast/constCycleError.js';
+import { GenericAst, type FollowedConsts, type StaticValue } from '../ast/genericAst.js';
+import { PvlAst, type CallChainLink } from '../ast/pvlAst.js';
+import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
+import { Diagnostic } from '../diagnostics/diagnostic.js';
+import type { Emitter } from '../emitters/emitter.js';
+import { PRE_MODIFIER_NAMES } from '../consts.js';
+import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import type { Module } from '../module.js';
+import type { SchemaModifierCall } from './schemaTypes.js';
 
 /** The expression a Schema is read from, and the Module it is written in. */
 export type ReadSchemaArgs = {
@@ -43,8 +35,10 @@ export type SchemaOptions = {
   expression: Node;
   /** The 1-based line its factory call is written on. */
   line: number;
-  /** Every method chained onto its factory call, in chain order. */
-  calls: ReadonlyArray<SchemaMethodCall>;
+  /** The pre-modifiers chained onto its factory call, in chain order. */
+  preModifierCalls: ReadonlyArray<SchemaModifierCall>;
+  /** The post-modifiers chained onto its factory call, in chain order. */
+  postModifierCalls: ReadonlyArray<SchemaModifierCall>;
 };
 
 /** What a subclass's `fromFactory` reads its factory call with. */
@@ -53,7 +47,7 @@ export type ReadFactoryArgs = ReadSchemaArgs & {
    * Reads every method chained onto the factory call, in chain order.
    * Called once the factory's argument is read, as it is read first.
    */
-  readCalls: () => ReadonlyArray<SchemaMethodCall>;
+  readCalls: () => ReadonlyArray<SchemaModifierCall>;
   /** Reads a Schema nested in this one: a field, an element or a member. */
   readNested: (expression: Node, followed: FollowedConsts) => Schema;
 };
@@ -105,8 +99,10 @@ export abstract class Schema {
   public readonly expression: Node;
   /** The 1-based line its factory call is written on. */
   public readonly line: number;
-  /** Every method chained onto its factory call, in chain order. */
-  public readonly calls: ReadonlyArray<SchemaMethodCall>;
+  /** The pre-modifiers chained onto its factory call, in chain order: they run before the type check (ADR-0010). */
+  public readonly preModifierCalls: ReadonlyArray<SchemaModifierCall>;
+  /** The post-modifiers chained onto its factory call, in chain order: they run after the type check (ADR-0010). */
+  public readonly postModifierCalls: ReadonlyArray<SchemaModifierCall>;
 
   /** Its subclass's Emitter, `undefined` while it can't be compiled yet. */
   private readonly subclassEmitter: typeof Emitter | undefined;
@@ -115,13 +111,20 @@ export abstract class Schema {
    * A Schema holding `options`, with the factory and Emitter of the
    * subclass being constructed (`new.target`).
    */
-  protected constructor({ module, expression, line, calls }: SchemaOptions) {
+  protected constructor({
+    module,
+    expression,
+    line,
+    preModifierCalls,
+    postModifierCalls,
+  }: SchemaOptions) {
     this.factory = new.target.factory;
     this.subclassEmitter = new.target.emitter;
     this.module = module;
     this.expression = expression;
     this.line = line;
-    this.calls = calls;
+    this.preModifierCalls = preModifierCalls;
+    this.postModifierCalls = postModifierCalls;
   }
 
   /**
@@ -274,11 +277,25 @@ export abstract class Schema {
    * What every Schema holds, read off `link`, the factory call, and
    * `args`: a subclass's `fromFactory` passes it on to its constructor,
    * once it has read the factory's argument, which is read before the
-   * methods chained onto the call.
+   * methods chained onto the call. Those are split into the pre-modifiers
+   * and the post-modifiers, each kept in chain order, as `@pvl/schema` adds
+   * them to its two arrays.
+   *
+   * ```ts
+   * Schema.readOptions(<pvl.string().min(3).optional()>, args)
+   * // { …, preModifierCalls: [optional()], postModifierCalls: [min(3)] }
+   * ```
    */
   protected static readOptions(link: CallChainLink, args: ReadFactoryArgs): SchemaOptions {
     const { module, expression } = args;
-    return { module, expression, calls: args.readCalls(), line: link.call.getStartLineNumber() };
+    const calls = args.readCalls();
+    return {
+      module,
+      expression,
+      line: link.call.getStartLineNumber(),
+      preModifierCalls: calls.filter((call) => PRE_MODIFIER_NAMES.has(call.name)),
+      postModifierCalls: calls.filter((call) => !PRE_MODIFIER_NAMES.has(call.name)),
+    };
   }
 
   /**
@@ -325,8 +342,11 @@ export abstract class Schema {
       ];
     }
     return [
-      ...this.calls.flatMap(
+      ...this.preModifierCalls.flatMap(
         (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call, isRoot) ?? [],
+      ),
+      ...this.postModifierCalls.flatMap(
+        (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call, false) ?? [],
       ),
       ...this.findChildren().flatMap((child) => child.findUncompilableNestedDiagnostics(false)),
     ];
@@ -353,7 +373,7 @@ export abstract class Schema {
     args: ReadSchemaArgs,
     expression: Node = args.expression,
     followed?: FollowedConsts,
-    readOuterCalls: () => ReadonlyArray<SchemaMethodCall> = () => [],
+    readOuterCalls: () => ReadonlyArray<SchemaModifierCall> = () => [],
   ): Schema {
     const { factory, methods } = PvlAst.readCallChain(
       expression,
@@ -387,8 +407,8 @@ export abstract class Schema {
    */
   private static createCallsReader(
     methods: ReadonlyArray<CallChainLink>,
-    readOuterCalls: () => ReadonlyArray<SchemaMethodCall>,
-  ): () => ReadonlyArray<SchemaMethodCall> {
+    readOuterCalls: () => ReadonlyArray<SchemaModifierCall>,
+  ): () => ReadonlyArray<SchemaModifierCall> {
     return () => [
       ...methods.map(({ call, methodName, followed }) => ({
         name: methodName,
@@ -438,8 +458,8 @@ export abstract class Schema {
 
   /**
    * The diagnostic for a method chained onto it, if it can't be compiled:
-   * `emitter` has no method for it, a Modifier is chained onto the root
-   * (`isRoot`), or its arguments aren't literals.
+   * `emitter` has no method for it, it is a pre-modifier chained onto the
+   * root (`isRootPreModifier`), or its arguments aren't literals.
    *
    * ```ts
    * .min(3) on a string                  // undefined
@@ -450,15 +470,13 @@ export abstract class Schema {
    */
   private findUncompilableCallDiagnostic(
     emitter: typeof Emitter,
-    call: SchemaMethodCall,
-    isRoot: boolean,
+    call: SchemaModifierCall,
+    isRootPreModifier: boolean,
   ): Diagnostic | undefined {
-    const isRootModifier = isRoot && ChainableSchemaEmitter._isModifier(call.name);
-
-    if (emitter.findMethod(call.name) === undefined || isRootModifier) {
+    if (emitter.findMethod({ name: call.name }) === undefined || isRootPreModifier) {
       return new Diagnostic({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet${isRootModifier ? ' on the Schema pvl.compile() wraps' : ''}.`,
+        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet${isRootPreModifier ? ' on the Schema pvl.compile() wraps' : ''}.`,
         file: this.module.path.absolutePath,
       });
     }

@@ -1,47 +1,49 @@
 // The code a `BigintSchema` compiles to, one static method per method of
 // `BigintSchema` it mirrors.
-import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type IssueEditableProps } from '@pvl/schema';
+import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type BigintSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { emitIssue, emitLiteral, js, type EmitTarget, type EmittedCheck } from './utils.js';
+import type { EmitChecksArgs } from './emitter.js';
+import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emittersTypes.js';
+import { emitIssue, emitLiteral, js } from './utils.js';
 
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
-  public static override _checkType({ value, path }: EmitTarget): EmittedCheck {
+  public static override _getBaseCheck({
+    target: { value, issuePath },
+  }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
     return {
       failsWhen: js`typeof ${value} !== "bigint"`,
-      issue: emitIssue(ISSUE_CODE.INVALID_TYPE, BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(), path),
+      issue: emitIssue(
+        ISSUE_CODE.INVALID_TYPE,
+        BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
+        issuePath,
+      ),
     };
   }
 
   /** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
-  public static min(
-    { value, path }: EmitTarget,
-    minValue: bigint,
-    options?: IssueEditableProps,
-  ): EmittedCheck {
-    return {
-      failsWhen: js`${value} < ${emitLiteral(minValue)}`,
-      issue: emitIssue(
-        ISSUE_CODE.TOO_SMALL,
-        options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
-        path,
-      ),
-    };
-  }
+  public static readonly min: EmitterMethodOf<BigintSchema['min']> = ({
+    target: { value, issuePath },
+    args: [minValue, options],
+  }) => ({
+    failsWhen: js`${value} < ${emitLiteral(minValue)}`,
+    issue: emitIssue(
+      ISSUE_CODE.TOO_SMALL,
+      options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
+      issuePath,
+    ),
+  });
 
   /** `.max(9n)` → `field0 > 9n`, reporting `TOO_BIG`. */
-  public static max(
-    { value, path }: EmitTarget,
-    maxValue: bigint,
-    options?: IssueEditableProps,
-  ): EmittedCheck {
-    return {
-      failsWhen: js`${value} > ${emitLiteral(maxValue)}`,
-      issue: emitIssue(
-        ISSUE_CODE.TOO_BIG,
-        options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
-        path,
-      ),
-    };
-  }
+  public static readonly max: EmitterMethodOf<BigintSchema['max']> = ({
+    target: { value, issuePath },
+    args: [maxValue, options],
+  }) => ({
+    failsWhen: js`${value} > ${emitLiteral(maxValue)}`,
+    issue: emitIssue(
+      ISSUE_CODE.TOO_BIG,
+      options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
+      issuePath,
+    ),
+  });
 }

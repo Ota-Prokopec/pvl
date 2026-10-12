@@ -5,7 +5,7 @@ import { Barrel } from './barrel.js';
 import { DIAGNOSTIC_CODE } from './enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import type { Module } from './module.js';
-import type { Schema } from './schema.js';
+import type { Schema } from './schemas/schema.js';
 
 /** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
 export type ModuleCompilation = {

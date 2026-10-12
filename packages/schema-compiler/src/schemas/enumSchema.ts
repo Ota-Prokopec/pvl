@@ -7,7 +7,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from '../schema.js';
+import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** What an EnumSchema holds besides what every Schema does. */
 export type EnumSchemaOptions = SchemaOptions & {

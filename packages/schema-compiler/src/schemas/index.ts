@@ -1,6 +1,8 @@
 // Every Schema subclass, one per `pvl.*` factory, as `@pvl/schema` has one
 // class per Schema type. Loading this barrel registers each with `Schema`,
-// which `Schema.read` picks one from (ADR-0026).
+// which `Schema.read` picks one from (ADR-0026). `schema.ts`, the abstract
+// base, and `schemaTypes.ts`, its shared types, are left out: this barrel
+// only loads the subclasses, and callers import the base from `schema.ts`.
 export * from './arraySchema.js';
 export * from './bigintSchema.js';
 export * from './booleanSchema.js';

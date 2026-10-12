@@ -7,7 +7,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from '../schema.js';
+import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** What a LiteralSchema holds besides what every Schema does. */
 export type LiteralSchemaOptions = SchemaOptions & {

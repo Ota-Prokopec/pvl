@@ -11,7 +11,7 @@ import type { Destination } from './destination/destination.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
 import { Precheck, type ModuleCompilation } from './precheck.js';
-import { Schema } from './schema.js';
+import { Schema } from './schemas/schema.js';
 // Registers every Schema subclass, which `Schema.read` picks one from.
 import './schemas/index.js';
 import type { ScannedPath } from './scanner.js';

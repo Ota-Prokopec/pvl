@@ -3,7 +3,7 @@
 import type { CallChainLink } from '../ast/pvlAst.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from '../schema.js';
+import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** What an ArraySchema holds besides what every Schema does. */
 export type ArraySchemaOptions = SchemaOptions & {

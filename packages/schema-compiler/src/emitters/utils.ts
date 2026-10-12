@@ -19,20 +19,6 @@ import dedent from 'dedent';
  */
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
 
-/** What an emitted check reads: the value it checks and the Issue path it reports at, each as an expression. */
-export type EmitTarget = {
-  /** The checked value, as an expression: `value`, `field0`, `element`. */
-  value: string;
-  /** The `path` of an Issue reported for it, as an expression: `[...path, "name"]`. */
-  path: string;
-};
-
-/** One check: the condition it fails under, and the Issue literal it reports then. */
-export type EmittedCheck = {
-  failsWhen: string;
-  issue: string;
-};
-
 /** A Schema's `Input` and `Output` types, spelled as TypeScript. */
 export type SchemaTypes = {
   input: string;

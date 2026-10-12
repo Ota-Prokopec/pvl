@@ -3,7 +3,7 @@
 import type { CallChainLink } from '../ast/pvlAst.js';
 import { BooleanSchemaEmitter } from '../emitters/booleanSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs } from '../schema.js';
+import { Schema, type ReadFactoryArgs } from './schema.js';
 
 /**
  * A `pvl.boolean()` as read from source. It reads no argument, so any it is

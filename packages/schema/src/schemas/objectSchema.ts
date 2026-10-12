@@ -195,7 +195,7 @@ interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
  * ```
  */
 export class ObjectSchema<
-  Shape extends ObjectShape,
+  Shape extends ObjectShape = ObjectShape,
   Input = ObjectInput<Shape>,
   Output = ObjectOutput<Shape>,
 > extends ChainableSchema<Input, Output> {
