@@ -9,7 +9,7 @@ import {
 } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { CompositeFrame } from './compositeFrame.js';
+import type { EmitFrame } from './emitFrame.js';
 import type { EmitScope } from './emitScope.js';
 import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
 import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
@@ -31,17 +31,17 @@ const spellArrayType = (elementType: string): string => {
 
 export type EmitLoopArgs = {
   elementSchema: Schema;
-  /** The array looped over, as an expression. */
-  array: string;
-  frame: CompositeFrame;
+  /** The array's frame, whose value is looped over. */
+  frame: EmitFrame;
   scope: EmitScope;
 };
 /**
- * The loop over `array` checking every element at its index, each pushed
- * onto the output as it was read, or as its own checks rebuilt it.
+ * The loop over the array in `frame`, checking every element at its index,
+ * each pushed onto the output as it was read, or as its own checks rebuilt
+ * it.
  *
  * ```ts
- * emitLoop({ elementSchema: <pvl.string()>, array: 'value', frame: <frame at the root>, scope })
+ * emitLoop({ elementSchema: <pvl.string()>, frame: <frame of value, at the root>, scope })
  * // for (let index = 0; index < value.length; index++) {
  * //   const element: unknown = value[index];
  * //   if (typeof element !== "string") { … path: [...path, index] … }
@@ -49,13 +49,10 @@ export type EmitLoopArgs = {
  * // }
  * ```
  */
-const emitLoop = ({
-  elementSchema,
-  array,
-  frame: { index, element, output, path },
-  scope,
-}: EmitLoopArgs): string => {
+const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
   const { emitter } = elementSchema;
+  const { index, element, output, path } = frame;
+  const array = frame.target.value;
 
   return emitBlock({
     head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
@@ -125,10 +122,10 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * An array's checks once its type check has passed, at the root or nested
    * in another Schema: one loop with the element's checks inlined, then its
    * own Constraints in chain order, which run only once every element has
-   * passed, then the output, handed on.
+   * passed, then the output it builds, which the frame hands on.
    *
    * ```ts
-   * ArraySchemaEmitter._emitTypedChecks({ schema: <pvl.array(pvl.string()).min(1)>, target: { value: 'field0', issuePath: '[...path, "tags"]' }, scope, isRoot: false })
+   * ArraySchemaEmitter._emitTypedChecks({ schema: <pvl.array(pvl.string()).min(1)>, frame: <frame of field0 at [...path, "tags"], nested>, scope })
    * // const path1 = [...path, "tags"];
    * // const issueCount1 = issues.length;
    * // const output1: unknown[] = [];
@@ -140,41 +137,37 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * // if (issues.length === issueCount1) {
    * //   if (field0.length < 1) { … path: path1 … }
    * // }
-   * // field0 = output1;
    * ```
    */
   public static override _emitTypedChecks({
     schema,
-    target,
+    frame,
     scope,
-    isRoot,
   }: EmitTypedChecksArgs<ArraySchema>): string[] {
-    const frame = new CompositeFrame({ target, scope, isRoot });
     const constraintChecks = this.emitPostModifierChecks({
       schema,
-      target: { value: target.value, issuePath: frame.issuePath },
+      target: { value: frame.target.value, issuePath: frame.issuePath },
       scope,
     });
 
     return [
       ...frame.emitDeclarations({ readsPath: true, postModifierChecks: constraintChecks }),
       js`const ${frame.output}: unknown[] = [];`,
-      emitLoop({ elementSchema: schema.element, array: target.value, frame, scope }),
+      emitLoop({ elementSchema: schema.element, frame, scope }),
       ...frame.emitOnceChildrenPassed({ postModifierChecks: constraintChecks }),
-      frame.emitOutputHandoff(),
     ];
   }
 
   /**
-   * `let`: a nested array's value is replaced by the output its checks
-   * build.
+   * `true`: an array's checks build its output, element by element, in
+   * locals of their own (`output`, `index`, `element`; `output1`, … nested).
    *
    * ```ts
-   * ArraySchemaEmitter._spellValueDeclaration() // 'let'
+   * ArraySchemaEmitter._buildsOutput() // true
    * ```
    */
-  public static override _spellValueDeclaration(): 'const' | 'let' {
-    return 'let';
+  public static override _buildsOutput(): boolean {
+    return true;
   }
 
   /**

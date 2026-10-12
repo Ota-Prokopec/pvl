@@ -39,14 +39,6 @@ export class UnionSchema extends Schema {
   }
 
   /**
-   * `true`: `pvl.compile()` may wrap a union, so wrapping one reports
-   * UNSUPPORTED_SCHEMA, not COMPILE_ARGUMENT_NOT_COMPOSITE.
-   */
-  public override get isComposite(): boolean {
-    return true;
-  }
-
-  /**
    * The `pvl.union(members)` `link` calls, each member read through
    * `args.readNested`. Throws an UnresolvedNodeError when its members
    * are missing or aren't an array literal, or a member can't be read.

@@ -12,7 +12,7 @@ import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { CompositeFrame } from './compositeFrame.js';
+import type { EmitFrame } from './emitFrame.js';
 import type { EmitScope } from './emitScope.js';
 import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
 import type {
@@ -160,7 +160,7 @@ const emitFieldChecks = ({
   scope,
 }: {
   field: NamedField;
-  frame: CompositeFrame;
+  frame: EmitFrame;
   scope: EmitScope;
 }): string => {
   const { emitter } = fieldSchema;
@@ -274,13 +274,13 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * An object's checks once its type check has passed, at the root or nested
    * in another Schema: every field's checks inlined in shape order, then
    * `.strict()`'s, which run only once every field has passed, then the
-   * output built from the fields, handed on. The last of `.strict()` and
+   * output built from the fields, which the frame hands on. The last of `.strict()` and
    * `.passthrough()` chained decides the keys the shape doesn't declare:
    * `.passthrough()` copies them onto the output, and with neither they are
    * stripped (ADR-0007).
    *
    * ```ts
-   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, target: { value: 'field0', issuePath: '[...path, "user"]' }, scope, isRoot: false })
+   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope })
    * // const input1 = field0 as Record<string, unknown>;
    * // const path1 = [...path, "user"];
    * //
@@ -290,16 +290,13 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * //
    * // const output1: Record<string, unknown> = {};
    * // output1["name"] = field1;
-   * // field0 = output1;
    * ```
    */
   public static override _emitTypedChecks({
     schema,
-    target,
+    frame,
     scope,
-    isRoot,
   }: EmitTypedChecksArgs<ObjectSchema>): string[] {
-    const frame = new CompositeFrame({ target, scope, isRoot });
     const fields = nameFields(schema.shape, scope);
     const objectTarget: ObjectEmittingCheckMethodInput = {
       value: frame.input,
@@ -317,7 +314,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     const passthroughCopy = unknownKeysCall?.name === 'passthrough' ? unknownKeysStatements : [];
 
     return [
-      js`const ${frame.input} = ${target.value} as Record<string, unknown>;`,
+      js`const ${frame.input} = ${frame.target.value} as Record<string, unknown>;`,
       ...frame.emitDeclarations({
         readsPath: fields.length > 0 || strictChecks.length > 0,
         postModifierChecks: strictChecks,
@@ -328,20 +325,19 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       js`const ${frame.output}: Record<string, unknown> = {};`,
       ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
       ...passthroughCopy,
-      frame.emitOutputHandoff(),
     ];
   }
 
   /**
-   * `let`: a nested object's value is replaced by the output its checks
-   * build.
+   * `true`: an object's checks build its output, field by field, in locals
+   * of their own (`input`, `output`; `input1`, … nested).
    *
    * ```ts
-   * ObjectSchemaEmitter._spellValueDeclaration() // 'let'
+   * ObjectSchemaEmitter._buildsOutput() // true
    * ```
    */
-  public static override _spellValueDeclaration(): 'const' | 'let' {
-    return 'let';
+  public static override _buildsOutput(): boolean {
+    return true;
   }
 
   /**
