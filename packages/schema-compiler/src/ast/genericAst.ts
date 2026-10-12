@@ -270,7 +270,7 @@ export class GenericAst {
    * `readElement` like any element, which rejects it.
    *
    * ```ts
-   * GenericAst.readArray(<[pvl.string(), user]>, readSchema)  // [<string Schema>, <what `const user` holds>]
+   * GenericAst.readArray(<[pvl.string(), user]>, readNested)  // [<StringSchema>, <what `const user` holds>]
    * GenericAst.readArray(<MEMBERS>, readStaticValue)          // ['A', 'B'], with `const MEMBERS = ['A', 'B']`
    * GenericAst.readArray(<[]>, readStaticValue)               // []
    * GenericAst.readArray(<[...base]>, readStaticValue)        // throws UnresolvedNodeError(<...base>), from readStaticValue
@@ -333,7 +333,7 @@ export class GenericAst {
         continue;
       }
 
-      // `name: pvl.string()` is property assigment, pvl.string() is initialized
+      // `name: pvl.string()` is a property assignment, and `pvl.string()` its initializer.
       const initializer = Node.isPropertyAssignment(property)
         ? property.getInitializer()
         : undefined;

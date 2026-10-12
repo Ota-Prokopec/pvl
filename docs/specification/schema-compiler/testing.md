@@ -10,14 +10,14 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
 
 ## The two seams
 
-1. **The programmatic entry point, `runCompilation()`**, run against a fixture project. One seam, three assertion styles:
+1. **The programmatic entry point, `runCompilation()`**, run against a fixture project. One seam, five assertion styles:
    - the returned diagnostics, asserted by **code** (never by message wording), plus `written` and the file on disk, since nothing may be written once an error fired;
    - an inline snapshot of each emitted mirrored module, written by hand as the expected output, to catch unintended churn in generated output;
    - importing an emitted mirrored module and diffing its `validate()` against the source module it mirrors, which shows the mirror runs as its source did;
    - a differential test: import the generated output and diff its `validate()` against the source module it mirrors, whose `pvl.compile()` is the identity, under `fast-check`, comparing accepted values (key order included), Issue messages and Issue paths ([code-generation.md](./code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)). A new compiled feature adds a case to `DIFFERENTIAL_CASES`;
    - typechecking the generated output under strict TypeScript, asserting each Compiled Schema infers the same `Input` and `Output` as the Schema it compiles.
 
-   Examples: `tests/compile.test.ts` and `tests/compile-schemas.test.ts`.
+   Examples: `tests/compile.test.ts`, `tests/compile-schemas.test.ts` and `tests/read-schemas.test.ts` (how each factory's argument is read).
 
 2. **The CLI, `runCli()`**, kept deliberately thin: argv to settings and their precedence, exit codes, the `--json` output shape, and `--strict` promoting warnings. It runs in process with captured `stdout`/`stderr`, and reads results back through `--json`. It doesn't re-test what seam 1 already covers. Example: `tests/cli.test.ts`.
 

@@ -80,14 +80,14 @@ export class TsMorphProject {}
 - **Never annotate a variable with a function's payload type.** A `<Function>Payload` only restates the return type of the call it is assigned from, so the annotation checks nothing. Annotate a variable only with a broad type that describes the value itself, and otherwise let TypeScript infer it from the call.
 
 ```typescript
-// Wrong: the annotation is only writeDestination's own payload type.
-const writtenDestination: WriteDestinationPayload = await writeDestination(args);
-
-// Right: `Destination` is a broad type describing the value itself, which writeDestination returns.
-const writtenDestination: Destination = await writeDestination(args);
+// Wrong: the annotation is only resolveConfig's own payload type.
+const resolvedSettings: ResolveSettingsPayload = await ConfigResolver.resolveConfig(args);
 
 // Right: no broad type fits, so the payload type is inferred.
-const writtenDestination = await writeDestination(args);
+const resolvedSettings = await ConfigResolver.resolveConfig(args);
+
+// Right: `Destination` is a broad type describing the value itself, which resolveDestination returns.
+const destination: Destination = Destination.resolveDestination(baseDirectory, settings);
 ```
 
 - **Narrow with type guards and type predicates**, starting from `unknown` where a type is genuinely unknown, so the compiler checks the narrowing an assertion would only claim.

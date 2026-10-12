@@ -13,7 +13,7 @@ export type CliStream = {
 };
 
 export type RunCliOptions = {
-  /** working directory that pvl compile runs against*/
+  /** The working directory `pvl compile` runs in. */
   cwd: string;
   stdout: CliStream;
   stderr: CliStream;

@@ -43,7 +43,7 @@ export const DIAGNOSTIC_CODE = {
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
-  /** A `pvl.compile(...)` argument can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one. */
+  /** A `pvl.compile(...)` argument can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one, or an argument of a method chained in it isn't a literal. */
   COMPILE_ARGUMENT_UNRESOLVABLE: 'COMPILE_ARGUMENT_UNRESOLVABLE',
   /** A `pvl.compile(...)` argument, or an argument of a method chained in it, follows a `const` that refers back to itself, so reading it would never end. */
   COMPILE_ARGUMENT_CYCLE: 'COMPILE_ARGUMENT_CYCLE',
@@ -98,7 +98,7 @@ export const SEVERITY = {
  */
 export type Severity = ValueOfEnum<typeof SEVERITY>;
 
-/** Every `pvl.*` factory a compiled Schema can be built from, valued by its name on `pvl`. */
+/** Every `pvl.*` factory the compiler reads a Schema from, valued by its name on `pvl`. `union` is read but can't be compiled yet. */
 export const SCHEMA_FACTORY = {
   STRING: 'string',
   NUMBER: 'number',

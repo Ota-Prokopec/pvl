@@ -13,9 +13,9 @@ export const errorMessage = (error: unknown): string => {
  * caller can pass every optional value through whether or not it was given.
  *
  * ```ts
- * definedOnly({ destination: 'out', rootDir: undefined }) // { destination: 'out' }
- * definedOnly({ withTypes: false })                       // { withTypes: false }: only `undefined` is dropped
- * definedOnly({ include: undefined })                     // {}
+ * definedOnlyKeys({ destination: 'out', rootDir: undefined }) // { destination: 'out' }
+ * definedOnlyKeys({ withTypes: false })                       // { withTypes: false }: only `undefined` is dropped
+ * definedOnlyKeys({ include: undefined })                     // {}
  * ```
  */
 export const definedOnlyKeys = <T extends object>(

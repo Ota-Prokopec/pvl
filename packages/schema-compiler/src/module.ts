@@ -11,7 +11,9 @@ import type { Destination } from './destination/destination.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
 import { Precheck, type ModuleCompilation } from './precheck.js';
-import { Schema } from './schema.js';
+import { Schema } from './schemas/schema.js';
+// Registers every Schema subclass, which `Schema.read` picks one from.
+import './schemas/index.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';
@@ -131,7 +133,7 @@ export class Module {
    * Every error and warning the module raises on its own, found before its
    * source file is rewritten, with its compilation when it parses. A clash
    * with another module's exports (DUPLICATE_EXPORT) needs every module, so
-   * `Precheck.run` checks it.
+   * `Precheck.runforAllModules` checks it.
    *
    * A module with syntax errors gets PARSE_FAILED, and FILE_OUTSIDE_ROOT_DIR
    * when it applies, and has no compilation: the tree TypeScript recovers
@@ -142,9 +144,10 @@ export class Module {
    * - FILE_OUTSIDE_ROOT_DIR: the file isn't under the Root Directory.
    * - DEFAULT_EXPORT: the file has a default export.
    * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
-   * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_NOT_COMPOSITE,
-   *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
-   *   can't be compiled (see findMarkedToCompileSchemas).
+   * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_CYCLE,
+   *   COMPILE_ARGUMENT_NOT_COMPOSITE, COMPILE_RESULT_MODIFIED,
+   *   UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call can't be compiled (see
+   *   findMarkedToCompileSchemas).
    *
    * ```ts
    * // /repo/src/schemas/user.ts
@@ -231,8 +234,11 @@ export class Module {
    *   (`pvl.compile(user).optional()`).
    * - COMPILE_ARGUMENT_UNRESOLVABLE: the argument can't be read statically, as
    *   when it is imported, built by a function or spread.
-   * - COMPILE_ARGUMENT_NOT_COMPOSITE, UNSUPPORTED_SCHEMA: see
-   *   Schema.findUncompilableDiagnostics, one error per problem.
+   * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
+   *   to itself.
+   * - COMPILE_ARGUMENT_NOT_COMPOSITE, UNSUPPORTED_SCHEMA, and
+   *   COMPILE_ARGUMENT_UNRESOLVABLE for a method argument that isn't a
+   *   literal: see Schema.findUncompilableDiagnostics, one error per problem.
    *
    * ```ts
    * import { pvl } from '@pvl/schema';

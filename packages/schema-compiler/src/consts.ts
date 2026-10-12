@@ -1,13 +1,8 @@
 // Every constant the compiler shares: the config file and setting defaults,
-// each diagnostic code's severity, the Destination Directory's layout, and the
-// text every generated module shares.
-import {
-  SCHEMA_FACTORY,
-  SEVERITY,
-  type DiagnosticCode,
-  type SchemaFactory,
-  type Severity,
-} from './enums.js';
+// each diagnostic code's severity, the Destination Directory's layout, the
+// text every generated module shares, and which chained methods are
+// pre-modifiers.
+import { SEVERITY, type DiagnosticCode, type Severity } from './enums.js';
 
 /** The file name the compiler looks for in the working directory. */
 export const CONFIG_FILE_NAME = 'pvlconfig.json' as const;
@@ -93,9 +88,9 @@ export const COMPILED_SCHEMA_IMPORT =
 /** The Issue path of a check on a Compiled Schema's root value: `undefined` at the root, as `Issue` itself makes it. */
 export const ROOT_ISSUE_PATH = 'path.length > 0 ? path : undefined' as const;
 
-/** The factories of the Schemas `pvl.compile()` may wrap: an object, an array or a union. */
-export const COMPOSITE_FACTORIES: ReadonlySet<SchemaFactory> = new Set([
-  SCHEMA_FACTORY.OBJECT,
-  SCHEMA_FACTORY.ARRAY,
-  SCHEMA_FACTORY.UNION,
-]);
+/**
+ * The methods `@pvl/schema` adds as pre-modifiers, through
+ * `_withPreModifier`, which run before the type check; every other chained
+ * method is a post-modifier (ADR-0010).
+ */
+export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set(['optional', 'nullable', 'coerce']);
