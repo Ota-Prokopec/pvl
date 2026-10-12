@@ -147,14 +147,6 @@ export abstract class Schema {
   }
 
   /**
-   * Whether `pvl.compile()` may wrap it: an object, an array or a union. A
-   * union is one, though it can't be compiled yet.
-   */
-  public get isComposite(): boolean {
-    return false;
-  }
-
-  /**
    * The Schema `expression` holds, as the subclass of its factory, or an
    * error on its Module's file: COMPILE_ARGUMENT_UNRESOLVABLE naming the
    * first node that can't be read statically, or COMPILE_ARGUMENT_CYCLE
@@ -201,35 +193,40 @@ export abstract class Schema {
   }
 
   /**
-   * Its diagnostics as the Schema `pvl.compile()` wraps, one per problem,
-   * each on its Module's file; none means it is a Compilable Schema:
+   * Its diagnostics, and those of every Schema nested in it at any depth,
+   * one per problem, each on its Module's file; none means it is a
+   * Compilable Schema, at the root or nested alike:
    *
-   * - COMPILE_ARGUMENT_NOT_COMPOSITE: it is a primitive, a literal or an enum.
-   *   Reported alone, as nothing else of it is checked.
-   * - UNSUPPORTED_SCHEMA: it, or a Schema nested in it at any depth, uses
-   *   what isn't compiled yet: a union, `.coerce()`, `.refine()`,
-   *   `.transform()`, or `.optional()`/`.nullable()` on the Schema itself.
+   * - UNSUPPORTED_SCHEMA: a Schema with no Emitter (a union), or a method
+   *   its Emitter can't compile yet (`.coerce()`, `.refine()`,
+   *   `.transform()`).
    * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's arguments aren't
    *   literals.
    *
    * ```ts
    * <pvl.compile(pvl.object({ name: pvl.string().min(3) }))>.findUncompilableDiagnostics() // []
-   * <pvl.compile(pvl.string())>.findUncompilableDiagnostics()                             // [COMPILE_ARGUMENT_NOT_COMPOSITE]
+   * <pvl.compile(pvl.string().max(2).optional())>.findUncompilableDiagnostics()            // []
    * <pvl.compile(pvl.object({ ids: pvl.array(pvl.union([…])) }))>.findUncompilableDiagnostics() // [UNSUPPORTED_SCHEMA]
    * <pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)))>.findUncompilableDiagnostics()  // [UNSUPPORTED_SCHEMA]
    * ```
    */
   public findUncompilableDiagnostics(): Diagnostic[] {
-    if (!this.isComposite) {
+    const { subclassEmitter } = this;
+    if (subclassEmitter === undefined) {
       return [
         new Diagnostic({
-          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
-          message: `pvl.compile() wraps a \`pvl.${this.factory}()\` on line ${String(this.line)}, which isn't an object or an array. Compile the object or array holding it.`,
+          code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+          message: `The \`pvl.${this.factory}()\` on line ${String(this.line)} can't be compiled yet.`,
           file: this.module.path.absolutePath,
         }),
       ];
     }
-    return this.findUncompilableNestedDiagnostics(true);
+    return [
+      ...[...this.preModifierCalls, ...this.postModifierCalls].flatMap(
+        (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call) ?? [],
+      ),
+      ...this.findChildren().flatMap((child) => child.findUncompilableDiagnostics()),
+    ];
   }
 
   /**
@@ -314,42 +311,6 @@ export abstract class Schema {
       throw new UnresolvedNodeError(call);
     }
     return argument;
-  }
-
-  /**
-   * The diagnostics of it and every Schema nested in it, one per problem:
-   * a Schema with no Emitter, a method its Emitter can't compile, a
-   * pre-modifier (`.optional()`, `.nullable()`) chained onto the root
-   * (`isRoot`), and a compiled method's arguments that aren't literals.
-   *
-   * ```ts
-   * <pvl.string().min(3)>.findUncompilableNestedDiagnostics(false)                        // []
-   * <pvl.array(pvl.object({ a: pvl.string() }))>.findUncompilableNestedDiagnostics(false) // []
-   * <pvl.array(pvl.union([…]))>.findUncompilableNestedDiagnostics(false)                  // [UNSUPPORTED_SCHEMA]
-   * ```
-   */
-  protected findUncompilableNestedDiagnostics(isRoot: boolean): Diagnostic[] {
-    const { subclassEmitter } = this;
-    if (subclassEmitter === undefined) {
-      return [
-        new Diagnostic({
-          code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-          message: isRoot
-            ? `The \`pvl.${this.factory}()\` on line ${String(this.line)} can't be compiled yet.`
-            : `The \`pvl.${this.factory}()\` on line ${String(this.line)} is nested in a compiled Schema, which can't be compiled yet.`,
-          file: this.module.path.absolutePath,
-        }),
-      ];
-    }
-    return [
-      ...this.preModifierCalls.flatMap(
-        (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call, isRoot) ?? [],
-      ),
-      ...this.postModifierCalls.flatMap(
-        (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call, false) ?? [],
-      ),
-      ...this.findChildren().flatMap((child) => child.findUncompilableNestedDiagnostics(false)),
-    ];
   }
 
   /**
@@ -458,25 +419,23 @@ export abstract class Schema {
 
   /**
    * The diagnostic for a method chained onto it, if it can't be compiled:
-   * `emitter` has no method for it, it is a pre-modifier chained onto the
-   * root (`isRootPreModifier`), or its arguments aren't literals.
+   * `emitter` has no method for it, or its arguments aren't literals.
    *
    * ```ts
    * .min(3) on a string                  // undefined
+   * .optional() on the root object       // undefined
    * .refine(isOk) on a string            // UNSUPPORTED_SCHEMA
-   * .optional() on the root object       // UNSUPPORTED_SCHEMA
    * .min(MIN_FROM_IMPORT) on a string    // COMPILE_ARGUMENT_UNRESOLVABLE
    * ```
    */
   private findUncompilableCallDiagnostic(
     emitter: typeof Emitter,
     call: SchemaModifierCall,
-    isRootPreModifier: boolean,
   ): Diagnostic | undefined {
-    if (emitter.findEmittingMethod({ name: call.name }) === undefined || isRootPreModifier) {
+    if (emitter.findEmittingMethod({ name: call.name }) === undefined) {
       return new Diagnostic({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet${isRootPreModifier ? ' on the Schema pvl.compile() wraps' : ''}.`,
+        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet.`,
         file: this.module.path.absolutePath,
       });
     }

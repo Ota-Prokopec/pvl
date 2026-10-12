@@ -951,29 +951,37 @@ describe('runCompilation(): diagnostics', () => {
     );
   });
 
-  it('COMPILE_ARGUMENT_NOT_COMPOSITE: pvl.compile() wraps a primitive, a literal or an enum', async () => {
-    const path = 'src/schemas/compiled.ts';
+  it('UNSUPPORTED_SCHEMA: not raised for a primitive, a literal or an enum pvl.compile() wraps, nor for .optional()/.nullable() on the wrapped Schema', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
-      [path]: [
+      'src/schemas/compiled.ts': [
         "import { pvl } from '@pvl/schema';",
         '',
         'export const name = pvl.compile(pvl.string().min(1));',
         "export const kind = pvl.compile(pvl.literal('user'));",
         "export const role = pvl.compile(pvl.enum(['A', 'B']));",
+        'export const optionalRoot = pvl.compile(pvl.object({}).optional());',
+        'export const nullableRoot = pvl.compile(pvl.array(pvl.number()).nullable().optional());',
         '',
       ].join('\n'),
     });
 
     const payload = await runCompilation({ cwd: root });
 
-    expectFailure(
-      payload,
-      Array.from({ length: 3 }, () => ({
-        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_NOT_COMPOSITE,
-        file: join(root, path),
-      })),
-    );
+    expect(payload.diagnostics).toEqual([]);
+    expect(payload.written).toBe(true);
+    const mirrored = await readFixtureFile(root, '.pvl/schemas/compiled.ts');
+    for (const [index, exportName] of [
+      'name',
+      'kind',
+      'role',
+      'optionalRoot',
+      'nullableRoot',
+    ].entries()) {
+      expect(mirrored).toContain(
+        `export const ${exportName} = new PvlCompiledSchema${String(index)}();`,
+      );
+    }
   });
 
   it('COMPILE_RESULT_MODIFIED: a Modifier chained onto the result, but not validate()', async () => {
@@ -1011,7 +1019,6 @@ describe('runCompilation(): diagnostics', () => {
         'export const deepUnion = pvl.compile(pvl.object({ tags: pvl.array(pvl.object({ id: pvl.union([pvl.string()]), age: pvl.number().coerce() })) }));',
         'export const refined = pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)));',
         'export const coerced = pvl.compile(pvl.object({ age: pvl.number().coerce() }));',
-        'export const optionalRoot = pvl.compile(pvl.object({}).optional());',
         'export const transformed = pvl.compile(pvl.array(pvl.string()).transform((v) => v.length));',
         'export const union = pvl.compile(pvl.union([pvl.string(), pvl.number()]));',
         "export const twice = pvl.compile(pvl.object({ age: pvl.number().coerce(), name: pvl.string().refine((v) => v !== '') }));",
@@ -1024,7 +1031,7 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 10 }, () => ({
+      Array.from({ length: 9 }, () => ({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         file: join(root, path),
       })),

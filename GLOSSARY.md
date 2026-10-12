@@ -61,7 +61,7 @@ A Schema passed to `pvl.compile(...)` in a Module, as the compiler reads it from
 _Avoid_: Compiled Schema (for the Schema before it is compiled).
 
 **Compilable Schema**:
-A Marked-to-Compile Schema the compiler can turn into a Compiled Schema: an object or an array whose own methods, and every Schema nested in it at any depth, are all ones an Emitter compiles, with literal arguments. Today that is an object or array of primitives, literals, enums and nested objects and arrays, with their Constraints, `.strict()`/`.passthrough()` and, below the root, `.optional()`/`.nullable()`. One that isn't gets a Diagnostic per problem, and nothing is written. In code, `Schema.findUncompilableDiagnostics` decides it: none means compilable. See [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
+A Marked-to-Compile Schema the compiler can turn into a Compiled Schema: any Schema, primitive or composite, whose own methods, and every Schema nested in it at any depth, are all ones an Emitter compiles, with literal arguments. Today that is a primitive, a literal, an enum, or an object or array of them and of nested objects and arrays, with their Constraints, `.strict()`/`.passthrough()` and `.optional()`/`.nullable()`, on the wrapped Schema itself as on any nested one. One that isn't gets a Diagnostic per problem, and nothing is written. In code, `Schema.findUncompilableDiagnostics` decides it: none means compilable. See [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
 _Avoid_: Supported Schema, valid Schema.
 
 **Compiled Schema**:

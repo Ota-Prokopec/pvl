@@ -35,11 +35,6 @@ export class ArraySchema extends Schema {
     this.element = element;
   }
 
-  /** `true`: `pvl.compile()` may wrap an array. */
-  public override get isComposite(): boolean {
-    return true;
-  }
-
   /**
    * The `pvl.array(element)` `link` calls, its element read through
    * `args.readNested`. Throws an UnresolvedNodeError when its element is
