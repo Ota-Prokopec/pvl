@@ -3,14 +3,13 @@
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
-import { emitIssue, emitLiteral, js } from './emitterUtils.js';
+import type { EmitterMethodOf, Check } from './emitterTypes.js';
+import { emitIssue } from '../issue.js';
+import { emitLiteral, js } from './emitterUtils.js';
 
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
-  public static override _emitBaseCheck({
-    target: { value, issuePath },
-  }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
+  public static override _emitBaseCheck({ target: { value, issuePath } }: EmitChecksArgs): Check {
     return {
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
       issue: emitIssue(

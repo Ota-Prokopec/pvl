@@ -15,12 +15,14 @@ import type {
   EmitTypedChecksArgs,
   EmitTypedChecksOutput,
 } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
-import { emitIssue, js } from './emitterUtils.js';
-import { Frame } from './frame.js';
+import type { Check, EmitterMethodOf } from './emitterTypes.js';
+import { emitIssue } from '../issue.js';
+import { js } from './emitterUtils.js';
+import { Frame, type FrameOutput } from './frame.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { EmittedVariableDeclaration } from '../types.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union.
@@ -54,10 +56,15 @@ export type EmitLoopArgs = {
  * // }
  * ```
  */
-const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
+const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): FrameOutput => {
   const { emitter } = elementSchema;
-  const { index, element, output, path } = frame;
-  const array = frame.target.value;
+  const {
+    indexVariableName: index,
+    elementVariableName: element,
+    outputVariableName: output,
+    pathVariableName: path,
+  } = frame;
+  const array = frame.checkingTarget.value;
 
   return Frame.composeBlock({
     head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
@@ -70,14 +77,12 @@ const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
       }),
       js`${output}.push(${element});`,
     ].join('\n'),
-  });
+  }) as FrameOutput;
 };
 
 export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
-  public static override _emitBaseCheck({
-    target: { value, issuePath },
-  }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
+  public static override _emitBaseCheck({ target: { value, issuePath } }: EmitChecksArgs): Check {
     return {
       failsWhen: js`!Array.isArray(${value})`,
       issue: emitIssue(ISSUE_CODE.INVALID_TYPE, ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(), issuePath),
@@ -148,7 +153,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }: EmitTypedChecksArgs<ArraySchema>): EmitTypedChecksOutput {
     const constraintChecks = this.emitPostModifierChecks({
       schema,
-      target: { value: frame.target.value, issuePath: frame.issuePath },
+      target: { value: frame.checkingTarget.value, issuePath: frame.issuePath },
       scope,
     });
 
@@ -160,7 +165,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
           readsPath: true,
           postModifierChecks: constraintChecks,
         }),
-        js`const ${frame.output}: unknown[] = [];`,
+        js`const ${frame.outputVariableName}: unknown[] = [];` as EmittedVariableDeclaration,
       ],
       childChecks: [emitLoop({ elementSchema: schema.element, frame, scope })],
       postModifierChecks: constraintChecks,
@@ -168,14 +173,15 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /**
-   * `true`: an array's checks build its output, element by element, in
-   * locals of their own (`output`, `index`, `element`; `output1`, … nested).
+   * `true`: an array holds its element's Schema, and its checks build its
+   * output, element by element, in locals of their own (`output`, `index`,
+   * `element`; `output1`, … nested).
    *
    * ```ts
-   * ArraySchemaEmitter._buildsOutput() // true
+   * ArraySchemaEmitter._isComposite() // true
    * ```
    */
-  public static override _buildsOutput(): boolean {
+  public static override _isComposite(): boolean {
     return true;
   }
 

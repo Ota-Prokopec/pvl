@@ -3,8 +3,9 @@
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
-import { emitIssue, js } from './emitterUtils.js';
+import type { EmitterMethodOf, Check } from './emitterTypes.js';
+import { emitIssue } from '../issue.js';
+import { js } from './emitterUtils.js';
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
   /**
@@ -13,9 +14,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
    * // { failsWhen: 'typeof field0 !== "string"', issue: '{ code: "INVALID_TYPE", … }' }
    * ```
    */
-  public static override _emitBaseCheck({
-    target: { value, issuePath },
-  }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
+  public static override _emitBaseCheck({ target: { value, issuePath } }: EmitChecksArgs): Check {
     return {
       failsWhen: js`typeof ${value} !== "string"`,
       issue: emitIssue(

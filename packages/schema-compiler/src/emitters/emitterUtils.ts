@@ -1,17 +1,15 @@
 // What every emitter shares: the `js` tag its templates are written with,
-// how a check is written, the JavaScript fragments a `Frame` places around
-// a Schema's checks, and how an Issue, a value and a literal's type are
-// spelled in the emitted code. A fragment of a fixed shape, whose slots each
+// how a check is written, the return of a checked value a `Frame` places
+// after a Schema's checks, and how a value and a literal's type are spelled
+// in the emitted code (an Issue's are in `../issue.ts`). A fragment of a fixed shape, whose slots each
 // hold a one-line expression, is written in a `js` template, as `js` would
 // misindent a multi-line one; a block wrapping any statements is
 // `Frame.composeBlock`'s, which keeps this module from importing the Frame
 // that imports it.
-import { Issue, type IssueCode, type PossibleLiteralValue } from '@pvl/schema';
+import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type {
-  EmittingCheckMethodOutput,
-  EmittingCheckMethodOutputWithCheck,
-} from './emitterTypes.js';
+import type { EmittedCheck } from '../types.js';
+import type { Check } from './emitterTypes.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text
@@ -37,86 +35,27 @@ export const js = dedent.withOptions({ escapeSpecialCharacters: false });
  * emitCheck('for (const key of …) { … }')           // 'for (const key of …) { … }'
  * ```
  */
-export const emitCheck = (check: EmittingCheckMethodOutput): string => {
-  return typeof check === 'string'
-    ? check
-    : js`if (${check.failsWhen}) {
-        issues.push(${check.issue});
-      }`;
-};
-
-/**
- * The statement returning the Issues collected so far, if there are any.
- *
- * ```ts
- * emitReturnIssuesIfAny() // 'if (issues.length > 0) {\n  return { issues };\n}'
- * ```
- */
-export const emitReturnIssuesIfAny = (): string => {
-  return js`if (issues.length > 0) {
-    return { issues };
-  }`;
-};
-
-/**
- * `check` returning its Issue when it fails: the root's base check, after
- * which nothing else can be checked.
- *
- * ```ts
- * emitReturnIssueIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
- * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
- * ```
- */
-export const emitReturnIssueIfFails = ({
-  failsWhen,
-  issue,
-}: EmittingCheckMethodOutputWithCheck): string => {
-  return js`if (${failsWhen}) {
-    issues.push(${issue});
-    return { issues };
-  }`;
+export const emitCheck = (check: Check | string): EmittedCheck => {
+  return (
+    typeof check === 'string'
+      ? check
+      : js`if (${check.failsWhen}) {
+          issues.push(${check.issue});
+        }`
+  ) as EmittedCheck;
 };
 
 /**
  * The statement returning `value` from `_checkType` as the value it
- * checked: the Result's `value` property, written in shorthand when the
- * expression is the identifier of the same name, `_checkType`'s own `value`.
+ * checked: the Result's `value` property.
  *
  * ```ts
- * emitReturnValue('value')  // 'return { value };'
+ * emitReturnValue('value')  // 'return { value: value };'
  * emitReturnValue('output') // 'return { value: output };'
  * ```
  */
 export const emitReturnValue = (value: string): string => {
-  return value === 'value' ? 'return { value };' : js`return { value: ${value} };`;
-};
-
-/**
- * The condition under which no Issue was added since `issueCount`, the
- * local holding the count of Issues taken before a nested composite's
- * children: every child passed.
- *
- * ```ts
- * emitNoNewIssuesCondition('issueCount1') // 'issues.length === issueCount1'
- * ```
- */
-export const emitNoNewIssuesCondition = (issueCount: string): string => {
-  return js`issues.length === ${issueCount}`;
-};
-
-/**
- * An Issue as a plain object literal, importing nothing. The message goes
- * through `@pvl/schema`'s own `Issue`, so an empty custom message falls back
- * to its default exactly as the interpreted path's does.
- *
- * ```ts
- * emitIssue('TOO_SMALL', 'too short', '[...path, "name"]')
- * // '{ code: "TOO_SMALL", message: "too short", path: [...path, "name"] }'
- * ```
- */
-export const emitIssue = (code: IssueCode, message: string, path: string): string => {
-  const issueMessage = new Issue(code, [], message).message;
-  return js`{ code: ${JSON.stringify(code)}, message: ${JSON.stringify(issueMessage)}, path: ${path} }`;
+  return js`return { value: ${value} };`;
 };
 
 /**

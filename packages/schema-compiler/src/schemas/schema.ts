@@ -341,6 +341,7 @@ export abstract class Schema {
       args.pvlImportLocalNames,
       followed,
     );
+
     const readCalls = Schema.createCallsReader(methods, readOuterCalls);
     const [argument] = factory.call.getArguments();
     if (factory.methodName === 'compile' && argument !== undefined) {

@@ -10,41 +10,65 @@
 // chained method to the emitter method of its name. A subclass adds the
 // methods mirroring its schema's and overrides the `_` hooks.
 import type { StaticValue } from '../ast/genericAst.js';
-import { ROOT_ISSUE_PATH } from '../consts.js';
+import { EMITTED_ROOT_ISSUE_PATH } from '../consts.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
+import type { EmittedCheck, EmittedVariableDeclaration } from '../types.js';
 import type {
-  EmittingCheckMethodInput,
-  EmittingCheckMethodOutput,
-  EmittingCheckMethodOutputWithCheck,
+  Check,
+  CheckingTarget,
+  EmitterMethodOutput,
+  ShortCircuitCondition,
 } from './emitterTypes.js';
 import { emitCheck, emitReturnValue, js } from './emitterUtils.js';
-import { Frame, type FrameCompiledSchema } from './frame.js';
+import { Frame, type FrameCompiledSchemaParams, type FrameOutput } from './frame.js';
 import { Scope } from './scope.js';
 
 /** An emitter method mirroring a Schema method, as found by name: what it writes is checked once it is called. */
 type EmittingMethod = (input: {
-  target: EmittingCheckMethodInput;
+  target: CheckingTarget;
   args: ReadonlyArray<StaticValue>;
 }) => unknown;
 
 // What a Compiled Schema's `_checkType` checks: its `value` parameter, whose
 // Issues are reported at its `path` parameter, or at none when it is empty,
 // as `Frame.composeSchema` names them.
-const ROOT_TARGET: EmittingCheckMethodInput = { value: 'value', issuePath: ROOT_ISSUE_PATH };
+const ROOT_TARGET: CheckingTarget = {
+  value: 'value',
+  issuePath: EMITTED_ROOT_ISSUE_PATH,
+};
 
 /**
- * Whether an emitter method wrote a check or source text, as each must.
+ * Whether an emitter method wrote a pre-modifier's short-circuit condition.
  *
  * ```ts
- * isEmittingCheckMethodOutput({ failsWhen: 'x < 3', issue: '{ … }' }) // true
- * isEmittingCheckMethodOutput('x !== undefined')                       // true
- * isEmittingCheckMethodOutput(undefined)                               // false
+ * isShortCircuitCondition({ shortCircuitsWhen: 'x === undefined' }) // true
+ * isShortCircuitCondition({ failsWhen: 'x < 3', issue: '{ … }' })   // false
  * ```
  */
-const isEmittingCheckMethodOutput = (emitted: unknown): emitted is EmittingCheckMethodOutput => {
+const isShortCircuitCondition = (emitted: unknown): emitted is ShortCircuitCondition => {
+  return (
+    typeof emitted === 'object' &&
+    emitted !== null &&
+    typeof Reflect.get(emitted, 'shortCircuitsWhen') === 'string'
+  );
+};
+
+/**
+ * Whether an emitter method wrote a check, a short-circuit condition or
+ * source text, as each must.
+ *
+ * ```ts
+ * isEmitterMethodOutput({ failsWhen: 'x < 3', issue: '{ … }' })     // true
+ * isEmitterMethodOutput({ shortCircuitsWhen: 'x === undefined' }) // true
+ * isEmitterMethodOutput('for (const key of …) { … }')              // true
+ * isEmitterMethodOutput(undefined)                                 // false
+ * ```
+ */
+const isEmitterMethodOutput = (emitted: unknown): emitted is EmitterMethodOutput => {
   return (
     typeof emitted === 'string' ||
+    isShortCircuitCondition(emitted) ||
     (typeof emitted === 'object' &&
       emitted !== null &&
       typeof Reflect.get(emitted, 'failsWhen') === 'string' &&
@@ -59,7 +83,7 @@ export type EmitSchemaArgs<TSchema extends Schema = Schema> = {
 
 /** What a hook emits checks for: a Schema at the target it checks, numbering its locals from `scope`. */
 export type EmitChecksArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSchema> & {
-  target: EmittingCheckMethodInput;
+  target: CheckingTarget;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
 };
@@ -82,11 +106,11 @@ export type EmitTypedChecksArgs<TSchema extends Schema = Schema> = Omit<
  */
 export type EmitTypedChecksOutput = {
   /** Locals the other parts read: the frame's own first (`Emitter.emitDeclarations`), then the Emitter's. */
-  declarations?: ReadonlyArray<string>;
-  /** A composite's children's checks, inlined in order. */
-  childChecks?: ReadonlyArray<string>;
+  declarations?: ReadonlyArray<EmittedVariableDeclaration>;
+  /** A composite's children's checks, each holding its own frame's output, inlined in order. */
+  childChecks?: ReadonlyArray<FrameOutput>;
   /** Its post-modifiers' checks, in chain order, which the frame gates. */
-  postModifierChecks: ReadonlyArray<string>;
+  postModifierChecks: ReadonlyArray<EmittedCheck>;
   /** What builds a composite's output, before the frame's handoff of it. */
   outputStatements?: ReadonlyArray<string>;
 };
@@ -98,7 +122,7 @@ export type EmitDeclarationsArgs = {
   /** Whether its checks read its path, to report at it or extend it. */
   readsPath: boolean;
   /** Its post-modifiers' checks, which, when there are any, run behind the count of Issues before its children. */
-  postModifierChecks: ReadonlyArray<string>;
+  postModifierChecks: ReadonlyArray<EmittedCheck>;
 };
 
 /** What {@link Emitter.emitOutputHandoff} hands a Schema's checked value on from. */
@@ -107,15 +131,15 @@ export type EmitOutputHandoffArgs = {
   isRoot: boolean;
 };
 
-/** What {@link Emitter.emitBody} writes one Schema's checks for: a Schema at its target, inlined into a parent, or the body of `compiledSchema`'s `_checkType`. */
+/** What {@link Emitter.emitBody} writes one Schema's checks for: a Schema at its target, inlined into a parent, or the body of the `_checkType` of the Compiled Schema `compiledSchemaParams` describe. */
 export type EmitBodyArgs = EmitChecksArgs & {
-  compiledSchema?: FrameCompiledSchema;
+  compiledSchemaParams?: FrameCompiledSchemaParams;
 };
 
 /** What a chained method is emitted for: the call, at the target it checks. */
 export type EmitCallArgs = {
   call: SchemaModifierCall;
-  target: EmittingCheckMethodInput;
+  target: CheckingTarget;
 };
 
 /** What {@link Emitter.emitCompiledSchema} writes a class for. */
@@ -150,7 +174,7 @@ export abstract class Emitter {
    * // { failsWhen: 'typeof field0 !== "string"', issue: '{ code: "INVALID_TYPE", … }' }
    * ```
    */
-  public static _emitBaseCheck({ target }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
+  public static _emitBaseCheck({ target }: EmitChecksArgs): Check {
     throw new Error(`${this.name} has no base check to emit for \`${target.value}\`.`);
   }
 
@@ -173,51 +197,60 @@ export abstract class Emitter {
     scope,
   }: EmitTypedChecksArgs): EmitTypedChecksOutput {
     return {
-      postModifierChecks: this.emitPostModifierChecks({ schema, target: frame.target, scope }),
+      postModifierChecks: this.emitPostModifierChecks({
+        schema,
+        target: frame.checkingTarget,
+        scope,
+      }),
     };
   }
 
   /**
-   * The conditions of `schema.preModifierCalls` at `target`, in chain order,
-   * which the rest of its checks run under, as a value a pre-modifier
-   * accepts skips them. An emitter whose schema adds pre-modifiers of its
-   * own overrides it. Throws when one writes a check instead, which is a
-   * bug in an emitter, never a user error.
+   * The short-circuit conditions of `schema.preModifierCalls` at `target`,
+   * in chain order: a value any one of them holds for is one a pre-modifier
+   * accepts, which skips the rest of its checks. An emitter whose schema
+   * adds pre-modifiers of its own overrides it. Throws when one writes
+   * anything else, which is a bug in an emitter, never a user error.
    *
    * ```ts
    * StringSchemaEmitter._emitPreModifierConditions({ schema: <pvl.string().nullable().optional()>, target: { value: 'field0', issuePath }, scope })
-   * // ['field0 !== null', 'field0 !== undefined']
+   * // [{ shortCircuitsWhen: 'field0 === null' }, { shortCircuitsWhen: 'field0 === undefined' }]
    * ```
    */
-  public static _emitPreModifierConditions({ schema, target }: EmitChecksArgs): string[] {
+  public static _emitPreModifierConditions({
+    schema,
+    target,
+  }: EmitChecksArgs): ShortCircuitCondition[] {
     return schema.preModifierCalls.map((call) => {
       const condition = this.emitCall({ call, target });
-      if (typeof condition !== 'string') {
-        throw new Error(`${this.name} wrote a check for .${call.name}(), not a condition.`);
+      if (!isShortCircuitCondition(condition)) {
+        throw new Error(
+          `${this.name} wrote no short-circuit condition for .${call.name}(), which is a pre-modifier.`,
+        );
       }
       return condition;
     });
   }
 
   /**
-   * Whether a Schema's checks build an output that replaces its value, as
-   * only a composite's do. Its frame then declares locals for it, numbered
-   * when nested, and hands the output on in place of the value. `false`
-   * here; a composite's emitter overrides it.
+   * Whether a Schema is a composite, one holding other Schemas (an object's
+   * fields, an array's element). Its checks then build an output that
+   * replaces its value, its frame declares locals for it, numbered when
+   * nested, and hands the output on in place of the value. `false` here; a
+   * composite's emitter overrides it.
    *
    * ```ts
-   * StringSchemaEmitter._buildsOutput() // false
-   * ObjectSchemaEmitter._buildsOutput() // true
+   * StringSchemaEmitter._isComposite() // false
+   * ObjectSchemaEmitter._isComposite() // true
    * ```
    */
-  public static _buildsOutput(): boolean {
+  public static _isComposite(): boolean {
     return false;
   }
 
   /**
-   * How a field's or an element's value is declared: `const`, unless its
-   * checks build an output, as a composite's do, which its frame puts back
-   * on it.
+   * How a field's or an element's value is declared: `const`, unless it is
+   * a composite, whose checks build an output its frame puts back on it.
    *
    * ```ts
    * StringSchemaEmitter._spellValueDeclaration() // 'const'
@@ -225,7 +258,7 @@ export abstract class Emitter {
    * ```
    */
   public static _spellValueDeclaration(): 'const' | 'let' {
-    return this._buildsOutput() ? 'let' : 'const';
+    return this._isComposite() ? 'let' : 'const';
   }
 
   /**
@@ -266,8 +299,8 @@ export abstract class Emitter {
    * // }
    * ```
    */
-  public static emitSchemaChecks({ schema, target, scope }: EmitChecksArgs): string {
-    return this.emitBody({ schema, target, scope }).composeChecks().statements.join('\n');
+  public static emitSchemaChecks({ schema, target, scope }: EmitChecksArgs): FrameOutput {
+    return this.emitBody({ schema, target, scope }).composeChecks();
   }
 
   /**
@@ -290,14 +323,18 @@ export abstract class Emitter {
    * // }
    * ```
    */
-  public static emitCompiledSchema({ schema, className, line }: EmitCompiledSchemaArgs): string {
+  public static emitCompiledSchema({
+    schema,
+    className,
+    line,
+  }: EmitCompiledSchemaArgs): FrameOutput {
     const types = this._spellTypes({ schema });
     return this.emitBody({
       schema,
       target: ROOT_TARGET,
       scope: new Scope(),
-      compiledSchema: { className, line, types },
-    }).composeSchema().schema;
+      compiledSchemaParams: { className, line, types },
+    }).composeSchema();
   }
 
   /**
@@ -329,22 +366,44 @@ export abstract class Emitter {
 
   /**
    * What `call` compiles to, written by this emitter's method of its name:
-   * a check such as `.min(3)`'s, or source text such as `.strict()`'s loop.
-   * Only called on a Schema `Schema.findUncompilableDiagnostics` found
-   * nothing in, so the method and its arguments are there. Throws when the
-   * method writes neither, which is a bug in an emitter, never a user error.
+   * a check such as `.min(3)`'s, a short-circuit condition such as
+   * `.optional()`'s, or source text such as `.strict()`'s loop. Only called
+   * on a Schema `Schema.findUncompilableDiagnostics` found nothing in, so
+   * the method and its arguments are there. Throws when the method writes
+   * none of them, which is a bug in an emitter, never a user error.
    */
-  protected static emitCall({ call, target }: EmitCallArgs): EmittingCheckMethodOutput {
+  protected static emitCall({ call, target }: EmitCallArgs): EmitterMethodOutput {
     const emittingMethod = this.findEmittingMethod({ name: call.name });
     const emitted = emittingMethod?.({
       target,
       args: call.args ?? [],
     });
 
-    if (!isEmittingCheckMethodOutput(emitted)) {
+    if (!isEmitterMethodOutput(emitted)) {
       throw new Error(`${this.name} wrote no check for .${call.name}().`);
     }
     return emitted;
+  }
+
+  /**
+   * What the post-modifier `call` compiles to at `target`, as a statement: a
+   * check, or source text such as `.strict()`'s loop. Throws when it writes
+   * a short-circuit condition instead, which is a bug in an emitter, never
+   * a user error.
+   *
+   * ```ts
+   * StringSchemaEmitter.emitPostModifierCheck({ call: <.min(3)>, target: { value: 'field0', issuePath } })
+   * // 'if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}'
+   * ```
+   */
+  protected static emitPostModifierCheck({ call, target }: EmitCallArgs): EmittedCheck {
+    const check = this.emitCall({ call, target });
+    if (isShortCircuitCondition(check)) {
+      throw new Error(
+        `${this.name} wrote a short-circuit condition for .${call.name}(), which is a post-modifier.`,
+      );
+    }
+    return emitCheck(check);
   }
 
   /**
@@ -356,8 +415,8 @@ export abstract class Emitter {
    * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}']
    * ```
    */
-  protected static emitPostModifierChecks({ schema, target }: EmitChecksArgs): string[] {
-    return schema.postModifierCalls.map((call) => emitCheck(this.emitCall({ call, target })));
+  protected static emitPostModifierChecks({ schema, target }: EmitChecksArgs): EmittedCheck[] {
+    return schema.postModifierCalls.map((call) => this.emitPostModifierCheck({ call, target }));
   }
 
   /**
@@ -378,14 +437,18 @@ export abstract class Emitter {
     isRoot,
     readsPath,
     postModifierChecks,
-  }: EmitDeclarationsArgs): string[] {
+  }: EmitDeclarationsArgs): EmittedVariableDeclaration[] {
     if (isRoot) {
       return [];
     }
     return [
-      ...(readsPath ? [js`const ${frame.path} = ${frame.target.issuePath};`] : []),
-      ...(postModifierChecks.length > 0 ? [js`const ${frame.issueCount} = issues.length;`] : []),
-    ];
+      ...(readsPath
+        ? [js`const ${frame.pathVariableName} = ${frame.checkingTarget.issuePath};`]
+        : []),
+      ...(postModifierChecks.length > 0
+        ? [js`const ${frame.issueCountVariableName} = issues.length;`]
+        : []),
+    ] as EmittedVariableDeclaration[];
   }
 
   /**
@@ -396,52 +459,55 @@ export abstract class Emitter {
    *
    * ```ts
    * ObjectSchemaEmitter.emitOutputHandoff({ frame: <frame of value, at the root>, isRoot: true })  // ['return { value: output };']
-   * StringSchemaEmitter.emitOutputHandoff({ frame: <frame of value, at the root>, isRoot: true })  // ['return { value };']
+   * StringSchemaEmitter.emitOutputHandoff({ frame: <frame of value, at the root>, isRoot: true })  // ['return { value: value };']
    * ObjectSchemaEmitter.emitOutputHandoff({ frame: <frame of field0, nested>, isRoot: false })     // ['field0 = output1;']
    * StringSchemaEmitter.emitOutputHandoff({ frame: <frame of field1, nested>, isRoot: false })     // []
    * ```
    */
   private static emitOutputHandoff({ frame, isRoot }: EmitOutputHandoffArgs): string[] {
-    const buildsOutput = this._buildsOutput();
+    const isComposite = this._isComposite();
     if (isRoot) {
-      return [emitReturnValue(buildsOutput ? frame.output : frame.target.value)];
+      return [emitReturnValue(isComposite ? frame.outputVariableName : frame.checkingTarget.value)];
     }
-    return buildsOutput ? [js`${frame.target.value} = ${frame.output};`] : [];
+    return isComposite ? [js`${frame.checkingTarget.value} = ${frame.outputVariableName};`] : [];
   }
 
   /**
    * The frame of one Schema at `target`, with every part of its checks set
    * on it, ready to compose: inlined where a parent reads its value, or, with
-   * `compiledSchema`, the body of that Compiled Schema's `_checkType`. Each
+   * `compiledSchemaParams`, the body of that Compiled Schema's `_checkType`. Each
    * hook emits its parts, and the frame places them (see
    * `Frame.composeChecks`). The frame is created first, so a composite
    * numbers its locals before any Schema nested in it.
    *
    * ```ts
    * StringSchemaEmitter.emitBody({ schema: <pvl.string().max(2)>, target: { value: 'field0', issuePath }, scope }).composeChecks()
-   * // { statements: ['if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length > 2) { … }\n}'] }
+   * // 'if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length > 2) { … }\n}'
    * ```
    */
-  private static emitBody({ schema, target, scope, compiledSchema }: EmitBodyArgs): Frame {
-    const isRoot = compiledSchema !== undefined;
-    const frame = new Frame({ target, scope, buildsOutput: this._buildsOutput(), compiledSchema });
+  private static emitBody({ schema, target, scope, compiledSchemaParams }: EmitBodyArgs): Frame {
+    const isRoot = compiledSchemaParams !== undefined;
+    const frame = new Frame({
+      target,
+      scope,
+      isComposite: this._isComposite(),
+      compiledSchemaParams,
+    });
 
-    frame.setBaseCheck({ baseCheck: this._emitBaseCheck({ schema, target, scope }) });
+    frame.setBaseCheck(this._emitBaseCheck({ schema, target, scope }));
     const {
       declarations = [],
       childChecks = [],
       postModifierChecks,
       outputStatements = [],
     } = this._emitTypedChecks({ schema, frame, scope, isRoot });
-    frame.addDeclarations({ declarations });
-    frame.addChildChecks({ childChecks });
-    frame.addPostModifierChecks({ postModifierChecks });
+    frame.addDeclarations(...declarations);
+    frame.addChildSchemaFrameOutputs(...childChecks);
+    frame.addPostModifierChecks(...postModifierChecks);
     frame.addOutputStatements({
       outputStatements: [...outputStatements, ...this.emitOutputHandoff({ frame, isRoot })],
     });
-    frame.addPreModifierConditions({
-      preModifierConditions: this._emitPreModifierConditions({ schema, target, scope }),
-    });
+    frame.addShortCircuitConditions(...this._emitPreModifierConditions({ schema, target, scope }));
     return frame;
   }
 }

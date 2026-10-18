@@ -8,24 +8,22 @@
 // run. The root's Frame also writes the Compiled Schema's class. A Frame
 // writes no check of its own, only the JavaScript fragments it places
 // (`emitterUtils.ts`), and names the locals a composite's parts declare.
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type {
-  EmittingCheckMethodInput,
-  EmittingCheckMethodOutputWithCheck,
-} from './emitterTypes.js';
 import {
-  emitCheck,
   emitNoNewIssuesCondition,
-  emitReturnIssueIfFails,
   emitReturnIssuesIfAny,
-  emitReturnValue,
-} from './emitterUtils.js';
+  emitReturnIssuesIfFails,
+} from '../issue.js';
+import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { EmittedCheck, EmittedVariableDeclaration } from '../types.js';
+import type { Check, CheckingTarget, ShortCircuitCondition } from './emitterTypes.js';
+import { emitCheck, emitReturnValue } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 
-const INDENT = '  ' as const;
+/** What a Frame composes: a Schema's checks as statements, or the Compiled Schema's class. */
+export type FrameOutput = string & { readonly __brand: 'frameOutput' };
 
 /** The Compiled Schema a root Frame writes the class of. */
-export type FrameCompiledSchema = {
+export type FrameCompiledSchemaParams = {
   className: string;
   /** The line of the `pvl.compile()` call, named in the class's comment. */
   line: number;
@@ -33,56 +31,20 @@ export type FrameCompiledSchema = {
   types: SchemaTypes;
 };
 
-/** What a Frame is created for. */
-export type FrameOptions = {
+export type FrameConstructorArgs = {
   /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on. */
-  target: EmittingCheckMethodInput;
+  target: CheckingTarget;
   /** Numbers a nested Schema's locals. */
   scope: Scope;
-  /** Whether its checks build an output that replaces its value, as only a composite's do, declaring locals for it. */
-  buildsOutput: boolean;
+  /** Whether it is a composite, holding other Schemas, whose checks build an output that replaces its value, declaring locals for it. */
+  isComposite: boolean;
   /** The Compiled Schema whose `_checkType` its checks are the body of, which makes it the root; `undefined` nested. */
-  compiledSchema?: FrameCompiledSchema;
-};
-
-/** What {@link Frame.setBaseCheck} sets: the Schema's base check, the type check. */
-export type FrameSetBaseCheckArgs = {
-  baseCheck: EmittingCheckMethodOutputWithCheck;
-};
-
-/** What {@link Frame.addPreModifierConditions} adds: conditions the rest of the checks run under, in chain order. */
-export type FrameAddPreModifierConditionsArgs = {
-  preModifierConditions: ReadonlyArray<string>;
-};
-
-/** What {@link Frame.addDeclarations} adds: locals the other parts read, declared once the base check has passed. */
-export type FrameAddDeclarationsArgs = {
-  declarations: ReadonlyArray<string>;
-};
-
-/** What {@link Frame.addChildChecks} adds: a composite's children's checks, each inlined as its own Frame composed it. */
-export type FrameAddChildChecksArgs = {
-  childChecks: ReadonlyArray<string>;
-};
-
-/** What {@link Frame.addPostModifierChecks} adds: post-modifiers' checks, in chain order. */
-export type FrameAddPostModifierChecksArgs = {
-  postModifierChecks: ReadonlyArray<string>;
+  compiledSchemaParams?: FrameCompiledSchemaParams;
 };
 
 /** What {@link Frame.addOutputStatements} adds: statements building the output and handing it on. */
 export type FrameAddOutputStatementsArgs = {
   outputStatements: ReadonlyArray<string>;
-};
-
-/** What {@link Frame.composeChecks} returns: the Schema's checks, as statements. */
-export type FrameComposeChecksOutput = {
-  statements: string[];
-};
-
-/** What {@link Frame.composeSchema} returns: the Compiled Schema's class declaration. */
-export type FrameComposeSchemaOutput = {
-  schema: string;
 };
 
 /** What {@link Frame.composeBlock} wraps: the statements of `body`, under `head`. */
@@ -105,117 +67,124 @@ export type FrameComposeBlockArgs = {
  * bug in an emitter, never a user error.
  *
  * ```ts
- * new Frame({ target: { value: 'value', issuePath: ROOT_ISSUE_PATH }, scope, buildsOutput: true, compiledSchema })
- * // { input: 'input', output: 'output', path: 'path', issuePath: ROOT_ISSUE_PATH, … }
- * new Frame({ target: { value: 'field0', issuePath: '[...path, "user"]' }, scope, buildsOutput: true })
- * // { input: 'input1', output: 'output1', path: 'path1', issuePath: 'path1', … }
- * new Frame({ target: { value: 'field1', issuePath: '[...path, "name"]' }, scope, buildsOutput: false })
- * // { issuePath: '[...path, "name"]', … }: `scope` numbers nothing, and `.input` throws
+ * new Frame({ target: { value: 'value', issuePath: EMITTED_ROOT_ISSUE_PATH }, scope, isComposite: true, compiledSchemaParams })
+ * // { inputVariableName: 'input', outputVariableName: 'output', pathVariableName: 'path', issuePath: EMITTED_ROOT_ISSUE_PATH, … }
+ * new Frame({ target: { value: 'field0', issuePath: '[...path, "user"]' }, scope, isComposite: true })
+ * // { inputVariableName: 'input1', outputVariableName: 'output1', pathVariableName: 'path1', issuePath: 'path1', … }
+ * new Frame({ target: { value: 'field1', issuePath: '[...path, "name"]' }, scope, isComposite: false })
+ * // { issuePath: '[...path, "name"]', … }: `scope` numbers nothing, and `.inputVariableName` throws
  * ```
  */
 export class Frame {
   /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on. */
-  public readonly target: EmittingCheckMethodInput;
-  /** The Issue path of an Issue about the Schema itself: `ROOT_ISSUE_PATH` at the root, `path1`, … for a nested composite. */
+  public readonly checkingTarget: CheckingTarget;
+  /** The Issue path of an Issue about the Schema itself: `EMITTED_ROOT_ISSUE_PATH` at the root, `path1`, … for a nested composite. */
   public readonly issuePath: string;
 
-  private readonly buildsOutput: boolean;
-  private readonly compiledSchema: FrameCompiledSchema | undefined;
+  private readonly isComposite: boolean;
+
+  private readonly compiledSchemaParams?: FrameCompiledSchemaParams;
+
   // What a composite's locals end in: '' at the root, '1', '2', … nested;
-  // `undefined` for a Schema that builds no output, so has none.
+  // `undefined` for a Schema that isn't a composite, so has none.
   private readonly localSuffix: string | undefined;
 
-  private baseCheck: EmittingCheckMethodOutputWithCheck | undefined;
-  private readonly preModifierConditions: string[] = [];
-  private readonly declarations: string[] = [];
-  private readonly childChecks: string[] = [];
-  private readonly postModifierChecks: string[] = [];
+  private readonly shortCircuitConditions: ShortCircuitCondition[] = [];
+  private baseCheck?: Check;
+  private readonly postModifierChecks: EmittedCheck[] = [];
+
+  private readonly variableDeclarations: EmittedVariableDeclaration[] = [];
+  private readonly childSchemaFrameOutputs: FrameOutput[] = [];
   private readonly outputStatements: string[] = [];
 
-  /** A frame for the Schema at `target`, numbering its locals from `scope` when it is nested and builds an output. */
-  public constructor({ target, scope, buildsOutput, compiledSchema }: FrameOptions) {
-    this.target = target;
-    this.buildsOutput = buildsOutput;
-    this.compiledSchema = compiledSchema;
-    this.localSuffix = !buildsOutput ? undefined : this.isRoot ? '' : scope.nextLocalSuffix();
-    this.issuePath = buildsOutput && !this.isRoot ? this.path : target.issuePath;
+  /** A frame for the Schema at `target`, numbering its locals from `scope` when it is a nested composite. */
+  public constructor({ target, scope, isComposite, compiledSchemaParams }: FrameConstructorArgs) {
+    this.checkingTarget = target;
+    this.isComposite = isComposite;
+    this.compiledSchemaParams = compiledSchemaParams;
+    this.localSuffix = !isComposite ? undefined : this.isRoot ? '' : scope.nextLocalSuffix();
+    this.issuePath = isComposite && !this.isRoot ? this.pathVariableName : target.issuePath;
   }
 
-  /** An object's value, read as a record: `input`, `input1`, … */
-  public get input(): string {
+  /** A local original input variable - scoped across frames, same suffix in one frame (using Scope class) - `input`, `input1`, … */
+  public get inputVariableName(): string {
     return this.nameLocal('input');
   }
 
-  /** The output a composite's checks build: `output`, `output1`, … */
-  public get output(): string {
+  /** A local original output variable - scoped across frames, same suffix in one frame (using Scope class) - `output`, `output1`, … */
+  public get outputVariableName(): string {
     return this.nameLocal('output');
   }
 
-  /** An array's loop index: `index`, `index1`, … */
-  public get index(): string {
+  /** A local original array index variable - scoped across frames, same suffix in one frame (using Scope class) - `index`, `index1`, … */
+  public get indexVariableName(): string {
     return this.nameLocal('index');
   }
 
-  /** An array's element: `element`, `element1`, … */
-  public get element(): string {
+  /** A local original array element (for element's schema) - scoped across frames, same suffix in one frame (using Scope class) - `element`, `element1`, … */
+  public get elementVariableName(): string {
     return this.nameLocal('element');
   }
 
-  /** The path a composite's children's Issue paths extend: `_checkType`'s `path` at the root, `path1`, … nested. */
-  public get path(): string {
+  /** A local original path variable - scoped across frames, same suffix in one frame (using Scope class) - `path`, `path1`, … */
+  public get pathVariableName(): string {
     return this.nameLocal('path');
   }
 
-  /** The count of Issues before a nested composite's children, which is unchanged once they have all passed: `issueCount1`, … */
-  public get issueCount(): string {
+  /** A local original issueCount variable - scoped across frames, same suffix in one frame (using Scope class) - `issueCount`, `issueCount1`, … */
+  public get issueCountVariableName(): string {
     return this.nameLocal('issueCount');
   }
 
-  /** Whether it is the Schema `pvl.compile()` wraps, composed as `_checkType`'s body: whether it has a `compiledSchema`. */
+  /**
+   * Whether it is a root schema.
+   * Root schema: the Schema wrapped in `pvl.compile()`.
+   **/
   private get isRoot(): boolean {
-    return this.compiledSchema !== undefined;
+    return this.compiledSchemaParams !== undefined;
   }
 
   /**
-   * `head`, then the statements of `body` one level deeper, blank lines left
-   * blank, in a block.
+   * Composes (assembles) a block (from `head` and `body`)
    *
    * ```ts
-   * Frame.composeBlock({ head: 'if (ok)', body: 'run();\n\nstop();' }) // 'if (ok) {\n  run();\n\n  stop();\n}'
+   * Frame.composeBlock({ head: 'if (ok)', body: 'run();\n\nstop();' })
+   * // 'if (ok) {
+   * //   run();
+   * //   stop();
+   * // }'
    * ```
    */
   public static composeBlock({ head, body }: FrameComposeBlockArgs): string {
-    const indentedBody = body
+    const prettifiedBody = body
       .split('\n')
-      .map((line) => (line === '' ? line : `${INDENT}${line}`))
+      .map((line) => (line === '' ? line : `${'  '}${line}`))
       .join('\n');
-    return `${head} {\n${indentedBody}\n}`;
+    return `${head} {\n${prettifiedBody}\n}`;
   }
 
   /** Sets the Schema's base check, the type check, over any set before. */
-  public setBaseCheck({ baseCheck }: FrameSetBaseCheckArgs): void {
+  public setBaseCheck(baseCheck: Check): void {
     this.baseCheck = baseCheck;
   }
 
-  /** Adds conditions the rest of the checks run under, as a value a pre-modifier accepts skips them. */
-  public addPreModifierConditions({
-    preModifierConditions,
-  }: FrameAddPreModifierConditionsArgs): void {
-    this.preModifierConditions.push(...preModifierConditions);
+  /** Adds a short circuit condition. */
+  public addShortCircuitConditions(...shortCircuitCondition: ShortCircuitCondition[]): void {
+    this.shortCircuitConditions.push(...shortCircuitCondition);
   }
 
-  /** Adds locals the other parts read, declared first once the base check has passed. */
-  public addDeclarations({ declarations }: FrameAddDeclarationsArgs): void {
-    this.declarations.push(...declarations);
+  /** Adds local variable declarations. */
+  public addDeclarations(...variableDeclarations: EmittedVariableDeclaration[]): void {
+    this.variableDeclarations.push(...variableDeclarations);
   }
 
-  /** Adds a composite's children's checks, which run after its declarations. */
-  public addChildChecks({ childChecks }: FrameAddChildChecksArgs): void {
-    this.childChecks.push(...childChecks);
+  /** Adds a composite's children's checks (as frame's output/string). */
+  public addChildSchemaFrameOutputs(...outputs: FrameOutput[]): void {
+    this.childSchemaFrameOutputs.push(...outputs);
   }
 
   /** Adds post-modifiers' checks, which run once the base check has passed, and every child has. */
-  public addPostModifierChecks({ postModifierChecks }: FrameAddPostModifierChecksArgs): void {
+  public addPostModifierChecks(...postModifierChecks: EmittedCheck[]): void {
     this.postModifierChecks.push(...postModifierChecks);
   }
 
@@ -239,47 +208,57 @@ export class Frame {
    * an emitter, never a user error.
    *
    * ```ts
-   * <frame of value, at the root, preModifierConditions: ['value !== undefined'], baseCheck: <typeof value !== "string">, outputStatements: ['return { value };']>.composeChecks()
-   * // { statements: ['if (value !== undefined) {\n  if (typeof value !== "string") { … return { issues }; }\n  return { value };\n}', 'return { value };'] }
+   * <frame of value, at the root, shortCircuitConditions: [{ shortCircuitsWhen: 'value === undefined' }], baseCheck: <typeof value !== "string">, outputStatements: ['return { value: value };']>.composeChecks()
+   * // 'if (!((value === undefined))) {\n  if (typeof value !== "string") { … return { issues }; }\n  return { value: value };\n}\nreturn { value: value };'
    * <frame of field0, nested, baseCheck: <typeof field0 !== "string">, postModifierChecks: ['if (field0.length < 3) { … }']>.composeChecks()
-   * // { statements: ['if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length < 3) { … }\n}'] }
+   * // 'if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length < 3) { … }\n}'
    * ```
    */
-  public composeChecks(): FrameComposeChecksOutput {
-    const { baseCheck } = this;
+  public composeChecks(): FrameOutput {
+    const baseCheck = this.baseCheck;
     if (baseCheck === undefined) {
-      throw new Error(`The frame of \`${this.target.value}\` has no base check to compose.`);
+      throw new Error(
+        `The frame of \`${this.checkingTarget.value}\` has no base check to compose.`,
+      );
     }
-    const checkedStatements = [
-      ...this.declarations,
-      ...this.childChecks,
+
+    const statements = [
+      ...this.variableDeclarations,
+      ...this.childSchemaFrameOutputs,
       ...this.composePostModifierChecks(),
       ...this.outputStatements,
     ];
-    const checks = this.isRoot
-      ? [emitReturnIssueIfFails(baseCheck), ...checkedStatements]
-      : [
-          checkedStatements.length === 0
-            ? emitCheck(baseCheck)
-            : Frame.composeBlock({
-                head: `${emitCheck(baseCheck)} else`,
-                body: checkedStatements.join('\n'),
-              }),
-        ];
 
-    if (this.preModifierConditions.length === 0) {
-      return { statements: checks };
+    const checks = (
+      this.isRoot
+        ? [emitReturnIssuesIfFails(baseCheck), ...statements]
+        : [
+            statements.length === 0
+              ? emitCheck(baseCheck)
+              : Frame.composeBlock({
+                  head: `${emitCheck(baseCheck)} else`,
+                  body: statements.join('\n'),
+                }),
+          ]
+    ).join('\n');
+
+    if (this.shortCircuitConditions.length === 0) {
+      return checks as FrameOutput;
     }
-    return {
-      statements: [
-        Frame.composeBlock({
-          head: `if (${this.preModifierConditions.join(' && ')})`,
-          body: checks.join('\n'),
-        }),
-        // `_checkType`'s own `value`, which a pre-modifier accepted.
-        ...(this.isRoot ? [emitReturnValue(this.target.value)] : []),
-      ],
-    };
+
+    // Any one condition holding skips every check, so they run only when none does.
+    const shortCircuits = this.shortCircuitConditions
+      .map(({ shortCircuitsWhen }) => `(${shortCircuitsWhen})`)
+      .join(' || ');
+
+    return [
+      Frame.composeBlock({
+        head: `if (!(${shortCircuits}))`,
+        body: checks,
+      }),
+      // The short-circuit return value - then `outputStatements` already include its return statement, but this return statement is especially for short-circuit if walkaround
+      ...(this.isRoot ? [emitReturnValue(this.checkingTarget.value)] : []),
+    ].join('\n') as FrameOutput;
   }
 
   /**
@@ -290,8 +269,7 @@ export class Frame {
    * emitter, never a user error.
    *
    * ```ts
-   * <frame of value, at the root, compiledSchema: { className: 'PvlCompiledSchema0', line: 3, types: { input: '{ name: string }', … } }>.composeSchema()
-   * // { schema: <the class, as below> }
+   * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', line: 3, types: { input: '{ name: string }', … } }>.composeSchema()
    * // // pvl.compile() on line 3
    * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
    * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
@@ -301,32 +279,32 @@ export class Frame {
    * // }
    * ```
    */
-  public composeSchema(): FrameComposeSchemaOutput {
-    const { compiledSchema } = this;
-    if (compiledSchema === undefined) {
+  public composeSchema(): FrameOutput {
+    const compiledSchemaParams = this.compiledSchemaParams;
+    if (compiledSchemaParams === undefined) {
       throw new Error(
-        `The frame of \`${this.target.value}\` is nested, so it has no class to compose.`,
+        `The frame of \`${this.checkingTarget.value}\` is nested, so it has no class to compose.`,
       );
     }
+
     const {
       className,
       line,
       types: { input, output },
-    } = compiledSchema;
-    const { statements } = this.composeChecks();
+    } = compiledSchemaParams;
 
-    return {
-      schema: [
-        `// pvl.compile() on line ${String(line)}`,
-        Frame.composeBlock({
-          head: `class ${className} extends PvlSchema<${input}, ${output}>`,
-          body: Frame.composeBlock({
-            head: 'override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown>',
-            body: ['const issues: PvlIssue[] = [];', ...statements].join('\n'),
-          }),
+    const statements = this.composeChecks();
+
+    return [
+      `// pvl.compile() on line ${String(line)}`,
+      Frame.composeBlock({
+        head: `class ${className} extends PvlSchema<${input}, ${output}>`,
+        body: Frame.composeBlock({
+          head: 'override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown>',
+          body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
         }),
-      ].join('\n'),
-    };
+      }),
+    ].join('\n') as FrameOutput;
   }
 
   /**
@@ -360,42 +338,48 @@ export class Frame {
    * ```
    */
   private composePostModifierChecks(): string[] {
-    const { postModifierChecks } = this;
+    const postModifierChecks = this.postModifierChecks;
+
     if (this.isRoot) {
-      if (this.buildsOutput) {
+      if (this.isComposite) {
         return postModifierChecks.length === 0
-          ? [emitReturnIssuesIfAny()]
+          ? [emitReturnIssuesIfAny()] // return { issues } if there are any issues from the nested schemas (e.g. when looping over array of items the issues are accumulating)
           : [emitReturnIssuesIfAny(), ...postModifierChecks, emitReturnIssuesIfAny()];
       }
       return postModifierChecks.length === 0
-        ? []
+        ? [] // there are no elements to report issues, so there is no need for `emitReturnIssuesIfAny()`
         : [...postModifierChecks, emitReturnIssuesIfAny()];
     }
-    if (this.buildsOutput && postModifierChecks.length > 0) {
+
+    // Is not a root schema
+    if (this.isComposite && postModifierChecks.length > 0) {
       return [
         Frame.composeBlock({
-          head: `if (${emitNoNewIssuesCondition(this.issueCount)})`,
+          head: `if (${emitNoNewIssuesCondition(this.issueCountVariableName)})`,
           body: postModifierChecks.join('\n'),
         }),
       ];
     }
-    return [...postModifierChecks];
+    return postModifierChecks;
   }
 
   /**
    * The name of a composite's local `name`, with the suffix that keeps it
-   * apart from its parent's. Throws for a Schema that builds no output,
+   * apart from its parent's. Throws for a Schema that isn't a composite,
    * which has no locals.
    *
    * ```ts
-   * <frame of field0, nested, building an output>.nameLocal('input') // 'input1'
-   * <frame of field1, nested, building none>.nameLocal('input')       // throws
+   * <frame of field0, nested composite>.nameLocal('input') // 'input1'
+   * <frame of field1, nested leaf>.nameLocal('input')      // throws
    * ```
    */
   private nameLocal(name: string): string {
     if (this.localSuffix === undefined) {
-      throw new Error(`\`${this.target.value}\` builds no output, so it has no \`${name}\` local.`);
+      throw new Error(
+        `\`${this.checkingTarget.value}\` isn't a composite, so it has no \`${name}\` local.`,
+      );
     }
+
     return `${name}${this.localSuffix}`;
   }
 }
