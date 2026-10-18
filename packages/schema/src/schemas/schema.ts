@@ -207,6 +207,7 @@ export abstract class Schema<Input = unknown, Output = Input> {
   // post-modifier, so once a `.transform()` is attached its value is not
   // `Output` at all.
   abstract _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<unknown>;
+  //TODO: Rename `_checkType` to `_baseCheck`
 
   /**
    * The `.coerce()` conversion for this schema type. The base is identity —

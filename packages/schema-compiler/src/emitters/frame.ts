@@ -9,15 +9,20 @@
 // is source text, and a Frame writes no check of its own, only the
 // JavaScript fragments it places (`emitterUtils.ts`, `../issue.ts`), and
 // names the locals a composite's parts declare.
-import { emitNoNewIssuesCondition, emitReturnIssues, emitReturnIssuesIfAny } from '../issue.js';
+import {
+  emitNoNewIssuesCondition,
+  emitReturnIssues,
+  emitReturnIssuesIfAny,
+  emitRootIssuePath,
+} from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
+  CheckingTarget,
   EmittedCheck,
   EmittedOutputStatement,
   EmittedShortCircuitCondition,
   EmittedVariableDeclaration,
-} from '../types.js';
-import type { CheckingTarget } from './emitterTypes.js';
+} from './emittersTypes.js';
 import { emitReturnValue } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 
@@ -30,15 +35,38 @@ export type FrameCompiledSchemaParams = {
   types: SchemaTypes;
 };
 
-export type FrameConstructorArgs = {
-  /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on. */
-  target: CheckingTarget;
+/** Where a Schema's checks are composed: nested, at the target its parent hands on, or at the root, as the body of a Compiled Schema's `_checkType`, which checks its own parameters. */
+export type FramePosition =
+  | {
+      // Not root schema
+      /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on. */
+      target: CheckingTarget;
+      compiledSchemaParams?: undefined;
+    }
+  | {
+      // Root schema
+      target?: undefined;
+      /** The Compiled Schema whose `_checkType` its checks are the body of, which makes it the root. */
+      compiledSchemaParams: FrameCompiledSchemaParams;
+    };
+
+export type FrameConstructorArgs = FramePosition & {
   /** Numbers a nested Schema's locals. */
   scope: Scope;
   /** Whether it is a composite, holding other Schemas, whose checks build an output that replaces its value, declaring locals for it. */
   isComposite: boolean;
-  /** The Compiled Schema whose `_checkType` its checks are the body of, which makes it the root; `undefined` nested. */
-  compiledSchemaParams?: FrameCompiledSchemaParams;
+};
+
+// The names of a Compiled Schema's `_checkType` parameters, which a root
+// frame checks: the value, and the path its Issues are reported at.
+const CHECK_TYPE_VALUE_PARAMETER_NAME = 'value' as const;
+const CHECK_TYPE_PATH_PARAMETER_NAME = 'path' as const;
+
+// What a root frame checks: `_checkType`'s value, whose Issues are reported
+// at its path, or at none when it is empty.
+const ROOT_CHECKING_TARGET: CheckingTarget = {
+  value: CHECK_TYPE_VALUE_PARAMETER_NAME,
+  issuePath: emitRootIssuePath(CHECK_TYPE_PATH_PARAMETER_NAME),
 };
 
 /**
@@ -46,17 +74,18 @@ export type FrameConstructorArgs = {
  * on before composing them. Only the base check is required, and a second
  * `setBaseCheck` overwrites it; every `add…` part defaults to none, and
  * appends. It also names the locals a composite's parts declare for the
- * output they build. At the root, its value and path are `_checkType`'s own
- * `value` and `path`, and its locals plain (`input`, `output`). Nested, a
- * composite numbers its locals (`input1`, `output1`), so they never clash
+ * output they build. At the root, it builds its own target, checking
+ * `_checkType`'s own `value` at its `path`, and its locals are plain
+ * (`input`, `output`). Nested, a composite numbers its locals (`input1`,
+ * `output1`), so they never clash
  * with its parent's, and keeps its Issue path in one (`path1`), so its
  * children's paths stay as short at any depth. A Schema that builds no
  * output takes no number and has no locals: reading one throws, which is a
  * bug in an emitter, never a user error.
  *
  * ```ts
- * new Frame({ target: { value: 'value', issuePath: EMITTED_ROOT_ISSUE_PATH }, scope, isComposite: true, compiledSchemaParams })
- * // { inputVariableName: 'input', outputVariableName: 'output', pathVariableName: 'path', issuePath: EMITTED_ROOT_ISSUE_PATH, … }
+ * new Frame({ scope, isComposite: true, compiledSchemaParams })
+ * // { checkingTarget: { value: 'value', issuePath: 'path.length > 0 ? path : undefined' }, inputVariableName: 'input', outputVariableName: 'output', pathVariableName: 'path', … }
  * new Frame({ target: { value: 'field0', issuePath: '[...path, "user"]' }, scope, isComposite: true })
  * // { inputVariableName: 'input1', outputVariableName: 'output1', pathVariableName: 'path1', issuePath: 'path1', … }
  * new Frame({ target: { value: 'field1', issuePath: '[...path, "name"]' }, scope, isComposite: false })
@@ -64,9 +93,9 @@ export type FrameConstructorArgs = {
  * ```
  */
 export class Frame {
-  /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on. */
+  /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on, or `_checkType`'s own at the root. */
   public readonly checkingTarget: CheckingTarget;
-  /** The Issue path of an Issue about the Schema itself: `EMITTED_ROOT_ISSUE_PATH` at the root, `path1`, … for a nested composite. */
+  /** The Issue path of an Issue about the Schema itself: `path.length > 0 ? path : undefined` at the root, `path1`, … for a nested composite. */
   public readonly issuePath: string;
 
   private readonly isComposite: boolean;
@@ -85,13 +114,14 @@ export class Frame {
   private readonly childChecks: string[] = [];
   private readonly outputStatements: EmittedOutputStatement[] = [];
 
-  /** A frame for the Schema at `target`, numbering its locals from `scope` when it is a nested composite. */
+  /** A frame for the Schema at `target`, or at `_checkType`'s parameters at the root, numbering its locals from `scope` when it is a nested composite. */
   public constructor({ target, scope, isComposite, compiledSchemaParams }: FrameConstructorArgs) {
-    this.checkingTarget = target;
+    this.checkingTarget = target ?? ROOT_CHECKING_TARGET;
     this.isComposite = isComposite;
     this.compiledSchemaParams = compiledSchemaParams;
     this.localSuffix = !isComposite ? undefined : this.isRoot ? '' : scope.nextLocalSuffix();
-    this.issuePath = isComposite && !this.isRoot ? this.pathVariableName : target.issuePath;
+    this.issuePath =
+      isComposite && !this.isRoot ? this.pathVariableName : this.checkingTarget.issuePath;
   }
 
   /** A local original input variable - scoped across frames, same suffix in one frame (using Scope class) - `input`, `input1`, … */
@@ -290,7 +320,7 @@ export class Frame {
       Frame.composeBlock({
         head: `class ${className} extends PvlSchema<${input}, ${output}>`,
         body: Frame.composeBlock({
-          head: 'override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown>',
+          head: `override _checkType(${CHECK_TYPE_VALUE_PARAMETER_NAME}: unknown, ${CHECK_TYPE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>): PvlResult<unknown>`,
           body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
         }),
       }),

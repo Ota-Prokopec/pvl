@@ -5,19 +5,19 @@
 import {
   ARRAY_SCHEMA_ISSUE_MESSAGE,
   ISSUE_CODE,
+  Issue,
   type ArraySchema as PvlArraySchema,
 } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { AddCompositePartsArgs, EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emitterTypes.js';
+import type { AddCompositePartsArgs, EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
 import { emitCheck, js } from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { EmittedCheck, EmittedVariableDeclaration } from '../types.js';
+import type { EmittedCheck, EmittedVariableDeclaration, EmitterMethodOf } from './emittersTypes.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union.
@@ -79,10 +79,12 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittedCheck {
+  }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`!Array.isArray(${value})`,
-      issue: emitIssue(ISSUE_CODE.INVALID_TYPE, ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(), issuePath),
+      issue: emitIssue(
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], ARRAY_SCHEMA_ISSUE_MESSAGE._checkType()),
+      ),
     });
   }
 
@@ -94,9 +96,11 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length < ${minLength}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_SMALL,
-        options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.min(minLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_SMALL,
+          [issuePath],
+          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.min(minLength),
+        ),
       ),
     });
 
@@ -108,9 +112,11 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length > ${maxLength}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_BIG,
-        options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.max(maxLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_BIG,
+          [issuePath],
+          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.max(maxLength),
+        ),
       ),
     });
 
@@ -122,9 +128,11 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length !== ${exactLength}`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_LENGTH,
-        options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.length(exactLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.INVALID_LENGTH,
+          [issuePath],
+          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.length(exactLength),
+        ),
       ),
     });
 
@@ -179,7 +187,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    */
   public static override _spellFactoryTypes({
     schema: { element },
-  }: EmitSchemaArgs<ArraySchema>): SchemaTypes {
+  }: SpellFactoryTypesArgs<ArraySchema>): SchemaTypes {
     const { input, output } = element.emitter._spellTypes({ schema: element });
     return { input: spellArrayType(input), output: spellArrayType(output) };
   }

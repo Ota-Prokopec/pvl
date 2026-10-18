@@ -12,18 +12,17 @@
 // string or a list of them (ADR-0028). A subclass adds the methods mirroring its
 // schema's and overrides the `_` hooks.
 import type { StaticValue } from '../ast/genericAst.js';
-import { EMITTED_ROOT_ISSUE_PATH } from '../consts.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
+  CheckingTarget,
   EmittedCheck,
   EmittedOutputStatement,
   EmittedShortCircuitCondition,
   EmittedVariableDeclaration,
-} from '../types.js';
-import type { CheckingTarget } from './emitterTypes.js';
+} from './emittersTypes.js';
 import { emitReturnValue, js } from './emitterUtils.js';
-import { Frame, type FrameCompiledSchemaParams } from './frame.js';
+import { Frame, type FramePosition } from './frame.js';
 import { Scope } from './scope.js';
 
 /** An emitter method mirroring a Schema method, as found by name: the source text it writes, typed by `EmitterMethodOf`. */
@@ -32,34 +31,29 @@ type EmittingMethod = (input: {
   args: ReadonlyArray<StaticValue>;
 }) => string;
 
-// What a Compiled Schema's `_checkType` checks: its `value` parameter, whose
-// Issues are reported at its `path` parameter, or at none when it is empty,
-// as `Frame.composeSchema` names them.
-const ROOT_TARGET: CheckingTarget = {
-  value: 'value',
-  issuePath: EMITTED_ROOT_ISSUE_PATH,
-};
-
-/** What a hook spells types for: the Schema. */
-export type EmitSchemaArgs<TSchema extends Schema = Schema> = {
+/** What {@link Emitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
+export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
-};
-
-/** What a hook emits checks for: a Schema at the target it checks, numbering its locals from `scope`. */
-export type EmitChecksArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSchema> & {
   target: CheckingTarget;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
 };
 
 /** What {@link Emitter._emitPostModifierChecks} emits checks for: a Schema in the frame its checks are composed in, which holds its target. */
-export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> =
-  EmitSchemaArgs<TSchema> & {
-    frame: Frame;
-  };
+export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+  frame: Frame;
+};
+
+/** What {@link Emitter._emitShortCircuitConditions} emits its pre-modifiers' conditions for: a Schema at the target it checks. */
+export type EmitShortCircuitConditionsArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+  target: CheckingTarget;
+};
 
 /** What {@link Emitter._addCompositeParts} adds a composite's parts for: a Schema in its frame, with the post-modifiers' checks already emitted for it. */
-export type AddCompositePartsArgs<TSchema extends Schema = Schema> = EmitSchemaArgs<TSchema> & {
+export type AddCompositePartsArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
   frame: Frame;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
@@ -67,6 +61,50 @@ export type AddCompositePartsArgs<TSchema extends Schema = Schema> = EmitSchemaA
   isRoot: boolean;
   /** Its post-modifiers' checks, which the frame gates behind the count of Issues its declarations take. */
   postModifierChecks: ReadonlyArray<EmittedCheck>;
+};
+
+/** What {@link Emitter._spellFactoryTypes} spells a factory call's types for: the Schema. */
+export type SpellFactoryTypesArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+};
+
+/** What {@link Emitter._spellTypes} spells types for: the Schema. */
+export type SpellTypesArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+};
+
+/** What {@link Emitter.emitSchemaChecks} emits checks for: a Schema at the target its parent reads it at. */
+export type EmitSchemaChecksArgs = {
+  schema: Schema;
+  target: CheckingTarget;
+  /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
+  scope: Scope;
+};
+
+/** What {@link Emitter.emitCompiledSchema} writes a class for. */
+export type EmitCompiledSchemaArgs = {
+  /** A Schema `Schema.findUncompilableDiagnostics` found nothing in, which this Emitter compiles. */
+  schema: Schema;
+  className: string;
+  /** The line of the `pvl.compile()` call, named in the class's comment. */
+  line: number;
+};
+
+/** What {@link Emitter.findEmittingMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
+export type FindEmittingMethodArgs = {
+  name: string;
+};
+
+/** What {@link Emitter.emitCall} emits a chained method for: the call, at the target it checks. */
+export type EmitCallArgs = {
+  call: SchemaModifierCall;
+  target: CheckingTarget;
+};
+
+/** What {@link Emitter.emitPostModifierCheck} emits a check for: the post-modifier's call, at the target it checks. */
+export type EmitPostModifierCheckArgs = {
+  call: SchemaModifierCall;
+  target: CheckingTarget;
 };
 
 /** What {@link Emitter.emitDeclarations} declares a nested composite's locals for. */
@@ -85,24 +123,11 @@ export type EmitOutputHandoffArgs = {
   isRoot: boolean;
 };
 
-/** What {@link Emitter.buildFrame} builds one Schema's frame for: a Schema at its target, inlined into a parent, or the body of the `_checkType` of the Compiled Schema `compiledSchemaParams` describe. */
-export type BuildFrameArgs = EmitChecksArgs & {
-  compiledSchemaParams?: FrameCompiledSchemaParams;
-};
-
-/** What a chained method is emitted for: the call, at the target it checks. */
-export type EmitCallArgs = {
-  call: SchemaModifierCall;
-  target: CheckingTarget;
-};
-
-/** What {@link Emitter.emitCompiledSchema} writes a class for. */
-export type EmitCompiledSchemaArgs = {
-  /** A Schema `Schema.findUncompilableDiagnostics` found nothing in, which this Emitter compiles. */
+/** What {@link Emitter.buildFrame} builds one Schema's frame for: a Schema at its target, inlined into a parent, or the body of the `_checkType` of the Compiled Schema `compiledSchemaParams` describe, which checks its own parameters. */
+export type BuildFrameArgs = FramePosition & {
   schema: Schema;
-  className: string;
-  /** The line of the `pvl.compile()` call, named in the class's comment. */
-  line: number;
+  /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
+  scope: Scope;
 };
 
 /**
@@ -128,7 +153,7 @@ export abstract class Emitter {
    * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
    * ```
    */
-  public static _emitBaseCheck({ target }: EmitChecksArgs): EmittedCheck {
+  public static _emitBaseCheck({ target }: EmitBaseCheckArgs): EmittedCheck {
     throw new Error(`${this.name} has no base check to emit for \`${target.value}\`.`);
   }
 
@@ -169,10 +194,7 @@ export abstract class Emitter {
   public static _emitShortCircuitConditions({
     schema,
     target,
-  }: {
-    schema: Schema;
-    target: CheckingTarget;
-  }): EmittedShortCircuitCondition[] {
+  }: EmitShortCircuitConditionsArgs): EmittedShortCircuitCondition[] {
     return schema.preModifierCalls.map(
       (call) => this.emitCall({ call, target }) as EmittedShortCircuitCondition,
     );
@@ -238,7 +260,7 @@ export abstract class Emitter {
    * of a primitive (`pvl.string()` types as `string`); the other emitters
    * override it.
    */
-  public static _spellFactoryTypes({ schema }: { schema: Schema }): SchemaTypes {
+  public static _spellFactoryTypes({ schema }: SpellFactoryTypesArgs): SchemaTypes {
     return { input: schema.factory, output: schema.factory };
   }
 
@@ -247,7 +269,7 @@ export abstract class Emitter {
    * Schema's own inferred types are. `ChainableSchemaEmitter` widens them
    * for its Modifiers.
    */
-  public static _spellTypes(args: EmitSchemaArgs): SchemaTypes {
+  public static _spellTypes(args: SpellTypesArgs): SchemaTypes {
     return this._spellFactoryTypes(args);
   }
 
@@ -270,7 +292,7 @@ export abstract class Emitter {
    * // }
    * ```
    */
-  public static emitSchemaChecks({ schema, target, scope }: EmitChecksArgs): string {
+  public static emitSchemaChecks({ schema, target, scope }: EmitSchemaChecksArgs): string {
     return this.buildFrame({ schema, target, scope }).composeChecks();
   }
 
@@ -302,7 +324,6 @@ export abstract class Emitter {
     const types = this._spellTypes({ schema });
     return this.buildFrame({
       schema,
-      target: ROOT_TARGET,
       scope: new Scope(),
       compiledSchemaParams: { className, line, types },
     }).composeSchema();
@@ -323,7 +344,7 @@ export abstract class Emitter {
    * BooleanSchemaEmitter.findEmittingMethod({ name: 'length' })       // undefined: only its own `length` number
    * ```
    */
-  public static findEmittingMethod({ name }: { name: string }): EmittingMethod | undefined {
+  public static findEmittingMethod({ name }: FindEmittingMethodArgs): EmittingMethod | undefined {
     if (this === Emitter || name.startsWith('_')) {
       return undefined;
     }
@@ -365,7 +386,10 @@ export abstract class Emitter {
    * // 'if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}'
    * ```
    */
-  protected static emitPostModifierCheck({ call, target }: EmitCallArgs): EmittedCheck {
+  protected static emitPostModifierCheck({
+    call,
+    target,
+  }: EmitPostModifierCheckArgs): EmittedCheck {
     return this.emitCall({ call, target }) as EmittedCheck;
   }
 
@@ -430,7 +454,8 @@ export abstract class Emitter {
   /**
    * The frame of one Schema at `target`, with every part of its checks set
    * on it, ready to compose: inlined where a parent reads its value, or, with
-   * `compiledSchemaParams`, the body of that Compiled Schema's `_checkType`.
+   * `compiledSchemaParams`, the body of that Compiled Schema's `_checkType`,
+   * at the target the frame builds from its parameters.
    * Each hook emits its parts, or adds a composite's, and the frame places
    * them (see `Frame.composeChecks`), the output's handoff last among the
    * output statements. The frame is created first, so a composite numbers
@@ -441,19 +466,10 @@ export abstract class Emitter {
    * // 'if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length > 2) { … }\n}'
    * ```
    */
-  private static buildFrame({
-    schema,
-    target,
-    scope,
-    compiledSchemaParams,
-  }: BuildFrameArgs): Frame {
-    const isRoot = compiledSchemaParams !== undefined;
-    const frame = new Frame({
-      target,
-      scope,
-      isComposite: this._isComposite(),
-      compiledSchemaParams,
-    });
+  private static buildFrame({ schema, scope, ...position }: BuildFrameArgs): Frame {
+    const isRoot = position.compiledSchemaParams !== undefined;
+    const frame = new Frame({ ...position, scope, isComposite: this._isComposite() });
+    const target = frame.checkingTarget;
 
     frame.setBaseCheck(this._emitBaseCheck({ schema, target, scope }));
     frame.addShortCircuitConditions(...this._emitShortCircuitConditions({ schema, target }));

@@ -1,24 +1,21 @@
 // The code a `BigintSchema` compiles to, one static method per method of
 // `BigintSchema` it mirrors.
-import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type BigintSchema } from '@pvl/schema';
+import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, Issue, type BigintSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emitterTypes.js';
+import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
-import type { EmittedCheck } from '../types.js';
+import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
 import { emitCheck, emitLiteral, js } from './emitterUtils.js';
 
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittedCheck {
+  }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "bigint"`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_TYPE,
-        BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], BIGINT_SCHEMA_ISSUE_MESSAGE._checkType()),
       ),
     });
   }
@@ -31,9 +28,11 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value} < ${emitLiteral(minValue)}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_SMALL,
-        options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_SMALL,
+          [issuePath],
+          options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
+        ),
       ),
     });
 
@@ -45,9 +44,11 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value} > ${emitLiteral(maxValue)}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_BIG,
-        options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_BIG,
+          [issuePath],
+          options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
+        ),
       ),
     });
 }

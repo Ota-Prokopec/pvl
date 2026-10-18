@@ -1,11 +1,10 @@
 // The code a `StringSchema` compiles to, one static method per method of
 // `StringSchema` it mirrors.
-import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
+import { ISSUE_CODE, Issue, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emitterTypes.js';
+import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
-import type { EmittedCheck } from '../types.js';
+import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
 import { emitCheck, js } from './emitterUtils.js';
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
@@ -17,13 +16,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
    */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittedCheck {
+  }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "string"`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_TYPE,
-        STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], STRING_SCHEMA_ISSUE_MESSAGE._checkType()),
       ),
     });
   }
@@ -36,9 +33,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length < ${minLength}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_SMALL,
-        options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_SMALL,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
+        ),
       ),
     });
 
@@ -50,9 +49,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length > ${maxLength}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_BIG,
-        options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_BIG,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
+        ),
       ),
     });
 
@@ -64,9 +65,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value}.length !== ${exactLength}`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_LENGTH,
-        options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.INVALID_LENGTH,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
+        ),
       ),
     });
 }

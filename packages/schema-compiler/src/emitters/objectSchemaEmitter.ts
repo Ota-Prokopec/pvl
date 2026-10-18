@@ -4,6 +4,7 @@
 // nested objects' and arrays' included.
 import {
   ISSUE_CODE,
+  Issue,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
   type IssueEditableProps,
   type ObjectSchema as PvlObjectSchema,
@@ -14,17 +15,23 @@ import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
   AddCompositePartsArgs,
-  EmitChecksArgs,
+  EmitBaseCheckArgs,
   EmitPostModifierChecksArgs,
-  EmitSchemaArgs,
+  SpellFactoryTypesArgs,
 } from './emitter.js';
-import type { CheckingTarget, EmitterMethodOf } from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import { emitIssue } from '../issue.js';
 import { emitCheck, js } from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
-import type { EmittedCheck, EmittedOutputStatement, EmittedVariableDeclaration } from '../types.js';
+import type {
+  CheckingTarget,
+  EmittedCheck,
+  EmittedOutputStatement,
+  EmittedVariableDeclaration,
+  EmitterMethodOf,
+} from './emittersTypes.js';
+import { MODIFIER_NAME } from '../enums.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -79,7 +86,7 @@ const emitIsUndeclaredKey = (declaredKeys: ReadonlyArray<string>): string => {
 const emitUnrecognizedKeyIssue = (path: string, options?: IssueEditableProps): string => {
   const issuePath = js`[...${path}, key]`;
   if (options?.message !== undefined) {
-    return emitIssue(ISSUE_CODE.UNRECOGNIZED_KEY, options.message, issuePath);
+    return emitIssue(new Issue(ISSUE_CODE.UNRECOGNIZED_KEY, [issuePath], options.message));
   }
   const message = OBJECT_SCHEMA_ISSUE_MESSAGE.strict(KEY_PLACEHOLDER)
     .split(KEY_PLACEHOLDER)
@@ -126,7 +133,7 @@ const spellObjectType = (fields: ReadonlyArray<{ key: string; type: string }>): 
  * ```
  */
 const isOptionalField = (fieldSchema: Schema): boolean => {
-  return fieldSchema.preModifierCalls.some((call) => call.name === 'optional');
+  return fieldSchema.preModifierCalls.some((call) => call.name === MODIFIER_NAME.OPTIONAL);
 };
 
 /**
@@ -141,7 +148,9 @@ const isOptionalField = (fieldSchema: Schema): boolean => {
 const findUnknownKeysCall = (
   calls: ReadonlyArray<SchemaModifierCall>,
 ): SchemaModifierCall | undefined => {
-  return [...calls].reverse().find((call) => call.name === 'strict' || call.name === 'passthrough');
+  return [...calls]
+    .reverse()
+    .find((call) => call.name === MODIFIER_NAME.STRICT || call.name === MODIFIER_NAME.PASSTHROUGH);
 };
 
 /** What {@link createObjectCheckingTarget} reads an object's target from: its Schema, in the frame its checks are composed in. */
@@ -249,13 +258,11 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittedCheck {
+  }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "object" || ${value} === null || Array.isArray(${value})`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_TYPE,
-        OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], OBJECT_SCHEMA_ISSUE_MESSAGE._checkType()),
       ),
     });
   }
@@ -402,7 +409,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * // { input: '{ name: string; age?: number | undefined }', output: <the same> }
    * ```
    */
-  public static override _spellFactoryTypes({ schema }: EmitSchemaArgs<ObjectSchema>): SchemaTypes {
+  public static override _spellFactoryTypes({
+    schema,
+  }: SpellFactoryTypesArgs<ObjectSchema>): SchemaTypes {
     const fields = schema.shape.map(({ key, schema: fieldSchema }) => {
       const { input, output } = fieldSchema.emitter._spellTypes({ schema: fieldSchema });
       return { key: `${formatKey(key)}${isOptionalField(fieldSchema) ? '?' : ''}`, input, output };

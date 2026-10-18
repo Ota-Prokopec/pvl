@@ -1,9 +1,9 @@
 // How the emitted code reports an Issue: the Issue literal a failed check
 // pushes onto `issues`, and the fragments a `Frame` places around the checks
 // to return the Issues collected so far.
-import { Issue, type IssueCode } from '@pvl/schema';
+import { Issue } from '@pvl/schema';
 import { js } from './emitters/emitterUtils.js';
-import type { EmittedIssue } from './types.js';
+import type { EmittedIssue } from './emitters/emittersTypes.js';
 
 /**
  * An Issue as a plain object literal, importing nothing. `path` is an
@@ -16,9 +16,21 @@ import type { EmittedIssue } from './types.js';
  * // '{ code: "TOO_SMALL", message: "too short", path: [...path, "name"] }'
  * ```
  */
-export const emitIssue = (code: IssueCode, message: string, path: string): EmittedIssue => {
-  const issueMessage = new Issue(code, [], message).message;
-  return js`{ code: ${JSON.stringify(code)}, message: ${JSON.stringify(issueMessage)}, path: ${path} }` as EmittedIssue;
+export const emitIssue = (issue: Issue): EmittedIssue => {
+  return js`{ code: ${JSON.stringify(issue.code)}, message: ${JSON.stringify(issue.message)}, path: ${issue.path} }` as EmittedIssue;
+};
+
+/**
+ * The Issue path of an Issue about a Compiled Schema's root value, at
+ * `_checkType`'s `path` parameter: `undefined` when it is empty, as
+ * `@pvl/schema`'s own `Issue` makes it.
+ *
+ * ```ts
+ * emitRootIssuePath('path') // 'path.length > 0 ? path : undefined'
+ * ```
+ */
+export const emitRootIssuePath = (pathVariableName: string): string => {
+  return js`${pathVariableName}.length > 0 ? ${pathVariableName} : undefined`;
 };
 
 /**

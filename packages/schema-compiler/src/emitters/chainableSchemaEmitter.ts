@@ -4,10 +4,9 @@
 // Every schema's emitter extends it, as every schema extends `ChainableSchema`.
 import type { ChainableSchema } from '@pvl/schema';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
-import { Emitter, type EmitSchemaArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emitterTypes.js';
+import { Emitter, type SpellTypesArgs } from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { EmittedShortCircuitCondition } from '../types.js';
+import type { EmittedShortCircuitCondition, EmitterMethodOf } from './emittersTypes.js';
 import { js } from './emitterUtils.js';
 
 /**
@@ -53,7 +52,7 @@ export class ChainableSchemaEmitter extends Emitter {
    * // { input: 'string | null | undefined', output: <the same> }
    * ```
    */
-  public static override _spellTypes(args: EmitSchemaArgs): SchemaTypes {
+  public static override _spellTypes(args: SpellTypesArgs): SchemaTypes {
     const { input, output } = super._spellTypes(args);
     const { preModifierCalls: calls } = args.schema;
     return { input: widenType(input, calls), output: widenType(output, calls) };

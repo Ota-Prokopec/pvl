@@ -8,7 +8,7 @@
 // that imports it.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from '../types.js';
+import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './emittersTypes.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text

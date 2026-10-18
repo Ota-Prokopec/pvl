@@ -1,24 +1,21 @@
 // The code a `NumberSchema` compiles to, one static method per method of
 // `NumberSchema` it mirrors.
-import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberSchema } from '@pvl/schema';
+import { ISSUE_CODE, Issue, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf } from './emitterTypes.js';
+import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
-import type { EmittedCheck } from '../types.js';
+import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
 import { emitCheck, emitLiteral, js } from './emitterUtils.js';
 
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittedCheck {
+  }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_TYPE,
-        NUMBER_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], NUMBER_SCHEMA_ISSUE_MESSAGE._checkType()),
       ),
     });
   }
@@ -31,9 +28,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value} < ${emitLiteral(minValue)}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_SMALL,
-        options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.min(minValue),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_SMALL,
+          [issuePath],
+          options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.min(minValue),
+        ),
       ),
     });
 
@@ -45,9 +44,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`${value} > ${emitLiteral(maxValue)}`,
       issue: emitIssue(
-        ISSUE_CODE.TOO_BIG,
-        options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.max(maxValue),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.TOO_BIG,
+          [issuePath],
+          options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.max(maxValue),
+        ),
       ),
     });
 
@@ -59,9 +60,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
     emitCheck({
       failsWhen: js`!Number.isInteger(${value})`,
       issue: emitIssue(
-        ISSUE_CODE.NOT_INTEGER,
-        options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.int(),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.NOT_INTEGER,
+          [issuePath],
+          options?.message ?? NUMBER_SCHEMA_ISSUE_MESSAGE.int(),
+        ),
       ),
     });
 }

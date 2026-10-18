@@ -1,11 +1,11 @@
 // The code a `LiteralSchema` compiles to: its value check, as it has no
 // Constraint.
-import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
+import { ISSUE_CODE, Issue, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
+import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
-import type { EmittedCheck } from '../types.js';
+import type { EmittedCheck } from './emittersTypes.js';
 import { emitCheck, emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
@@ -18,13 +18,15 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
   public static override _emitBaseCheck({
     target: { value, issuePath },
     schema: { value: literalValue },
-  }: EmitChecksArgs<LiteralSchema>): EmittedCheck {
+  }: EmitBaseCheckArgs<LiteralSchema>): EmittedCheck {
     return emitCheck({
       failsWhen: js`!Object.is(${value}, ${emitLiteral(literalValue)})`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_VALUE,
-        LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
-        issuePath,
+        new Issue(
+          ISSUE_CODE.INVALID_VALUE,
+          [issuePath],
+          LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
+        ),
       ),
     });
   }
@@ -38,7 +40,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    */
   public static override _spellFactoryTypes({
     schema,
-  }: EmitSchemaArgs<LiteralSchema>): SchemaTypes {
+  }: SpellFactoryTypesArgs<LiteralSchema>): SchemaTypes {
     const type = spellLiteralType(schema.value);
     return { input: type, output: type };
   }
