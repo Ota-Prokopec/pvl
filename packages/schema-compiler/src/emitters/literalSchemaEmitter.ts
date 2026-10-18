@@ -4,9 +4,9 @@ import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitChecksArgs, EmitSchemaArgs } from './emitter.js';
-import type { Check } from './emitterTypes.js';
 import { emitIssue } from '../issue.js';
-import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
+import type { EmittedCheck } from '../types.js';
+import { emitCheck, emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
@@ -18,15 +18,15 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
   public static override _emitBaseCheck({
     target: { value, issuePath },
     schema: { value: literalValue },
-  }: EmitChecksArgs<LiteralSchema>): Check {
-    return {
+  }: EmitChecksArgs<LiteralSchema>): EmittedCheck {
+    return emitCheck({
       failsWhen: js`!Object.is(${value}, ${emitLiteral(literalValue)})`,
       issue: emitIssue(
         ISSUE_CODE.INVALID_VALUE,
         LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
         issuePath,
       ),
-    };
+    });
   }
 
   /**

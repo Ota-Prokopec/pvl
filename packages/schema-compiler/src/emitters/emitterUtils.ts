@@ -8,8 +8,7 @@
 // that imports it.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type { EmittedCheck } from '../types.js';
-import type { Check } from './emitterTypes.js';
+import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from '../types.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text
@@ -26,23 +25,24 @@ import type { Check } from './emitterTypes.js';
  */
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
 
+/** What {@link emitCheck} writes a check from: the condition it fails under, and the Issue it reports then. */
+export type EmitCheckArgs = {
+  failsWhen: string;
+  issue: EmittedIssue;
+};
+
 /**
- * What an emitter method wrote, as a statement: a check pushes its Issue onto
- * `issues` when it fails, and source text is a statement already.
+ * A check as a statement, which pushes its Issue onto `issues` when it
+ * fails: how a base check and a Constraint are written.
  *
  * ```ts
  * emitCheck({ failsWhen: 'x < 3', issue: '{ … }' }) // 'if (x < 3) {\n  issues.push({ … });\n}'
- * emitCheck('for (const key of …) { … }')           // 'for (const key of …) { … }'
  * ```
  */
-export const emitCheck = (check: Check | string): EmittedCheck => {
-  return (
-    typeof check === 'string'
-      ? check
-      : js`if (${check.failsWhen}) {
-          issues.push(${check.issue});
-        }`
-  ) as EmittedCheck;
+export const emitCheck = ({ failsWhen, issue }: EmitCheckArgs): EmittedCheck => {
+  return js`if (${failsWhen}) {
+    issues.push(${issue});
+  }` as EmittedCheck;
 };
 
 /**
@@ -54,8 +54,8 @@ export const emitCheck = (check: Check | string): EmittedCheck => {
  * emitReturnValue('output') // 'return { value: output };'
  * ```
  */
-export const emitReturnValue = (value: string): string => {
-  return js`return { value: ${value} };`;
+export const emitReturnValue = (value: string): EmittedOutputStatement => {
+  return js`return { value: ${value} };` as EmittedOutputStatement;
 };
 
 /**

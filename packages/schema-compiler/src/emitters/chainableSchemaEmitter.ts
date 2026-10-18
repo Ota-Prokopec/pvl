@@ -5,8 +5,9 @@
 import type { ChainableSchema } from '@pvl/schema';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { Emitter, type EmitSchemaArgs } from './emitter.js';
-import type { EmitterMethodOf, ShortCircuitCondition } from './emitterTypes.js';
+import type { EmitterMethodOf } from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { EmittedShortCircuitCondition } from '../types.js';
 import { js } from './emitterUtils.js';
 
 /**
@@ -34,14 +35,14 @@ export class ChainableSchemaEmitter extends Emitter {
   /** `.optional()` → `field0 === undefined`, which short-circuits. */
   public static readonly optional: EmitterMethodOf<
     ChainableSchema['optional'],
-    ShortCircuitCondition
-  > = ({ target: { value } }) => ({ shortCircuitsWhen: js`${value} === undefined` });
+    EmittedShortCircuitCondition
+  > = ({ target: { value } }) => js`${value} === undefined` as EmittedShortCircuitCondition;
 
   /** `.nullable()` → `field0 === null`, which short-circuits. */
   public static readonly nullable: EmitterMethodOf<
     ChainableSchema['nullable'],
-    ShortCircuitCondition
-  > = ({ target: { value } }) => ({ shortCircuitsWhen: js`${value} === null` });
+    EmittedShortCircuitCondition
+  > = ({ target: { value } }) => js`${value} === null` as EmittedShortCircuitCondition;
 
   /**
    * The factory call's types, with `| undefined` or `| null` added for each

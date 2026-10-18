@@ -11,3 +11,5 @@ A frame created with `compiledSchema` (its class name, line and types) is the ro
 - **One `frame.emitChecks({ … })` call taking every part at once.** Rejected: a builder throws on a missing base check, and its named slots let the Frame place every gate itself, while a single call grows a parameter for each new part.
 - **The root Frame also writes the `new PvlCompiledSchema<n>()` declaration.** Rejected: `Module` swaps that expression in place of the `pvl.compile(...)` call, which already handles a call that isn't a bare `const` initializer.
 - **Pre-modifier conditions stay fixed in `Emitter`.** Rejected: new specialised Emitters will add pre-modifiers of their own, so `_emitPreModifierConditions` is an overridable hook. It keeps returning `string[]` until an Emitter needs more.
+
+> Superseded in part by [ADR-0028](./0028-emitter-methods-return-source-text-only.md): the hooks emit source text only, `_emitTypedChecks` gave way to `_emitPostModifierChecks` and `_addCompositeParts`, `emitBody` is `buildFrame`, and the root's base check runs the rest in its `else` instead of returning.

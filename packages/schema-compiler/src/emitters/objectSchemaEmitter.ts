@@ -13,18 +13,18 @@ import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
+  AddCompositePartsArgs,
   EmitChecksArgs,
+  EmitPostModifierChecksArgs,
   EmitSchemaArgs,
-  EmitTypedChecksArgs,
-  EmitTypedChecksOutput,
 } from './emitter.js';
-import type { Check, CheckingTarget, EmitterMethodOf } from './emitterTypes.js';
+import type { CheckingTarget, EmitterMethodOf } from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import { emitIssue } from '../issue.js';
-import { js } from './emitterUtils.js';
-import { Frame, type FrameOutput } from './frame.js';
+import { emitCheck, js } from './emitterUtils.js';
+import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
-import type { EmittedVariableDeclaration } from '../types.js';
+import type { EmittedCheck, EmittedOutputStatement, EmittedVariableDeclaration } from '../types.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -144,6 +144,34 @@ const findUnknownKeysCall = (
   return [...calls].reverse().find((call) => call.name === 'strict' || call.name === 'passthrough');
 };
 
+/** What {@link createObjectCheckingTarget} reads an object's target from: its Schema, in the frame its checks are composed in. */
+export type CreateObjectCheckingTargetArgs = {
+  schema: ObjectSchema;
+  frame: Frame;
+};
+
+/**
+ * The target `.strict()` and `.passthrough()` read: the object's value as a
+ * record in its `input` local, its path local, its `output` local, and the
+ * keys its shape declares.
+ *
+ * ```ts
+ * createObjectCheckingTarget({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0, nested> })
+ * // { value: 'input1', issuePath: 'path1', output: 'output1', declaredKeys: ['name'] }
+ * ```
+ */
+const createObjectCheckingTarget = ({
+  schema,
+  frame,
+}: CreateObjectCheckingTargetArgs): ObjectCheckingTarget => {
+  return {
+    value: frame.inputVariableName,
+    issuePath: frame.pathVariableName,
+    output: frame.outputVariableName,
+    declaredKeys: schema.shape.map(({ key }) => key),
+  };
+};
+
 /**
  * A field's checks, reading its value off the object's `input` into the
  * name the field was given. A nested object's or array's value is declared
@@ -165,7 +193,7 @@ const emitFieldChecks = ({
   field: NamedField;
   frame: Frame;
   scope: Scope;
-}): FrameOutput => {
+}): string => {
   const { emitter } = fieldSchema;
   const keyLiteral = JSON.stringify(key);
   return [
@@ -177,7 +205,7 @@ const emitFieldChecks = ({
       scope,
     }),
     '',
-  ].join('\n') as FrameOutput;
+  ].join('\n');
 };
 
 /**
@@ -198,18 +226,20 @@ const emitOutputAssignment = ({
 }: {
   field: NamedField;
   objectTarget: ObjectCheckingTarget;
-}): string => {
+}): EmittedOutputStatement => {
   const keyLiteral = JSON.stringify(key);
   const assignment =
     key === '__proto__'
       ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
       : js`${output}[${keyLiteral}] = ${value};`;
-  return isOptionalField(fieldSchema)
-    ? Frame.composeBlock({
-        head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
-        body: assignment,
-      })
-    : assignment;
+  return (
+    isOptionalField(fieldSchema)
+      ? Frame.composeBlock({
+          head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
+          body: assignment,
+        })
+      : assignment
+  ) as EmittedOutputStatement;
 };
 
 /** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
@@ -217,15 +247,17 @@ type PvlAnyObjectSchema = PvlObjectSchema;
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
-  public static override _emitBaseCheck({ target: { value, issuePath } }: EmitChecksArgs): Check {
-    return {
+  public static override _emitBaseCheck({
+    target: { value, issuePath },
+  }: EmitChecksArgs): EmittedCheck {
+    return emitCheck({
       failsWhen: js`typeof ${value} !== "object" || ${value} === null || Array.isArray(${value})`,
       issue: emitIssue(
         ISSUE_CODE.INVALID_TYPE,
         OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
         issuePath,
       ),
-    };
+    });
   }
 
   /**
@@ -242,14 +274,14 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    */
   public static readonly strict: EmitterMethodOf<
     PvlAnyObjectSchema['strict'],
-    string,
+    EmittedCheck,
     ObjectCheckingTarget
   > = ({ target: { value, issuePath, declaredKeys }, args: [options] }) =>
     js`for (const key of Object.keys(${value})) {
       if (${emitIsUndeclaredKey(declaredKeys)}) {
         issues.push(${emitUnrecognizedKeyIssue(issuePath, options)});
       }
-    }`;
+    }` as EmittedCheck;
 
   /**
    * `.passthrough()`: copies every key of `input` the shape doesn't declare
@@ -258,7 +290,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    */
   public static readonly passthrough: EmitterMethodOf<
     PvlAnyObjectSchema['passthrough'],
-    string,
+    EmittedOutputStatement,
     ObjectCheckingTarget
   > = ({ target: { value, output, declaredKeys } }) =>
     js`for (const key of Object.keys(${value})) {
@@ -269,70 +301,82 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
           ${output}[key] = ${value}[key];
         }
       }
-    }`;
+    }` as EmittedOutputStatement;
 
   /**
-   * An object's checks once its type check has passed, at the root or nested
-   * in another Schema, as the parts the frame composes: its locals, every
-   * field's checks inlined in shape order as its children, `.strict()`'s
-   * checks, which the frame runs only once every field has passed, and the
-   * output built from the fields, which the frame hands on. The last of
-   * `.strict()` and `.passthrough()` chained decides the keys the shape
-   * doesn't declare: `.passthrough()` copies them onto the output, and with
-   * neither they are stripped (ADR-0007).
+   * The checks of an object's post-modifiers: `.strict()`'s, when it is the
+   * last of `.strict()` and `.passthrough()` chained, which wins (ADR-0007),
+   * reading the object's keys rather than its value. `.passthrough()` builds
+   * the output instead (see `_addCompositeParts`), and with neither the keys
+   * the shape doesn't declare are stripped. The frame runs them only once
+   * every field has passed.
    *
    * ```ts
-   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope, isRoot: false })
-   * // {
-   * //   declarations: ['const path1 = [...path, "user"];', 'const input1 = field0 as Record<string, unknown>;', ''],
-   * //   childChecks: ['// name\nconst field1 = input1["name"];\nif (typeof field1 !== "string") { … path: [...path1, "name"] … }\n'],
-   * //   postModifierChecks: [],
-   * //   outputStatements: ['const output1: Record<string, unknown> = {};', 'output1["name"] = field1;'],
-   * // }
+   * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict()>, frame: <frame of field0, nested> })
+   * // ['for (const key of Object.keys(input1)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path1, key] });\n  }\n}']
+   * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict().passthrough()>, frame }) // []
    * ```
    */
-  public static override _emitTypedChecks({
+  public static override _emitPostModifierChecks({
+    schema,
+    frame,
+  }: EmitPostModifierChecksArgs<ObjectSchema>): EmittedCheck[] {
+    const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
+    return unknownKeysCall?.name === 'strict'
+      ? [
+          this.emitPostModifierCheck({
+            call: unknownKeysCall,
+            target: createObjectCheckingTarget({ schema, frame }),
+          }),
+        ]
+      : [];
+  }
+
+  /**
+   * Adds to `frame` an object's parts once its type check has passed, at
+   * the root or nested in another Schema: its locals, every field's checks
+   * inlined in shape order as its children, and the output built from the
+   * fields, then `.passthrough()`'s copy of the keys the shape doesn't
+   * declare, when it is the last of `.strict()` and `.passthrough()`
+   * chained. The frame hands the output on.
+   *
+   * ```ts
+   * ObjectSchemaEmitter._addCompositeParts({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope, isRoot: false, postModifierChecks: [] })
+   * // adds the declarations ['const path1 = [...path, "user"];', 'const input1 = field0 as Record<string, unknown>;', ''],
+   * // the child's checks ['// name\nconst field1 = input1["name"];\nif (typeof field1 !== "string") { … path: [...path1, "name"] … }\n'],
+   * // and the output statements ['const output1: Record<string, unknown> = {};', 'output1["name"] = field1;']
+   * ```
+   */
+  public static override _addCompositeParts({
     schema,
     frame,
     scope,
     isRoot,
-  }: EmitTypedChecksArgs<ObjectSchema>): EmitTypedChecksOutput {
+    postModifierChecks,
+  }: AddCompositePartsArgs<ObjectSchema>): void {
     const fields = nameFields(schema.shape, scope);
-    const objectTarget: ObjectCheckingTarget = {
-      value: frame.inputVariableName,
-      issuePath: frame.pathVariableName,
-      output: frame.outputVariableName,
-      declaredKeys: fields.map(({ key }) => key),
-    };
-    // `.strict()`'s loop is a post-modifier; `.passthrough()`'s builds the output.
+    const objectTarget = createObjectCheckingTarget({ schema, frame });
     const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
-    const unknownKeysStatements =
-      unknownKeysCall === undefined
-        ? []
-        : [this.emitPostModifierCheck({ call: unknownKeysCall, target: objectTarget })];
-    const strictChecks = unknownKeysCall?.name === 'strict' ? unknownKeysStatements : [];
-    const passthroughCopy = unknownKeysCall?.name === 'passthrough' ? unknownKeysStatements : [];
 
-    return {
-      declarations: [
-        ...this.emitDeclarations({
-          frame,
-          isRoot,
-          readsPath: fields.length > 0 || strictChecks.length > 0,
-          postModifierChecks: strictChecks,
-        }),
-        js`const ${frame.inputVariableName} = ${frame.checkingTarget.value} as Record<string, unknown>;` as EmittedVariableDeclaration,
-        // Sets the fields apart, each of which ends in a blank line too.
-        '' as EmittedVariableDeclaration,
-      ],
-      childChecks: fields.map((field) => emitFieldChecks({ field, frame, scope })),
-      postModifierChecks: strictChecks,
-      outputStatements: [
-        js`const ${frame.outputVariableName}: Record<string, unknown> = {};`,
-        ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
-        ...passthroughCopy,
-      ],
-    };
+    frame.addDeclarations(
+      ...this.emitDeclarations({
+        frame,
+        isRoot,
+        readsPath: fields.length > 0 || postModifierChecks.length > 0,
+        postModifierChecks,
+      }),
+      js`const ${frame.inputVariableName} = ${frame.checkingTarget.value} as Record<string, unknown>;` as EmittedVariableDeclaration,
+      // Sets the fields apart, each of which ends in a blank line too.
+      '' as EmittedVariableDeclaration,
+    );
+    frame.addChildChecks(...fields.map((field) => emitFieldChecks({ field, frame, scope })));
+    frame.addOutputStatements(
+      js`const ${frame.outputVariableName}: Record<string, unknown> = {};` as EmittedOutputStatement,
+      ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
+      ...(unknownKeysCall?.name === 'passthrough'
+        ? [this.emitCall({ call: unknownKeysCall, target: objectTarget }) as EmittedOutputStatement]
+        : []),
+    );
   }
 
   /**

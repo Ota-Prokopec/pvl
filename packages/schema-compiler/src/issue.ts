@@ -2,7 +2,6 @@
 // pushes onto `issues`, and the fragments a `Frame` places around the checks
 // to return the Issues collected so far.
 import { Issue, type IssueCode } from '@pvl/schema';
-import type { Check } from './emitters/emitterTypes.js';
 import { js } from './emitters/emitterUtils.js';
 import type { EmittedIssue } from './types.js';
 
@@ -36,19 +35,16 @@ export const emitNoNewIssuesCondition = (issueCountVariableName: string): string
 };
 
 /**
- * `check` returning its Issue when it fails: the root's base check, after
- * which nothing else can be checked.
+ * The statement returning the Issues collected so far: at the root, after a
+ * base check whose `else` returns the value, so it runs only once that check
+ * has failed.
  *
  * ```ts
- * emitReturnIssuesIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
- * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
+ * emitReturnIssues() // 'return { issues };'
  * ```
  */
-export const emitReturnIssuesIfFails = ({ failsWhen, issue }: Check): string => {
-  return js`if (${failsWhen}) {
-    issues.push(${issue});
-    return { issues };
-  }`;
+export const emitReturnIssues = (): string => {
+  return 'return { issues };';
 };
 
 /**

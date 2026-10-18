@@ -5,22 +5,21 @@
 // gate the Schema's position needs: the root of a Compiled Schema's
 // `_checkType`, which returns on the first Issues it can and then the value
 // it checked, or a parent, which reads that value back once the checks have
-// run. The root's Frame also writes the Compiled Schema's class. A Frame
-// writes no check of its own, only the JavaScript fragments it places
-// (`emitterUtils.ts`), and names the locals a composite's parts declare.
-import {
-  emitNoNewIssuesCondition,
-  emitReturnIssuesIfAny,
-  emitReturnIssuesIfFails,
-} from '../issue.js';
+// run. The root's Frame also writes the Compiled Schema's class. Every part
+// is source text, and a Frame writes no check of its own, only the
+// JavaScript fragments it places (`emitterUtils.ts`, `../issue.ts`), and
+// names the locals a composite's parts declare.
+import { emitNoNewIssuesCondition, emitReturnIssues, emitReturnIssuesIfAny } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { EmittedCheck, EmittedVariableDeclaration } from '../types.js';
-import type { Check, CheckingTarget, ShortCircuitCondition } from './emitterTypes.js';
-import { emitCheck, emitReturnValue } from './emitterUtils.js';
+import type {
+  EmittedCheck,
+  EmittedOutputStatement,
+  EmittedShortCircuitCondition,
+  EmittedVariableDeclaration,
+} from '../types.js';
+import type { CheckingTarget } from './emitterTypes.js';
+import { emitReturnValue } from './emitterUtils.js';
 import type { Scope } from './scope.js';
-
-/** What a Frame composes: a Schema's checks as statements, or the Compiled Schema's class. */
-export type FrameOutput = string & { readonly __brand: 'frameOutput' };
 
 /** The Compiled Schema a root Frame writes the class of. */
 export type FrameCompiledSchemaParams = {
@@ -40,17 +39,6 @@ export type FrameConstructorArgs = {
   isComposite: boolean;
   /** The Compiled Schema whose `_checkType` its checks are the body of, which makes it the root; `undefined` nested. */
   compiledSchemaParams?: FrameCompiledSchemaParams;
-};
-
-/** What {@link Frame.addOutputStatements} adds: statements building the output and handing it on. */
-export type FrameAddOutputStatementsArgs = {
-  outputStatements: ReadonlyArray<string>;
-};
-
-/** What {@link Frame.composeBlock} wraps: the statements of `body`, under `head`. */
-export type FrameComposeBlockArgs = {
-  head: string;
-  body: string;
 };
 
 /**
@@ -89,13 +77,13 @@ export class Frame {
   // `undefined` for a Schema that isn't a composite, so has none.
   private readonly localSuffix: string | undefined;
 
-  private readonly shortCircuitConditions: ShortCircuitCondition[] = [];
-  private baseCheck?: Check;
+  private readonly shortCircuitConditions: EmittedShortCircuitCondition[] = [];
+  private baseCheck?: EmittedCheck;
   private readonly postModifierChecks: EmittedCheck[] = [];
 
   private readonly variableDeclarations: EmittedVariableDeclaration[] = [];
-  private readonly childSchemaFrameOutputs: FrameOutput[] = [];
-  private readonly outputStatements: string[] = [];
+  private readonly childChecks: string[] = [];
+  private readonly outputStatements: EmittedOutputStatement[] = [];
 
   /** A frame for the Schema at `target`, numbering its locals from `scope` when it is a nested composite. */
   public constructor({ target, scope, isComposite, compiledSchemaParams }: FrameConstructorArgs) {
@@ -155,7 +143,7 @@ export class Frame {
    * // }'
    * ```
    */
-  public static composeBlock({ head, body }: FrameComposeBlockArgs): string {
+  public static composeBlock({ head, body }: { head: string; body: string }): string {
     const prettifiedBody = body
       .split('\n')
       .map((line) => (line === '' ? line : `${'  '}${line}`))
@@ -164,13 +152,15 @@ export class Frame {
   }
 
   /** Sets the Schema's base check, the type check, over any set before. */
-  public setBaseCheck(baseCheck: Check): void {
+  public setBaseCheck(baseCheck: EmittedCheck): void {
     this.baseCheck = baseCheck;
   }
 
-  /** Adds a short circuit condition. */
-  public addShortCircuitConditions(...shortCircuitCondition: ShortCircuitCondition[]): void {
-    this.shortCircuitConditions.push(...shortCircuitCondition);
+  /** Adds pre-modifiers' short-circuit conditions, any one of which skips every check. */
+  public addShortCircuitConditions(
+    ...shortCircuitConditions: EmittedShortCircuitCondition[]
+  ): void {
+    this.shortCircuitConditions.push(...shortCircuitConditions);
   }
 
   /** Adds local variable declarations. */
@@ -178,9 +168,9 @@ export class Frame {
     this.variableDeclarations.push(...variableDeclarations);
   }
 
-  /** Adds a composite's children's checks (as frame's output/string). */
-  public addChildSchemaFrameOutputs(...outputs: FrameOutput[]): void {
-    this.childSchemaFrameOutputs.push(...outputs);
+  /** Adds a composite's children's checks, each another Frame's composed checks. */
+  public addChildChecks(...childChecks: string[]): void {
+    this.childChecks.push(...childChecks);
   }
 
   /** Adds post-modifiers' checks, which run once the base check has passed, and every child has. */
@@ -189,7 +179,7 @@ export class Frame {
   }
 
   /** Adds statements building the output and handing it on, which run last. */
-  public addOutputStatements({ outputStatements }: FrameAddOutputStatementsArgs): void {
+  public addOutputStatements(...outputStatements: EmittedOutputStatement[]): void {
     this.outputStatements.push(...outputStatements);
   }
 
@@ -199,22 +189,24 @@ export class Frame {
    * statements, all once its base check has passed, then guarded by its
    * pre-modifiers' conditions.
    *
-   * At the root, a failing base check returns its Issue, as nothing else
-   * can be checked, and the rest follows it. A value a pre-modifier accepts
-   * skips every check and is returned as it is, after them. Nested, the
-   * checks can't return, as that would skip the parent's other fields: the
-   * rest goes in the base check's `else`, and a value a pre-modifier accepts
-   * is left as it is. Throws when no base check was set, which is a bug in
-   * an emitter, never a user error.
+   * At the root as nested, the rest goes in the base check's `else`, so it
+   * runs only once that check has passed, reading the value as the type it
+   * checked. At the root, the `else` always returns, so the `return { issues }`
+   * after it runs only when the base check failed, and a value a
+   * pre-modifier accepts skips every check and is returned as it is, after
+   * them. Nested, the checks can't return, as that would skip the parent's
+   * other fields, and a value a pre-modifier accepts is left as it is.
+   * Throws when no base check was set, which is a bug in an emitter, never a
+   * user error.
    *
    * ```ts
-   * <frame of value, at the root, shortCircuitConditions: [{ shortCircuitsWhen: 'value === undefined' }], baseCheck: <typeof value !== "string">, outputStatements: ['return { value: value };']>.composeChecks()
-   * // 'if (!((value === undefined))) {\n  if (typeof value !== "string") { … return { issues }; }\n  return { value: value };\n}\nreturn { value: value };'
-   * <frame of field0, nested, baseCheck: <typeof field0 !== "string">, postModifierChecks: ['if (field0.length < 3) { … }']>.composeChecks()
+   * <frame of value, at the root, shortCircuitConditions: ['value === undefined'], baseCheck: 'if (typeof value !== "string") { … }', outputStatements: ['return { value: value };']>.composeChecks()
+   * // 'if (!((value === undefined))) {\n  if (typeof value !== "string") {\n    …\n  } else {\n    return { value: value };\n  }\n  return { issues };\n}\nreturn { value: value };'
+   * <frame of field0, nested, baseCheck: 'if (typeof field0 !== "string") { … }', postModifierChecks: ['if (field0.length < 3) { … }']>.composeChecks()
    * // 'if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length < 3) { … }\n}'
    * ```
    */
-  public composeChecks(): FrameOutput {
+  public composeChecks(): string {
     const baseCheck = this.baseCheck;
     if (baseCheck === undefined) {
       throw new Error(
@@ -224,31 +216,29 @@ export class Frame {
 
     const statements = [
       ...this.variableDeclarations,
-      ...this.childSchemaFrameOutputs,
+      ...this.childChecks,
       ...this.composePostModifierChecks(),
       ...this.outputStatements,
     ];
 
-    const checks = (
-      this.isRoot
-        ? [emitReturnIssuesIfFails(baseCheck), ...statements]
-        : [
-            statements.length === 0
-              ? emitCheck(baseCheck)
-              : Frame.composeBlock({
-                  head: `${emitCheck(baseCheck)} else`,
-                  body: statements.join('\n'),
-                }),
-          ]
-    ).join('\n');
+    const checks = [
+      statements.length === 0
+        ? baseCheck
+        : Frame.composeBlock({
+            head: `${baseCheck} else`,
+            body: statements.join('\n'),
+          }),
+      // The root's `else` always returns, so only a failed base check gets here.
+      ...(this.isRoot ? [emitReturnIssues()] : []),
+    ].join('\n');
 
     if (this.shortCircuitConditions.length === 0) {
-      return checks as FrameOutput;
+      return checks;
     }
 
     // Any one condition holding skips every check, so they run only when none does.
     const shortCircuits = this.shortCircuitConditions
-      .map(({ shortCircuitsWhen }) => `(${shortCircuitsWhen})`)
+      .map((shortCircuitCondition) => `(${shortCircuitCondition})`)
       .join(' || ');
 
     return [
@@ -258,7 +248,7 @@ export class Frame {
       }),
       // The short-circuit return value - then `outputStatements` already include its return statement, but this return statement is especially for short-circuit if walkaround
       ...(this.isRoot ? [emitReturnValue(this.checkingTarget.value)] : []),
-    ].join('\n') as FrameOutput;
+    ].join('\n');
   }
 
   /**
@@ -279,7 +269,7 @@ export class Frame {
    * // }
    * ```
    */
-  public composeSchema(): FrameOutput {
+  public composeSchema(): string {
     const compiledSchemaParams = this.compiledSchemaParams;
     if (compiledSchemaParams === undefined) {
       throw new Error(
@@ -304,7 +294,7 @@ export class Frame {
           body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
         }),
       }),
-    ].join('\n') as FrameOutput;
+    ].join('\n');
   }
 
   /**
@@ -317,7 +307,7 @@ export class Frame {
    * skips the post-modifiers, and one after the post-modifiers, so a failing
    * one never reaches `return { value: output }`; with no post-modifiers,
    * only the first is written, still needed before that return. For a
-   * Schema with no children, the base check's return already guards them,
+   * Schema with no children, the base check's `else` already guards them,
    * so only the return after them is written, and only when there are any.
    *
    * Nested, they can't return, as that would skip the parent's other fields.
