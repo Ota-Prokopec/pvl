@@ -1,11 +1,14 @@
 // What every emitter shares: the `js` tag its templates are written with,
-// the shapes it hands back, how a block and a check are written, and how an
-// Issue, a value and a literal's type are spelled in the emitted code.
-import { Issue, type IssueCode, type PossibleLiteralValue } from '@pvl/schema';
+// how a check is written, the return of a checked value a `Frame` places
+// after a Schema's checks, and how a value and a literal's type are spelled
+// in the emitted code (an Issue's are in `../issue.ts`). A fragment of a fixed shape, whose slots each
+// hold a one-line expression, is written in a `js` template, as `js` would
+// misindent a multi-line one; a block wrapping any statements is
+// `Frame.composeBlock`'s, which keeps this module from importing the Frame
+// that imports it.
+import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type { EmittingCheckMethodOutput } from './emitterTypes.js';
-
-const INDENT = '  ' as const;
+import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './emittersTypes.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text
@@ -22,49 +25,37 @@ const INDENT = '  ' as const;
  */
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
 
-/**
- * A block: `head {`, its body one level deeper, blank lines left blank, `}`.
- *
- * ```ts
- * emitBlock({ head: 'if (ok)', body: 'run();\n\nstop();' }) // 'if (ok) {\n  run();\n\n  stop();\n}'
- * ```
- */
-export const emitBlock = ({ head, body }: { head: string; body: string }): string => {
-  const indentedBody = body
-    .split('\n')
-    .map((line) => (line === '' ? line : `${INDENT}${line}`))
-    .join('\n');
-  return `${head} {\n${indentedBody}\n}`;
+/** What {@link emitCheck} writes a check from: the condition it fails under, and the Issue it reports then. */
+export type EmitCheckArgs = {
+  failsWhen: string;
+  issue: EmittedIssue;
 };
 
 /**
- * What an emitter method wrote, as a statement: a check pushes its Issue onto
- * `issues` when it fails, and source text is a statement already.
+ * A check as a statement, which pushes its Issue onto `issues` when it
+ * fails: how a base check and a Constraint are written.
  *
  * ```ts
  * emitCheck({ failsWhen: 'x < 3', issue: '{ … }' }) // 'if (x < 3) {\n  issues.push({ … });\n}'
- * emitCheck('for (const key of …) { … }')           // 'for (const key of …) { … }'
  * ```
  */
-export const emitCheck = (check: EmittingCheckMethodOutput): string => {
-  return typeof check === 'string'
-    ? check
-    : emitBlock({ head: js`if (${check.failsWhen})`, body: js`issues.push(${check.issue});` });
+export const emitCheck = ({ failsWhen, issue }: EmitCheckArgs): EmittedCheck => {
+  return js`if (${failsWhen}) {
+    issues.push(${issue});
+  }` as EmittedCheck;
 };
 
 /**
- * An Issue as a plain object literal, importing nothing. The message goes
- * through `@pvl/schema`'s own `Issue`, so an empty custom message falls back
- * to its default exactly as the interpreted path's does.
+ * The statement returning `value` from `_checkType` as the value it
+ * checked: the Result's `value` property.
  *
  * ```ts
- * emitIssue('TOO_SMALL', 'too short', '[...path, "name"]')
- * // '{ code: "TOO_SMALL", message: "too short", path: [...path, "name"] }'
+ * emitReturnValue('value')  // 'return { value: value };'
+ * emitReturnValue('output') // 'return { value: output };'
  * ```
  */
-export const emitIssue = (code: IssueCode, message: string, path: string): string => {
-  const issueMessage = new Issue(code, [], message).message;
-  return js`{ code: ${JSON.stringify(code)}, message: ${JSON.stringify(issueMessage)}, path: ${path} }`;
+export const emitReturnValue = (value: string): EmittedOutputStatement => {
+  return js`return { value: ${value} };` as EmittedOutputStatement;
 };
 
 /**

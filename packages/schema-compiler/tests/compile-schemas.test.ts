@@ -35,26 +35,27 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
-            return { issues };
-          }
-          const input = value as Record<string, unknown>;
-
-          // name
-          const field0 = input["name"];
-          if (typeof field0 !== "string") {
-            issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path, "name"] });
           } else {
-            if (field0.length < 3) {
-              issues.push({ code: "TOO_SMALL", message: "String must contain at least 3 character(s)", path: [...path, "name"] });
-            }
-          }
+            const input = value as Record<string, unknown>;
 
-          if (issues.length > 0) {
-            return { issues };
+            // name
+            const field0 = input["name"];
+            if (typeof field0 !== "string") {
+              issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path, "name"] });
+            } else {
+              if (field0.length < 3) {
+                issues.push({ code: "TOO_SMALL", message: "String must contain at least 3 character(s)", path: [...path, "name"] });
+              }
+            }
+
+            if (issues.length > 0) {
+              return { issues };
+            }
+            const output: Record<string, unknown> = {};
+            output["name"] = field0;
+            return { value: output };
           }
-          const output: Record<string, unknown> = {};
-          output["name"] = field0;
-          return { value: output };
+          return { issues };
         }
       }
 
@@ -88,28 +89,29 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (!Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected array", path: path.length > 0 ? path : undefined });
-            return { issues };
-          }
-          const output: unknown[] = [];
-          for (let index = 0; index < value.length; index++) {
-            const element: unknown = value[index];
-            if (element !== undefined) {
-              if (typeof element !== "string") {
-                issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path, index] });
+          } else {
+            const output: unknown[] = [];
+            for (let index = 0; index < value.length; index++) {
+              const element: unknown = value[index];
+              if (!((element === undefined))) {
+                if (typeof element !== "string") {
+                  issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path, index] });
+                }
               }
+              output.push(element);
             }
-            output.push(element);
+            if (issues.length > 0) {
+              return { issues };
+            }
+            if (value.length > 3) {
+              issues.push({ code: "TOO_BIG", message: "Array must contain at most 3 element(s)", path: path.length > 0 ? path : undefined });
+            }
+            if (issues.length > 0) {
+              return { issues };
+            }
+            return { value: output };
           }
-          if (issues.length > 0) {
-            return { issues };
-          }
-          if (value.length > 3) {
-            issues.push({ code: "TOO_BIG", message: "Array must contain at most 3 element(s)", path: path.length > 0 ? path : undefined });
-          }
-          if (issues.length > 0) {
-            return { issues };
-          }
-          return { value: output };
+          return { issues };
         }
       }
 
@@ -119,34 +121,35 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
-            return { issues };
-          }
-          const input = value as Record<string, unknown>;
+          } else {
+            const input = value as Record<string, unknown>;
 
-          // age
-          const field0 = input["age"];
-          if (field0 !== undefined) {
-            if (typeof field0 !== "number" || Number.isNaN(field0)) {
-              issues.push({ code: "INVALID_TYPE", message: "Expected number", path: [...path, "age"] });
+            // age
+            const field0 = input["age"];
+            if (!((field0 === undefined))) {
+              if (typeof field0 !== "number" || Number.isNaN(field0)) {
+                issues.push({ code: "INVALID_TYPE", message: "Expected number", path: [...path, "age"] });
+              }
             }
-          }
 
-          if (issues.length > 0) {
-            return { issues };
-          }
-          for (const key of Object.keys(input)) {
-            if (key !== "age") {
-              issues.push({ code: "UNRECOGNIZED_KEY", message: "Unrecognized key \\"" + key + "\\"", path: [...path, key] });
+            if (issues.length > 0) {
+              return { issues };
             }
+            for (const key of Object.keys(input)) {
+              if (key !== "age") {
+                issues.push({ code: "UNRECOGNIZED_KEY", message: "Unrecognized key \\"" + key + "\\"", path: [...path, key] });
+              }
+            }
+            if (issues.length > 0) {
+              return { issues };
+            }
+            const output: Record<string, unknown> = {};
+            if (field0 !== undefined || Object.hasOwn(input, "age")) {
+              output["age"] = field0;
+            }
+            return { value: output };
           }
-          if (issues.length > 0) {
-            return { issues };
-          }
-          const output: Record<string, unknown> = {};
-          if (field0 !== undefined || Object.hasOwn(input, "age")) {
-            output["age"] = field0;
-          }
-          return { value: output };
+          return { issues };
         }
       }
 
@@ -177,60 +180,61 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
-            return { issues };
-          }
-          const input = value as Record<string, unknown>;
-
-          // lines
-          let field0 = input["lines"];
-          if (!Array.isArray(field0)) {
-            issues.push({ code: "INVALID_TYPE", message: "Expected array", path: [...path, "lines"] });
           } else {
-            const path1 = [...path, "lines"];
-            const issueCount1 = issues.length;
-            const output1: unknown[] = [];
-            for (let index1 = 0; index1 < field0.length; index1++) {
-              let element1: unknown = field0[index1];
-              if (typeof element1 !== "object" || element1 === null || Array.isArray(element1)) {
-                issues.push({ code: "INVALID_TYPE", message: "Expected object", path: [...path1, index1] });
-              } else {
-                const input2 = element1 as Record<string, unknown>;
-                const path2 = [...path1, index1];
-                const issueCount2 = issues.length;
+            const input = value as Record<string, unknown>;
 
-                // sku
-                const field1 = input2["sku"];
-                if (typeof field1 !== "string") {
-                  issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path2, "sku"] });
-                }
+            // lines
+            let field0 = input["lines"];
+            if (!Array.isArray(field0)) {
+              issues.push({ code: "INVALID_TYPE", message: "Expected array", path: [...path, "lines"] });
+            } else {
+              const path1 = [...path, "lines"];
+              const issueCount1 = issues.length;
+              const output1: unknown[] = [];
+              for (let index1 = 0; index1 < field0.length; index1++) {
+                let element1: unknown = field0[index1];
+                if (typeof element1 !== "object" || element1 === null || Array.isArray(element1)) {
+                  issues.push({ code: "INVALID_TYPE", message: "Expected object", path: [...path1, index1] });
+                } else {
+                  const path2 = [...path1, index1];
+                  const issueCount2 = issues.length;
+                  const input2 = element1 as Record<string, unknown>;
 
-                if (issues.length === issueCount2) {
-                  for (const key of Object.keys(input2)) {
-                    if (key !== "sku") {
-                      issues.push({ code: "UNRECOGNIZED_KEY", message: "Unrecognized key \\"" + key + "\\"", path: [...path2, key] });
+                  // sku
+                  const field1 = input2["sku"];
+                  if (typeof field1 !== "string") {
+                    issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path2, "sku"] });
+                  }
+
+                  if (issues.length === issueCount2) {
+                    for (const key of Object.keys(input2)) {
+                      if (key !== "sku") {
+                        issues.push({ code: "UNRECOGNIZED_KEY", message: "Unrecognized key \\"" + key + "\\"", path: [...path2, key] });
+                      }
                     }
                   }
+                  const output2: Record<string, unknown> = {};
+                  output2["sku"] = field1;
+                  element1 = output2;
                 }
-                const output2: Record<string, unknown> = {};
-                output2["sku"] = field1;
-                element1 = output2;
+                output1.push(element1);
               }
-              output1.push(element1);
-            }
-            if (issues.length === issueCount1) {
-              if (field0.length < 1) {
-                issues.push({ code: "TOO_SMALL", message: "Array must contain at least 1 element(s)", path: path1 });
+              if (issues.length === issueCount1) {
+                if (field0.length < 1) {
+                  issues.push({ code: "TOO_SMALL", message: "Array must contain at least 1 element(s)", path: path1 });
+                }
               }
+              field0 = output1;
             }
-            field0 = output1;
-          }
 
-          if (issues.length > 0) {
-            return { issues };
+            if (issues.length > 0) {
+              return { issues };
+            }
+            const output: Record<string, unknown> = {};
+            output["lines"] = field0;
+            return { value: output };
           }
-          const output: Record<string, unknown> = {};
-          output["lines"] = field0;
-          return { value: output };
+          return { issues };
         }
       }
 
@@ -259,15 +263,16 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (typeof value !== "string") {
             issues.push({ code: "INVALID_TYPE", message: "Expected string", path: path.length > 0 ? path : undefined });
-            return { issues };
+          } else {
+            if (value.length > 2) {
+              issues.push({ code: "TOO_BIG", message: "String must contain at most 2 character(s)", path: path.length > 0 ? path : undefined });
+            }
+            if (issues.length > 0) {
+              return { issues };
+            }
+            return { value: value };
           }
-          if (value.length > 2) {
-            issues.push({ code: "TOO_BIG", message: "String must contain at most 2 character(s)", path: path.length > 0 ? path : undefined });
-          }
-          if (issues.length > 0) {
-            return { issues };
-          }
-          return { value };
+          return { issues };
         }
       }
 
@@ -301,9 +306,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (!Object.is(value, "user")) {
             issues.push({ code: "INVALID_VALUE", message: "Expected \\"user\\"", path: path.length > 0 ? path : undefined });
-            return { issues };
+          } else {
+            return { value: value };
           }
-          return { value };
+          return { issues };
         }
       }
 
@@ -313,9 +319,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           const issues: PvlIssue[] = [];
           if (value !== "ADMIN" && value !== "USER") {
             issues.push({ code: "INVALID_VALUE", message: "Expected one of \\"ADMIN\\", \\"USER\\"", path: path.length > 0 ? path : undefined });
-            return { issues };
+          } else {
+            return { value: value };
           }
-          return { value };
+          return { issues };
         }
       }
 
@@ -348,20 +355,21 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
       class PvlCompiledSchema0 extends PvlSchema<string | undefined, string | undefined> {
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
-          if (value !== undefined) {
+          if (!((value === undefined))) {
             if (typeof value !== "string") {
               issues.push({ code: "INVALID_TYPE", message: "Expected string", path: path.length > 0 ? path : undefined });
-              return { issues };
+            } else {
+              if (value.length > 2) {
+                issues.push({ code: "TOO_BIG", message: "String must contain at most 2 character(s)", path: path.length > 0 ? path : undefined });
+              }
+              if (issues.length > 0) {
+                return { issues };
+              }
+              return { value: value };
             }
-            if (value.length > 2) {
-              issues.push({ code: "TOO_BIG", message: "String must contain at most 2 character(s)", path: path.length > 0 ? path : undefined });
-            }
-            if (issues.length > 0) {
-              return { issues };
-            }
-            return { value };
+            return { issues };
           }
-          return { value };
+          return { value: value };
         }
       }
 
@@ -369,25 +377,26 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
       class PvlCompiledSchema1 extends PvlSchema<number[] | null | undefined, number[] | null | undefined> {
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
-          if (value !== null && value !== undefined) {
+          if (!((value === null) || (value === undefined))) {
             if (!Array.isArray(value)) {
               issues.push({ code: "INVALID_TYPE", message: "Expected array", path: path.length > 0 ? path : undefined });
-              return { issues };
-            }
-            const output: unknown[] = [];
-            for (let index = 0; index < value.length; index++) {
-              const element: unknown = value[index];
-              if (typeof element !== "number" || Number.isNaN(element)) {
-                issues.push({ code: "INVALID_TYPE", message: "Expected number", path: [...path, index] });
+            } else {
+              const output: unknown[] = [];
+              for (let index = 0; index < value.length; index++) {
+                const element: unknown = value[index];
+                if (typeof element !== "number" || Number.isNaN(element)) {
+                  issues.push({ code: "INVALID_TYPE", message: "Expected number", path: [...path, index] });
+                }
+                output.push(element);
               }
-              output.push(element);
+              if (issues.length > 0) {
+                return { issues };
+              }
+              return { value: output };
             }
-            if (issues.length > 0) {
-              return { issues };
-            }
-            return { value: output };
+            return { issues };
           }
-          return { value };
+          return { value: value };
         }
       }
 
