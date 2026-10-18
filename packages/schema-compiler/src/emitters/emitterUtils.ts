@@ -1,11 +1,17 @@
 // What every emitter shares: the `js` tag its templates are written with,
-// the shapes it hands back, how a block and a check are written, and how an
-// Issue, a value and a literal's type are spelled in the emitted code.
+// how a check is written, the JavaScript fragments a `Frame` places around
+// a Schema's checks, and how an Issue, a value and a literal's type are
+// spelled in the emitted code. A fragment of a fixed shape, whose slots each
+// hold a one-line expression, is written in a `js` template, as `js` would
+// misindent a multi-line one; a block wrapping any statements is
+// `Frame.composeBlock`'s, which keeps this module from importing the Frame
+// that imports it.
 import { Issue, type IssueCode, type PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
-import type { EmittingCheckMethodOutput } from './emitterTypes.js';
-
-const INDENT = '  ' as const;
+import type {
+  EmittingCheckMethodOutput,
+  EmittingCheckMethodOutputWithCheck,
+} from './emitterTypes.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text
@@ -23,21 +29,6 @@ const INDENT = '  ' as const;
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
 
 /**
- * A block: `head {`, its body one level deeper, blank lines left blank, `}`.
- *
- * ```ts
- * emitBlock({ head: 'if (ok)', body: 'run();\n\nstop();' }) // 'if (ok) {\n  run();\n\n  stop();\n}'
- * ```
- */
-export const emitBlock = ({ head, body }: { head: string; body: string }): string => {
-  const indentedBody = body
-    .split('\n')
-    .map((line) => (line === '' ? line : `${INDENT}${line}`))
-    .join('\n');
-  return `${head} {\n${indentedBody}\n}`;
-};
-
-/**
  * What an emitter method wrote, as a statement: a check pushes its Issue onto
  * `issues` when it fails, and source text is a statement already.
  *
@@ -49,7 +40,68 @@ export const emitBlock = ({ head, body }: { head: string; body: string }): strin
 export const emitCheck = (check: EmittingCheckMethodOutput): string => {
   return typeof check === 'string'
     ? check
-    : emitBlock({ head: js`if (${check.failsWhen})`, body: js`issues.push(${check.issue});` });
+    : js`if (${check.failsWhen}) {
+        issues.push(${check.issue});
+      }`;
+};
+
+/**
+ * The statement returning the Issues collected so far, if there are any.
+ *
+ * ```ts
+ * emitReturnIssuesIfAny() // 'if (issues.length > 0) {\n  return { issues };\n}'
+ * ```
+ */
+export const emitReturnIssuesIfAny = (): string => {
+  return js`if (issues.length > 0) {
+    return { issues };
+  }`;
+};
+
+/**
+ * `check` returning its Issue when it fails: the root's base check, after
+ * which nothing else can be checked.
+ *
+ * ```ts
+ * emitReturnIssueIfFails({ failsWhen: '!Array.isArray(value)', issue: '{ … }' })
+ * // 'if (!Array.isArray(value)) {\n  issues.push({ … });\n  return { issues };\n}'
+ * ```
+ */
+export const emitReturnIssueIfFails = ({
+  failsWhen,
+  issue,
+}: EmittingCheckMethodOutputWithCheck): string => {
+  return js`if (${failsWhen}) {
+    issues.push(${issue});
+    return { issues };
+  }`;
+};
+
+/**
+ * The statement returning `value` from `_checkType` as the value it
+ * checked: the Result's `value` property, written in shorthand when the
+ * expression is the identifier of the same name, `_checkType`'s own `value`.
+ *
+ * ```ts
+ * emitReturnValue('value')  // 'return { value };'
+ * emitReturnValue('output') // 'return { value: output };'
+ * ```
+ */
+export const emitReturnValue = (value: string): string => {
+  return value === 'value' ? 'return { value };' : js`return { value: ${value} };`;
+};
+
+/**
+ * The condition under which no Issue was added since `issueCount`, the
+ * local holding the count of Issues taken before a nested composite's
+ * children: every child passed.
+ *
+ * ```ts
+ * emitNoNewIssuesCondition('issueCount1') // 'issues.length === issueCount1'
+ * ```
+ */
+export const emitNoNewIssuesCondition = (issueCount: string): string => {
+  return js`issues.length === ${issueCount}`;
 };
 
 /**

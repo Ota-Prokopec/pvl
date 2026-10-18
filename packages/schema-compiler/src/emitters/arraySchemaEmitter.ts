@@ -9,11 +9,16 @@ import {
 } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitFrame } from './emitFrame.js';
-import type { EmitScope } from './emitScope.js';
-import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
+import type {
+  EmitChecksArgs,
+  EmitSchemaArgs,
+  EmitTypedChecksArgs,
+  EmitTypedChecksOutput,
+} from './emitter.js';
 import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
-import { emitBlock, emitIssue, js } from './emitterUtils.js';
+import { emitIssue, js } from './emitterUtils.js';
+import { Frame } from './frame.js';
+import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
@@ -32,8 +37,8 @@ const spellArrayType = (elementType: string): string => {
 export type EmitLoopArgs = {
   elementSchema: Schema;
   /** The array's frame, whose value is looped over. */
-  frame: EmitFrame;
-  scope: EmitScope;
+  frame: Frame;
+  scope: Scope;
 };
 /**
  * The loop over the array in `frame`, checking every element at its index,
@@ -54,7 +59,7 @@ const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
   const { index, element, output, path } = frame;
   const array = frame.target.value;
 
-  return emitBlock({
+  return Frame.composeBlock({
     head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
     body: [
       js`${emitter._spellValueDeclaration()} ${element}: unknown = ${array}[${index}];`,
@@ -120,22 +125,18 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * An array's checks once its type check has passed, at the root or nested
-   * in another Schema: one loop with the element's checks inlined, then its
-   * own Constraints in chain order, which run only once every element has
-   * passed, then the output it builds, which the frame hands on.
+   * in another Schema, as the parts the frame composes: its locals, the
+   * output it builds among them, one loop with the element's checks inlined
+   * as its one child, and its own Constraints in chain order, which the
+   * frame runs only once every element has passed. The frame hands the
+   * output on.
    *
    * ```ts
-   * ArraySchemaEmitter._emitTypedChecks({ schema: <pvl.array(pvl.string()).min(1)>, frame: <frame of field0 at [...path, "tags"], nested>, scope })
-   * // const path1 = [...path, "tags"];
-   * // const issueCount1 = issues.length;
-   * // const output1: unknown[] = [];
-   * // for (let index1 = 0; index1 < field0.length; index1++) {
-   * //   const element1: unknown = field0[index1];
-   * //   if (typeof element1 !== "string") { … path: [...path1, index1] … }
-   * //   output1.push(element1);
-   * // }
-   * // if (issues.length === issueCount1) {
-   * //   if (field0.length < 1) { … path: path1 … }
+   * ArraySchemaEmitter._emitTypedChecks({ schema: <pvl.array(pvl.string()).min(1)>, frame: <frame of field0 at [...path, "tags"], nested>, scope, isRoot: false })
+   * // {
+   * //   declarations: ['const path1 = [...path, "tags"];', 'const issueCount1 = issues.length;', 'const output1: unknown[] = [];'],
+   * //   childChecks: ['for (let index1 = 0; index1 < field0.length; index1++) {\n  const element1: unknown = field0[index1];\n  …\n  output1.push(element1);\n}'],
+   * //   postModifierChecks: ['if (field0.length < 1) { … path: path1 … }'],
    * // }
    * ```
    */
@@ -143,19 +144,27 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     schema,
     frame,
     scope,
-  }: EmitTypedChecksArgs<ArraySchema>): string[] {
+    isRoot,
+  }: EmitTypedChecksArgs<ArraySchema>): EmitTypedChecksOutput {
     const constraintChecks = this.emitPostModifierChecks({
       schema,
       target: { value: frame.target.value, issuePath: frame.issuePath },
       scope,
     });
 
-    return [
-      ...frame.emitDeclarations({ readsPath: true, postModifierChecks: constraintChecks }),
-      js`const ${frame.output}: unknown[] = [];`,
-      emitLoop({ elementSchema: schema.element, frame, scope }),
-      ...frame.emitOnceChildrenPassed({ postModifierChecks: constraintChecks }),
-    ];
+    return {
+      declarations: [
+        ...this.emitDeclarations({
+          frame,
+          isRoot,
+          readsPath: true,
+          postModifierChecks: constraintChecks,
+        }),
+        js`const ${frame.output}: unknown[] = [];`,
+      ],
+      childChecks: [emitLoop({ elementSchema: schema.element, frame, scope })],
+      postModifierChecks: constraintChecks,
+    };
   }
 
   /**

@@ -12,16 +12,21 @@ import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitFrame } from './emitFrame.js';
-import type { EmitScope } from './emitScope.js';
-import type { EmitChecksArgs, EmitSchemaArgs, EmitTypedChecksArgs } from './emitter.js';
+import type {
+  EmitChecksArgs,
+  EmitSchemaArgs,
+  EmitTypedChecksArgs,
+  EmitTypedChecksOutput,
+} from './emitter.js';
 import type {
   EmitterMethodOf,
   EmittingCheckMethodInput,
   EmittingCheckMethodOutputWithCheck,
 } from './emitterTypes.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { emitBlock, emitCheck, emitIssue, js } from './emitterUtils.js';
+import { emitCheck, emitIssue, js } from './emitterUtils.js';
+import { Frame } from './frame.js';
+import type { Scope } from './scope.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -46,7 +51,7 @@ export type NamedField = ObjectField & {
  * // [{ key: 'name', schema, value: 'field0' }, { key: 'age', schema, value: 'field1' }]
  * ```
  */
-const nameFields = (shape: ReadonlyArray<ObjectField>, scope: EmitScope): NamedField[] => {
+const nameFields = (shape: ReadonlyArray<ObjectField>, scope: Scope): NamedField[] => {
   return shape.map((field) => ({ ...field, value: scope.nextField() }));
 };
 
@@ -160,8 +165,8 @@ const emitFieldChecks = ({
   scope,
 }: {
   field: NamedField;
-  frame: EmitFrame;
-  scope: EmitScope;
+  frame: Frame;
+  scope: Scope;
 }): string => {
   const { emitter } = fieldSchema;
   const keyLiteral = JSON.stringify(key);
@@ -202,7 +207,7 @@ const emitOutputAssignment = ({
       ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
       : js`${output}[${keyLiteral}] = ${value};`;
   return isOptionalField(fieldSchema)
-    ? emitBlock({
+    ? Frame.composeBlock({
         head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
         body: assignment,
       })
@@ -272,31 +277,30 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * An object's checks once its type check has passed, at the root or nested
-   * in another Schema: every field's checks inlined in shape order, then
-   * `.strict()`'s, which run only once every field has passed, then the
-   * output built from the fields, which the frame hands on. The last of `.strict()` and
-   * `.passthrough()` chained decides the keys the shape doesn't declare:
-   * `.passthrough()` copies them onto the output, and with neither they are
-   * stripped (ADR-0007).
+   * in another Schema, as the parts the frame composes: its locals, every
+   * field's checks inlined in shape order as its children, `.strict()`'s
+   * checks, which the frame runs only once every field has passed, and the
+   * output built from the fields, which the frame hands on. The last of
+   * `.strict()` and `.passthrough()` chained decides the keys the shape
+   * doesn't declare: `.passthrough()` copies them onto the output, and with
+   * neither they are stripped (ADR-0007).
    *
    * ```ts
-   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope })
-   * // const input1 = field0 as Record<string, unknown>;
-   * // const path1 = [...path, "user"];
-   * //
-   * // // name
-   * // const field1 = input1["name"];
-   * // if (typeof field1 !== "string") { … path: [...path1, "name"] … }
-   * //
-   * // const output1: Record<string, unknown> = {};
-   * // output1["name"] = field1;
+   * ObjectSchemaEmitter._emitTypedChecks({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope, isRoot: false })
+   * // {
+   * //   declarations: ['const path1 = [...path, "user"];', 'const input1 = field0 as Record<string, unknown>;', ''],
+   * //   childChecks: ['// name\nconst field1 = input1["name"];\nif (typeof field1 !== "string") { … path: [...path1, "name"] … }\n'],
+   * //   postModifierChecks: [],
+   * //   outputStatements: ['const output1: Record<string, unknown> = {};', 'output1["name"] = field1;'],
+   * // }
    * ```
    */
   public static override _emitTypedChecks({
     schema,
     frame,
     scope,
-  }: EmitTypedChecksArgs<ObjectSchema>): string[] {
+    isRoot,
+  }: EmitTypedChecksArgs<ObjectSchema>): EmitTypedChecksOutput {
     const fields = nameFields(schema.shape, scope);
     const objectTarget: ObjectEmittingCheckMethodInput = {
       value: frame.input,
@@ -313,19 +317,26 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     const strictChecks = unknownKeysCall?.name === 'strict' ? unknownKeysStatements : [];
     const passthroughCopy = unknownKeysCall?.name === 'passthrough' ? unknownKeysStatements : [];
 
-    return [
-      js`const ${frame.input} = ${frame.target.value} as Record<string, unknown>;`,
-      ...frame.emitDeclarations({
-        readsPath: fields.length > 0 || strictChecks.length > 0,
-        postModifierChecks: strictChecks,
-      }),
-      '',
-      ...fields.map((field) => emitFieldChecks({ field, frame, scope })),
-      ...frame.emitOnceChildrenPassed({ postModifierChecks: strictChecks }),
-      js`const ${frame.output}: Record<string, unknown> = {};`,
-      ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
-      ...passthroughCopy,
-    ];
+    return {
+      declarations: [
+        ...this.emitDeclarations({
+          frame,
+          isRoot,
+          readsPath: fields.length > 0 || strictChecks.length > 0,
+          postModifierChecks: strictChecks,
+        }),
+        js`const ${frame.input} = ${frame.target.value} as Record<string, unknown>;`,
+        // Sets the fields apart, each of which ends in a blank line too.
+        '',
+      ],
+      childChecks: fields.map((field) => emitFieldChecks({ field, frame, scope })),
+      postModifierChecks: strictChecks,
+      outputStatements: [
+        js`const ${frame.output}: Record<string, unknown> = {};`,
+        ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
+        ...passthroughCopy,
+      ],
+    };
   }
 
   /**

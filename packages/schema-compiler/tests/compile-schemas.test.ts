@@ -194,9 +194,9 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               if (typeof element1 !== "object" || element1 === null || Array.isArray(element1)) {
                 issues.push({ code: "INVALID_TYPE", message: "Expected object", path: [...path1, index1] });
               } else {
-                const input2 = element1 as Record<string, unknown>;
                 const path2 = [...path1, index1];
                 const issueCount2 = issues.length;
+                const input2 = element1 as Record<string, unknown>;
 
                 // sku
                 const field1 = input2["sku"];

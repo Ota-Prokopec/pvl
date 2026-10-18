@@ -9,13 +9,13 @@
  * so they stay short at any depth.
  *
  * ```ts
- * const scope = new EmitScope();
+ * const scope = new Scope();
  * scope.nextField() // 'field0'
  * scope.nextField() // 'field1'
  * scope.nextLocalSuffix() // '1': a nested composite's locals are `input1`, `path1`, …
  * ```
  */
-export class EmitScope {
+export class Scope {
   private fieldCount = 0;
 
   private nodeCount = 0;
