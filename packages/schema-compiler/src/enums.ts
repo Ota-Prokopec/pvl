@@ -1,5 +1,6 @@
 // Every fixed set of named values the compiler uses: diagnostic codes and
-// severities, and the `pvl.*` factories it reads a Schema from.
+// severities, the `pvl.*` factories it reads a Schema from, and the Modifier
+// methods chained onto one.
 import type { ValueOfEnum } from '@repo/types';
 
 /**
@@ -110,6 +111,21 @@ export const SCHEMA_FACTORY = {
 } as const;
 
 export type SchemaFactory = ValueOfEnum<typeof SCHEMA_FACTORY>;
+
+/** Every Modifier method the compiler reads off a Schema's call chain, valued by its name on the Schema: the pre-modifiers first, then the post-modifiers (ADR-0010). */
+export const MODIFIER_NAME = {
+  OPTIONAL: 'optional',
+  NULLABLE: 'nullable',
+  COERCE: 'coerce',
+  MIN: 'min',
+  MAX: 'max',
+  LENGTH: 'length',
+  INT: 'int',
+  STRICT: 'strict',
+  PASSTHROUGH: 'passthrough',
+} as const;
+
+export type ModifierName = ValueOfEnum<typeof MODIFIER_NAME>;
 
 /** What a module specifier written in a scanned module reaches, as the mirror sees it. */
 export const SPECIFIER_TARGET_KIND = {

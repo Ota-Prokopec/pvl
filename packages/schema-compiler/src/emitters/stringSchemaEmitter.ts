@@ -1,67 +1,75 @@
 // The code a `StringSchema` compiles to, one static method per method of
 // `StringSchema` it mirrors.
-import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
+import { ISSUE_CODE, Issue, STRING_SCHEMA_ISSUE_MESSAGE, type StringSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitChecksArgs } from './emitter.js';
-import type { EmitterMethodOf, EmittingCheckMethodOutputWithCheck } from './emitterTypes.js';
-import { emitIssue, js } from './emitterUtils.js';
+import type { EmitBaseCheckArgs } from './emitter.js';
+import { emitIssue } from '../issue.js';
+import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
+import { emitCheck, js } from './emitterUtils.js';
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
   /**
    * ```ts
    * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
-   * // { failsWhen: 'typeof field0 !== "string"', issue: '{ code: "INVALID_TYPE", … }' }
+   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
    * ```
    */
   public static override _emitBaseCheck({
     target: { value, issuePath },
-  }: EmitChecksArgs): EmittingCheckMethodOutputWithCheck {
-    return {
+  }: EmitBaseCheckArgs): EmittedCheck {
+    return emitCheck({
       failsWhen: js`typeof ${value} !== "string"`,
       issue: emitIssue(
-        ISSUE_CODE.INVALID_TYPE,
-        STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], STRING_SCHEMA_ISSUE_MESSAGE._checkType()),
       ),
-    };
+    });
   }
 
   /** `.min(3)` → `field0.length < 3`, reporting `TOO_SMALL`. */
   public static readonly min: EmitterMethodOf<StringSchema['min']> = ({
     target: { value, issuePath },
     args: [minLength, options],
-  }) => ({
-    failsWhen: js`${value}.length < ${minLength}`,
-    issue: emitIssue(
-      ISSUE_CODE.TOO_SMALL,
-      options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
-      issuePath,
-    ),
-  });
+  }) =>
+    emitCheck({
+      failsWhen: js`${value}.length < ${minLength}`,
+      issue: emitIssue(
+        new Issue(
+          ISSUE_CODE.TOO_SMALL,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
+        ),
+      ),
+    });
 
   /** `.max(20)` → `field0.length > 20`, reporting `TOO_BIG`. */
   public static readonly max: EmitterMethodOf<StringSchema['max']> = ({
     target: { value, issuePath },
     args: [maxLength, options],
-  }) => ({
-    failsWhen: js`${value}.length > ${maxLength}`,
-    issue: emitIssue(
-      ISSUE_CODE.TOO_BIG,
-      options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
-      issuePath,
-    ),
-  });
+  }) =>
+    emitCheck({
+      failsWhen: js`${value}.length > ${maxLength}`,
+      issue: emitIssue(
+        new Issue(
+          ISSUE_CODE.TOO_BIG,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
+        ),
+      ),
+    });
 
   /** `.length(2)` → `field0.length !== 2`, reporting `INVALID_LENGTH`. */
   public static readonly length: EmitterMethodOf<StringSchema['length']> = ({
     target: { value, issuePath },
     args: [exactLength, options],
-  }) => ({
-    failsWhen: js`${value}.length !== ${exactLength}`,
-    issue: emitIssue(
-      ISSUE_CODE.INVALID_LENGTH,
-      options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
-      issuePath,
-    ),
-  });
+  }) =>
+    emitCheck({
+      failsWhen: js`${value}.length !== ${exactLength}`,
+      issue: emitIssue(
+        new Issue(
+          ISSUE_CODE.INVALID_LENGTH,
+          [issuePath],
+          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
+        ),
+      ),
+    });
 }
