@@ -27,6 +27,13 @@
         "content/.vitepress/dist/**"
       ]
     },
+    "build:thesis": {
+      "cache": false,
+      "passThroughEnv": [
+        "TEXMFHOME",
+        "TEXMFLOCAL"
+      ]
+    },
     "lint": {
       "dependsOn": [
         "^lint"

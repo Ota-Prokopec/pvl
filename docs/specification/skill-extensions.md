@@ -20,8 +20,6 @@ Until the interview is over and the user asks for implementation, the repository
 
 A spec is a parent issue, too large to land as one change, so `/to-tickets` breaks it down before anything is implemented. Label it `spec`, in addition to the skill's own labels, and keep `ready-for-agent` off it: that label means implementable as-is.
 
-Besides publishing the issue, write the same spec to `docs/specification/<slug>.md` and land it through a PR. Cross-link the two: the file's top names its issue number, and the issue body names the file path.
-
 ## `/to-tickets`
 
 Each ticket is one self-contained unit of work, implementable as a single change. Publish every ticket as its own GitHub issue with the skill's `## Parent` section filled in, linking back to the spec issue; for pipeline tickets that section is required, though the skill's template treats it as optional. Label each ticket `ticket`, in addition to the skill's own labels (e.g. `ready-for-agent`); `spec` belongs only on the parent.

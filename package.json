@@ -3,9 +3,11 @@
   "private": true,
   "scripts": {
     "build": "turbo run build --continue",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!thesis-web",
+    "dev:thesis": "turbo run dev --filter=thesis-web",
     "docs:dev": "turbo run dev --filter=docs",
     "docs:build": "turbo run build --filter=docs",
+    "build:thesis": "turbo run build:thesis",
     "lint": "turbo run lint lint:workspace --continue",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",

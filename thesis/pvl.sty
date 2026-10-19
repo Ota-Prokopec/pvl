@@ -1,0 +1,9 @@
+% Macros and the listings style shared by the thesis chapters (loaded by main.tex).
+\ProvidesPackage{pvl}
+\RequirePackage{listings}
+\newcommand{\pvl}{\textsc{PVL}}
+\newcommand{\kod}[1]{\texttt{#1}}
+% One listings style for both outputs: monospace with straight quotes and
+% backticks (so quoted source code isn't curled), wrapped long lines.
+\lstset{basicstyle=\ttfamily\footnotesize, columns=fullflexible, keepspaces=true,
+  upquote=true, breaklines=true, numbers=left, numberstyle=\tiny}

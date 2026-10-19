@@ -27,3 +27,5 @@ coverage
 # Lockfiles
 pnpm-lock.yaml
 skills-lock.json
+# The thesis website is generated (pnpm build:thesis) but committed and deployed as is.
+apps/thesis-web/site
