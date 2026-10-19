@@ -2,6 +2,17 @@
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../utils.ts';
 
+// Whether a call or `new` expression builds a regular expression through
+// the global `RegExp`.
+//
+//   new RegExp('^a+$')        // true
+//   RegExp(pattern, 'g')      // true
+//   new Registry()            // false
+//   window.RegExp('a')        // false: only a bare `RegExp` is caught
+const callsRegExp = (node: TSESTree.CallExpression | TSESTree.NewExpression): boolean => {
+  return node.callee.type === AST_NODE_TYPES.Identifier && node.callee.name === 'RegExp';
+};
+
 export const noRegex = createRule({
   meta: {
     type: 'problem',
@@ -16,20 +27,18 @@ export const noRegex = createRule({
     schema: [],
   },
   defaultOptions: [],
-  create: (context) => {
-    const checkCallee = (node: TSESTree.CallExpression | TSESTree.NewExpression): void => {
-      if (node.callee.type === AST_NODE_TYPES.Identifier && node.callee.name === 'RegExp') {
+  create: (context) => ({
+    Literal: (node): void => {
+      if ('regex' in node) {
         context.report({ node, messageId: 'noRegex' });
       }
-    };
-    return {
-      Literal: (node): void => {
-        if ('regex' in node) {
-          context.report({ node, messageId: 'noRegex' });
-        }
-      },
-      CallExpression: checkCallee,
-      NewExpression: checkCallee,
-    };
-  },
+    },
+    'CallExpression, NewExpression': (
+      node: TSESTree.CallExpression | TSESTree.NewExpression,
+    ): void => {
+      if (callsRegExp(node)) {
+        context.report({ node, messageId: 'noRegex' });
+      }
+    },
+  }),
 });

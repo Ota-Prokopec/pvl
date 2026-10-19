@@ -25,6 +25,8 @@ export const NODE_ENV = {
 export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
 ```
 
+An enum used in one module stays a local `const`. Once it is shared or belongs at the package boundary, it moves, exported, to an `enums.ts` beside the modules that use it, never to a `consts.ts`. An internal-only enum goes in an `enums.ts` inside a directory the barrel leaves out (`src/modifiers/enums.ts` in `@pvl/schema`), so the barrel's `export *` doesn't publish it.
+
 `ValueOfEnum` also reads a literal array's elements, which is what `pvl.enum(['A', 'B'])` needs: a readonly tuple's `T[keyof T]` would include `length` and every array method.
 
 ## Constants

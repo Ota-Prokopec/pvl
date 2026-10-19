@@ -1,8 +1,20 @@
 import { coerceToBoolean } from '../coercions.js';
-import { ISSUE_CODE, Issue } from '../issue.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
+
+/**
+ * The default message of every Issue `BooleanSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const BOOLEAN_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected boolean',
+} as const;
 
 interface BooleanSchemaKind extends SchemaKind<BooleanSchema<unknown, unknown>> {
   readonly type: BooleanSchema<this['Input'], this['Output']>;
@@ -50,7 +62,9 @@ export class BooleanSchema<Input = boolean, Output = boolean> extends ChainableS
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<boolean> {
     if (typeof value !== 'boolean') {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected boolean')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, BOOLEAN_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
     return { value };

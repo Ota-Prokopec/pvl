@@ -3,7 +3,7 @@
 The testing rules every workspace entry follows. Read this before you write, change or review a test. Each package with its own testing strategy layers it on top of these rules:
 
 - [`docs/specification/schema/testing.md`](./docs/specification/schema/testing.md): the `@pvl/schema` strategy (the four seams, the required pipeline cases, property-based tests).
-- `docs/specification/schema-compiler/testing.md`: the `@pvl/schema-compiler` strategy, once the package has one.
+- [`docs/specification/schema-compiler/testing.md`](./docs/specification/schema-compiler/testing.md): the `@pvl/schema-compiler` strategy (the two seams, a test per diagnostic at each).
 
 ## Rules
 

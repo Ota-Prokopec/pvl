@@ -7,7 +7,7 @@ A TypeScript validation stack: a Zod-style schema library, and a compiler that t
 ### Validation library
 
 **Schema**:
-A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. In code, `Schema` is the abstract base class that owns the validation pipeline every Schema runs ([ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)). A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
+A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. In code, `Schema` is the abstract base class that owns the validation pipeline every Schema runs ([ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)). One Schema is one factory call with its chained methods, and a composite Schema holds others: `pvl.array(pvl.string())` is a Schema, and so is its element `pvl.string()`. `@pvl/schema-compiler` has its own abstract `Schema` class, for one Schema written in a Module, read from source, with one subclass per factory named after its `@pvl/schema` counterpart (`ObjectSchema`, `EnumSchema`); each subclass reads its factory's argument and names its Emitter, and `compile()` compiles it whether it is marked to compile or not ([ADR-0026](./docs/adr/0026-the-compiler-reads-each-factory-into-its-own-schema-subclass.md)). A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
 _Avoid_: Type, Model, Standard Schema (for this library's own Schemas).
 
 **Issue**:
@@ -56,14 +56,61 @@ _Avoid_: Read-only Schema (for a Schema that is not chainable, which is just a S
 Turning a Schema into a Compiled Schema before the program runs, as opposed to validating by walking the Schema tree at request time.
 _Avoid_: JIT, runtime compilation.
 
+**Marked-to-Compile Schema**:
+A Schema passed to `pvl.compile(...)` in a Module, as the compiler reads it from the source before emitting anything. A Module holds any number of them, and each one belongs to exactly one Module. Each one that compiles becomes a Compiled Schema. In code, `Module.findMarkedToCompileSchemas` finds them, each a compiler `Schema` read through its `pvl.compile(...)` call, and they are the only Schemas the compiler passes to `Module.compileSchemas`. See [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+_Avoid_: Compiled Schema (for the Schema before it is compiled).
+
+**Compilable Schema**:
+A Marked-to-Compile Schema the compiler can turn into a Compiled Schema: any Schema, primitive or composite, whose own methods, and every Schema nested in it at any depth, are all ones an Emitter compiles, with literal arguments. Today that is a primitive, a literal, an enum, or an object or array of them and of nested objects and arrays, with their Constraints, `.strict()`/`.passthrough()` and `.optional()`/`.nullable()`, on the wrapped Schema itself as on any nested one. One that isn't gets a Diagnostic per problem, and nothing is written. In code, `Schema.findUncompilableDiagnostics` decides it: none means compilable. See [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
+_Avoid_: Supported Schema, valid Schema.
+
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Schema marked with `pvl.compile(...)`: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+The artifact `@pvl/schema-compiler` produces for a Marked-to-Compile Schema: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Validator, Runtime validator.
 
+**Emitter**:
+The class in `@pvl/schema-compiler` that writes the Instructions for one schema type (`StringSchemaEmitter` for `StringSchema`), with one static method per method of that schema type, sharing its name and, through `EmitterMethodOf`, its parameter types. Every Emitter extends the abstract base `Emitter`, which emits a Schema's parts as source text for its Frame to compose, the way every Schema extends `Schema`. Each compiler `Schema` subclass names its Emitter (`StringSchema.emitter`), and each Emitter's hooks take that subclass; a subclass with none (`UnionSchema`) can't be compiled yet ([ADR-0026](./docs/adr/0026-the-compiler-reads-each-factory-into-its-own-schema-subclass.md)). See [ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md), [ADR-0028](./docs/adr/0028-emitter-methods-return-source-text-only.md) and [code-generation.md](./docs/specification/schema-compiler/code-generation.md).
+
+**Frame**:
+Where one Schema's checks are composed, at the root of a Compiled Schema's `_checkType` or nested where a parent reads the value. Its Emitter emits the parts as source text (base check, pre-modifiers' short-circuit conditions, declarations, children's checks, post-modifiers' checks, output), and the Frame only joins them and puts them in order and behind the gates the Schema's position needs. The root's Frame also writes the Compiled Schema's class. In code, `Frame` in `src/emitters/frame.ts`. See [ADR-0027](./docs/adr/0027-the-frame-composes-emitters-emit-and-the-root-frame-writes-the-compiled-schema.md) and [ADR-0028](./docs/adr/0028-emitter-methods-return-source-text-only.md).
+_Avoid_: EmitFrame, emit frame.
+
 **Instruction**:
-One primitive operation — a conditional check, a loop, a direct property read or assignment — the compiler emits as literal inline JavaScript in the Destination File. An Instruction is generated source text, never a data structure an interpreter later walks.
+One primitive operation — a conditional check, a loop, a direct property read or assignment — the compiler emits as literal inline JavaScript in a mirrored module of the Destination Directory. An Instruction is generated source text, never a data structure an interpreter later walks.
 _Avoid_: Opcode.
 
-**Destination File**:
-The single aggregate module `@pvl/schema-compiler` writes, mirroring every export of every scanned file — marked Schemas as Compiled Schemas, everything else copied through unchanged. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-file-and-rewrites-nothing.md) for why it exists and [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands.
-_Avoid_: Generated file, output bundle, artifact directory.
+**Destination Directory**:
+The directory `@pvl/schema-compiler` writes: a mirror of the Root Directory holding one mirrored module per scanned file at the same relative path — marked Schemas as Compiled Schemas, everything else copied through, only module specifiers rewritten — plus a generated `index.ts` barrel. An application adopts it by pointing an alias at it. See [ADR-0005](./docs/adr/0005-compiler-emits-a-destination-directory-and-rewrites-nothing.md) for why it exists, [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) for where it lands, and [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md) for its layout.
+_Avoid_: Destination File (the rejected single aggregate module), generated file, output bundle.
+
+**Module**:
+One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module`: `findMarkedToCompileSchemas()` finds its Marked-to-Compile Schemas, and `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression.
+_Avoid_: Scanned Module.
+
+**Root Directory**:
+The application's source root, set by `rootDir` (default `src`), that the Destination Directory mirrors: a scanned file at `<rootDir>/schemas/user.ts` is mirrored to `<destination>/schemas/user.ts`. Every scanned file must sit under it. See [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md#a-complete-mirror-of-the-source-root).
+_Avoid_: Source folder, schemas folder.
+
+**Base Directory**:
+The directory every relative path in a compiler run resolves against: the one holding `pvlconfig.json`, or the working directory for a run with no config file. It is what makes running from the repo root match running from the application directory, and keeps two applications' output apart. See [ADR-0015](./docs/adr/0015-compiled-schema-destination-resolution.md) and [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#the-base-directory).
+_Avoid_: Root, base directory, project directory.
+
+**Diagnostic**:
+One problem a compiler run reports: a stable public code, a severity (`ERROR` stops anything being written; `WARNING` doesn't, unless the run is strict), a message and, where there is one, the file. Distinct from an Issue, which is a validation failure at runtime. See [configuration-and-cli.md](./docs/specification/schema-compiler/configuration-and-cli.md#diagnostics).
+_Avoid_: Compiler error (a warning is a Diagnostic too).
+
+### Imports
+
+The three parts of an import the compiler reads, named after the fields of an ECMAScript [ImportEntry Record](https://tc39.es/ecma262/#importentry-record) (`[[ModuleRequest]]`, `[[ImportName]]`, `[[LocalName]]`). In `import { pvl as p } from '@pvl/schema';`, `'@pvl/schema'` is the Module Specifier, `pvl` the Import Name and `p` the Local Name.
+
+**Module Specifier**:
+The string after `from` naming the module an import reads from: `'@pvl/schema'`, `'./user.js'`, `'@/schemas/user'`. The compiler rewrites module specifiers in mirrored modules so they still resolve from the Destination Directory. See [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md).
+_Avoid_: Module expression, module name, import path.
+
+**Import Name**:
+The name a module exports and an import asks for: `pvl` in both `import { pvl } from '@pvl/schema'` and `import { pvl as p } from '@pvl/schema'`. The compiler recognises `pvl` by its Import Name, whatever Local Name it is bound to.
+_Avoid_: Variable expression, imported variable.
+
+**Local Name**:
+The name an import binds in the importing module: `p` in `import { pvl as p } from '@pvl/schema'`, and `pvl` in `import { pvl } from '@pvl/schema'`, where it equals the Import Name. A `pvl.compile(...)` call is found by the Local Names of `pvl`, so `p.compile(...)` counts too.
+_Avoid_: Alias, alias expression (an alias is a tsconfig `paths` entry such as `@/schemas/user`).

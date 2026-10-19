@@ -1,8 +1,23 @@
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
 import type { Schema } from './schema.js';
+
+/**
+ * The default message of every Issue `ArraySchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const ARRAY_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected array',
+  min: (minLength: number): string => `Array must contain at least ${minLength} element(s)`,
+  max: (maxLength: number): string => `Array must contain at most ${maxLength} element(s)`,
+  length: (exactLength: number): string => `Array must contain exactly ${exactLength} element(s)`,
+} as const;
 
 interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
   ArraySchema<ItemSchema, unknown, unknown>
@@ -42,7 +57,7 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  * ```
  */
 export class ArraySchema<
-  ItemSchema extends Schema<unknown, unknown>,
+  ItemSchema extends Schema = Schema,
   Input = InferInput<ItemSchema>[],
   Output = InferOutput<ItemSchema>[],
 > extends ChainableSchema<Input, Output> {
@@ -59,9 +74,9 @@ export class ArraySchema<
   // An accessor with no setter, so the property cannot be written. One schema
   // rather than a keyed collection, so — unlike `ObjectSchema`'s `shape` —
   // there is nothing below it to make read-only. The schema handed back is the
-  // very instance the caller declared, so its own modifiers come with it, and
-  // `@pvl/schema-compiler`'s Compiled Schemas expose `element` too, so a call
-  // site written against an interpreted schema survives the import swap.
+  // very instance the caller declared, so its own modifiers come with it. A
+  // Compiled Schema has no `element` (ADR-0020): a caller who validates one
+  // item on its own keeps a reference to the element's schema.
   /**
    * The schema every element of this array is validated against, so a single
    * item can be reached and validated on its own without validating a whole
@@ -107,7 +122,7 @@ export class ArraySchema<
                 new Issue(
                   ISSUE_CODE.TOO_SMALL,
                   path,
-                  options?.message ?? `Array must contain at least ${minLength} element(s)`,
+                  options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.min(minLength),
                 ),
               ],
             };
@@ -137,7 +152,7 @@ export class ArraySchema<
                 new Issue(
                   ISSUE_CODE.TOO_BIG,
                   path,
-                  options?.message ?? `Array must contain at most ${maxLength} element(s)`,
+                  options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.max(maxLength),
                 ),
               ],
             };
@@ -168,7 +183,7 @@ export class ArraySchema<
                 new Issue(
                   ISSUE_CODE.INVALID_LENGTH,
                   path,
-                  options?.message ?? `Array must contain exactly ${exactLength} element(s)`,
+                  options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.length(exactLength),
                 ),
               ],
             };
@@ -180,7 +195,7 @@ export class ArraySchema<
   _checkType(array: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (!Array.isArray(array)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected array')],
+        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, ARRAY_SCHEMA_ISSUE_MESSAGE._checkType())],
       };
     }
 

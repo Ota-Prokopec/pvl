@@ -1,5 +1,6 @@
-import { ISSUE_CODE, Issue, type IssueEditableProps } from '../issue.js';
-import type { Modifier } from '../modifiers.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue, type IssueEditableProps } from '../issue.js';
+import type { Modifier } from '../modifiers/modifiers.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
@@ -80,6 +81,18 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
   [Key in keyof Shape]: InferOutput<Shape[Key]>;
 }>;
 
+/**
+ * The default message of every Issue `ObjectSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const OBJECT_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected object',
+  strict: (key: string): string => `Unrecognized key "${key}"`,
+} as const;
+
 // What `.passthrough()` does to an output type that a modifier may already
 // have widened. Distributive, so `{ … } | undefined` gains the index
 // signature on the object branch and leaves the `undefined` branch alone.
@@ -125,7 +138,7 @@ const unknownKeysStrictModifier = (
         new Issue(
           ISSUE_CODE.UNRECOGNIZED_KEY,
           [...path, key],
-          options?.message ?? `Unrecognized key "${key}"`,
+          options?.message ?? OBJECT_SCHEMA_ISSUE_MESSAGE.strict(key),
         ),
     );
     return issues.length > 0 ? { issues } : null;
@@ -182,7 +195,7 @@ interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
  * ```
  */
 export class ObjectSchema<
-  Shape extends ObjectShape,
+  Shape extends ObjectShape = ObjectShape,
   Input = ObjectInput<Shape>,
   Output = ObjectOutput<Shape>,
 > extends ChainableSchema<Input, Output> {
@@ -205,12 +218,13 @@ export class ObjectSchema<
 
   // An accessor with no setter, returning `Readonly<Shape>`, so neither the
   // shape nor any one key can be written — a per-key write would otherwise
-  // typecheck and then silently do nothing, since `_fields` is already fixed.
+  // typecheck, then change what `_checkType` reads for that key while
+  // `_shapeKeys`, fixed at construction, stays as it was.
   // Per the parent spec nothing is frozen at runtime: immutability below the
   // accessor is the type system's job. The schemas handed back are the very
-  // instances the caller declared, so their own modifiers come with them, and
-  // `@pvl/schema-compiler`'s Compiled Schemas expose `shape` too, so a call
-  // site written against an interpreted schema survives the import swap.
+  // instances the caller declared, so their own modifiers come with them. A
+  // Compiled Schema has no `shape` (ADR-0020): a caller who validates one
+  // field on its own keeps a reference to that field's schema.
   /**
    * The schema declared for each key of this object schema, so a single field
    * can be reached and validated on its own without validating the whole
@@ -296,7 +310,9 @@ export class ObjectSchema<
   _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       return {
-        issues: [new Issue(ISSUE_CODE.INVALID_TYPE, path, 'Expected object')],
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, OBJECT_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
       };
     }
 

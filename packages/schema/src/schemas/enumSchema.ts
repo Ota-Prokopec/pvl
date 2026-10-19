@@ -1,5 +1,6 @@
 import type { ValueOfEnum } from '@repo/types';
-import { ISSUE_CODE, Issue } from '../issue.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
@@ -36,6 +37,18 @@ type EnumArraySource = ReadonlyArray<string>;
  * ```
  */
 export type EnumSource = EnumObjectSource | EnumArraySource;
+
+/**
+ * The default message of every Issue `EnumSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const ENUM_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (members: ReadonlyArray<EnumMember>): string =>
+    `Expected one of ${members.map((enumMember) => Issue.formatIssueMessageValue(enumMember)).join(', ')}`,
+} as const;
 
 interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind<
   EnumSchema<Source, unknown, unknown>
@@ -91,9 +104,7 @@ export class EnumSchema<
           new Issue(
             ISSUE_CODE.INVALID_VALUE,
             path,
-            `Expected one of ${Array.from(this.members)
-              .map((enumMember) => Issue.formatIssueMessageValue(enumMember))
-              .join(', ')}`,
+            ENUM_SCHEMA_ISSUE_MESSAGE._checkType(Array.from(this.members)),
           ),
         ],
       };

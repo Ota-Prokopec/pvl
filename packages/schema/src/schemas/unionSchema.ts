@@ -1,4 +1,5 @@
-import { ISSUE_CODE, Issue } from '../issue.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, SchemaKind } from '../types.js';
 import { ChainableSchema } from './chainableSchema.js';
@@ -30,6 +31,17 @@ export type UnionMember = Schema<unknown, unknown>;
  * ```
  */
 export type UnionMembers = ReadonlyArray<UnionMember>;
+
+/**
+ * The default message of every Issue `UnionSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const UNION_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Value matches no union member',
+} as const;
 
 // `Members[number]` is the union of the member schemas, and inferring through
 // a union of schemas yields the union of each member's own type.
@@ -100,7 +112,7 @@ export class UnionSchema<
     }
     return {
       issues: [
-        new Issue(ISSUE_CODE.INVALID_UNION, path, 'Value matches no union member'),
+        new Issue(ISSUE_CODE.INVALID_UNION, path, UNION_SCHEMA_ISSUE_MESSAGE._checkType()),
         ...rejections,
       ],
     };

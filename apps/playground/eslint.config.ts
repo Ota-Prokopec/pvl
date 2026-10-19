@@ -1,3 +1,4 @@
 import { config } from '@repo/eslint-config/base';
 
-export default config;
+// `.pvl/` is generated output, not source.
+export default [{ ignores: ['.pvl'] }, ...config];
