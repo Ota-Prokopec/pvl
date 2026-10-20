@@ -1,22 +1,24 @@
 // The abstract base of a Schema as the compiler knows it: one Schema written
 // in a Module, read from source statically (ADR-0002), and compiled into its
 // Compiled Schema. Only a `pvl.*` call chain, a literal or a top-level `const`
-// of the same file holding one is understood. Nothing is imported or
-// executed. Each factory reads into its own subclass in `src/schemas/`, which
+// of the same file holding one is understood; a method's argument that isn't
+// one is a Runtime Argument, which the Compiled Schema evaluates (ADR-0030).
+// Nothing is imported or executed. Each factory reads into its own subclass in `src/schemas/`, which
 // names its Emitter (ADR-0026) and registers itself here as its module loads,
 // so this module never imports one: a subclass extends `Schema` as its
 // module loads, so an import back would run it before `Schema` exists.
 import type { Node } from 'ts-morph';
 import { ConstCycleError } from '../ast/constCycleError.js';
-import { GenericAst, type FollowedConsts, type StaticValue } from '../ast/genericAst.js';
+import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import { PvlAst, type CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import type { Emitter } from '../emitters/emitter.js';
+import type { EmitCompiledSchemaArgs, Emitter } from '../emitters/emitter.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
 import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
 import type { Module } from '../module.js';
-import type { SchemaModifierCall } from './schemaTypes.js';
+import { RuntimeArgument } from './runtimeArgument.js';
+import type { SchemaModifierCall, SchemaModifierCallArgument } from './schemaTypes.js';
 
 /** The expression a Schema is read from, and the Module it is written in. */
 export type ReadSchemaArgs = {
@@ -26,6 +28,14 @@ export type ReadSchemaArgs = {
   /** The Local Names `pvl` is imported under from `@pvl/schema`. */
   pvlImportLocalNames: ReadonlySet<string>;
 };
+
+/** What a Schema is read with: what it was asked to read, and the Runtime Arguments its `pvl.compile(...)` call reaches so far, in the order they are read. */
+type ReadingArgs = ReadSchemaArgs & {
+  readonly runtimeArguments: RuntimeArgument[];
+};
+
+/** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`). */
+export type CompileSchemaArgs = Omit<EmitCompiledSchemaArgs, 'schema'>;
 
 /** What every Schema holds, whichever factory built it. */
 export type SchemaOptions = {
@@ -78,7 +88,7 @@ const SCHEMA_FACTORIES: ReadonlySet<string> = new Set(Object.values(SCHEMA_FACTO
  * const { schema } = Schema.read({ module: user, expression: <pvl.compile(…)>, pvlImportLocalNames });
  * schema;                                // <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema> }]>
  * schema.findUncompilableDiagnostics(); // []: a Compilable Schema
- * schema.compile('PvlCompiledSchema0');  // 'class PvlCompiledSchema0 extends PvlSchema<…> { … }'
+ * schema.compile({ className: 'PvlCompiledSchema0', … }); // '(new (class PvlCompiledSchema0 implements PvlSchema<…> { … })() as PvlSchema<…>)'
  * ```
  */
 export abstract class Schema {
@@ -158,6 +168,8 @@ export abstract class Schema {
    * Schema.read({ expression: <pvl.compile(…)>, … })
    * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with postModifierCalls [min(3)]> }]> }
    * Schema.read({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <ObjectSchema> }: not marked, still read
+   * // export const getName = (max: number) => pvl.compile(pvl.string().max(max));
+   * Schema.read({ expression: <pvl.compile(…)>, … }) // { schema: <StringSchema with postModifierCalls [max(<Runtime Argument max>)]> }
    * // export const home = pvl.compile(importedAddress);
    * Schema.read({ expression: <pvl.compile(importedAddress)>, … }) // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
    * // const user = pvl.object({ friend: user });
@@ -166,7 +178,7 @@ export abstract class Schema {
    */
   public static read(args: ReadSchemaArgs): { schema: Schema } | { diagnostic: Diagnostic } {
     try {
-      return { schema: Schema.readExpression(args) };
+      return { schema: Schema.readExpression({ ...args, runtimeArguments: [] }) };
     } catch (error) {
       if (error instanceof ConstCycleError) {
         const { cycleNode } = error;
@@ -200,8 +212,9 @@ export abstract class Schema {
    * - UNSUPPORTED_SCHEMA: a Schema with no Emitter (a union), or a method
    *   its Emitter can't compile yet (`.coerce()`, `.refine()`,
    *   `.transform()`).
-   * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's arguments aren't
-   *   literals.
+   * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's argument is spread,
+   *   so it has no fixed position; any other argument it can't read is a
+   *   Runtime Argument.
    *
    * ```ts
    * <pvl.compile(pvl.object({ name: pvl.string().min(3) }))>.findUncompilableDiagnostics() // []
@@ -230,23 +243,19 @@ export abstract class Schema {
   }
 
   /**
-   * Its Compiled Schema: the class declaration named `className`, whose
-   * instance replaces its expression, written by its Emitter (see
-   * `Emitter.emitCompiledSchema`). Compiles any Schema, marked to compile or
-   * not, so long as `findUncompilableDiagnostics` found nothing.
+   * Its Compiled Schema: the expression that replaces its own, an instance
+   * of a class expression named `className`, written by its Emitter (see
+   * `Emitter.emitCompiledSchema`), which is passed its Runtime Arguments.
+   * Compiles any Schema, marked to compile or not, so long as
+   * `findUncompilableDiagnostics` found nothing.
    *
    * ```ts
-   * <pvl.compile(pvl.object({ name: pvl.string() })) on line 3>.compile('PvlCompiledSchema0')
-   * // // pvl.compile() on line 3
-   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
+   * <pvl.compile(pvl.object({ name: pvl.string().max(max) }))>.compile({ className: 'PvlCompiledSchema0', indentation: '', hoistedNameByExpression: new Map() })
+   * // (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> { … })(max) as PvlSchema<{ name: string }, { name: string }>)
    * ```
    */
-  public compile(className: string): string {
-    return this.emitter.emitCompiledSchema({
-      schema: this,
-      className,
-      line: this.expression.getStartLineNumber(),
-    });
+  public compile(compileSchemaArgs: CompileSchemaArgs): string {
+    return this.emitter.emitCompiledSchema({ ...compileSchemaArgs, schema: this });
   }
 
   /**
@@ -260,6 +269,24 @@ export abstract class Schema {
    */
   public findChildren(): ReadonlyArray<Schema> {
     return [];
+  }
+
+  /**
+   * The Runtime Arguments of the methods chained onto it and onto every
+   * Schema nested in it, at any depth, its own first.
+   *
+   * ```ts
+   * <pvl.object({ name: pvl.string().max(max) }).strict(options)>.findRuntimeArguments() // [<options>, <max>]
+   * <pvl.string().max(3)>.findRuntimeArguments()                                       // []
+   * ```
+   */
+  public findRuntimeArguments(): ReadonlyArray<RuntimeArgument> {
+    return [
+      ...[...this.preModifierCalls, ...this.postModifierCalls].flatMap((call) =>
+        (call.args ?? []).filter((argument) => argument instanceof RuntimeArgument),
+      ),
+      ...this.findChildren().flatMap((child) => child.findRuntimeArguments()),
+    ];
   }
 
   /**
@@ -324,14 +351,14 @@ export abstract class Schema {
    *
    * ```ts
    * Schema.readExpression({ expression: <pvl.string().min(3)>, … })       // <StringSchema with postModifierCalls [min(3)]>
-   * Schema.readExpression({ expression: <pvl.string().refine(isOk)>, … }) // <StringSchema with postModifierCalls [refine(args: undefined)]>
+   * Schema.readExpression({ expression: <pvl.string().refine(isOk)>, … }) // <StringSchema with postModifierCalls [refine(<Runtime Argument isOk>)]>
    * Schema.readExpression({ expression: <user>, … })                      // what `const user = …` holds
    * Schema.readExpression({ expression: <pvl.compile(pvl.string())>, … }) // <StringSchema> read from <pvl.compile(…)>
    * Schema.readExpression({ expression: <makeSchema()>, … })              // throws
    * ```
    */
   private static readExpression(
-    args: ReadSchemaArgs,
+    args: ReadingArgs,
     expression: Node = args.expression,
     followed?: FollowedConsts,
     readOuterCalls: () => ReadonlyArray<SchemaModifierCall> = () => [],
@@ -341,7 +368,7 @@ export abstract class Schema {
       args.pvlImportLocalNames,
       followed,
     );
-    const readCalls = Schema.createCallsReader(methods, readOuterCalls);
+    const readCalls = Schema.createCallsReader(methods, readOuterCalls, args.runtimeArguments);
     const [argument] = factory.call.getArguments();
     if (factory.methodName === 'compile' && argument !== undefined) {
       return Schema.readExpression(args, argument, factory.followed, readCalls);
@@ -361,19 +388,22 @@ export abstract class Schema {
   /**
    * Reads `methods` as calls, then what `readOuterCalls` reads after them:
    * the methods chained onto a `pvl.compile(…)` the Schema is read through.
+   * Each Runtime Argument read is added to `runtimeArguments`.
    *
    * ```ts
-   * Schema.createCallsReader([<.min(3)>], () => [])() // [{ name: 'min', args: [3], line: 1 }]
+   * Schema.createCallsReader([<.min(3)>], () => [], [])()   // [{ name: 'min', args: [3], line: 1 }]
+   * Schema.createCallsReader([<.min(min)>], () => [], [])() // [{ name: 'min', args: [<Runtime Argument min>], line: 1 }]
    * ```
    */
   private static createCallsReader(
     methods: ReadonlyArray<CallChainLink>,
     readOuterCalls: () => ReadonlyArray<SchemaModifierCall>,
+    runtimeArguments: RuntimeArgument[],
   ): () => ReadonlyArray<SchemaModifierCall> {
     return () => [
       ...methods.map(({ call, methodName, followed }) => ({
         name: methodName,
-        args: Schema.tryReadStaticValues(call.getArguments(), followed),
+        args: Schema.readCallArguments(call.getArguments(), followed, runtimeArguments),
         line: call.getStartLineNumber(),
       })),
       ...readOuterCalls(),
@@ -400,32 +430,51 @@ export abstract class Schema {
   }
 
   /**
-   * A method's arguments, or `undefined` when one isn't a literal. A `const`
-   * that reaches itself is still thrown: it is no "not a literal".
+   * A method's arguments, each read statically as written, or else a
+   * Runtime Argument, numbered on from the ones `runtimeArguments` holds,
+   * which it is added to. `undefined` when one is spread (`...limits`, or
+   * `{ ...options }` written in place), as it has no fixed position. A
+   * `const` that reaches itself is still thrown: it is no value at all.
+   *
+   * ```ts
+   * Schema.readCallArguments([<3>, <{ message: 'short' }>], followed, []) // [3, { message: 'short' }]
+   * Schema.readCallArguments([<MIN>], followed, [])                       // [3], with `const MIN = 3`
+   * Schema.readCallArguments([<min>, <options>], followed, [])            // [<Runtime Argument min>, <Runtime Argument options>], with parameters `min` and `options`
+   * Schema.readCallArguments([<...limits>], followed, [])                 // undefined
+   * ```
    */
-  private static tryReadStaticValues(
+  private static readCallArguments(
     args: ReadonlyArray<Node>,
     followed: FollowedConsts,
-  ): StaticValue[] | undefined {
-    try {
-      return args.map((argument) => GenericAst.readStaticValue(argument, followed));
-    } catch (error) {
-      if (error instanceof UnresolvedNodeError) {
-        return undefined;
-      }
-      throw error;
+    runtimeArguments: RuntimeArgument[],
+  ): SchemaModifierCallArgument[] | undefined {
+    if (args.some((argument) => GenericAst.isSpread(argument))) {
+      return undefined;
     }
+    return args.map((argument) => {
+      try {
+        return GenericAst.readStaticValue(argument, followed);
+      } catch (error) {
+        if (!(error instanceof UnresolvedNodeError)) {
+          throw error;
+        }
+        const runtimeArgument = new RuntimeArgument(argument, runtimeArguments.length);
+        runtimeArguments.push(runtimeArgument);
+        return runtimeArgument;
+      }
+    });
   }
 
   /**
    * The diagnostic for a method chained onto it, if it can't be compiled:
-   * `emitter` has no method for it, or its arguments aren't literals.
+   * `emitter` has no method for it, or one of its arguments is spread.
    *
    * ```ts
    * .min(3) on a string                  // undefined
+   * .min(MIN_FROM_IMPORT) on a string    // undefined: a Runtime Argument
    * .optional() on the root object       // undefined
    * .refine(isOk) on a string            // UNSUPPORTED_SCHEMA
-   * .min(MIN_FROM_IMPORT) on a string    // COMPILE_ARGUMENT_UNRESOLVABLE
+   * .min(...limits) on a string          // COMPILE_ARGUMENT_UNRESOLVABLE
    * ```
    */
   private findUncompilableCallDiagnostic(
@@ -442,7 +491,7 @@ export abstract class Schema {
     return call.args === undefined
       ? new Diagnostic({
           code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-          message: `The arguments of \`.${call.name}()\` on line ${String(call.line)} aren't literals, so they can't be read statically.`,
+          message: `An argument of \`.${call.name}()\` on line ${String(call.line)} is spread, so it has no fixed position for the Compiled Schema to pass it at.`,
           file: this.module.path.absolutePath,
         })
       : undefined;

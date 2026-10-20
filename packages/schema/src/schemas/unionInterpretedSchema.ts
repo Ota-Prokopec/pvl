@@ -1,8 +1,8 @@
 import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
 /**
@@ -33,7 +33,7 @@ export type UnionMember = Schema<unknown, unknown>;
 export type UnionMembers = ReadonlyArray<UnionMember>;
 
 /**
- * The default message of every Issue `UnionSchema` reports, keyed by the method
+ * The default message of every Issue `UnionInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -46,10 +46,10 @@ export const UNION_SCHEMA_ISSUE_MESSAGE = {
 // `Members[number]` is the union of the member schemas, and inferring through
 // a union of schemas yields the union of each member's own type.
 
-interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind<
-  UnionSchema<Members, unknown, unknown>
+interface UnionInterpretedSchemaKind<Members extends UnionMembers> extends InterpretedSchemaKind<
+  UnionInterpretedSchema<Members, unknown, unknown>
 > {
-  readonly type: UnionSchema<Members, this['Input'], this['Output']>;
+  readonly type: UnionInterpretedSchema<Members, this['Input'], this['Output']>;
 }
 
 /**
@@ -84,13 +84,13 @@ interface UnionSchemaKind<Members extends UnionMembers> extends SchemaKind<
  * // ] }
  * ```
  */
-export class UnionSchema<
+export class UnionInterpretedSchema<
   Members extends UnionMembers,
   Input = InferInput<Members[number]>,
   Output = InferOutput<Members[number]>,
-> extends ChainableSchema<Input, Output> {
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': UnionSchemaKind<Members>;
+  declare readonly '~kind': UnionInterpretedSchemaKind<Members>;
   private readonly _members: Members;
 
   /** @internal */

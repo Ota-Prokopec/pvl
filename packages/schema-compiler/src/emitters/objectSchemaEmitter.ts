@@ -1,5 +1,5 @@
 // The code an `ObjectSchema` compiles to, one static method per method of
-// `ObjectSchema` it mirrors, and the checks of a compiled object, at the
+// `ObjectInterpretedSchema` it mirrors, and the checks of a compiled object, at the
 // root or nested in another Schema, which inline every field's checks,
 // nested objects' and arrays' included.
 import {
@@ -7,9 +7,10 @@ import {
   Issue,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
   type IssueEditableProps,
-  type ObjectSchema as PvlObjectSchema,
+  type ObjectInterpretedSchema,
 } from '@pvl/schema';
 import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
+import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
@@ -20,7 +21,8 @@ import type {
   SpellFactoryTypesArgs,
 } from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { emitIssue } from '../issue.js';
+import { emitConstraintIssue, emitIssue, emitMessageAroundValue } from '../issue.js';
+import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitCheck, js } from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
@@ -30,6 +32,7 @@ import type {
   EmittedOutputStatement,
   EmittedVariableDeclaration,
   EmitterMethodOf,
+  ParameterTypesOf,
 } from './emittersTypes.js';
 import { MODIFIER_NAME } from '../enums.js';
 
@@ -60,10 +63,6 @@ const nameFields = (shape: ReadonlyArray<ObjectField>, scope: Scope): NamedField
   return shape.map((field) => ({ ...field, value: scope.nextField() }));
 };
 
-// Stands in for the unknown key while the default message is rendered, so
-// the message's text around it can be split off and spelled as literals.
-const KEY_PLACEHOLDER = '\u0000' as const;
-
 // The condition under which the runtime `key` isn't one the shape declares.
 //
 //   ['name', 'age'] // 'key !== "name" && key !== "age"'
@@ -77,23 +76,23 @@ const emitIsUndeclaredKey = (declaredKeys: ReadonlyArray<string>): string => {
 /**
  * The UNRECOGNIZED_KEY Issue for the runtime `key`. Its default message names
  * the key, so it is built at runtime around the literal text of
- * `OBJECT_SCHEMA_ISSUE_MESSAGE.strict`.
+ * `OBJECT_SCHEMA_ISSUE_MESSAGE.strict`; `options` passed as a Runtime
+ * Argument may replace it at runtime.
  *
  * ```ts
  * { code: "UNRECOGNIZED_KEY", message: "Unrecognized key \"" + key + "\"", path: [...path, key] }
  * ```
  */
-const emitUnrecognizedKeyIssue = (path: string, options?: IssueEditableProps): string => {
-  const issuePath = js`[...${path}, key]`;
-  if (options?.message !== undefined) {
-    return emitIssue(new Issue(ISSUE_CODE.UNRECOGNIZED_KEY, [issuePath], options.message));
-  }
-  const message = OBJECT_SCHEMA_ISSUE_MESSAGE.strict(KEY_PLACEHOLDER)
-    .split(KEY_PLACEHOLDER)
-    .map((text) => JSON.stringify(text))
-    .join(' + key + ');
-
-  return js`{ code: ${JSON.stringify(ISSUE_CODE.UNRECOGNIZED_KEY)}, message: ${message}, path: ${issuePath} }`;
+const emitUnrecognizedKeyIssue = (
+  path: string,
+  options: IssueEditableProps | RuntimeArgument | undefined,
+): string => {
+  return emitConstraintIssue({
+    code: ISSUE_CODE.UNRECOGNIZED_KEY,
+    issuePath: js`[...${path}, key]`,
+    options,
+    defaultMessage: emitMessageAroundValue(OBJECT_SCHEMA_ISSUE_MESSAGE.strict, 'key'),
+  });
 };
 
 /**
@@ -252,9 +251,14 @@ const emitOutputAssignment = ({
 };
 
 /** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
-type PvlAnyObjectSchema = PvlObjectSchema;
+type PvlAnyObjectSchema = ObjectInterpretedSchema;
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly parameterTypes: ParameterTypesOf<PvlAnyObjectSchema> = {
+    strict: [ISSUE_OPTIONS_TYPE],
+    passthrough: [],
+  };
+
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
@@ -402,7 +406,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /**
    * An object type of the fields' types, an optional field's key marked `?`.
    * `.passthrough()` widens the output for good, even under a later
-   * `.strict()`, as `ObjectSchema`'s own types do.
+   * `.strict()`, as `ObjectInterpretedSchema`'s own types do.
    *
    * ```ts
    * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ name: pvl.string(), age: pvl.number().optional() })> })

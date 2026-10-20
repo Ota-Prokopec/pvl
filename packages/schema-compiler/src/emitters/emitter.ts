@@ -11,9 +11,14 @@
 // method whose name starts with `emit` or `_emit` returns source text, a
 // string or a list of them (ADR-0028). A subclass adds the methods mirroring its
 // schema's and overrides the `_` hooks.
-import type { StaticValue } from '../ast/genericAst.js';
+import type { Node } from 'ts-morph';
+import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
+import type {
+  SchemaModifierCall,
+  SchemaModifierCallArgument,
+  SchemaTypes,
+} from '../schemas/schemaTypes.js';
 import type {
   CheckingTarget,
   EmittedCheck,
@@ -22,14 +27,17 @@ import type {
   EmittedVariableDeclaration,
 } from './emittersTypes.js';
 import { emitReturnValue, js } from './emitterUtils.js';
-import { Frame, type FramePosition } from './frame.js';
+import { Frame, type FramePosition, type RuntimeArgumentParameter } from './frame.js';
 import { Scope } from './scope.js';
 
 /** An emitter method mirroring a Schema method, as found by name: the source text it writes, typed by `EmitterMethodOf`. */
 type EmittingMethod = (input: {
   target: CheckingTarget;
-  args: ReadonlyArray<StaticValue>;
+  args: ReadonlyArray<SchemaModifierCallArgument>;
 }) => string;
+
+/** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
+export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
 
 /** What {@link Emitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
@@ -57,7 +65,7 @@ export type AddCompositePartsArgs<TSchema extends Schema = Schema> = {
   frame: Frame;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
-  /** Whether it is the Schema `pvl.compile()` wraps, its checks `_checkType`'s body. */
+  /** Whether it is the Schema `pvl.compile()` wraps, its checks `_validate`'s body. */
   isRoot: boolean;
   /** Its post-modifiers' checks, which the frame gates behind the count of Issues its declarations take. */
   postModifierChecks: ReadonlyArray<EmittedCheck>;
@@ -81,13 +89,15 @@ export type EmitSchemaChecksArgs = {
   scope: Scope;
 };
 
-/** What {@link Emitter.emitCompiledSchema} writes a class for. */
+/** What {@link Emitter.emitCompiledSchema} writes a class expression for. */
 export type EmitCompiledSchemaArgs = {
   /** A Schema `Schema.findUncompilableDiagnostics` found nothing in, which this Emitter compiles. */
   schema: Schema;
   className: string;
-  /** The line of the `pvl.compile()` call, named in the class's comment. */
-  line: number;
+  /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
+  indentation: string;
+  /** The name of the hoisted `const` holding each Runtime Argument written outside its `pvl.compile(...)` call, by the argument as written. */
+  hoistedNameByExpression: ReadonlyMap<Node, string>;
 };
 
 /** What {@link Emitter.findEmittingMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
@@ -123,7 +133,7 @@ export type EmitOutputHandoffArgs = {
   isRoot: boolean;
 };
 
-/** What {@link Emitter.buildFrame} builds one Schema's frame for: a Schema at its target, inlined into a parent, or the body of the `_checkType` of the Compiled Schema `compiledSchemaParams` describe, which checks its own parameters. */
+/** What {@link Emitter.buildFrame} builds one Schema's frame for: a Schema at its target, inlined into a parent, or the body of the `_validate` of the Compiled Schema `compiledSchemaParams` describe, which checks its own parameters. */
 export type BuildFrameArgs = FramePosition & {
   schema: Schema;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
@@ -142,6 +152,14 @@ export type BuildFrameArgs = FramePosition & {
  * Every method takes one object, so a hook reads only what it needs.
  */
 export abstract class Emitter {
+  /**
+   * For each method this emitter compiles, the TypeScript type of each of
+   * its parameters, which a Compiled Schema's constructor declares a
+   * Runtime Argument passed there with. A subclass whose methods take
+   * arguments overrides it.
+   */
+  public static readonly parameterTypes: EmitterParameterTypes = {};
+
   /**
    * The base check of `schema` at `target`: its type check, as a statement,
    * which every schema's emitter overrides, reading `schema` only when the
@@ -297,17 +315,25 @@ export abstract class Emitter {
   }
 
   /**
-   * The class declaration a Compiled Schema is, extending `PvlSchema` (see
-   * `COMPILED_SCHEMA_IMPORT`), whose `_checkType` checks `schema` at its
+   * The expression a Compiled Schema is, which replaces its `pvl.compile(...)`
+   * call: an instance of a class expression implementing `PvlSchema` (see
+   * `COMPILED_SCHEMA_IMPORT`), whose `_validate` checks `schema` at its
    * `value`: its checks at the root, which return the first Issues they
    * can, then the value they checked. Its `Input` and `Output` types are
-   * spelled here, and its frame composes the class.
+   * spelled here, and its frame composes the expression.
+   *
+   * Its Runtime Arguments are passed in the order they are written, each as
+   * written or by the name of the `const` it is hoisted into
+   * (`hoistedNameByExpression`), and the class's lines after its first are
+   * indented by `indentation`.
    *
    * ```ts
-   * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', line: 3 })
-   * // // pvl.compile() on line 3
-   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
-   * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
+   * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', indentation: '', hoistedNameByExpression: new Map() })
+   * // (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> {
+   * //   declare readonly [PVL_SCHEMA_BRAND]: true;
+   * //   get "~standard"(): … { … }
+   * //   validate(value: unknown): PvlResult<{ name: string }> { … }
+   * //   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
    * //     const issues: PvlIssue[] = [];
    * //     if (typeof value !== "object" || …) {
    * //       issues.push({ code: "INVALID_TYPE", … });
@@ -317,16 +343,72 @@ export abstract class Emitter {
    * //     }
    * //     return { issues };
    * //   }
-   * // }
+   * // })() as PvlSchema<{ name: string }, { name: string }>)
    * ```
    */
-  public static emitCompiledSchema({ schema, className, line }: EmitCompiledSchemaArgs): string {
+  public static emitCompiledSchema({
+    schema,
+    className,
+    indentation,
+    hoistedNameByExpression,
+  }: EmitCompiledSchemaArgs): string {
     const types = this._spellTypes({ schema });
+    const runtimeArguments: RuntimeArgumentParameter[] = this.findRuntimeArgumentParameters({
+      schema,
+    })
+      .sort((left, right) => left.runtimeArgument.index - right.runtimeArgument.index)
+      .map(({ runtimeArgument, type }) => ({
+        fieldName: runtimeArgument.fieldName,
+        type,
+        passedExpression:
+          hoistedNameByExpression.get(runtimeArgument.expression) ??
+          runtimeArgument.expression.getText(),
+      }));
     return this.buildFrame({
       schema,
       scope: new Scope(),
-      compiledSchemaParams: { className, line, types },
+      compiledSchemaParams: { className, types, indentation, runtimeArguments },
     }).composeSchema();
+  }
+
+  /**
+   * Every Runtime Argument of the methods chained onto `schema` and onto
+   * every Schema nested in it, each with the type of the parameter it is
+   * passed as, from its own Schema's emitter (`parameterTypes`). Throws for
+   * a parameter with no type, which is a bug in an emitter, never a user
+   * error.
+   *
+   * ```ts
+   * StringSchemaEmitter.findRuntimeArgumentParameters({ schema: <pvl.string().max(max, options)> })
+   * // [{ runtimeArgument: <max>, type: 'number' }, { runtimeArgument: <options>, type: '{ message?: string } | undefined' }]
+   * ```
+   */
+  private static findRuntimeArgumentParameters({
+    schema,
+  }: {
+    schema: Schema;
+  }): Array<{ runtimeArgument: RuntimeArgument; type: string }> {
+    const ownParameters = [...schema.preModifierCalls, ...schema.postModifierCalls].flatMap(
+      (call) =>
+        (call.args ?? []).flatMap((argument, index) => {
+          if (!(argument instanceof RuntimeArgument)) {
+            return [];
+          }
+          const type = this.parameterTypes[call.name]?.[index];
+          if (type === undefined) {
+            throw new Error(
+              `${this.name} has no type for argument ${String(index)} of .${call.name}().`,
+            );
+          }
+          return [{ runtimeArgument: argument, type }];
+        }),
+    );
+    return [
+      ...ownParameters,
+      ...schema
+        .findChildren()
+        .flatMap((child) => child.emitter.findRuntimeArgumentParameters({ schema: child })),
+    ];
   }
 
   /**
@@ -397,7 +479,7 @@ export abstract class Emitter {
    * The locals a nested composite declares before its children, which its
    * Emitter puts first among its declarations: its path, when `readsPath`,
    * and the Issue count its frame gates any `postModifierChecks` behind.
-   * None at the root, whose path is `_checkType`'s parameter and which
+   * None at the root, whose path is `_validate`'s parameter and which
    * returns its Issues instead.
    *
    * ```ts
@@ -427,8 +509,8 @@ export abstract class Emitter {
 
   /**
    * The statements handing the checked value on: returned from
-   * `_checkType` at the root, as the output a composite's checks built or
-   * as `_checkType`'s own `value`; nested, a composite's output is put back
+   * `_validate` at the root, as the output a composite's checks built or
+   * as `_validate`'s own `value`; nested, a composite's output is put back
    * on the value its parent reads, and any other value is left as it is.
    *
    * ```ts
@@ -454,7 +536,7 @@ export abstract class Emitter {
   /**
    * The frame of one Schema at `target`, with every part of its checks set
    * on it, ready to compose: inlined where a parent reads its value, or, with
-   * `compiledSchemaParams`, the body of that Compiled Schema's `_checkType`,
+   * `compiledSchemaParams`, the body of that Compiled Schema's `_validate`,
    * at the target the frame builds from its parameters.
    * Each hook emits its parts, or adds a composite's, and the frame places
    * them (see `Frame.composeChecks`), the output's handoff last among the

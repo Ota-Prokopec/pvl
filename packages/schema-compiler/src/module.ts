@@ -3,7 +3,14 @@
 // compiling it into its mirrored file, module specifiers rewritten to reach
 // the right files from there.
 import * as path from 'node:path';
-import { Node, SyntaxKind, type Project, type SourceFile, type StringLiteral } from 'ts-morph';
+import {
+  Node,
+  SyntaxKind,
+  type Project,
+  type SourceFile,
+  type StringLiteral,
+  type VariableDeclaration,
+} from 'ts-morph';
 import { PvlAst } from './ast/pvlAst.js';
 import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
 import { DIAGNOSTIC_CODE, SPECIFIER_TARGET_KIND } from './enums.js';
@@ -55,6 +62,13 @@ export type RewriteSpecifiersArgs = {
   tsMorphProject: Project;
   /** Scanned file's absolute path → its mirrored module's absolute path. */
   mirroredPathByScannedPath: ReadonlyMap<string, MirroredPath>;
+};
+
+/** One change to a module's text: `text` in place of what lies between `start` and `end`, inserted when they are equal. */
+type TextEdit = {
+  start: number;
+  end: number;
+  text: string;
 };
 
 export type PrecheckModulePayload = {
@@ -292,23 +306,33 @@ export class Module {
 
   /**
    * Compiles `schemas` into the module in place, in the order given: each
-   * Schema's expression becomes `new PvlCompiledSchema<n>()`, and the
-   * classes `schema.compile()` writes go right after the module's imports,
-   * under one import of what they extend. It compiles every Schema it is
-   * given, whether marked to compile or not; the run only passes the
-   * Marked-to-Compile Schemas `findMarkedToCompileSchemas` found compilable.
+   * Schema's expression becomes its Compiled Schema, an instance of the class
+   * expression `schema.compile()` writes, indented to the line it starts on,
+   * and one type-only import of what the classes implement goes right after
+   * the module's imports. It compiles every Schema it is given, whether
+   * marked to compile or not; the run only passes the Marked-to-Compile
+   * Schemas `findMarkedToCompileSchemas` found compilable. A Schema inside
+   * another one's expression is compiled into that one, so only the
+   * outermost is replaced, and the classes are numbered among those.
+   *
+   * A Runtime Argument written inside the call is passed as written. One
+   * written in a top-level `const` the call follows is hoisted, so it is
+   * still evaluated once, where it is written (ADR-0030): its value goes into
+   * a `const pvlArg<n>` right before that `const`'s declarator, which reads
+   * it instead, as does every call it reaches.
    *
    * ```ts
    * import { pvl } from '@pvl/schema';
-   * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
+   * const base = pvl.string().max(getMax());
+   * export const getUser = (min: number) => pvl.compile(base.min(min));
    * // ↓
    * import { pvl } from '@pvl/schema';
-   * import { Schema as PvlSchema, … } from '@pvl/schema';
-   *
-   * // pvl.compile() on line 2
-   * class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
-   *
-   * export const user = new PvlCompiledSchema0();
+   * import type { …, Schema as PvlSchema, … } from '@pvl/schema';
+   * const pvlArg0 = getMax();
+   * const base = pvl.string().max(pvlArg0);
+   * export const getUser = (min: number) => (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
+   *   …
+   * })(pvlArg0, min) as PvlSchema<string, string>);
    * ```
    *
    * Does nothing when `schemas` is empty.
@@ -319,13 +343,51 @@ export class Module {
       return;
     }
 
-    const classDeclarations = schemas.map((schema, index) =>
-      schema.compile(Module.toCompiledSchemaClassName(index)),
+    const moduleText = this.moduleFile.getFullText();
+    const outermostSchemas = schemas.filter(
+      (schema) =>
+        !schemas.some(
+          (other) => other !== schema && Module.isWithin(schema.expression, other.expression),
+        ),
     );
+    const hoistedNameByExpression = this.nameHoistedArguments(outermostSchemas);
 
-    // Last first, so replacing one expression leaves the earlier ones where they were.
-    for (const [index, { expression }] of [...schemas.entries()].reverse()) {
-      expression.replaceWithText(`new ${Module.toCompiledSchemaClassName(index)}()`);
+    const edits: TextEdit[] = [
+      ...outermostSchemas.map((schema, index) => ({
+        start: schema.expression.getStart(),
+        end: schema.expression.getEnd(),
+        text: schema.compile({
+          className: Module.toCompiledSchemaClassName(index),
+          indentation: Module.findLineIndentation(moduleText, schema.expression.getStart()),
+          hoistedNameByExpression,
+        }),
+      })),
+      // One inside another call is passed by its name in that call's own
+      // Compiled Schema, which replaces it with the rest of the call.
+      ...[...hoistedNameByExpression]
+        .filter(
+          ([expression]) =>
+            !outermostSchemas.some((schema) => Module.isWithin(expression, schema.expression)),
+        )
+        .map(([expression, hoistedName]) => ({
+          start: expression.getStart(),
+          end: expression.getEnd(),
+          text: hoistedName,
+        })),
+      ...Module.createHoistedConstEdits(moduleText, hoistedNameByExpression),
+    ].sort((left, right) => right.start - left.start);
+
+    // Last first, so applying one edit leaves the earlier ones where they
+    // were. By range rather than through the node, as ts-morph would indent
+    // the text again by its own count of the node's nesting.
+    for (const [index, { start, end, text }] of edits.entries()) {
+      const laterEdit = edits[index - 1];
+      if (laterEdit !== undefined && laterEdit.start < end) {
+        throw new Error(
+          `Two edits of ${this.path.absolutePath} overlap, at ${String(laterEdit.start)} and ${String(start)}.`,
+        );
+      }
+      this.moduleFile.replaceText([start, end], text);
     }
 
     const importCount = this.moduleFile
@@ -335,15 +397,172 @@ export class Module {
         0,
       );
 
-    this.moduleFile.insertStatements(
-      importCount,
-      [COMPILED_SCHEMA_IMPORT, '', classDeclarations.join('\n\n')].join('\n'),
+    this.moduleFile.insertStatements(importCount, COMPILED_SCHEMA_IMPORT);
+  }
+
+  /**
+   * The name of the `const` each Runtime Argument written outside the
+   * `pvl.compile(...)` call reaching it is hoisted into, by the argument as
+   * written: `pvlArg0`, `pvlArg1`, … in source order, skipping any name the
+   * module already uses, so none shadows or is shadowed. An argument several
+   * calls reach is hoisted once.
+   *
+   * ```ts
+   * // const base = pvl.string().max(getMax());
+   * // export const user = pvl.compile(base);
+   * module.nameHoistedArguments([<pvl.compile(base)>]) // Map { <getMax()> => 'pvlArg0' }
+   * // export const user = (max: number) => pvl.compile(pvl.string().max(max));
+   * module.nameHoistedArguments([<pvl.compile(…)>])    // Map {}: written inside the call
+   * ```
+   */
+  private nameHoistedArguments(schemas: ReadonlyArray<Schema>): Map<Node, string> {
+    const hoistedExpressions = [
+      ...new Set(
+        schemas.flatMap((schema) =>
+          schema
+            .findRuntimeArguments()
+            .map(({ expression }) => expression)
+            .filter((expression) => !Module.isWithin(expression, schema.expression)),
+        ),
+      ),
+    ].sort((left, right) => left.getStart() - right.getStart());
+
+    const hoistedNames = Module.findUnusedHoistedNames(
+      hoistedExpressions.length,
+      new Set(
+        this.moduleFile
+          .getDescendantsOfKind(SyntaxKind.Identifier)
+          .map((identifier) => identifier.getText()),
+      ),
     );
+    return new Map(
+      hoistedExpressions.map((expression, index) => [expression, String(hoistedNames[index])]),
+    );
+  }
+
+  /**
+   * The first `count` names `pvlArg0`, `pvlArg1`, … that aren't among
+   * `usedNames`.
+   *
+   * ```ts
+   * Module.findUnusedHoistedNames(2, new Set(['pvlArg0'])) // ['pvlArg1', 'pvlArg2']
+   * ```
+   */
+  private static findUnusedHoistedNames(count: number, usedNames: ReadonlySet<string>): string[] {
+    const hoistedNames: string[] = [];
+    for (let nameIndex = 0; hoistedNames.length < count; nameIndex++) {
+      const hoistedName = `pvlArg${String(nameIndex)}`;
+      if (!usedNames.has(hoistedName)) {
+        hoistedNames.push(hoistedName);
+      }
+    }
+    return hoistedNames;
+  }
+
+  /**
+   * The edits declaring each hoisted Runtime Argument, `const pvlArg<n> = …;`,
+   * right before the declarator of the top-level `const` it is written in,
+   * so it is evaluated where it was, in the same order. A declarator after
+   * the first of its statement is split off into a statement of its own
+   * first, keeping the statement's keywords.
+   *
+   * Each argument itself is replaced by its name through an edit of its own.
+   *
+   * ```ts
+   * // const base = pvl.string().max(getMax());
+   * // → const pvlArg0 = getMax();
+   * //   const base = pvl.string().max(getMax());
+   * // export const a = 1, base = pvl.string().max(a + 1);
+   * // → export const a = 1;
+   * //   const pvlArg0 = a + 1;
+   * //   export const base = pvl.string().max(a + 1);
+   * ```
+   *
+   * Throws for an argument outside any top-level `const`, which a call can't
+   * follow, so is a bug in the compiler, never a user error.
+   */
+  private static createHoistedConstEdits(
+    moduleText: string,
+    hoistedNameByExpression: ReadonlyMap<Node, string>,
+  ): TextEdit[] {
+    const hoistedExpressionsByDeclaration = new Map<VariableDeclaration, Node[]>();
+    for (const expression of hoistedNameByExpression.keys()) {
+      const declaration = Module.findTopLevelDeclaration(expression);
+      hoistedExpressionsByDeclaration.set(declaration, [
+        ...(hoistedExpressionsByDeclaration.get(declaration) ?? []),
+        expression,
+      ]);
+    }
+
+    return [...hoistedExpressionsByDeclaration].map(([declaration, expressions]) => {
+      const statement = declaration.getVariableStatementOrThrow();
+      const declarations = statement.getDeclarations();
+      const position = declarations.indexOf(declaration);
+      const indentation = Module.findLineIndentation(moduleText, statement.getStart());
+      const hoistedConsts = expressions
+        .map(
+          (expression) =>
+            `const ${String(hoistedNameByExpression.get(expression))} = ${expression.getText()};`,
+        )
+        .join(`\n${indentation}`);
+      const previousDeclaration = declarations[position - 1];
+      const firstDeclaration = declarations[0];
+
+      if (previousDeclaration === undefined || firstDeclaration === undefined) {
+        const statementStart = statement.getStart(true);
+        return {
+          start: statementStart,
+          end: statementStart,
+          text: `${hoistedConsts}\n${indentation}`,
+        };
+      }
+      const keywords = moduleText.slice(statement.getStart(), firstDeclaration.getStart());
+      return {
+        start: previousDeclaration.getEnd(),
+        end: declaration.getStart(),
+        text: `;\n${indentation}${hoistedConsts}\n${indentation}${keywords}`,
+      };
+    });
+  }
+
+  /**
+   * The top-level `const` declarator `node` is written in. Throws when there
+   * is none, which a call can't follow, so is a bug in the compiler.
+   */
+  private static findTopLevelDeclaration(node: Node): VariableDeclaration {
+    const declaration = node.getFirstAncestor(
+      (ancestor): ancestor is VariableDeclaration =>
+        Node.isVariableDeclaration(ancestor) &&
+        ancestor.getVariableStatement()?.getParent() === node.getSourceFile(),
+    );
+    if (declaration === undefined) {
+      throw new Error(`\`${node.getText()}\` is in no top-level const, so it can't be hoisted.`);
+    }
+    return declaration;
+  }
+
+  /** Whether `node` lies within `container`'s text, `container` itself included. */
+  private static isWithin(node: Node, container: Node): boolean {
+    return container.getStart() <= node.getStart() && node.getEnd() <= container.getEnd();
   }
 
   /** The class name of a module's `index`th Compiled Schema, counted in source order. */
   private static toCompiledSchemaClassName(index: number): string {
     return `PvlCompiledSchema${String(index)}`;
+  }
+
+  /**
+   * The whitespace the line holding `position` in `moduleText` starts with.
+   *
+   * ```ts
+   * Module.findLineIndentation('if (x) {\n    return pvl.compile(a);\n}', 20) // '    '
+   * Module.findLineIndentation('export const u = pvl.compile(a);', 17)        // ''
+   * ```
+   */
+  private static findLineIndentation(moduleText: string, position: number): string {
+    const lineStart = moduleText.lastIndexOf('\n', position - 1) + 1;
+    const lineText = moduleText.slice(lineStart, position);
+    return lineText.slice(0, lineText.length - lineText.trimStart().length);
   }
 
   /**

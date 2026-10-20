@@ -1,23 +1,29 @@
 // The code an `ArraySchema` compiles to, one static method per method of
-// `ArraySchema` it mirrors, and the checks of a compiled array, at the root
+// `ArrayInterpretedSchema` it mirrors, and the checks of a compiled array, at the root
 // or nested in another Schema: one loop with the element's checks inlined
 // into it, a nested object's or array's included.
 import {
   ARRAY_SCHEMA_ISSUE_MESSAGE,
   ISSUE_CODE,
   Issue,
-  type ArraySchema as PvlArraySchema,
+  type ArrayInterpretedSchema,
 } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { AddCompositePartsArgs, EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
-import { emitIssue } from '../issue.js';
-import { emitCheck, js } from './emitterUtils.js';
+import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { emitArgument, emitCheck, js } from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { EmittedCheck, EmittedVariableDeclaration, EmitterMethodOf } from './emittersTypes.js';
+import type {
+  EmittedCheck,
+  EmittedVariableDeclaration,
+  EmitterMethodOf,
+  ParameterTypesOf,
+} from './emittersTypes.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union.
@@ -76,6 +82,12 @@ const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
 };
 
 export class ArraySchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly parameterTypes: ParameterTypesOf<ArrayInterpretedSchema> = {
+    min: ['number', ISSUE_OPTIONS_TYPE],
+    max: ['number', ISSUE_OPTIONS_TYPE],
+    length: ['number', ISSUE_OPTIONS_TYPE],
+  };
+
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
@@ -89,51 +101,48 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<PvlArraySchema['min']> = ({
+  public static readonly min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
     target: { value, issuePath },
     args: [minLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length < ${minLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_SMALL,
-          [issuePath],
-          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.min(minLength),
-        ),
-      ),
+      failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_SMALL,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.min, minLength),
+      }),
     });
 
   /** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<PvlArraySchema['max']> = ({
+  public static readonly max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
     target: { value, issuePath },
     args: [maxLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length > ${maxLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_BIG,
-          [issuePath],
-          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.max(maxLength),
-        ),
-      ),
+      failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_BIG,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.max, maxLength),
+      }),
     });
 
   /** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
-  public static readonly length: EmitterMethodOf<PvlArraySchema['length']> = ({
+  public static readonly length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
     target: { value, issuePath },
     args: [exactLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length !== ${exactLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.INVALID_LENGTH,
-          [issuePath],
-          options?.message ?? ARRAY_SCHEMA_ISSUE_MESSAGE.length(exactLength),
-        ),
-      ),
+      failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.INVALID_LENGTH,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.length, exactLength),
+      }),
     });
 
   /**

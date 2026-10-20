@@ -1,3 +1,5 @@
 # Compile schemas via static AST analysis, not runtime introspection
 
 `packages/schema-compiler` discovers and compiles schemas by statically parsing the TS/JS source of files under user-configured directories (`pvlconfig.json`) using [ts-morph](https://github.com/dsherret/ts-morph), rather than dynamically importing and introspecting the live `Schema` objects at build time. Static analysis was chosen over dynamic import because it never executes user code (no risk from schema files that pull in app-specific runtime dependencies, e.g. a DB client) and composes more predictably with downstream build tooling. The trade-off: schemas passed to `pvl.compile(...)` must be written in a form ts-morph can statically resolve — dynamically constructed schemas (assembled at runtime through non-trivial control flow) are not compilable, only interpretable.
+
+> Amended by [ADR-0030](./0030-a-method-argument-the-compiler-cant-read-is-a-runtime-argument-evaluated-once-where-it-is-written.md): a method's argument that can't be read statically is a Runtime Argument the Compiled Schema evaluates, so only a Schema's structure and types must be statically resolvable.

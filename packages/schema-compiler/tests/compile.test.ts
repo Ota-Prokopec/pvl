@@ -889,7 +889,7 @@ describe('runCompilation(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe('previous output');
   });
 
-  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument or a method argument that is not written in the file', async () => {
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument not written in the file, or a spread method argument', async () => {
     const path = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -899,14 +899,13 @@ describe('runCompilation(): diagnostics', () => {
         "import { user } from './user.js';",
         '',
         'const makeSchema = () => pvl.object({});',
-        'let limit = 3;',
-        'const size = 3;',
+        'const limits = [3] as const;',
+        "const options = { message: 'too long' };",
         'export const imported = pvl.compile(user);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
-        'export const variableLimit = pvl.compile(pvl.array(pvl.string()).max(limit));',
-        'export const preIncremented = pvl.compile(pvl.array(pvl.string()).max(++size));',
-        'export const postIncremented = pvl.compile(pvl.array(pvl.string()).max(size++));',
+        'export const spreadArgument = pvl.compile(pvl.array(pvl.string()).max(...limits));',
+        "export const spreadOptions = pvl.compile(pvl.string().max(3, { ...options, message: 'long' }));",
         '',
       ].join('\n'),
     });
@@ -915,7 +914,33 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 6 }, () => ({
+      Array.from({ length: 5 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        file: join(root, path),
+      })),
+    );
+  });
+
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: a factory argument naming what shadows a top-level const', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        "const kind = 'user';",
+        'const name = pvl.string();',
+        "export const makeKind = (kind: 'admin') => pvl.compile(pvl.literal(kind));",
+        'export const makeUser = (name: unknown) => pvl.compile(pvl.object({ name }));',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 2 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
         file: join(root, path),
       })),
@@ -979,7 +1004,7 @@ describe('runCompilation(): diagnostics', () => {
       'nullableRoot',
     ].entries()) {
       expect(mirrored).toContain(
-        `export const ${exportName} = new PvlCompiledSchema${String(index)}();`,
+        `export const ${exportName} = (new (class PvlCompiledSchema${String(index)} implements PvlSchema<`,
       );
     }
   });
