@@ -9,7 +9,12 @@ import {
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
-import type { EmittedCheck, EmitterMethodOf, ParameterTypesOf } from './emittersTypes.js';
+import type {
+  ArgumentMessagesOf,
+  EmittedCheck,
+  EmitterMethodOf,
+  ParameterTypesOf,
+} from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
@@ -18,6 +23,11 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     min: ['bigint', ISSUE_OPTIONS_TYPE],
     max: ['bigint', ISSUE_OPTIONS_TYPE],
   };
+
+  public static override readonly argumentMessages = {
+    min: BIGINT_SCHEMA_ISSUE_MESSAGE.min,
+    max: BIGINT_SCHEMA_ISSUE_MESSAGE.max,
+  } satisfies ArgumentMessagesOf<BigintInterpretedSchema>;
 
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
@@ -42,7 +52,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_SMALL,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(BIGINT_SCHEMA_ISSUE_MESSAGE.min, minValue),
+        defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.min, minValue),
       }),
     });
 
@@ -57,7 +67,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_BIG,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(BIGINT_SCHEMA_ISSUE_MESSAGE.max, maxValue),
+        defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.max, maxValue),
       }),
     });
 }

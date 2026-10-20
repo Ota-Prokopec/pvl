@@ -81,3 +81,25 @@ export type ParameterTypesOf<TSchema> = {
     ? { readonly [Index in keyof TParameters]-?: string }
     : never;
 };
+
+/**
+ * For each method of `TSchema` whose default message names its first
+ * argument, that message, one of `<SCHEMA>_SCHEMA_ISSUE_MESSAGE`'s
+ * functions. A Compiled Schema's constructor builds it once for a Runtime
+ * Argument passed there. Typed by the method itself, so the message takes
+ * what the method's first parameter does.
+ *
+ * ```ts
+ * ArgumentMessagesOf<StringInterpretedSchema>
+ * // { min?: (value: number) => string; max?: …; length?: …; … }
+ * const argumentMessages = { min: STRING_SCHEMA_ISSUE_MESSAGE.min } satisfies ArgumentMessagesOf<StringInterpretedSchema>;
+ * ```
+ */
+export type ArgumentMessagesOf<TSchema> = {
+  readonly [Name in keyof TSchema]?: TSchema[Name] extends (
+    value: infer TValue,
+    ...rest: never[]
+  ) => unknown
+    ? (value: TValue) => string
+    : never;
+};

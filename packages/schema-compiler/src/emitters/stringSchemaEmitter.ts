@@ -9,7 +9,12 @@ import {
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
-import type { EmittedCheck, EmitterMethodOf, ParameterTypesOf } from './emittersTypes.js';
+import type {
+  ArgumentMessagesOf,
+  EmittedCheck,
+  EmitterMethodOf,
+  ParameterTypesOf,
+} from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
@@ -19,6 +24,12 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     max: ['number', ISSUE_OPTIONS_TYPE],
     length: ['number', ISSUE_OPTIONS_TYPE],
   };
+
+  public static override readonly argumentMessages = {
+    min: STRING_SCHEMA_ISSUE_MESSAGE.min,
+    max: STRING_SCHEMA_ISSUE_MESSAGE.max,
+    length: STRING_SCHEMA_ISSUE_MESSAGE.length,
+  } satisfies ArgumentMessagesOf<StringInterpretedSchema>;
 
   /**
    * ```ts
@@ -48,7 +59,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_SMALL,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.min, minLength),
+        defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, minLength),
       }),
     });
 
@@ -63,7 +74,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_BIG,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.max, maxLength),
+        defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.max, maxLength),
       }),
     });
 
@@ -78,7 +89,10 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.INVALID_LENGTH,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.length, exactLength),
+        defaultMessage: emitDefaultMessage(
+          StringSchemaEmitter.argumentMessages.length,
+          exactLength,
+        ),
       }),
     });
 }

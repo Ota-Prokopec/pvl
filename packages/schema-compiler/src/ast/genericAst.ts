@@ -261,6 +261,37 @@ export class GenericAst {
   }
 
   /**
+   * The value `node` evaluates to when it is a literal written in place, read
+   * as `readStaticValue` reads one but following no `const`: a name of a
+   * top-level `const` anywhere in it throws UnresolvedNodeError at that name,
+   * as does any other name `readStaticValue` meets. A property's own name and
+   * a type are no names it reads.
+   *
+   * ```ts
+   * GenericAst.readLiteral(<-1>)                // -1
+   * GenericAst.readLiteral(<{ message: 'x' }>)  // { message: 'x' }
+   * GenericAst.readLiteral(<['a'] as const>)    // ['a']
+   * // const MAX = 3; const MESSAGE = 'x';
+   * GenericAst.readLiteral(<3 as typeof MAX>)   // 3: `MAX` is in a type
+   * GenericAst.readLiteral(<MAX>)               // throws UnresolvedNodeError(<MAX>)
+   * GenericAst.readLiteral(<-MAX>)              // throws UnresolvedNodeError(<MAX>)
+   * GenericAst.readLiteral(<{ message: MESSAGE }>) // throws UnresolvedNodeError(<MESSAGE>)
+   * ```
+   */
+  public static readLiteral(node: Node): StaticValue {
+    const constName = [node, ...node.getDescendantsOfKind(SyntaxKind.Identifier)].find(
+      (descendant) =>
+        Node.isIdentifier(descendant) &&
+        descendant.getFirstAncestor(Node.isTypeNode) === undefined &&
+        GenericAst.findTopLevelConst(descendant) !== undefined,
+    );
+    if (constName !== undefined) {
+      throw new UnresolvedNodeError(constName);
+    }
+    return GenericAst.readStaticValue(node);
+  }
+
+  /**
    * The value of `-x`, `+x` or `!x`, its operand read with `readStaticValue`,
    * so the operators stack to any depth (`!!!x`, `-+x`). Each one gives what
    * JavaScript gives, where it gives one without throwing:
