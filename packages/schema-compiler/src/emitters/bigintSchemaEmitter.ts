@@ -1,6 +1,11 @@
 // The code a `BigintSchema` compiles to, one static method per method of
-// `BigintSchema` it mirrors.
-import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, Issue, type BigintSchema } from '@pvl/schema';
+// `BigintInterpretedSchema` it mirrors.
+import {
+  BIGINT_SCHEMA_ISSUE_MESSAGE,
+  ISSUE_CODE,
+  Issue,
+  type BigintInterpretedSchema,
+} from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitIssue } from '../issue.js';
@@ -21,7 +26,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<BigintSchema['min']> = ({
+  public static readonly min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
     target: { value, issuePath },
     args: [minValue, options],
   }) =>
@@ -37,7 +42,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     });
 
   /** `.max(9n)` → `field0 > 9n`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<BigintSchema['max']> = ({
+  public static readonly max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
     target: { value, issuePath },
     args: [maxValue, options],
   }) =>

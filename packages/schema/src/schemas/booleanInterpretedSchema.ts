@@ -3,10 +3,10 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
- * The default message of every Issue `BooleanSchema` reports, keyed by the method
+ * The default message of every Issue `BooleanInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -16,8 +16,10 @@ export const BOOLEAN_SCHEMA_ISSUE_MESSAGE = {
   _checkType: (): string => 'Expected boolean',
 } as const;
 
-interface BooleanSchemaKind extends SchemaKind<BooleanSchema<unknown, unknown>> {
-  readonly type: BooleanSchema<this['Input'], this['Output']>;
+interface BooleanInterpretedSchemaKind extends SchemaKind<
+  BooleanInterpretedSchema<unknown, unknown>
+> {
+  readonly type: BooleanInterpretedSchema<this['Input'], this['Output']>;
 }
 
 /**
@@ -41,12 +43,12 @@ interface BooleanSchemaKind extends SchemaKind<BooleanSchema<unknown, unknown>> 
  * const mustAccept = pvl.literal(true);
  * ```
  */
-export class BooleanSchema<Input = boolean, Output = boolean> extends ChainableSchema<
-  Input,
-  Output
-> {
+export class BooleanInterpretedSchema<
+  Input = boolean,
+  Output = boolean,
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': BooleanSchemaKind;
+  declare readonly '~kind': BooleanInterpretedSchemaKind;
 
   /** @internal */
   constructor() {

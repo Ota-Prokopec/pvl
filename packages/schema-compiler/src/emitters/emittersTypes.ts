@@ -33,10 +33,10 @@ export type CheckingTarget = {
  * instead; a composite's method reads a wider `TInput`.
  *
  * ```ts
- * EmitterMethodOf<StringSchema['min']>
+ * EmitterMethodOf<StringInterpretedSchema['min']>
  * // (input: { target: CheckingTarget; args: [minLength: number, options?: IssueEditableProps] }) => EmittedCheck
- * EmitterMethodOf<ChainableSchema['optional'], EmittedShortCircuitCondition> // (input: { target: CheckingTarget; args: [] }) => EmittedShortCircuitCondition
- * EmitterMethodOf<ObjectSchema['passthrough'], EmittedOutputStatement, ObjectCheckingTarget>
+ * EmitterMethodOf<ChainableInterpretedSchema['optional'], EmittedShortCircuitCondition> // (input: { target: CheckingTarget; args: [] }) => EmittedShortCircuitCondition
+ * EmitterMethodOf<ObjectInterpretedSchema['passthrough'], EmittedOutputStatement, ObjectCheckingTarget>
  * // (input: { target: ObjectCheckingTarget; args: [] }) => EmittedOutputStatement
  * ```
  */

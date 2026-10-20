@@ -21,7 +21,7 @@ The single public entry point is a `pvl` namespace object (`import { pvl } from 
 
 ## Modifiers
 
-Read [`pipeline.md`](../../docs/specification/schema/pipeline.md) before you add or change a Modifier, or touch `Schema` or `ChainableSchema`. It covers the two base classes, the chained API, the pre/post Modifier pipeline, custom messages, and Refinement, Coercion and Transform.
+Read [`pipeline.md`](../../docs/specification/schema/pipeline.md) before you add or change a Modifier, or touch `Schema` or `ChainableInterpretedSchema`. It covers the two base classes, the chained API, the pre/post Modifier pipeline, custom messages, and Refinement, Coercion and Transform.
 
 ## Schema types
 

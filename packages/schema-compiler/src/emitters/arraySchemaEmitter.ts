@@ -1,12 +1,12 @@
 // The code an `ArraySchema` compiles to, one static method per method of
-// `ArraySchema` it mirrors, and the checks of a compiled array, at the root
+// `ArrayInterpretedSchema` it mirrors, and the checks of a compiled array, at the root
 // or nested in another Schema: one loop with the element's checks inlined
 // into it, a nested object's or array's included.
 import {
   ARRAY_SCHEMA_ISSUE_MESSAGE,
   ISSUE_CODE,
   Issue,
-  type ArraySchema as PvlArraySchema,
+  type ArrayInterpretedSchema,
 } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
@@ -89,7 +89,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<PvlArraySchema['min']> = ({
+  public static readonly min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
     target: { value, issuePath },
     args: [minLength, options],
   }) =>
@@ -105,7 +105,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     });
 
   /** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<PvlArraySchema['max']> = ({
+  public static readonly max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
     target: { value, issuePath },
     args: [maxLength, options],
   }) =>
@@ -121,7 +121,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     });
 
   /** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
-  public static readonly length: EmitterMethodOf<PvlArraySchema['length']> = ({
+  public static readonly length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
     target: { value, issuePath },
     args: [exactLength, options],
   }) =>

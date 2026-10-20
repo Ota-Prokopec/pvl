@@ -1,5 +1,5 @@
 // The per-primitive `.coerce()` conversions, shared by the primitive schemas
-// and by `LiteralSchema` (whose literal pins it to exactly one of them). Each
+// and by `LiteralInterpretedSchema` (whose literal pins it to exactly one of them). Each
 // except `coerceToString` returns the input unchanged when it cannot convert,
 // so the schema's own check is what ultimately rejects it — a coercion never
 // produces an `Issue` of its own.

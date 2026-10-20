@@ -1,15 +1,15 @@
 # The Modifier pipeline
 
-How a `@pvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/schema.ts` or `src/schemas/chainableSchema.ts`. [`GLOSSARY.md`](../../../GLOSSARY.md) defines the terms.
+How a `@pvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/schema.ts` or `src/schemas/chainableInterpretedSchema.ts`. [`GLOSSARY.md`](../../../GLOSSARY.md) defines the terms.
 
-## `Schema` and `ChainableSchema`: two abstract classes, one per file
+## `Schema` and `ChainableInterpretedSchema`: two abstract classes, one per file
 
 [ADR-0020](../../adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md) splits the base into two classes:
 
 - **`Schema<Input, Output>`** (`src/schemas/schema.ts`) is everything a schema needs to validate, with no Modifier on it: the two ordered `Modifier` arrays and the constructor that seeds them, `validate()`, `"~standard"`, `_validate` with the runners that execute both arrays, the abstract `_checkType`, and every internal method a Modifier is built with (`_coerceInput`, `_clone`, `_withPreModifier`, `_withPostModifier`, `_withoutModifiers`). It is what fields, elements, union members and `pvl.compile()`'s argument are typed as, and what `.transform()` and `pvl.compile()` return. Its private and protected members mean only its own subclasses satisfy it ([ADR-0018](../../adr/0018-composite-fields-are-pvl-schemas-only.md)).
-- **`ChainableSchema<Input, Output>`** (`src/schemas/chainableSchema.ts`) extends `Schema` with the five Shared Modifiers and nothing else: `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`. Anything that is not a Shared Modifier goes into `Schema`.
+- **`ChainableInterpretedSchema<Input, Output>`** (`src/schemas/chainableInterpretedSchema.ts`) extends `Schema` with the five Shared Modifiers and nothing else: `.optional()`, `.nullable()`, `.refine(predicate, options?)`, `.transform(fn)`, `.coerce()`. Anything that is not a Shared Modifier goes into `Schema`.
 
-Every primitive and composite class (`StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `ObjectSchema`, `ArraySchema`, `UnionSchema`, `LiteralSchema`, `EnumSchema`) extends `ChainableSchema`. A concrete subclass adds only its constructor, its `_checkType` (the type guard, plus every child on a composite), an optional `_coerceInput` override, and its Local Modifiers, built on the inherited `protected` helpers. It never adds a second copy of `"~standard"`, of a Shared Modifier or of the pipeline.
+Every primitive and composite class (`StringInterpretedSchema`, `NumberInterpretedSchema`, `BooleanInterpretedSchema`, `BigintInterpretedSchema`, `ObjectInterpretedSchema`, `ArrayInterpretedSchema`, `UnionInterpretedSchema`, `LiteralInterpretedSchema`, `EnumInterpretedSchema`) extends `ChainableInterpretedSchema`. A concrete subclass adds only its constructor, its `_checkType` (the type guard, plus every child on a composite), an optional `_coerceInput` override, and its Local Modifiers, built on the inherited `protected` helpers. It never adds a second copy of `"~standard"`, of a Shared Modifier or of the pipeline.
 
 ## Chained-instance-method API and the pipeline
 

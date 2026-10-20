@@ -3,10 +3,10 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
- * The default message of every Issue `BigintSchema` reports, keyed by the method
+ * The default message of every Issue `BigintInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -18,8 +18,10 @@ export const BIGINT_SCHEMA_ISSUE_MESSAGE = {
   max: (maxValue: bigint): string => `Bigint must be less than or equal to ${maxValue}`,
 } as const;
 
-interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
-  readonly type: BigintSchema<this['Input'], this['Output']>;
+interface BigintInterpretedSchemaKind extends SchemaKind<
+  BigintInterpretedSchema<unknown, unknown>
+> {
+  readonly type: BigintInterpretedSchema<this['Input'], this['Output']>;
 }
 
 /**
@@ -50,9 +52,12 @@ interface BigintSchemaKind extends SchemaKind<BigintSchema<unknown, unknown>> {
  * pvl.bigint().coerce().validate('42'); // { value: 42n }
  * ```
  */
-export class BigintSchema<Input = bigint, Output = bigint> extends ChainableSchema<Input, Output> {
+export class BigintInterpretedSchema<
+  Input = bigint,
+  Output = bigint,
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': BigintSchemaKind;
+  declare readonly '~kind': BigintInterpretedSchemaKind;
 
   /** @internal */
   constructor() {

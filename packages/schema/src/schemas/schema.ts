@@ -48,7 +48,7 @@ const isBuiltByOneOf = (
  */
 // Everything a schema needs to validate, and the internal plumbing a
 // Modifier is built with; the Shared Modifiers themselves are on
-// `ChainableSchema`. A Compiled Schema extends this class directly (ADR-0020).
+// `ChainableInterpretedSchema`. A Compiled Schema extends this class directly (ADR-0020).
 // Its private and protected members make the class nominal, which is what
 // keeps a Standard Schema from another library from being a field (ADR-0018).
 export abstract class Schema<Input = unknown, Output = Input> {

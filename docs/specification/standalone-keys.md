@@ -73,21 +73,21 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 
 - `.standalone()` is a method on the `Schema` base class, so it exists on every Schema: chainable ones, the plain Schema `.transform()` returns, and the plain Schema `pvl.compile()` returns. No class is added to the hierarchy.
 - It ends the Modifier chain. It returns a plain `Schema<Input, Output>` intersected with a type-only Standalone marker type, plus `shape` or `element` when the receiver had one. No Modifier, Constraint or structural method (`.strict()`, `.min()`, ...) is reachable on the result.
-- At runtime it is **not** a no-op: it returns a clone carrying a private Standalone flag, which every later clone copies. The flag is what an `ObjectSchema` reads when it builds its runtime `shape`. It never affects `validate()`.
+- At runtime it is **not** a no-op: it returns a clone carrying a private Standalone flag, which every later clone copies. The flag is what an `ObjectInterpretedSchema` reads when it builds its runtime `shape`. It never affects `validate()`.
 - Calling it on an already-marked Schema is allowed and changes nothing further.
 - It is valid on any Schema, field or not. It never produces a diagnostic, in `@pvl/schema` or in the compiler: a marked Schema may be defined in one file and used as a field in another, which neither the type system nor a per-file scan can rule out.
 
 ### `shape` (objects only)
 
-- `shape` is defined on `ObjectSchema` only; primitives, unions, literals and enums have none.
+- `shape` is defined on `ObjectInterpretedSchema` only; primitives, unions, literals and enums have none.
 - It holds exactly the fields carrying the Standalone marker, at both the type level and runtime, interpreted and compiled. With no marked fields it is `{}`. This narrows the all-keys `shape` from #44.
 - Each value is the declared field Schema. For a nested object or array field, its own `shape`/`element` follow the same rules, so `outer.shape.address.shape.city` requires both `address` and `city` to be marked.
-- `ObjectSchema` overrides the return types of `.transform()` and `.standalone()` so they keep `{ readonly shape: ... }` on the plain Schema they return. `.optional()`, `.nullable()` and `.refine()` already keep the class. At runtime nothing extra is needed: each of these returns the same `ObjectSchema` instance or a clone of it.
+- `ObjectInterpretedSchema` overrides the return types of `.transform()` and `.standalone()` so they keep `{ readonly shape: ... }` on the plain Schema they return. `.optional()`, `.nullable()` and `.refine()` already keep the class. At runtime nothing extra is needed: each of these returns the same `ObjectInterpretedSchema` instance or a clone of it.
 - This supersedes ADR-0016's statement that a transformed object has no `shape`: `shape.<key>` is the field's own validator, which a Transform on the parent does not change.
 
 ### `element` (arrays)
 
-- Every `ArraySchema` keeps its `element`, interpreted and compiled, with or without a marker, and it survives the same calls as `shape`, through the same return-type mechanism.
+- Every `ArrayInterpretedSchema` keeps its `element`, interpreted and compiled, with or without a marker, and it survives the same calls as `shape`, through the same return-type mechanism.
 - An object element's `shape` follows the Standalone Key rule.
 - `.standalone()` on an element only decides whether the compiler emits a compiled `element`; it does not decide whether `element` exists.
 
@@ -100,7 +100,7 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 
 ### Unions
 
-- A `UnionSchema` exposes no member Schemas, interpreted or compiled. Unchanged from today.
+- A `UnionInterpretedSchema` exposes no member Schemas, interpreted or compiled. Unchanged from today.
 
 ### What the compiler emits
 

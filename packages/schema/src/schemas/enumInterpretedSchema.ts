@@ -3,7 +3,7 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * A single accepted enum value, in either source form. Values may be strings
@@ -39,7 +39,7 @@ type EnumArraySource = ReadonlyArray<string>;
 export type EnumSource = EnumObjectSource | EnumArraySource;
 
 /**
- * The default message of every Issue `EnumSchema` reports, keyed by the method
+ * The default message of every Issue `EnumInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -50,10 +50,10 @@ export const ENUM_SCHEMA_ISSUE_MESSAGE = {
     `Expected one of ${members.map((enumMember) => Issue.formatIssueMessageValue(enumMember)).join(', ')}`,
 } as const;
 
-interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind<
-  EnumSchema<Source, unknown, unknown>
+interface EnumInterpretedSchemaKind<Source extends EnumSource> extends SchemaKind<
+  EnumInterpretedSchema<Source, unknown, unknown>
 > {
-  readonly type: EnumSchema<Source, this['Input'], this['Output']>;
+  readonly type: EnumInterpretedSchema<Source, this['Input'], this['Output']>;
 }
 
 /**
@@ -80,13 +80,13 @@ interface EnumSchemaKind<Source extends EnumSource> extends SchemaKind<
  * pvl.enum(['small', 'medium', 'large']).validate('medium'); // { value: 'medium' }
  * ```
  */
-export class EnumSchema<
+export class EnumInterpretedSchema<
   Source extends EnumSource,
   Input = ValueOfEnum<Source>,
   Output = ValueOfEnum<Source>,
-> extends ChainableSchema<Input, Output> {
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': EnumSchemaKind<Source>;
+  declare readonly '~kind': EnumInterpretedSchemaKind<Source>;
   private readonly members: ReadonlySet<EnumMember>;
 
   /** @internal */

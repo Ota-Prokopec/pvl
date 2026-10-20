@@ -1,13 +1,16 @@
-import { ArraySchema } from './schemas/arraySchema.js';
+import { ArrayInterpretedSchema } from './schemas/arrayInterpretedSchema.js';
 import type { Schema } from './schemas/schema.js';
-import { BigintSchema } from './schemas/bigintSchema.js';
-import { BooleanSchema } from './schemas/booleanSchema.js';
-import { EnumSchema, type EnumSource } from './schemas/enumSchema.js';
-import { LiteralSchema, type PossibleLiteralValue } from './schemas/literalSchema.js';
-import { NumberSchema } from './schemas/numberSchema.js';
-import { ObjectSchema, type ObjectShape } from './schemas/objectSchema.js';
-import { StringSchema } from './schemas/stringSchema.js';
-import { UnionSchema, type UnionMembers } from './schemas/unionSchema.js';
+import { BigintInterpretedSchema } from './schemas/bigintInterpretedSchema.js';
+import { BooleanInterpretedSchema } from './schemas/booleanInterpretedSchema.js';
+import { EnumInterpretedSchema, type EnumSource } from './schemas/enumInterpretedSchema.js';
+import {
+  LiteralInterpretedSchema,
+  type PossibleLiteralValue,
+} from './schemas/literalInterpretedSchema.js';
+import { NumberInterpretedSchema } from './schemas/numberInterpretedSchema.js';
+import { ObjectInterpretedSchema, type ObjectShape } from './schemas/objectInterpretedSchema.js';
+import { StringInterpretedSchema } from './schemas/stringInterpretedSchema.js';
+import { UnionInterpretedSchema, type UnionMembers } from './schemas/unionInterpretedSchema.js';
 import type { InferInput, InferOutput } from './types.js';
 
 /**
@@ -41,7 +44,7 @@ export const pvl = {
    * pvl.string().min(3, { message: 'too short' }).validate('hi'); // message: 'too short'
    * ```
    */
-  string: (): StringSchema => new StringSchema(),
+  string: (): StringInterpretedSchema => new StringInterpretedSchema(),
 
   /**
    * A schema accepting a JavaScript `number` — floats and integers alike,
@@ -56,7 +59,7 @@ export const pvl = {
    * pvl.number().int().min(0).validate(-1); // { issues: [{ code: 'TOO_SMALL', ... }] }
    * ```
    */
-  number: (): NumberSchema => new NumberSchema(),
+  number: (): NumberInterpretedSchema => new NumberInterpretedSchema(),
 
   /**
    * A schema accepting a JavaScript `boolean`. Use `pvl.literal(true)` when
@@ -70,7 +73,7 @@ export const pvl = {
    * pvl.boolean().validate('false'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
    * ```
    */
-  boolean: (): BooleanSchema => new BooleanSchema(),
+  boolean: (): BooleanInterpretedSchema => new BooleanInterpretedSchema(),
 
   /**
    * A schema accepting a real JavaScript `bigint`, with optional `.min()` and
@@ -85,7 +88,7 @@ export const pvl = {
    * pvl.bigint().coerce().validate('42'); // { value: 42n }
    * ```
    */
-  bigint: (): BigintSchema => new BigintSchema(),
+  bigint: (): BigintInterpretedSchema => new BigintInterpretedSchema(),
 
   /**
    * A schema matching exactly one constant value, compared with `Object.is`.
@@ -99,8 +102,8 @@ export const pvl = {
    * pvl.literal(42).validate('42'); // { issues: [{ code: 'INVALID_VALUE', ... }] }
    * ```
    */
-  literal: <Value extends PossibleLiteralValue>(value: Value): LiteralSchema<Value> =>
-    new LiteralSchema(value),
+  literal: <Value extends PossibleLiteralValue>(value: Value): LiteralInterpretedSchema<Value> =>
+    new LiteralInterpretedSchema(value),
 
   /**
    * A schema validating each declared key against its own field schema.
@@ -118,7 +121,8 @@ export const pvl = {
    * // { value: { name: 'Ada', age: 36 } }
    * ```
    */
-  object: <Shape extends ObjectShape>(shape: Shape): ObjectSchema<Shape> => new ObjectSchema(shape),
+  object: <Shape extends ObjectShape>(shape: Shape): ObjectInterpretedSchema<Shape> =>
+    new ObjectInterpretedSchema(shape),
 
   /**
    * A schema validating every element against one shared item schema, with
@@ -134,8 +138,8 @@ export const pvl = {
    * tags.validate(['a', 2]); // { issues: [{ path: [1], code: 'INVALID_TYPE', ... }] }
    * ```
    */
-  array: <Item extends Schema<unknown, unknown>>(item: Item): ArraySchema<Item> =>
-    new ArraySchema(item),
+  array: <Item extends Schema<unknown, unknown>>(item: Item): ArrayInterpretedSchema<Item> =>
+    new ArrayInterpretedSchema(item),
 
   /**
    * A schema accepting one of a fixed set of values, from either an `as
@@ -153,8 +157,8 @@ export const pvl = {
    */
   // `const Source` so a bare `pvl.enum(["A", "B"])` call site infers the
   // readonly tuple of literals rather than widening to `string[]`.
-  enum: <const Source extends EnumSource>(source: Source): EnumSchema<Source> =>
-    new EnumSchema(source),
+  enum: <const Source extends EnumSource>(source: Source): EnumInterpretedSchema<Source> =>
+    new EnumInterpretedSchema(source),
 
   /**
    * A schema trying each member in the order given and succeeding on the
@@ -173,8 +177,8 @@ export const pvl = {
    */
   // `const Members` so a bare `pvl.union([...])` call site infers the
   // readonly tuple of member schemas rather than widening to their union.
-  union: <const Members extends UnionMembers>(members: Members): UnionSchema<Members> =>
-    new UnionSchema(members),
+  union: <const Members extends UnionMembers>(members: Members): UnionInterpretedSchema<Members> =>
+    new UnionInterpretedSchema(members),
 
   /**
    * Marks a schema — any schema, primitive or composite, transformed or not —

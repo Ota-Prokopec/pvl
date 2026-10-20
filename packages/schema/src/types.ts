@@ -3,7 +3,7 @@
 // It is in the barrel, so that plumbing is tagged `@internal`.
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
-import type { ChainableSchema } from './schemas/chainableSchema.js';
+import type { ChainableInterpretedSchema } from './schemas/chainableInterpretedSchema.js';
 import type { Schema } from './schemas/schema.js';
 
 /**
@@ -62,12 +62,12 @@ export type SchemaKind<TSchema extends Schema> = {
 
 /**
  * `TSchema`'s own class re-typed with `Input` and `Output` through its
- * `'~kind'`, or the base `ChainableSchema` for a class that declares none.
+ * `'~kind'`, or the base `ChainableInterpretedSchema` for a class that declares none.
  *
  * @internal
  */
 export type RetypedSchema<TSchema, Input, Output> = TSchema extends {
-  readonly '~kind': infer Kind extends SchemaKind<ChainableSchema>;
+  readonly '~kind': infer Kind extends SchemaKind<ChainableInterpretedSchema>;
 }
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
-  : ChainableSchema<Input, Output>;
+  : ChainableInterpretedSchema<Input, Output>;

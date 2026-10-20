@@ -18,11 +18,11 @@ import { Schema } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type ChainableSchema } from '@pvl/schema';
+ * import { pvl, type ChainableInterpretedSchema } from '@pvl/schema';
  *
- * // Still a `StringSchema`, so `.min()` is still there.
+ * // Still a `StringInterpretedSchema`, so `.min()` is still there.
  * const nickname = pvl.string().optional().min(2);
- * const asBase: ChainableSchema<string | undefined, string | undefined> = nickname;
+ * const asBase: ChainableInterpretedSchema<string | undefined, string | undefined> = nickname;
  *
  * const result = asBase.refine((value) => value !== 'admin').validate(undefined);
  * result.issues; // undefined — an absent value is accepted
@@ -30,7 +30,7 @@ import { Schema } from './schema.js';
  */
 // Only the Shared Modifiers live here; the pipeline they feed and the
 // `_with*Modifier` helpers they build on are `Schema`'s (ADR-0020).
-export abstract class ChainableSchema<Input = unknown, Output = Input> extends Schema<
+export abstract class ChainableInterpretedSchema<Input = unknown, Output = Input> extends Schema<
   Input,
   Output
 > {

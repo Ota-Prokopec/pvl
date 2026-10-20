@@ -3,7 +3,7 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
 import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * Every primitive type `pvl.literal()` can pin a schema to. Objects, arrays
@@ -21,7 +21,7 @@ import { ChainableSchema } from './chainableSchema.js';
 export type PossibleLiteralValue = string | number | boolean | bigint;
 
 /**
- * The default message of every Issue `LiteralSchema` reports, keyed by the method
+ * The default message of every Issue `LiteralInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -32,10 +32,10 @@ export const LITERAL_SCHEMA_ISSUE_MESSAGE = {
     `Expected ${Issue.formatIssueMessageValue(literalValue)}`,
 } as const;
 
-interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends SchemaKind<
-  LiteralSchema<LiteralValue, unknown, unknown>
-> {
-  readonly type: LiteralSchema<LiteralValue, this['Input'], this['Output']>;
+interface LiteralInterpretedSchemaKind<
+  LiteralValue extends PossibleLiteralValue,
+> extends SchemaKind<LiteralInterpretedSchema<LiteralValue, unknown, unknown>> {
+  readonly type: LiteralInterpretedSchema<LiteralValue, this['Input'], this['Output']>;
 }
 
 /**
@@ -64,13 +64,13 @@ interface LiteralSchemaKind<LiteralValue extends PossibleLiteralValue> extends S
  * ]);
  * ```
  */
-export class LiteralSchema<
+export class LiteralInterpretedSchema<
   LiteralValue extends PossibleLiteralValue,
   Input = LiteralValue,
   Output = LiteralValue,
-> extends ChainableSchema<Input, Output> {
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': LiteralSchemaKind<LiteralValue>;
+  declare readonly '~kind': LiteralInterpretedSchemaKind<LiteralValue>;
   private readonly literalValue: LiteralValue;
 
   /** @internal */

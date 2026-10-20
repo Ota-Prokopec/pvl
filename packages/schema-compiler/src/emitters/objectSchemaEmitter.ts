@@ -1,5 +1,5 @@
 // The code an `ObjectSchema` compiles to, one static method per method of
-// `ObjectSchema` it mirrors, and the checks of a compiled object, at the
+// `ObjectInterpretedSchema` it mirrors, and the checks of a compiled object, at the
 // root or nested in another Schema, which inline every field's checks,
 // nested objects' and arrays' included.
 import {
@@ -7,7 +7,7 @@ import {
   Issue,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
   type IssueEditableProps,
-  type ObjectSchema as PvlObjectSchema,
+  type ObjectInterpretedSchema,
 } from '@pvl/schema';
 import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { Schema } from '../schemas/schema.js';
@@ -252,7 +252,7 @@ const emitOutputAssignment = ({
 };
 
 /** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
-type PvlAnyObjectSchema = PvlObjectSchema;
+type PvlAnyObjectSchema = ObjectInterpretedSchema;
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
@@ -402,7 +402,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   /**
    * An object type of the fields' types, an optional field's key marked `?`.
    * `.passthrough()` widens the output for good, even under a later
-   * `.strict()`, as `ObjectSchema`'s own types do.
+   * `.strict()`, as `ObjectInterpretedSchema`'s own types do.
    *
    * ```ts
    * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ name: pvl.string(), age: pvl.number().optional() })> })
