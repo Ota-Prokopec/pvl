@@ -1,13 +1,15 @@
 // What every emitter shares: the `js` tag its templates are written with,
 // how a check is written, the return of a checked value a `Frame` places
-// after a Schema's checks, and how a value and a literal's type are spelled
-// in the emitted code (an Issue's are in `../issue.ts`). A fragment of a fixed shape, whose slots each
+// after a Schema's checks, and how a value, a Runtime Argument and a
+// literal's type are spelled in the emitted code (an Issue's are in
+// `../issue.ts`). A fragment of a fixed shape, whose slots each
 // hold a one-line expression, is written in a `js` template, as `js` would
 // misindent a multi-line one; a block wrapping any statements is
 // `Frame.composeBlock`'s, which keeps this module from importing the Frame
 // that imports it.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
+import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './emittersTypes.js';
 
 /**
@@ -69,6 +71,20 @@ export const emitReturnValue = (value: string): EmittedOutputStatement => {
  */
 export const spellLiteralType = (literalValue: PossibleLiteralValue): string => {
   return typeof literalValue === 'number' ? String(literalValue) : emitLiteral(literalValue);
+};
+
+/**
+ * A method's argument as the emitted code reads it: a literal written as
+ * one, a Runtime Argument off the Compiled Schema's instance.
+ *
+ * ```ts
+ * emitArgument(3)                       // '3'
+ * emitArgument(10n)                     // '10n'
+ * emitArgument(<the 1st Runtime Argument>) // 'this.arg0'
+ * ```
+ */
+export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): string => {
+  return argument instanceof RuntimeArgument ? argument.emitReading() : emitLiteral(argument);
 };
 
 /**

@@ -72,6 +72,28 @@ export class GenericAst {
   }
 
   /**
+   * Whether `node` spreads a value as written: a spread element, or an
+   * object literal with a spread property, seen through parentheses and
+   * `as` (`unwrap`). A `const` is not followed, as what it holds is spread
+   * where it is declared.
+   *
+   * ```ts
+   * GenericAst.isSpread(<...limits>)                    // true
+   * GenericAst.isSpread(<{ ...options, message: 'x' }>) // true
+   * GenericAst.isSpread(<options>)                      // false, whatever `options` holds
+   * GenericAst.isSpread(<{ message: 'x' }>)             // false
+   * ```
+   */
+  public static isSpread(node: Node): boolean {
+    const unwrappedNode = GenericAst.unwrap(node);
+    return (
+      Node.isSpreadElement(unwrappedNode) ||
+      (Node.isObjectLiteralExpression(unwrappedNode) &&
+        unwrappedNode.getProperties().some((property) => Node.isSpreadAssignment(property)))
+    );
+  }
+
+  /**
    * `node` split into the call, its receiver and its method name when it is a
    * method call, `<receiver>.<methodName>(…)`; `undefined` for any other shape.
    * The receiver is any expression, and is returned as written, `const`s not

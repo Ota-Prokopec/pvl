@@ -6,3 +6,5 @@ The compiler reads a Schema's arguments by evaluating literal expressions itself
 
 - **Read `++x` as `x + 1` when `x` is a `const`.** Rejected: the line throws at runtime, so the Compiled Schema would accept a module the interpreted path can't even load.
 - **Follow `let`s and replay their assignments.** Rejected: that is running the module, a data-flow analysis across every statement that can reach the variable, which static reading exists to avoid.
+
+> Amended by [ADR-0030](./0030-a-method-argument-the-compiler-cant-read-is-a-runtime-argument-evaluated-once-where-it-is-written.md): an assignment such as `++count` as a method's argument is now a Runtime Argument, which the Compiled Schema evaluates once at runtime, side effect included; the compiler itself still never evaluates one.

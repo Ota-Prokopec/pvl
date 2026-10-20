@@ -90,6 +90,13 @@ export const COMPILED_SCHEMA_IMPORT =
   "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
 
 /**
+ * The type a Compiled Schema's constructor declares a Runtime Argument with
+ * when it is passed as a method's Issue options, as `@pvl/schema`'s
+ * `IssueEditableProps` spells it.
+ */
+export const ISSUE_OPTIONS_TYPE = '{ message?: string } | undefined' as const;
+
+/**
  * The methods `@pvl/schema` adds as pre-modifiers, through
  * `_withPreModifier`, which run before the type check; every other chained
  * method is a post-modifier (ADR-0010).

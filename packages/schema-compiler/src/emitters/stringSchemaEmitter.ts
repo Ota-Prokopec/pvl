@@ -8,11 +8,18 @@ import {
 } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
-import { emitIssue } from '../issue.js';
-import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
-import { emitCheck, js } from './emitterUtils.js';
+import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import type { EmittedCheck, EmitterMethodOf, ParameterTypesOf } from './emittersTypes.js';
+import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly parameterTypes: ParameterTypesOf<StringInterpretedSchema> = {
+    min: ['number', ISSUE_OPTIONS_TYPE],
+    max: ['number', ISSUE_OPTIONS_TYPE],
+    length: ['number', ISSUE_OPTIONS_TYPE],
+  };
+
   /**
    * ```ts
    * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
@@ -36,14 +43,13 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     args: [minLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length < ${minLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_SMALL,
-          [issuePath],
-          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.min(minLength),
-        ),
-      ),
+      failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_SMALL,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.min, minLength),
+      }),
     });
 
   /** `.max(20)` → `field0.length > 20`, reporting `TOO_BIG`. */
@@ -52,14 +58,13 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     args: [maxLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length > ${maxLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_BIG,
-          [issuePath],
-          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.max(maxLength),
-        ),
-      ),
+      failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_BIG,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.max, maxLength),
+      }),
     });
 
   /** `.length(2)` → `field0.length !== 2`, reporting `INVALID_LENGTH`. */
@@ -68,13 +73,12 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     args: [exactLength, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value}.length !== ${exactLength}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.INVALID_LENGTH,
-          [issuePath],
-          options?.message ?? STRING_SCHEMA_ISSUE_MESSAGE.length(exactLength),
-        ),
-      ),
+      failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.INVALID_LENGTH,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(STRING_SCHEMA_ISSUE_MESSAGE.length, exactLength),
+      }),
     });
 }

@@ -8,11 +8,17 @@ import {
 } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
-import { emitIssue } from '../issue.js';
-import type { EmittedCheck, EmitterMethodOf } from './emittersTypes.js';
-import { emitCheck, emitLiteral, js } from './emitterUtils.js';
+import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import type { EmittedCheck, EmitterMethodOf, ParameterTypesOf } from './emittersTypes.js';
+import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly parameterTypes: ParameterTypesOf<BigintInterpretedSchema> = {
+    min: ['bigint', ISSUE_OPTIONS_TYPE],
+    max: ['bigint', ISSUE_OPTIONS_TYPE],
+  };
+
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
@@ -31,14 +37,13 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     args: [minValue, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value} < ${emitLiteral(minValue)}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_SMALL,
-          [issuePath],
-          options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
-        ),
-      ),
+      failsWhen: js`${value} < ${emitArgument(minValue)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_SMALL,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(BIGINT_SCHEMA_ISSUE_MESSAGE.min, minValue),
+      }),
     });
 
   /** `.max(9n)` → `field0 > 9n`, reporting `TOO_BIG`. */
@@ -47,13 +52,12 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     args: [maxValue, options],
   }) =>
     emitCheck({
-      failsWhen: js`${value} > ${emitLiteral(maxValue)}`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.TOO_BIG,
-          [issuePath],
-          options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
-        ),
-      ),
+      failsWhen: js`${value} > ${emitArgument(maxValue)}`,
+      issue: emitConstraintIssue({
+        code: ISSUE_CODE.TOO_BIG,
+        issuePath,
+        options,
+        defaultMessage: emitDefaultMessage(BIGINT_SCHEMA_ISSUE_MESSAGE.max, maxValue),
+      }),
     });
 }

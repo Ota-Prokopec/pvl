@@ -28,11 +28,25 @@ import type {
 import { emitReturnValue } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 
+/** A Runtime Argument as its Compiled Schema's constructor takes it. */
+export type RuntimeArgumentParameter = {
+  /** The field holding its value, which the checks read: `arg0`. */
+  fieldName: string;
+  /** The type of the parameter it is passed as: `number`. */
+  type: string;
+  /** What is passed for it where the `pvl.compile(...)` call was: the argument as written, or the hoisted `const` holding it. */
+  passedExpression: string;
+};
+
 /** The Compiled Schema a root Frame writes the class expression of. */
 export type FrameCompiledSchemaParams = {
   className: string;
   /** The Schema's `Input` and `Output` types, the `PvlSchema` type arguments the class implements. */
   types: SchemaTypes;
+  /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
+  indentation: string;
+  /** Its Runtime Arguments, in the order its constructor takes them. */
+  runtimeArguments: ReadonlyArray<RuntimeArgumentParameter>;
 };
 
 /** Where a Schema's checks are composed: nested, at the target its parent hands on, or at the root, as the body of a Compiled Schema's `_validate`, which checks its own parameters. */
@@ -288,16 +302,22 @@ export class Frame {
   /**
    * The Compiled Schema, as the expression its `pvl.compile(...)` call is
    * replaced by: an instance of a class expression implementing `PvlSchema`
-   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to that type so
-   * it types as `pvl.compile()` does. Its `_validate` collects its Issues and
-   * runs the checks `composeChecks` composes at the root, and its
-   * `validate` and `"~standard"` call it. Throws for a nested frame, or when
-   * no base check was set, which is a bug in an emitter, never a user error.
+   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to that type so it
+   * types as `pvl.compile()` does. Its constructor, when it has Runtime
+   * Arguments, takes each one's value, which is passed where the call was,
+   * evaluated there once (ADR-0030). Its `_validate` collects its Issues and
+   * runs the checks `composeChecks` composes at the root, and its `validate`
+   * and `"~standard"` call it. Every line of the class after its first is
+   * indented by `indentation`, and a passed argument is written as it is.
+   * Throws for a nested frame, or when no base check was set, which is a bug
+   * in an emitter, never a user error.
    *
    * ```ts
-   * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', types: { input: 'string', output: 'string' } }>.composeSchema()
+   * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', types: { input: 'string', output: 'string' }, indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max' }] }>.composeSchema()
    * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
+   * //
+   * //   constructor(readonly arg0: number) {}
    * //
    * //   get "~standard"(): PvlStandardSchemaProps<string, string> {
    * //     return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
@@ -311,13 +331,16 @@ export class Frame {
    * //     const issues: PvlIssue[] = [];
    * //     …
    * //   }
-   * // })() as PvlSchema<string, string>)
+   * // })(max) as PvlSchema<string, string>)
    * ```
    */
   // The cast is an upcast, as the class implements `PvlSchema`: it keeps the
   // Compiled Schema's type what `pvl.compile()` returns, and no anonymous
   // class type reaches a declaration file. The parentheses let a
   // `.validate(…)` read off the call site still apply to the whole of it.
+  // Each field is `readonly` but not `private`, so one a method that doesn't
+  // compile to a check takes (`.strict()` before `.passthrough()`) is no
+  // unused private member.
   public composeSchema(): string {
     const compiledSchemaParams = this.compiledSchemaParams;
     if (compiledSchemaParams === undefined) {
@@ -329,11 +352,18 @@ export class Frame {
     const {
       className,
       types: { input, output },
+      indentation,
+      runtimeArguments,
     } = compiledSchemaParams;
     const schemaType = `PvlSchema<${input}, ${output}>`;
 
     const members = [
       'declare readonly [PVL_SCHEMA_BRAND]: true;',
+      ...(runtimeArguments.length > 0
+        ? [
+            `constructor(${runtimeArguments.map(({ fieldName, type }) => `readonly ${fieldName}: ${type}`).join(', ')}) {}`,
+          ]
+        : []),
       Frame.composeBlock({
         head: `get "~standard"(): PvlStandardSchemaProps<${input}, ${output}>`,
         // `types` as the interpreted path writes it: a phantom, `undefined` at runtime.
@@ -348,11 +378,35 @@ export class Frame {
         body: ['const issues: PvlIssue[] = [];', this.composeChecks()].join('\n'),
       }),
     ];
+    const classExpression = Frame.indentContinuationLines(
+      Frame.composeBlock({
+        head: `class ${className} implements ${schemaType}`,
+        body: members.join('\n\n'),
+      }),
+      indentation,
+    );
+    const passedExpressions = runtimeArguments
+      .map(({ passedExpression }) => passedExpression)
+      .join(', ');
 
-    return `(new (${Frame.composeBlock({
-      head: `class ${className} implements ${schemaType}`,
-      body: members.join('\n\n'),
-    })})() as ${schemaType})`;
+    return `(new (${classExpression})(${passedExpressions}) as ${schemaType})`;
+  }
+
+  /**
+   * `text` with every line after its first indented by `indentation`, so a
+   * multi-line expression written where a line is indented lines up with it.
+   * An empty line stays empty.
+   *
+   * ```ts
+   * Frame.indentContinuationLines('class A {\n  m() {}\n}', '    ')
+   * // 'class A {\n      m() {}\n    }'
+   * ```
+   */
+  private static indentContinuationLines(text: string, indentation: string): string {
+    return text
+      .split('\n')
+      .map((line, index) => (index === 0 || line === '' ? line : `${indentation}${line}`))
+      .join('\n');
   }
 
   /**
