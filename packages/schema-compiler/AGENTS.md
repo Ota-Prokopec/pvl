@@ -17,7 +17,7 @@ Each section below says when it applies and which file to read. Read only the se
 
 ## `pvl.compile()`
 
-Read [`compile.md`](../../docs/specification/schema/compile.md) before you work on anything a Compiled Schema must satisfy. It is `@pvl/schema`'s side of the contract: what `pvl.compile()` returns, the `_checkType` hook a Compiled Schema fills, and the `_validate` it overrides.
+Read [`compile.md`](../../docs/specification/schema/compile.md) before you work on anything a Compiled Schema must satisfy. It is `@pvl/schema`'s side of the contract: what `pvl.compile()` returns, and the `_checkType` hook a Compiled Schema fills.
 
 ## Compilation
 
