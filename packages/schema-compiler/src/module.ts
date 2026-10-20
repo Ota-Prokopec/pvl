@@ -292,23 +292,24 @@ export class Module {
 
   /**
    * Compiles `schemas` into the module in place, in the order given: each
-   * Schema's expression becomes `new PvlCompiledSchema<n>()`, and the
-   * classes `schema.compile()` writes go right after the module's imports,
-   * under one import of what they extend. It compiles every Schema it is
-   * given, whether marked to compile or not; the run only passes the
-   * Marked-to-Compile Schemas `findMarkedToCompileSchemas` found compilable.
+   * Schema's expression becomes its Compiled Schema, an instance of the class
+   * expression `schema.compile()` writes, indented to the line it starts on,
+   * and one type-only import of what the classes implement goes right after
+   * the module's imports. It compiles every Schema it is given, whether
+   * marked to compile or not; the run only passes the Marked-to-Compile
+   * Schemas `findMarkedToCompileSchemas` found compilable. A Schema inside
+   * another one's expression is compiled into that one, so only the
+   * outermost is replaced, and the classes are numbered among those.
    *
    * ```ts
    * import { pvl } from '@pvl/schema';
    * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
    * // ↓
    * import { pvl } from '@pvl/schema';
-   * import { Schema as PvlSchema, … } from '@pvl/schema';
-   *
-   * // pvl.compile() on line 2
-   * class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
-   *
-   * export const user = new PvlCompiledSchema0();
+   * import type { …, Schema as PvlSchema, … } from '@pvl/schema';
+   * export const user = (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> {
+   *   …
+   * })() as PvlSchema<{ name: string }, { name: string }>);
    * ```
    *
    * Does nothing when `schemas` is empty.
@@ -319,13 +320,30 @@ export class Module {
       return;
     }
 
-    const classDeclarations = schemas.map((schema, index) =>
-      schema.compile(Module.toCompiledSchemaClassName(index)),
+    const moduleText = this.moduleFile.getFullText();
+    const outermostSchemas = schemas.filter(
+      (schema) =>
+        !schemas.some(
+          (other) =>
+            other !== schema &&
+            other.expression.getStart() <= schema.expression.getStart() &&
+            schema.expression.getEnd() <= other.expression.getEnd(),
+        ),
     );
+    const replacements = outermostSchemas.map((schema, index) => ({
+      start: schema.expression.getStart(),
+      end: schema.expression.getEnd(),
+      text: Module.indentContinuationLines(
+        schema.compile(Module.toCompiledSchemaClassName(index)),
+        Module.findLineIndentation(moduleText, schema.expression.getStart()),
+      ),
+    }));
 
-    // Last first, so replacing one expression leaves the earlier ones where they were.
-    for (const [index, { expression }] of [...schemas.entries()].reverse()) {
-      expression.replaceWithText(`new ${Module.toCompiledSchemaClassName(index)}()`);
+    // Last first, so replacing one range leaves the earlier ones where they
+    // were. By range rather than through the node, as ts-morph would indent
+    // the text again by its own count of the node's nesting.
+    for (const { start, end, text } of replacements.reverse()) {
+      this.moduleFile.replaceText([start, end], text);
     }
 
     const importCount = this.moduleFile
@@ -335,15 +353,43 @@ export class Module {
         0,
       );
 
-    this.moduleFile.insertStatements(
-      importCount,
-      [COMPILED_SCHEMA_IMPORT, '', classDeclarations.join('\n\n')].join('\n'),
-    );
+    this.moduleFile.insertStatements(importCount, COMPILED_SCHEMA_IMPORT);
   }
 
   /** The class name of a module's `index`th Compiled Schema, counted in source order. */
   private static toCompiledSchemaClassName(index: number): string {
     return `PvlCompiledSchema${String(index)}`;
+  }
+
+  /**
+   * The whitespace the line holding `position` in `moduleText` starts with.
+   *
+   * ```ts
+   * Module.findLineIndentation('if (x) {\n    return pvl.compile(a);\n}', 20) // '    '
+   * Module.findLineIndentation('export const u = pvl.compile(a);', 17)        // ''
+   * ```
+   */
+  private static findLineIndentation(moduleText: string, position: number): string {
+    const lineStart = moduleText.lastIndexOf('\n', position - 1) + 1;
+    const lineText = moduleText.slice(lineStart, position);
+    return lineText.slice(0, lineText.length - lineText.trimStart().length);
+  }
+
+  /**
+   * `text` with every line after its first indented by `indentation`, so a
+   * multi-line expression written where a line is indented lines up with it.
+   * An empty line stays empty.
+   *
+   * ```ts
+   * Module.indentContinuationLines('(new (class A {\n  m() {}\n})())', '    ')
+   * // '(new (class A {\n      m() {}\n    })())'
+   * ```
+   */
+  private static indentContinuationLines(text: string, indentation: string): string {
+    return text
+      .split('\n')
+      .map((line, index) => (index === 0 || line === '' ? line : `${indentation}${line}`))
+      .join('\n');
   }
 
   /**

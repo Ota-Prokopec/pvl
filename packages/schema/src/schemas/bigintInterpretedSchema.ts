@@ -2,7 +2,7 @@ import { coerceToBigint } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -18,7 +18,7 @@ export const BIGINT_SCHEMA_ISSUE_MESSAGE = {
   max: (maxValue: bigint): string => `Bigint must be less than or equal to ${maxValue}`,
 } as const;
 
-interface BigintInterpretedSchemaKind extends SchemaKind<
+interface BigintInterpretedSchemaKind extends InterpretedSchemaKind<
   BigintInterpretedSchema<unknown, unknown>
 > {
   readonly type: BigintInterpretedSchema<this['Input'], this['Output']>;

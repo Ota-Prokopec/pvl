@@ -3,12 +3,14 @@
 // checks, the post-modifiers' checks, the output statements) and hands it to
 // the Schema's Frame, which only composes them, placing each part behind the
 // gate the Schema's position needs: the root of a Compiled Schema's
-// `_checkType`, which returns on the first Issues it can and then the value
+// `_validate`, which returns on the first Issues it can and then the value
 // it checked, or a parent, which reads that value back once the checks have
-// run. The root's Frame also writes the Compiled Schema's class. Every part
-// is source text, and a Frame writes no check of its own, only the
-// JavaScript fragments it places (`emitterUtils.ts`, `../issue.ts`), and
-// names the locals a composite's parts declare.
+// run. The root's Frame also writes the Compiled Schema's class expression,
+// which replaces its `pvl.compile(...)` call. Every part is source text, and
+// a Frame writes no check of its own, only the JavaScript fragments it
+// places (`emitterUtils.ts`, `../issue.ts`), and names the locals a
+// composite's parts declare.
+import { VENDOR } from '@pvl/schema';
 import {
   emitNoNewIssuesCondition,
   emitReturnIssues,
@@ -26,16 +28,14 @@ import type {
 import { emitReturnValue } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 
-/** The Compiled Schema a root Frame writes the class of. */
+/** The Compiled Schema a root Frame writes the class expression of. */
 export type FrameCompiledSchemaParams = {
   className: string;
-  /** The line of the `pvl.compile()` call, named in the class's comment. */
-  line: number;
-  /** The Schema's `Input` and `Output` types, the class's type arguments. */
+  /** The Schema's `Input` and `Output` types, the `PvlSchema` type arguments the class implements. */
   types: SchemaTypes;
 };
 
-/** Where a Schema's checks are composed: nested, at the target its parent hands on, or at the root, as the body of a Compiled Schema's `_checkType`, which checks its own parameters. */
+/** Where a Schema's checks are composed: nested, at the target its parent hands on, or at the root, as the body of a Compiled Schema's `_validate`, which checks its own parameters. */
 export type FramePosition =
   | {
       // Not root schema
@@ -46,7 +46,7 @@ export type FramePosition =
   | {
       // Root schema
       target?: undefined;
-      /** The Compiled Schema whose `_checkType` its checks are the body of, which makes it the root. */
+      /** The Compiled Schema whose `_validate` its checks are the body of, which makes it the root. */
       compiledSchemaParams: FrameCompiledSchemaParams;
     };
 
@@ -57,16 +57,20 @@ export type FrameConstructorArgs = FramePosition & {
   isComposite: boolean;
 };
 
-// The names of a Compiled Schema's `_checkType` parameters, which a root
+// The names of a Compiled Schema's `_validate` parameters, which a root
 // frame checks: the value, and the path its Issues are reported at.
-const CHECK_TYPE_VALUE_PARAMETER_NAME = 'value' as const;
-const CHECK_TYPE_PATH_PARAMETER_NAME = 'path' as const;
+const VALIDATE_VALUE_PARAMETER_NAME = 'value' as const;
+const VALIDATE_PATH_PARAMETER_NAME = 'path' as const;
 
-// What a root frame checks: `_checkType`'s value, whose Issues are reported
+// `_validate`'s parameter list, as the `Schema` type declares it.
+const VALIDATE_PARAMETERS =
+  `${VALIDATE_VALUE_PARAMETER_NAME}: unknown, ${VALIDATE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>` as const;
+
+// What a root frame checks: `_validate`'s value, whose Issues are reported
 // at its path, or at none when it is empty.
 const ROOT_CHECKING_TARGET: CheckingTarget = {
-  value: CHECK_TYPE_VALUE_PARAMETER_NAME,
-  issuePath: emitRootIssuePath(CHECK_TYPE_PATH_PARAMETER_NAME),
+  value: VALIDATE_VALUE_PARAMETER_NAME,
+  issuePath: emitRootIssuePath(VALIDATE_PATH_PARAMETER_NAME),
 };
 
 /**
@@ -75,7 +79,7 @@ const ROOT_CHECKING_TARGET: CheckingTarget = {
  * `setBaseCheck` overwrites it; every `add…` part defaults to none, and
  * appends. It also names the locals a composite's parts declare for the
  * output they build. At the root, it builds its own target, checking
- * `_checkType`'s own `value` at its `path`, and its locals are plain
+ * `_validate`'s own `value` at its `path`, and its locals are plain
  * (`input`, `output`). Nested, a composite numbers its locals (`input1`,
  * `output1`), so they never clash
  * with its parent's, and keeps its Issue path in one (`path1`), so its
@@ -93,7 +97,7 @@ const ROOT_CHECKING_TARGET: CheckingTarget = {
  * ```
  */
 export class Frame {
-  /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on, or `_checkType`'s own at the root. */
+  /** The Schema's value and the Issue path of an Issue about it, as its parent hands them on, or `_validate`'s own at the root. */
   public readonly checkingTarget: CheckingTarget;
   /** The Issue path of an Issue about the Schema itself: `path.length > 0 ? path : undefined` at the root, `path1`, … for a nested composite. */
   public readonly issuePath: string;
@@ -114,7 +118,7 @@ export class Frame {
   private readonly childChecks: string[] = [];
   private readonly outputStatements: EmittedOutputStatement[] = [];
 
-  /** A frame for the Schema at `target`, or at `_checkType`'s parameters at the root, numbering its locals from `scope` when it is a nested composite. */
+  /** A frame for the Schema at `target`, or at `_validate`'s parameters at the root, numbering its locals from `scope` when it is a nested composite. */
   public constructor({ target, scope, isComposite, compiledSchemaParams }: FrameConstructorArgs) {
     this.checkingTarget = target ?? ROOT_CHECKING_TARGET;
     this.isComposite = isComposite;
@@ -282,23 +286,38 @@ export class Frame {
   }
 
   /**
-   * The Compiled Schema's class declaration, extending `PvlSchema` (see
-   * `COMPILED_SCHEMA_IMPORT`), whose `_checkType` collects its Issues and
-   * runs the checks `composeChecks` composes at the root. Throws for a
-   * nested frame, or when no base check was set, which is a bug in an
-   * emitter, never a user error.
+   * The Compiled Schema, as the expression its `pvl.compile(...)` call is
+   * replaced by: an instance of a class expression implementing `PvlSchema`
+   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to that type so
+   * it types as `pvl.compile()` does. Its `_validate` collects its Issues and
+   * runs the checks `composeChecks` composes at the root, and its
+   * `validate` and `"~standard"` call it. Throws for a nested frame, or when
+   * no base check was set, which is a bug in an emitter, never a user error.
    *
    * ```ts
-   * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', line: 3, types: { input: '{ name: string }', … } }>.composeSchema()
-   * // // pvl.compile() on line 3
-   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
-   * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
+   * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', types: { input: 'string', output: 'string' } }>.composeSchema()
+   * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
+   * //   declare readonly [PVL_SCHEMA_BRAND]: true;
+   * //
+   * //   get "~standard"(): PvlStandardSchemaProps<string, string> {
+   * //     return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
+   * //   }
+   * //
+   * //   validate(value: unknown): PvlResult<string> {
+   * //     return this._validate(value, []) as PvlResult<string>;
+   * //   }
+   * //
+   * //   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
    * //     const issues: PvlIssue[] = [];
    * //     …
    * //   }
-   * // }
+   * // })() as PvlSchema<string, string>)
    * ```
    */
+  // The cast is an upcast, as the class implements `PvlSchema`: it keeps the
+  // Compiled Schema's type what `pvl.compile()` returns, and no anonymous
+  // class type reaches a declaration file. The parentheses let a
+  // `.validate(…)` read off the call site still apply to the whole of it.
   public composeSchema(): string {
     const compiledSchemaParams = this.compiledSchemaParams;
     if (compiledSchemaParams === undefined) {
@@ -309,22 +328,31 @@ export class Frame {
 
     const {
       className,
-      line,
       types: { input, output },
     } = compiledSchemaParams;
+    const schemaType = `PvlSchema<${input}, ${output}>`;
 
-    const statements = this.composeChecks();
-
-    return [
-      `// pvl.compile() on line ${String(line)}`,
+    const members = [
+      'declare readonly [PVL_SCHEMA_BRAND]: true;',
       Frame.composeBlock({
-        head: `class ${className} extends PvlSchema<${input}, ${output}>`,
-        body: Frame.composeBlock({
-          head: `override _checkType(${CHECK_TYPE_VALUE_PARAMETER_NAME}: unknown, ${CHECK_TYPE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>): PvlResult<unknown>`,
-          body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
-        }),
+        head: `get "~standard"(): PvlStandardSchemaProps<${input}, ${output}>`,
+        // `types` as the interpreted path writes it: a phantom, `undefined` at runtime.
+        body: `return { version: 1, vendor: ${JSON.stringify(VENDOR)}, types: undefined, validate: (${VALIDATE_VALUE_PARAMETER_NAME}: unknown) => this.validate(${VALIDATE_VALUE_PARAMETER_NAME}) };`,
       }),
-    ].join('\n');
+      Frame.composeBlock({
+        head: `validate(${VALIDATE_VALUE_PARAMETER_NAME}: unknown): PvlResult<${output}>`,
+        body: `return this._validate(${VALIDATE_VALUE_PARAMETER_NAME}, []) as PvlResult<${output}>;`,
+      }),
+      Frame.composeBlock({
+        head: `_validate(${VALIDATE_PARAMETERS}): PvlResult<unknown>`,
+        body: ['const issues: PvlIssue[] = [];', this.composeChecks()].join('\n'),
+      }),
+    ];
+
+    return `(new (${Frame.composeBlock({
+      head: `class ${className} implements ${schemaType}`,
+      body: members.join('\n\n'),
+    })})() as ${schemaType})`;
   }
 
   /**
@@ -332,7 +360,7 @@ export class Frame {
    * a post-modifier runs only once the type check has (ADR-0010), and a
    * composite's type check includes its children.
    *
-   * At the root, `_checkType` returns the Issues as soon as there are any.
+   * At the root, `_validate` returns the Issues as soon as there are any.
    * For a composite, one return comes after the children, so a failing child
    * skips the post-modifiers, and one after the post-modifiers, so a failing
    * one never reaches `return { value: output }`; with no post-modifiers,

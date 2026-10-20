@@ -5,7 +5,7 @@ import type { ValueOfEnum } from '@repo/types';
 // How a Modifier departs from the default reading of its `fn` result (`null`
 // continue, `{ issues }` collect and continue, `{ value }` replace and
 // continue), declared where the Modifier is built rather than special-cased in
-// `Schema._validate` — see ADR-0010.
+// `InterpretedSchema._validate` — see ADR-0010.
 export const MODIFIER_TAG = {
   // A `{ value }` means "valid": accept it and skip every remaining
   // pre-modifier, the type check and every post-modifier.

@@ -1,7 +1,7 @@
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
@@ -21,7 +21,7 @@ export const ARRAY_SCHEMA_ISSUE_MESSAGE = {
 
 interface ArrayInterpretedSchemaKind<
   ItemSchema extends Schema<unknown, unknown>,
-> extends SchemaKind<ArrayInterpretedSchema<ItemSchema, unknown, unknown>> {
+> extends InterpretedSchemaKind<ArrayInterpretedSchema<ItemSchema, unknown, unknown>> {
   readonly type: ArrayInterpretedSchema<ItemSchema, this['Input'], this['Output']>;
 }
 

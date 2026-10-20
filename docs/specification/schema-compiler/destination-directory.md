@@ -8,7 +8,7 @@ The compiler writes a single **`Destination Directory`** and modifies nothing el
 
 ## A complete mirror of the source root
 
-The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror: every Compiled Schema extends its `Schema` class, and the mirror carries ordinary interpreted schemas too.
+The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror, which carries ordinary interpreted schemas too, though a Compiled Schema imports only its types ([ADR-0029](../../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md)).
 
 Each mirrored module is its source's code under a `@generated` header, with only module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`):
 

@@ -2,7 +2,7 @@ import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -20,7 +20,7 @@ export const STRING_SCHEMA_ISSUE_MESSAGE = {
     `String must contain exactly ${exactLength} character(s)`,
 } as const;
 
-interface StringInterpretedSchemaKind extends SchemaKind<
+interface StringInterpretedSchemaKind extends InterpretedSchemaKind<
   StringInterpretedSchema<unknown, unknown>
 > {
   readonly type: StringInterpretedSchema<this['Input'], this['Output']>;

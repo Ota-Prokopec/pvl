@@ -2,7 +2,7 @@ import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -19,7 +19,7 @@ export const NUMBER_SCHEMA_ISSUE_MESSAGE = {
   int: (): string => 'Number must be an integer',
 } as const;
 
-interface NumberInterpretedSchemaKind extends SchemaKind<
+interface NumberInterpretedSchemaKind extends InterpretedSchemaKind<
   NumberInterpretedSchema<unknown, unknown>
 > {
   readonly type: NumberInterpretedSchema<this['Input'], this['Output']>;

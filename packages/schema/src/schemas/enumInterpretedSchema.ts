@@ -2,7 +2,7 @@ import type { ValueOfEnum } from '@repo/types';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -50,7 +50,7 @@ export const ENUM_SCHEMA_ISSUE_MESSAGE = {
     `Expected one of ${members.map((enumMember) => Issue.formatIssueMessageValue(enumMember)).join(', ')}`,
 } as const;
 
-interface EnumInterpretedSchemaKind<Source extends EnumSource> extends SchemaKind<
+interface EnumInterpretedSchemaKind<Source extends EnumSource> extends InterpretedSchemaKind<
   EnumInterpretedSchema<Source, unknown, unknown>
 > {
   readonly type: EnumInterpretedSchema<Source, this['Input'], this['Output']>;

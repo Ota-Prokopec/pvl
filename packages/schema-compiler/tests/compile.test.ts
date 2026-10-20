@@ -1011,7 +1011,7 @@ describe('runCompilation(): diagnostics', () => {
       'nullableRoot',
     ].entries()) {
       expect(mirrored).toContain(
-        `export const ${exportName} = new PvlCompiledSchema${String(index)}();`,
+        `export const ${exportName} = (new (class PvlCompiledSchema${String(index)} implements PvlSchema<`,
       );
     }
   });

@@ -22,7 +22,7 @@ export const emitIssue = (issue: Issue): EmittedIssue => {
 
 /**
  * The Issue path of an Issue about a Compiled Schema's root value, at
- * `_checkType`'s `path` parameter: `undefined` when it is empty, as
+ * `_validate`'s `path` parameter: `undefined` when it is empty, as
  * `@pvl/schema`'s own `Issue` makes it.
  *
  * ```ts

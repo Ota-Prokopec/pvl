@@ -2,7 +2,7 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Modifier } from '../modifiers/modifiers.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
@@ -150,7 +150,7 @@ const unknownKeysStrictModifier = (
 // the strip modifier, `_checkType`'s output already keeps every key.
 const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
 
-interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends SchemaKind<
+interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends InterpretedSchemaKind<
   ObjectInterpretedSchema<Shape, unknown, unknown>
 > {
   readonly type: ObjectInterpretedSchema<Shape, this['Input'], this['Output']>;

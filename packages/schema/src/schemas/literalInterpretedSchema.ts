@@ -2,7 +2,7 @@ import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from 
 import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -34,7 +34,7 @@ export const LITERAL_SCHEMA_ISSUE_MESSAGE = {
 
 interface LiteralInterpretedSchemaKind<
   LiteralValue extends PossibleLiteralValue,
-> extends SchemaKind<LiteralInterpretedSchema<LiteralValue, unknown, unknown>> {
+> extends InterpretedSchemaKind<LiteralInterpretedSchema<LiteralValue, unknown, unknown>> {
   readonly type: LiteralInterpretedSchema<LiteralValue, this['Input'], this['Output']>;
 }
 

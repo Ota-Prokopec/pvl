@@ -1,7 +1,7 @@
 import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
@@ -46,7 +46,7 @@ export const UNION_SCHEMA_ISSUE_MESSAGE = {
 // `Members[number]` is the union of the member schemas, and inferring through
 // a union of schemas yields the union of each member's own type.
 
-interface UnionInterpretedSchemaKind<Members extends UnionMembers> extends SchemaKind<
+interface UnionInterpretedSchemaKind<Members extends UnionMembers> extends InterpretedSchemaKind<
   UnionInterpretedSchema<Members, unknown, unknown>
 > {
   readonly type: UnionInterpretedSchema<Members, this['Input'], this['Output']>;

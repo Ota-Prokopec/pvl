@@ -46,7 +46,7 @@ export const emitCheck = ({ failsWhen, issue }: EmitCheckArgs): EmittedCheck => 
 };
 
 /**
- * The statement returning `value` from `_checkType` as the value it
+ * The statement returning `value` from `_validate` as the value it
  * checked: the Result's `value` property.
  *
  * ```ts

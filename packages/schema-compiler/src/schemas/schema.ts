@@ -78,7 +78,7 @@ const SCHEMA_FACTORIES: ReadonlySet<string> = new Set(Object.values(SCHEMA_FACTO
  * const { schema } = Schema.read({ module: user, expression: <pvl.compile(…)>, pvlImportLocalNames });
  * schema;                                // <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema> }]>
  * schema.findUncompilableDiagnostics(); // []: a Compilable Schema
- * schema.compile('PvlCompiledSchema0');  // 'class PvlCompiledSchema0 extends PvlSchema<…> { … }'
+ * schema.compile('PvlCompiledSchema0');  // '(new (class PvlCompiledSchema0 implements PvlSchema<…> { … })() as PvlSchema<…>)'
  * ```
  */
 export abstract class Schema {
@@ -230,23 +230,18 @@ export abstract class Schema {
   }
 
   /**
-   * Its Compiled Schema: the class declaration named `className`, whose
-   * instance replaces its expression, written by its Emitter (see
+   * Its Compiled Schema: the expression that replaces its own, an instance
+   * of a class expression named `className`, written by its Emitter (see
    * `Emitter.emitCompiledSchema`). Compiles any Schema, marked to compile or
    * not, so long as `findUncompilableDiagnostics` found nothing.
    *
    * ```ts
-   * <pvl.compile(pvl.object({ name: pvl.string() })) on line 3>.compile('PvlCompiledSchema0')
-   * // // pvl.compile() on line 3
-   * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> { … }
+   * <pvl.compile(pvl.object({ name: pvl.string() }))>.compile('PvlCompiledSchema0')
+   * // (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> { … })() as PvlSchema<{ name: string }, { name: string }>)
    * ```
    */
   public compile(className: string): string {
-    return this.emitter.emitCompiledSchema({
-      schema: this,
-      className,
-      line: this.expression.getStartLineNumber(),
-    });
+    return this.emitter.emitCompiledSchema({ schema: this, className });
   }
 
   /**

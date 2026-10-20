@@ -2,7 +2,7 @@ import { coerceToBoolean } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
+import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -16,7 +16,7 @@ export const BOOLEAN_SCHEMA_ISSUE_MESSAGE = {
   _checkType: (): string => 'Expected boolean',
 } as const;
 
-interface BooleanInterpretedSchemaKind extends SchemaKind<
+interface BooleanInterpretedSchemaKind extends InterpretedSchemaKind<
   BooleanInterpretedSchema<unknown, unknown>
 > {
   readonly type: BooleanInterpretedSchema<this['Input'], this['Output']>;

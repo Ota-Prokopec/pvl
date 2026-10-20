@@ -1,4 +1,5 @@
 export * from './arrayInterpretedSchema.js';
+export * from './interpretedSchema.js';
 export * from './schema.js';
 export * from './chainableInterpretedSchema.js';
 export * from './bigintInterpretedSchema.js';
