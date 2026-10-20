@@ -307,6 +307,10 @@ export abstract class Emitter {
    * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', line: 3 })
    * // // pvl.compile() on line 3
    * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
+   * //   override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<{ name: string }> {
+   * //     return this._checkType(value, path) as PvlResult<{ name: string }>;
+   * //   }
+   * //
    * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
    * //     const issues: PvlIssue[] = [];
    * //     if (typeof value !== "object" || …) {

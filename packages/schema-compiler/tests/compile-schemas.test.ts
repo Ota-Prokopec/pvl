@@ -31,6 +31,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<{ name: string }> {
+          return this._checkType(value, path) as PvlResult<{ name: string }>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -85,6 +89,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<(string | undefined)[], (string | undefined)[]> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<(string | undefined)[]> {
+          return this._checkType(value, path) as PvlResult<(string | undefined)[]>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (!Array.isArray(value)) {
@@ -117,6 +125,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 4
       class PvlCompiledSchema1 extends PvlSchema<{ age?: number | undefined }, { age?: number | undefined }> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<{ age?: number | undefined }> {
+          return this._checkType(value, path) as PvlResult<{ age?: number | undefined }>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -176,6 +188,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<{ lines: ({ sku: string })[] }, { lines: ({ sku: string })[] }> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<{ lines: ({ sku: string })[] }> {
+          return this._checkType(value, path) as PvlResult<{ lines: ({ sku: string })[] }>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -259,6 +275,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<string, string> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<string> {
+          return this._checkType(value, path) as PvlResult<string>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (typeof value !== "string") {
@@ -302,6 +322,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<"user", "user"> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<"user"> {
+          return this._checkType(value, path) as PvlResult<"user">;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (!Object.is(value, "user")) {
@@ -315,6 +339,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 4
       class PvlCompiledSchema1 extends PvlSchema<"ADMIN" | "USER", "ADMIN" | "USER"> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<"ADMIN" | "USER"> {
+          return this._checkType(value, path) as PvlResult<"ADMIN" | "USER">;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (value !== "ADMIN" && value !== "USER") {
@@ -353,6 +381,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 3
       class PvlCompiledSchema0 extends PvlSchema<string | undefined, string | undefined> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<string | undefined> {
+          return this._checkType(value, path) as PvlResult<string | undefined>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (!((value === undefined))) {
@@ -375,6 +407,10 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
       // pvl.compile() on line 4
       class PvlCompiledSchema1 extends PvlSchema<number[] | null | undefined, number[] | null | undefined> {
+        override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<number[] | null | undefined> {
+          return this._checkType(value, path) as PvlResult<number[] | null | undefined>;
+        }
+
         override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
           if (!((value === null) || (value === undefined))) {

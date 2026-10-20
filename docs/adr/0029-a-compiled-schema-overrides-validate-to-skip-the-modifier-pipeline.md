@@ -1,0 +1,16 @@
+# A Compiled Schema overrides `_validate` to skip the Modifier pipeline
+
+**Each emitted `PvlCompiledSchema<n>` overrides `_validate(value, path)` to return `this._checkType(value, path)` as it is.** Every Modifier is baked into the emitted `_checkType`, so a Compiled Schema's modifier arrays are always empty, and the `_validate` it used to inherit only ran `_runPreModifiers` and `_runPostModifiers` over them. Those runners still cost two loops and four or five allocations (the pre-modifiers' result, its `issues` array, the spread state, the post-modifiers' `issues` copy and the final Result) on every call. In a Node 24 micro-benchmark, a compiled `pvl.string()` took about 33 ns per `validate()` call, the same as the interpreted one, and about 8 ns once `_validate` was overridden. An interpreted `pvl.object` with one compiled field went from about 145 to 121 ns. The overhead is fixed per call, not per node, since nested Schemas are inlined ([ADR-0023](./0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)), so it shows most on small Schemas and on compiled fields of an interpreted parent.
+
+The Compiled Schema stays a `Schema` subclass ([ADR-0020](./0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md)), so it is still a valid field, element or union member of an interpreted Schema ([ADR-0018](./0018-composite-fields-are-pvl-schemas-only.md)), and still inherits `validate()` and `"~standard"` ([ADR-0003](./0003-compiled-schemas-conform-to-standard-schema.md)). `validate()` and an interpreted parent both reach the override, since both call `_validate`. Its `Result<unknown>` from `_checkType` is cast to `PvlResult<Output>`, as the base class's `_validate` casts its own.
+
+## Consequences
+
+- `_validate`'s signature joins `_checkType`'s in the compiler's contract ([compile.md](../specification/schema/compile.md)). The emitted class declares it with `override`, so a change to it in `@pvl/schema` fails the typecheck of every Destination Directory rather than going unnoticed.
+- A Compiled Schema never runs its modifier arrays. A Modifier added to one at runtime would be ignored, but nothing can add one: `pvl.compile()` returns a plain `Schema`, and the `_with…Modifier` helpers are `protected`.
+
+## Considered options
+
+- **A plain object with `validate()`, or with `_checkType()` and `validate()`, instead of a class.** Just as fast, and needs no runtime import of `@pvl/schema`. Rejected: it isn't a `Schema`, so an interpreted parent can't hold it without bringing back the Standard Schema dispatch and Issue path re-prefixing that ADR-0018 removed, and it would have to emit its own `"~standard"`.
+- **A fast path in `Schema._validate` for empty modifier arrays.** It would also speed up interpreted Schemas with no Modifier. Rejected for now: it changes the interpreted pipeline for every Schema, which is a decision of its own, and checks on every call what a Compiled Schema already knows at compile time.
+- **An `@internal` base class in `@pvl/schema` that every Compiled Schema extends, holding the override once.** It would save repeating the `Output` type in each class. Rejected: it ships a class only the compiler uses in every consumer's bundle, and brings back a separate Compiled Schema class next to `Schema`, which ADR-0020 removed.

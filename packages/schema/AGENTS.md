@@ -33,7 +33,7 @@ Read [`public-contract.md`](../../docs/specification/schema/public-contract.md) 
 
 ## Compiler-facing surface
 
-Read [`compile.md`](../../docs/specification/schema/compile.md) before you touch `pvl.compile()`, `_checkType`, or how a composite calls its children.
+Read [`compile.md`](../../docs/specification/schema/compile.md) before you touch `pvl.compile()`, `_checkType`, `_validate`, or how a composite calls its children.
 
 ## TSDoc
 

@@ -121,7 +121,9 @@ export abstract class Schema<Input = unknown, Output = Input> {
   // The steps are ADR-0010's: pre-modifiers, `_checkType`, post-modifiers,
   // each in chain order. With no tag, a modifier's `null` means continue,
   // `{ issues }` collect and continue, `{ value }` replace and continue; a
-  // `MODIFIER_TAG` is how a modifier departs from that.
+  // `MODIFIER_TAG` is how a modifier departs from that. A Compiled Schema
+  // overrides it to call `_checkType` alone (ADR-0029), so its signature is
+  // part of the compiler's contract.
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
     const preModifiersResult: PreModifiersResult = this._runPreModifiers(value, path);
     // `_checkType`'s output, or the accepted value after a short-circuit.

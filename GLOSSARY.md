@@ -65,7 +65,7 @@ A Marked-to-Compile Schema the compiler can turn into a Compiled Schema: any Sch
 _Avoid_: Supported Schema, valid Schema.
 
 **Compiled Schema**:
-The artifact `@pvl/schema-compiler` produces for a Marked-to-Compile Schema: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+The artifact `@pvl/schema-compiler` produces for a Marked-to-Compile Schema: a plain Schema, never a Chainable Schema, backed by emitted Instructions rather than by walking the Schema tree. Its one `_checkType` holds the Instructions of the whole tree, nested Schemas inlined ([ADR-0023](./docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)), and its `_validate` calls `_checkType` alone, skipping the Modifier pipeline ([ADR-0029](./docs/adr/0029-a-compiled-schema-overrides-validate-to-skip-the-modifier-pipeline.md)). It exposes no fields or element for reading, and there is no separate type for it. See [ADR-0016](./docs/adr/0016-transform-and-compile-end-the-modifier-chain.md) and [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Validator, Runtime validator.
 
 **Emitter**:

@@ -58,7 +58,8 @@ export type FrameConstructorArgs = FramePosition & {
 };
 
 // The names of a Compiled Schema's `_checkType` parameters, which a root
-// frame checks: the value, and the path its Issues are reported at.
+// frame checks: the value, and the path its Issues are reported at. Its
+// `_validate` takes the same two and hands them on.
 const CHECK_TYPE_VALUE_PARAMETER_NAME = 'value' as const;
 const CHECK_TYPE_PATH_PARAMETER_NAME = 'path' as const;
 
@@ -284,14 +285,20 @@ export class Frame {
   /**
    * The Compiled Schema's class declaration, extending `PvlSchema` (see
    * `COMPILED_SCHEMA_IMPORT`), whose `_checkType` collects its Issues and
-   * runs the checks `composeChecks` composes at the root. Throws for a
-   * nested frame, or when no base check was set, which is a bug in an
-   * emitter, never a user error.
+   * runs the checks `composeChecks` composes at the root. Its `_validate`
+   * returns `_checkType`'s Result as it is: every Modifier is baked into the
+   * checks, so the inherited pipeline would only run its runners over two
+   * empty arrays (ADR-0029). Throws for a nested frame, or when no base
+   * check was set, which is a bug in an emitter, never a user error.
    *
    * ```ts
    * <frame of value, at the root, compiledSchemaParams: { className: 'PvlCompiledSchema0', line: 3, types: { input: '{ name: string }', … } }>.composeSchema()
    * // // pvl.compile() on line 3
    * // class PvlCompiledSchema0 extends PvlSchema<{ name: string }, { name: string }> {
+   * //   override _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<{ name: string }> {
+   * //     return this._checkType(value, path) as PvlResult<{ name: string }>;
+   * //   }
+   * //
    * //   override _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
    * //     const issues: PvlIssue[] = [];
    * //     …
@@ -314,15 +321,23 @@ export class Frame {
     } = compiledSchemaParams;
 
     const statements = this.composeChecks();
+    const parameters = `${CHECK_TYPE_VALUE_PARAMETER_NAME}: unknown, ${CHECK_TYPE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>`;
 
     return [
       `// pvl.compile() on line ${String(line)}`,
       Frame.composeBlock({
         head: `class ${className} extends PvlSchema<${input}, ${output}>`,
-        body: Frame.composeBlock({
-          head: `override _checkType(${CHECK_TYPE_VALUE_PARAMETER_NAME}: unknown, ${CHECK_TYPE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>): PvlResult<unknown>`,
-          body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
-        }),
+        body: [
+          Frame.composeBlock({
+            head: `override _validate(${parameters}): PvlResult<${output}>`,
+            body: `return this._checkType(${CHECK_TYPE_VALUE_PARAMETER_NAME}, ${CHECK_TYPE_PATH_PARAMETER_NAME}) as PvlResult<${output}>;`,
+          }),
+          '',
+          Frame.composeBlock({
+            head: `override _checkType(${parameters}): PvlResult<unknown>`,
+            body: ['const issues: PvlIssue[] = [];', statements].join('\n'),
+          }),
+        ].join('\n'),
       }),
     ].join('\n');
   }
