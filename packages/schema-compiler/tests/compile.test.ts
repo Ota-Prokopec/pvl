@@ -922,6 +922,38 @@ describe('runCompilation(): diagnostics', () => {
     );
   });
 
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: a name that shadows a top-level const', async () => {
+    const path = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [path]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'const MIN = 3;',
+        "const message = 'too short';",
+        'const name = pvl.string();',
+        'export const makeName = (MIN: number) => pvl.compile(pvl.string().min(MIN));',
+        'export const makeTag = () => {',
+        '  const MIN = 5;',
+        '  return pvl.compile(pvl.string().min(MIN));',
+        '};',
+        'export const makeTitle = (message: string) => pvl.compile(pvl.string().min(1, { message }));',
+        'export const makeUser = (name: unknown) => pvl.compile(pvl.object({ name }));',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 4 }, () => ({
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        file: join(root, path),
+      })),
+    );
+  });
+
   it('COMPILE_ARGUMENT_CYCLE: an argument or a method argument that reaches its own const', async () => {
     const path = 'src/schemas/compiled.ts';
     const root = await createFixture({

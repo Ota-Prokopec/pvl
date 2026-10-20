@@ -74,14 +74,21 @@ describe('StringSchema, NumberSchema, BooleanSchema and BigintSchema', () => {
 });
 
 describe('LiteralSchema', () => {
-  it('reads its value, through a const', async () => {
+  it('reads its value, through any number of consts, from a function that shadows none of them too', async () => {
     expect(
       await compileClassHeads(
-        "const KIND = 'user';\nexport const a = pvl.compile(pvl.array(pvl.literal(KIND)));\nexport const b = pvl.compile(pvl.array(pvl.literal(-1)));",
+        [
+          "const KIND = 'user';",
+          'const ALIAS = (KIND);',
+          'export const a = pvl.compile(pvl.array(pvl.literal(KIND)));',
+          'export const b = pvl.compile(pvl.array(pvl.literal(-1)));',
+          'export const makeKinds = (kind: string) => pvl.compile(pvl.array(pvl.literal(ALIAS)));',
+        ].join('\n'),
       ),
     ).toEqual([
       'class PvlCompiledSchema0 extends PvlSchema<"user"[], "user"[]> {',
       'class PvlCompiledSchema1 extends PvlSchema<-1[], -1[]> {',
+      'class PvlCompiledSchema2 extends PvlSchema<"user"[], "user"[]> {',
     ]);
   });
 

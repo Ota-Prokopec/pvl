@@ -6,7 +6,9 @@ import {
   SyntaxKind,
   VariableDeclarationKind,
   type CallExpression,
+  type Identifier,
   type PrefixUnaryExpression,
+  type VariableDeclaration,
 } from 'ts-morph';
 import { ConstCycleError } from './constCycleError.js';
 import { UnresolvedNodeError } from './unresolvedNodeError.js';
@@ -20,8 +22,8 @@ export type StaticValue =
   | ReadonlyArray<StaticValue>
   | { readonly [key: string]: StaticValue };
 
-/** The names of the `const`s followed to reach a node, so one that reaches itself is caught. */
-export type FollowedConsts = ReadonlySet<string>;
+/** The declarations of the `const`s followed to reach a node, so one that reaches itself is caught. */
+export type FollowedConsts = ReadonlySet<VariableDeclaration>;
 
 /** A node with `const`s seen through, and every `const` followed on the way to it. */
 export type FollowedNode = {
@@ -95,22 +97,27 @@ export class GenericAst {
    * The expression `node` stands for, with every `const` it names replaced by
    * that `const`'s initializer, through any number of `const`s, plus the
    * `const`s followed to get there. Parentheses and `as` are seen through
-   * (`unwrap`). Only a top-level `const` of `node`'s own file is followed:
-   * any other identifier throws UnresolvedNodeError, and a `const` that is
-   * reached again while it is being followed, or while its value is being
-   * read (`followed`), throws ConstCycleError.
+   * (`unwrap`). An identifier is followed only when it names a top-level
+   * `const` of `node`'s own file in its scope (`findTopLevelConst`): any
+   * other identifier, one shadowing such a `const` included, throws
+   * UnresolvedNodeError, and a `const` that is reached again while it is
+   * being followed, or while its value is being read (`followed`), throws
+   * ConstCycleError.
    *
    * ```ts
    * // const MIN = 3; const LIMIT = (MIN);
-   * GenericAst.followConst(<LIMIT>)            // { node: <3>, followed: {'LIMIT', 'MIN'} }
+   * GenericAst.followConst(<LIMIT>)            // { node: <3>, followed: {<LIMIT = (MIN)>, <MIN = 3>} }
    * GenericAst.followConst(<'a'>)              // { node: <'a'>, followed: {} }: no const to follow
    * GenericAst.followConst(<pvl.string()>)     // { node: <pvl.string()>, followed: {} }: only identifiers are followed
    * // import { user } from './user.js'; let limit = 3;
    * GenericAst.followConst(<user>)             // throws UnresolvedNodeError(<user>): an import
    * GenericAst.followConst(<limit>)            // throws UnresolvedNodeError(<limit>): a `let`
+   * // const MIN = 3; (MIN: number) => MIN;
+   * GenericAst.followConst(<MIN>)              // throws UnresolvedNodeError(<MIN>): `MIN` is the parameter
    * // const a = b; const b = a;
    * GenericAst.followConst(<a>)                // throws ConstCycleError(<a>), at the second `a`
-   * GenericAst.followConst(<user>, {'user'})   // throws ConstCycleError(<user>): `user` is already being read
+   * // const user = pvl.object({ friend: user });
+   * GenericAst.followConst(<user>, {<user = …>}) // throws ConstCycleError(<user>): `user` is already being read
    * ```
    */
   public static followConst(node: Node, followed: FollowedConsts = new Set()): FollowedNode {
@@ -119,22 +126,52 @@ export class GenericAst {
       return { node: unwrappedNode, followed };
     }
 
-    const constName = unwrappedNode.getText();
-    if (followed.has(constName)) {
+    const declaration = GenericAst.findTopLevelConst(unwrappedNode);
+    const initializer = declaration?.getInitializer();
+    if (declaration === undefined || initializer === undefined) {
+      throw new UnresolvedNodeError(unwrappedNode);
+    }
+    if (followed.has(declaration)) {
       throw new ConstCycleError(unwrappedNode);
     }
 
-    const declaration = unwrappedNode.getSourceFile().getVariableDeclaration(constName);
-    const initializer = declaration?.getInitializer();
+    return GenericAst.followConst(initializer, new Set([...followed, declaration]));
+  }
 
-    if (
-      initializer === undefined ||
-      declaration?.getVariableStatement()?.getDeclarationKind() !== VariableDeclarationKind.Const
-    ) {
-      throw new UnresolvedNodeError(unwrappedNode);
+  /**
+   * The declaration `identifier` names when it is a top-level `const` of
+   * `identifier`'s own file, found by binding the name in its scope, so a
+   * parameter or a local that shadows the `const` is not it; `undefined`
+   * for any other binding. In a shorthand property, `{ age }`, the name is
+   * bound as the value it reads. Names are bound only, and no type is
+   * checked ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)).
+   *
+   * ```ts
+   * // const MIN = 3;
+   * GenericAst.findTopLevelConst(<MIN>)                          // <MIN = 3>
+   * GenericAst.findTopLevelConst(<age>), in `({ age })`           // <age = …>, with `const age = …`
+   * GenericAst.findTopLevelConst(<MIN>), in `(MIN: number) => MIN` // undefined: the parameter
+   * GenericAst.findTopLevelConst(<MIN>), in `{ const MIN = 5; MIN }` // undefined: a block-scoped `const`
+   * // import { user } from './user.js'; let limit = 3;
+   * GenericAst.findTopLevelConst(<user>)                         // undefined: an import
+   * GenericAst.findTopLevelConst(<limit>)                        // undefined: a `let`
+   * ```
+   */
+  private static findTopLevelConst(identifier: Identifier): VariableDeclaration | undefined {
+    const identifierParent = identifier.getParent();
+    const symbol = Node.isShorthandPropertyAssignment(identifierParent)
+      ? identifierParent.getValueSymbol()
+      : identifier.getSymbol();
+    const declaration = symbol?.getValueDeclaration();
+    if (!Node.isVariableDeclaration(declaration)) {
+      return undefined;
     }
 
-    return GenericAst.followConst(initializer, new Set([...followed, constName]));
+    const variableStatement = declaration.getVariableStatement();
+    return variableStatement?.getDeclarationKind() === VariableDeclarationKind.Const &&
+      variableStatement.getParent() === identifier.getSourceFile()
+      ? declaration
+      : undefined;
   }
 
   /**
