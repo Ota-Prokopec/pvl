@@ -37,6 +37,11 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# Claude Code worktrees (`pnpm claude`, `claude --worktree`), and the VS Code
+# workspace file `pnpm claude` writes into each worktree it opens
+.claude/worktrees/
+.vscode/*.code-workspace
+
 # Generated API reference (TypeDoc writes it on every docs build)
 apps/docs/content/api
 

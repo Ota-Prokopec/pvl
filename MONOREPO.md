@@ -15,7 +15,7 @@ packages/
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 └── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
 scripts/
-├── claude/            (claude, private)         — `pnpm claude`: start Claude Code in a picked git worktree
+├── claude/            (claude, private)         — `pnpm claude`: start Claude Code in a picked or new git worktree, in its own VS Code window
 ├── claude-list/       (claude-list, private)    — `pnpm claude-list`: remove picked git worktrees and their branches
 └── git-worktrees/     (@repo/git-worktrees)     — the git worktree reader both scripts share
 ```
