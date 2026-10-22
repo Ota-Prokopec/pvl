@@ -16,11 +16,11 @@ export type AbsolutePath<TAbsolutePath extends string = string> = {
 export type AbsolutePathWithRelative<TAbsolutePath extends string = string> =
   AbsolutePath<TAbsolutePath> & {
     /** Its path relative to a base directory. */
-    readonly relative: {
+    readonly relativePath: {
       /** The base directory's absolute path. */
       readonly absoluteBase: string;
       /** `absolutePath` relative to `absoluteBase`, with `/` separators. */
-      readonly path: string;
+      readonly pathFromBase: string;
     };
   };
 
@@ -30,9 +30,9 @@ export type AbsolutePathWithRelative<TAbsolutePath extends string = string> =
  *
  * ```ts
  * createAbsolutePathWithRelative('/repo/.pvl', '/repo')
- * // { absolutePath: '/repo/.pvl', relative: { absoluteBase: '/repo', path: '.pvl' } }
+ * // { absolutePath: '/repo/.pvl', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl' } }
  * createAbsolutePathWithRelative('/repo/src/schemas/user.ts', '/repo/src')
- * // { …, relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' } }: `/` separators on Windows too
+ * // { …, relativePath: { absoluteBase: '/repo/src', pathFromBase: 'schemas/user.ts' } }: `/` separators on Windows too
  * ```
  */
 export const createAbsolutePathWithRelative = <TAbsolutePath extends string>(
@@ -41,7 +41,10 @@ export const createAbsolutePathWithRelative = <TAbsolutePath extends string>(
 ): AbsolutePathWithRelative<TAbsolutePath> => {
   return {
     absolutePath,
-    relative: { absoluteBase, path: toPosixPath(path.relative(absoluteBase, absolutePath)) },
+    relativePath: {
+      absoluteBase,
+      pathFromBase: toPosixPath(path.relative(absoluteBase, absolutePath)),
+    },
   };
 };
 

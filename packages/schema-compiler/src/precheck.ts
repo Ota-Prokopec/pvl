@@ -179,7 +179,7 @@ export class Precheck {
     return [
       new Diagnostic({
         code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
-        message: `This file isn't under rootDir (${module.path.relative.absoluteBase}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
+        message: `This file isn't under rootDir (${module.path.relativePath.absoluteBase}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
         file: module.path.absolutePath,
       }),
     ];
@@ -233,10 +233,10 @@ export class Precheck {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
     for (const {
-      path: { absolutePath, relative },
+      path: { absolutePath, relativePath },
       moduleFile,
     } of [...modules].sort((first, second) =>
-      first.path.relative.path < second.path.relative.path ? -1 : 1,
+      first.path.relativePath.pathFromBase < second.path.relativePath.pathFromBase ? -1 : 1,
     )) {
       for (const [exportedName, declarations] of moduleFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
@@ -245,7 +245,7 @@ export class Precheck {
         }
         if (firstExport === undefined) {
           firstExportByExportedName.set(exportedName, {
-            relativePath: relative.path,
+            relativePath: relativePath.pathFromBase,
             declarations,
           });
         } else if (!Precheck.isSameBinding(firstExport.declarations, declarations)) {
@@ -306,15 +306,17 @@ export class Precheck {
    * it, so the module has no place in the mirror.
    *
    * ```ts
-   * // relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' }
+   * // relativePath: { absoluteBase: '/repo/src', pathFromBase: 'schemas/user.ts' }
    * Precheck.isOutsideRootDirectory(<user.ts>)    // false
-   * // relative: { absoluteBase: '/repo/src', path: '../lib/helpers.ts' }
+   * // relativePath: { absoluteBase: '/repo/src', pathFromBase: '../lib/helpers.ts' }
    * Precheck.isOutsideRootDirectory(<helpers.ts>) // true
    * ```
    */
-  private static isOutsideRootDirectory({ path: { relative } }: Module): boolean {
+  private static isOutsideRootDirectory({ path: { relativePath } }: Module): boolean {
     return (
-      relative.path === '..' || relative.path.startsWith('../') || path.isAbsolute(relative.path)
+      relativePath.pathFromBase === '..' ||
+      relativePath.pathFromBase.startsWith('../') ||
+      path.isAbsolute(relativePath.pathFromBase)
     );
   }
 

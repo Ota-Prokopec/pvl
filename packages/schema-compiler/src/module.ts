@@ -71,12 +71,12 @@ type TextEdit = {
 };
 
 /**
- * One scanned file. Its `path.relative.path` is relative to the Root Directory,
+ * One scanned file. Its `path.relativePath.pathFromBase` is relative to the Root Directory,
  * which is also its path inside the Destination Directory.
  *
  * ```ts
  * const user = new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' });
- * user.path.relative.path // 'schemas/user.ts'
+ * user.path.relativePath.pathFromBase // 'schemas/user.ts'
  * user.mirroredPath       // '/repo/.pvl/schemas/user.ts'
  * ```
  */
@@ -92,7 +92,7 @@ export class Module {
   /**
    * The scanned file at `scannedFilePath`, read into `tsMorphProject` and
    * placed in the mirror. A file outside the Root Directory gets a
-   * `path.relative.path` starting with `..` (or an absolute one, on another
+   * `path.relativePath.pathFromBase` starting with `..` (or an absolute one, on another
    * drive), which FILE_OUTSIDE_ROOT_DIR reports.
    *
    * With Root Directory `/repo/src` and Destination Directory `/repo/.pvl`:
@@ -100,7 +100,7 @@ export class Module {
    * ```ts
    * new Module({ …, scannedFilePath: '/repo/src/schemas/user.ts' })
    * // Module { path: { absolutePath: '/repo/src/schemas/user.ts',
-   * //     relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' } },
+   * //     relativePath: { absoluteBase: '/repo/src', pathFromBase: 'schemas/user.ts' } },
    * //   moduleFile: <user.ts>, mirroredPath: '/repo/.pvl/schemas/user.ts' }
    * ```
    *
@@ -116,7 +116,7 @@ export class Module {
     this.moduleFile = tsMorphProject.addSourceFileAtPath(scannedFilePath);
     this.mirroredPath = path.join(
       destination.absolutePath,
-      this.path.relative.path,
+      this.path.relativePath.pathFromBase,
     ) as MirroredPath;
   }
 
@@ -147,7 +147,7 @@ export class Module {
     this.rewriteSpecifiers({ tsMorphProject, mirroredPathByScannedPath });
 
     return {
-      relativePath: this.path.relative.path,
+      relativePath: this.path.relativePath.pathFromBase,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
   }

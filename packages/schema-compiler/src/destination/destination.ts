@@ -11,7 +11,7 @@ import {
 
 /**
  * Where the Destination Directory of one compilation run goes. Its
- * `relative.path` is relative to the base directory, the form `include`
+ * `relativePath.pathFromBase` is relative to the base directory, the form `include`
  * patterns match against. It also says where the temporary and old
  * directories a run keeps beside it go, so the scanner can skip them and
  * `DestinationWriter` can swap them in.
@@ -26,14 +26,17 @@ export class Destination implements AbsolutePathWithRelative {
   /** Its absolute path. */
   public readonly absolutePath: string;
   /** Its path relative to the base directory. */
-  public readonly relative: AbsolutePathWithRelative['relative'];
+  public readonly relativePath: AbsolutePathWithRelative['relativePath'];
   /** Whether `destination` was unset, so the default `.pvl` directory is used. */
   public readonly isDefault: boolean;
 
   /** A `Destination` at `absolutePath`; `Destination.resolveDestination` makes one. */
-  private constructor({ absolutePath, relative }: AbsolutePathWithRelative, isDefault: boolean) {
+  private constructor(
+    { absolutePath, relativePath }: AbsolutePathWithRelative,
+    isDefault: boolean,
+  ) {
     this.absolutePath = absolutePath;
-    this.relative = relative;
+    this.relativePath = relativePath;
     this.isDefault = isDefault;
   }
 
@@ -43,9 +46,9 @@ export class Destination implements AbsolutePathWithRelative {
    *
    * ```ts
    * Destination.resolveDestination('/repo', { destination: undefined, … })
-   * // { absolutePath: '/repo/.pvl', relative: { absoluteBase: '/repo', path: '.pvl' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl' }, isDefault: true }
    * Destination.resolveDestination('/repo', { destination: './out/../generated', … })
-   * // { absolutePath: '/repo/generated', relative: { absoluteBase: '/repo', path: 'generated' }, isDefault: false }
+   * // { absolutePath: '/repo/generated', relativePath: { absoluteBase: '/repo', pathFromBase: 'generated' }, isDefault: false }
    * ```
    */
   public static resolveDestination(
@@ -68,7 +71,7 @@ export class Destination implements AbsolutePathWithRelative {
    * ```ts
    * // destination.absolutePath '/repo/.pvl'
    * destination.getTemporaryDestination()
-   * // { absolutePath: '/repo/.pvl.pvl-tmp', relative: { absoluteBase: '/repo', path: '.pvl.pvl-tmp' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl.pvl-tmp', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl.pvl-tmp' }, isDefault: true }
    * ```
    */
   public getTemporaryDestination(): Destination {
@@ -82,7 +85,7 @@ export class Destination implements AbsolutePathWithRelative {
    * ```ts
    * // destination.absolutePath '/repo/.pvl'
    * destination.getOldDestination()
-   * // { absolutePath: '/repo/.pvl.pvl-old', relative: { absoluteBase: '/repo', path: '.pvl.pvl-old' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl.pvl-old', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl.pvl-old' }, isDefault: true }
    * ```
    */
   public getOldDestination(): Destination {
@@ -100,7 +103,10 @@ export class Destination implements AbsolutePathWithRelative {
    */
   private toSiblingDestination(suffix: string): Destination {
     return new Destination(
-      createAbsolutePathWithRelative(`${this.absolutePath}${suffix}`, this.relative.absoluteBase),
+      createAbsolutePathWithRelative(
+        `${this.absolutePath}${suffix}`,
+        this.relativePath.absoluteBase,
+      ),
       this.isDefault,
     );
   }

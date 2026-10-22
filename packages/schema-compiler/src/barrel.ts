@@ -38,7 +38,7 @@ export class Barrel {
   public static renderBarrelFile(modules: ReadonlyArray<Module>): string {
     const reExportLines = modules
       .filter(({ moduleFile }) => GenericAst.hasExport(moduleFile))
-      .map(({ path }) => path.relative.path)
+      .map(({ path }) => path.relativePath.pathFromBase)
       .sort()
       .map(
         (relativePath) =>
@@ -58,7 +58,7 @@ export class Barrel {
    * ```
    */
   public static hasScannedBarrel(modules: ReadonlyArray<Module>): boolean {
-    return modules.some(({ path }) => path.relative.path === BARREL_FILE_NAME);
+    return modules.some(({ path }) => path.relativePath.pathFromBase === BARREL_FILE_NAME);
   }
 
   /**

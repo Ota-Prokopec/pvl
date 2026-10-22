@@ -55,7 +55,7 @@ const createDestinationInsideIncludeDiagnostic = (
 ): Diagnostic => {
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-    message: `The destination ${destination.relative.path} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+    message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
     file: destination.absolutePath,
   });
 };
@@ -163,8 +163,8 @@ const runCompilationWithoutPromoting = async ({
 
   // What the destination and `include` raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
-    ...findPatternsMatchingPath(settings.include, destination.relative.path).map((pattern) =>
-      createDestinationInsideIncludeDiagnostic(destination, pattern),
+    ...findPatternsMatchingPath(settings.include, destination.relativePath.pathFromBase).map(
+      (pattern) => createDestinationInsideIncludeDiagnostic(destination, pattern),
     ),
     ...destinationDiagnostics,
     ...(scannedFilePaths.length === 0
