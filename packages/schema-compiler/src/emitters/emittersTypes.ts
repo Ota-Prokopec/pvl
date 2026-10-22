@@ -1,10 +1,12 @@
 // The kinds of emitted source text, each branded so one can't be passed
 // where another is expected: a string becomes one only where it is written.
-// Also what an emitter method reads: its target, and the arguments of the
+// Also the parts an Emitter emits for one Schema, which its Frame composes,
+// the names of a composite's locals among them,
+// and what an emitter method reads: its target, and the arguments of the
 // method it mirrors, each read as written or a Runtime Argument.
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 
-/** A local's declaration, which a composite's frame places before its children: `const path2 = [...path1, "tags"];`. `''` sets the code after it apart with a blank line. */
+/** A local a composite declares, which its frame places after its own and before its children: `const output2: unknown[] = [];`. `''` sets the code after it apart with a blank line. */
 export type EmittedVariableDeclaration = string & { readonly __brand: 'variableDeclaration' };
 
 /** An Issue as an object literal, which a failed check pushes onto `issues`. */
@@ -16,8 +18,67 @@ export type EmittedCheck = string & { readonly __brand: 'check' };
 /** A pre-modifier's condition, as an expression: a value it holds for skips every other check, as `.optional()`'s `field0 === undefined`. */
 export type EmittedShortCircuitCondition = string & { readonly __brand: 'shortCircuitCondition' };
 
-/** A statement building a composite's output or handing it on: `output1["name"] = field1;`, `field0 = output1;`. */
+/** A statement building a composite's output: `output1["name"] = field1;`, `.passthrough()`'s loop. */
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
+
+/** The names of the locals a composite's checks declare, all ending in the same number, so they never clash with its parent's or its children's. */
+export type CompositeLocals = {
+  /** Its value, read as a record: `input1`. */
+  input: string;
+  /** The output its checks build, which replaces its value: `output1`. */
+  output: string;
+  /** The index of the element being checked: `index1`. */
+  index: string;
+  /** The element being checked: `element1`. */
+  element: string;
+  /** Its path, which its children's paths extend: `path1`. */
+  path: string;
+  /** The count of Issues taken before its children, which its post-modifiers are gated behind: `issueCount1`. */
+  issueCount: string;
+};
+
+/**
+ * What a composite checks and builds once its base check has passed,
+ * besides its post-modifiers' checks: the locals it declares, its
+ * children's checks, which run before its post-modifiers', and the
+ * statements building its output, which its Frame then hands on.
+ *
+ * ```ts
+ * <the composite parts of pvl.array(pvl.string()) at field0>
+ * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'], childChecks: ['for (let index2 = 0; …) { … }'], outputStatements: [] }
+ * ```
+ */
+export type CompositeParts = {
+  /** The names of its locals, numbered before any Schema nested in it. Its Frame declares its path and Issue-count locals, and hands its output on. */
+  locals: CompositeLocals;
+  /** The locals it declares itself, after its Frame's own. */
+  declarations: EmittedVariableDeclaration[];
+  /** Its children's checks, each composed by the child's own Frame. */
+  childChecks: string[];
+  /** The statements building its output. */
+  outputStatements: EmittedOutputStatement[];
+};
+
+/**
+ * Every part of one Schema's checks, as its Emitter emits them for its
+ * Frame to compose. A Schema is a composite exactly when it has `composite`
+ * parts: its checks then build an output that replaces its value.
+ *
+ * ```ts
+ * <the parts of pvl.string().optional().min(3) at field0>
+ * // { baseCheck: 'if (typeof field0 !== "string") { … }', shortCircuitConditions: ['field0 === undefined'], postModifierChecks: ['if (field0.length < 3) { … }'] }
+ * ```
+ */
+export type SchemaParts = {
+  /** Its type check, whose `else` everything but its short-circuit conditions runs in. */
+  baseCheck: EmittedCheck;
+  /** Its pre-modifiers' conditions, any one of which skips every check. */
+  shortCircuitConditions: EmittedShortCircuitCondition[];
+  /** Its post-modifiers' checks, which run once its base check has passed, and every child has. */
+  postModifierChecks: EmittedCheck[];
+  /** What a composite adds; `undefined` for any other Schema. */
+  composite?: CompositeParts;
+};
 
 /** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. */
 export type CheckingTarget = {

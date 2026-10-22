@@ -31,9 +31,7 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   } satisfies ArgumentMessagesOf<NumberInterpretedSchema>;
 
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
-  public static override _emitBaseCheck({
-    target: { value, issuePath },
-  }: EmitBaseCheckArgs): EmittedCheck {
+  public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
       issue: emitIssue(

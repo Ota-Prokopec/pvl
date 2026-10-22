@@ -15,7 +15,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    * `INVALID_VALUE`. `Object.is`, as the interpreted check uses, so `0` and
    * `-0` stay apart.
    */
-  public static override _emitBaseCheck({
+  public static _emitBaseCheck({
     target: { value, issuePath },
     schema: { value: literalValue },
   }: EmitBaseCheckArgs<LiteralSchema>): EmittedCheck {

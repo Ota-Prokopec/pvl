@@ -13,7 +13,7 @@ import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import type { EmitCompiledSchemaArgs, Emitter } from '../emitters/emitter.js';
+import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
 import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
 import type { Module } from '../module.js';
@@ -67,7 +67,7 @@ export type SchemaClass = {
   /** The `pvl.*` factory it reads. */
   readonly factory: SchemaFactory;
   /** The Emitter compiling it, `undefined` while it can't be compiled yet. */
-  readonly emitter: typeof Emitter | undefined;
+  readonly emitter: SchemaEmitter | undefined;
   /** The Schema a `pvl.<factory>(…)` call holds, reading its argument. */
   fromFactory: (link: CallChainLink, args: ReadFactoryArgs) => Schema;
 };
@@ -96,7 +96,7 @@ export abstract class Schema {
   declare public static readonly factory: SchemaFactory;
 
   /** The Emitter compiling a subclass, `undefined` while it can't be compiled yet. */
-  public static readonly emitter: typeof Emitter | undefined = undefined;
+  public static readonly emitter: SchemaEmitter | undefined = undefined;
 
   // Every subclass, by the factory it reads, as each registers itself.
   private static readonly classByFactory = new Map<string, SchemaClass>();
@@ -115,7 +115,7 @@ export abstract class Schema {
   public readonly postModifierCalls: ReadonlyArray<SchemaModifierCall>;
 
   /** Its subclass's Emitter, `undefined` while it can't be compiled yet. */
-  private readonly subclassEmitter: typeof Emitter | undefined;
+  private readonly subclassEmitter: SchemaEmitter | undefined;
 
   /**
    * A Schema holding `options`, with the factory and Emitter of the
@@ -148,7 +148,7 @@ export abstract class Schema {
    * <pvl.union([pvl.string()])>.emitter  // throws
    * ```
    */
-  public get emitter(): typeof Emitter {
+  public get emitter(): SchemaEmitter {
     const { subclassEmitter } = this;
     if (subclassEmitter === undefined) {
       throw new Error(`A pvl.${this.factory}() has no emitter.`);

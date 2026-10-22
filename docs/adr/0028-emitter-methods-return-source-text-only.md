@@ -10,6 +10,8 @@ Branded string types in `src/types.ts` keep the kinds of text apart at compile t
 
 > Amended by [ADR-0031](./0031-the-root-schema-compiles-as-a-nested-one-under-one-closing-return.md): the root is compiled as a nested Schema, its checks never return, and `_validate` closes with one `return issues.length > 0 ? { issues } : { value };`. The rest still runs in the base check's `else`.
 
+> Amended by [ADR-0032](./0032-an-emitter-returns-a-schemas-parts-and-the-frame-composes-them-as-a-pure-function.md): `buildFrame` and `_addCompositeParts` are gone, and `ObjectSchemaEmitter` no longer overrides `_emitPostModifierChecks`. One hook, `_emitSchemaParts`, returns a Schema's parts as an object of source text (`SchemaParts`), which a composite's Emitter overrides to add its `composite` parts, and the Frame composes them as a pure function.
+
 ## Considered options
 
 - **The base check as its condition and its Issue, two strings from two hooks.** Rejected: it keeps the emitted root as it was, but every schema's Emitter would override two hooks for one check, and the Frame would hold the base check apart from every other check.

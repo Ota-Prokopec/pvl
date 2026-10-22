@@ -2,16 +2,17 @@
 // `@pvl/schema` extends `Schema`. It does the emitting, following the
 // pipeline of ADR-0010: its `_` hooks emit a Schema's parts as source text
 // (its base check, its pre-modifiers' short-circuit conditions, its
-// post-modifiers' checks), and a composite's adds the rest to the Schema's
-// `Frame` (declarations, children's checks, output statements), which
-// composes them. It builds that Frame the same way where a parent reads the
-// value (`emitSchemaChecks`) and at the root, at `_validate`'s own parameters,
-// where the Frame wraps the checks in the Compiled Schema's class
-// (`emitCompiledSchema`), both through `buildFrame`, and
-// dispatches each chained method to the emitter method of its name. Every
-// method whose name starts with `emit` or `_emit` returns source text, a
-// string or a list of them (ADR-0028). A subclass adds the methods mirroring its
-// schema's and overrides the `_` hooks.
+// post-modifiers' checks), and `_emitSchemaParts` returns them as one
+// `SchemaParts`, which a composite's emitter overrides to add its own
+// (locals, declarations, children's checks, output statements). The Frame
+// composes those parts, the same way where a parent reads the value and at
+// the root, at `_validate`'s own parameters, where it wraps the checks in the
+// Compiled Schema's class (`emitCompiledSchema`). It also dispatches each
+// chained method to the emitter method of its name. Every method whose name
+// starts with `emit` or `_emit` returns source text, a string or a list of
+// them (ADR-0028), or, for `_emitSchemaParts`, the parts holding it
+// (ADR-0032). A subclass adds the methods mirroring its schema's and
+// overrides the `_` hooks.
 import type { Node } from 'ts-morph';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
@@ -23,9 +24,8 @@ import type {
 import type {
   CheckingTarget,
   EmittedCheck,
-  EmittedOutputStatement,
   EmittedShortCircuitCondition,
-  EmittedVariableDeclaration,
+  SchemaParts,
 } from './emittersTypes.js';
 import { js } from './emitterUtils.js';
 import { emitMessageAroundValue } from '../issue.js';
@@ -44,18 +44,10 @@ export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArra
 /** For each method whose default message names its first argument, that message (see `ArgumentMessagesOf`). */
 export type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
 
-/** What {@link Emitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
+/** What {@link SchemaEmitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
   target: CheckingTarget;
-  /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
-  scope: Scope;
-};
-
-/** What {@link Emitter._emitPostModifierChecks} emits checks for: a Schema in the frame its checks are composed in, which holds its target. */
-export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  frame: Frame;
 };
 
 /** What {@link Emitter._emitShortCircuitConditions} emits its pre-modifiers' conditions for: a Schema at the target it checks. */
@@ -64,14 +56,18 @@ export type EmitShortCircuitConditionsArgs<TSchema extends Schema = Schema> = {
   target: CheckingTarget;
 };
 
-/** What {@link Emitter._addCompositeParts} adds a composite's parts for: a Schema in its frame, with the post-modifiers' checks already emitted for it. */
-export type AddCompositePartsArgs<TSchema extends Schema = Schema> = {
+/** What {@link Emitter._emitPostModifierChecks} emits its post-modifiers' checks for: a Schema at the target it checks. */
+export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
-  frame: Frame;
+  target: CheckingTarget;
+};
+
+/** What {@link Emitter._emitSchemaParts} emits every part of a Schema's checks for: a Schema at the target it checks, inlined into a parent, or at `Frame.rootCheckingTarget`, as the body of a Compiled Schema's `_validate`. */
+export type EmitSchemaPartsArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+  target: CheckingTarget;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
-  /** Its post-modifiers' checks, which the frame gates behind the count of Issues its declarations take. */
-  postModifierChecks: ReadonlyArray<EmittedCheck>;
 };
 
 /** What {@link Emitter._spellFactoryTypes} spells a factory call's types for: the Schema. */
@@ -84,10 +80,17 @@ export type SpellTypesArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
 };
 
-/** What {@link Emitter.emitSchemaChecks} emits checks for: a Schema at the target its parent reads it at. */
-export type EmitSchemaChecksArgs = {
+/** What {@link Emitter.emitNestedSchemaChecks} emits a field's or an element's checks for: its Schema, the local its value is read into, and its path. */
+export type EmitNestedSchemaChecksArgs = {
   schema: Schema;
-  target: CheckingTarget;
+  /** The local its value is read into: `field0`, `element1`. */
+  value: string;
+  /** The type the local is declared with, or `undefined` to leave it inferred: `unknown` for an element. */
+  valueType: string | undefined;
+  /** The expression its value is read from: `input1["name"]`, `value[index1]`. */
+  read: string;
+  /** Its path, as an array expression: `[...path1, "name"]`, `[...path1, index1]`. */
+  path: string;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
 };
@@ -114,38 +117,35 @@ export type EmitCallArgs = {
   target: CheckingTarget;
 };
 
-/** What {@link Emitter.emitPostModifierCheck} emits a check for: the post-modifier's call, at the target it checks. */
-export type EmitPostModifierCheckArgs = {
-  call: SchemaModifierCall;
-  target: CheckingTarget;
-};
-
-/** What {@link Emitter.emitDeclarations} declares a composite's locals for. */
-export type EmitDeclarationsArgs = {
-  frame: Frame;
-  /** Whether its checks read its path, to report at it or extend it. */
-  readsPath: boolean;
-  /** Its post-modifiers' checks, which, when there are any, run behind the count of Issues before its children. */
-  postModifierChecks: ReadonlyArray<EmittedCheck>;
-};
-
-/** What {@link Emitter.emitOutputHandoff} hands a Schema's checked value on from. */
-export type EmitOutputHandoffArgs = {
-  frame: Frame;
-};
-
-/** What {@link Emitter.buildFrame} builds one Schema's frame for: a Schema at its target, inlined into a parent, or at `Frame.rootCheckingTarget`, as the body of a Compiled Schema's `_validate`. */
-export type BuildFrameArgs = {
-  schema: Schema;
-  target: CheckingTarget;
-  /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
-  scope: Scope;
+/**
+ * An Emitter a Schema subclass compiles with (`Schema.emitter`): `Emitter`'s
+ * static methods, plus the base check of its schema type, which every such
+ * Emitter writes. TypeScript has no abstract static method, so this type
+ * stands in for one: naming an Emitter without `_emitBaseCheck` as a
+ * Schema subclass's, or emitting a Schema's parts with one, is a type
+ * error.
+ */
+export type SchemaEmitter = typeof Emitter & {
+  /**
+   * The base check of `schema` at `target`: its type check, as a
+   * statement, reading `schema` only when the check needs the factory's
+   * argument (`pvl.literal('a')`).
+   *
+   * ```ts
+   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', path, issuePath } })
+   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
+   * ```
+   */
+  // A method, not a function-typed property, so an Emitter's own may take
+  // the Schema subclass it compiles (`EmitBaseCheckArgs<EnumSchema>`), as
+  // an override of every other hook does.
+  _emitBaseCheck(args: EmitBaseCheckArgs): EmittedCheck;
 };
 
 /**
  * The abstract base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
- * `StringSchemaEmitter.emitSchemaChecks({ schema, target, scope })` emits
+ * `StringSchemaEmitter._emitSchemaParts({ schema, target, scope })` emits
  * `.min(3)` with `StringSchemaEmitter.min`.
  *
  * A static method an emitter below `Emitter` declares mirrors the Schema
@@ -173,38 +173,29 @@ export abstract class Emitter {
   public static readonly argumentMessages: EmitterArgumentMessages = {};
 
   /**
-   * The base check of `schema` at `target`: its type check, as a statement,
-   * which every schema's emitter overrides, reading `schema` only when the
-   * check needs the factory's argument (`pvl.literal('a')`). This one
-   * throws, which is a bug in an emitter, never a user error.
+   * Every part of `schema`'s checks at `target`, for its Frame to compose:
+   * its base check, its pre-modifiers' short-circuit conditions and its
+   * post-modifiers' checks. A composite's
+   * emitter overrides it to add its `composite` parts, which is what makes
+   * it a composite: it numbers its locals from `scope` first, so before any
+   * Schema nested in it, and emits its children's parts with the same
+   * `scope`. So does an emitter whose post-modifiers don't all check the
+   * value, as an object's `.strict()` checks its keys.
    *
    * ```ts
-   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', path, issuePath }, scope })
-   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
+   * StringSchemaEmitter._emitSchemaParts({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', path, issuePath }, scope })
+   * // { baseCheck: 'if (typeof field0 !== "string") { … }', shortCircuitConditions: ['field0 === undefined'], postModifierChecks: ['if (field0.length < 3) { … }'] }
    * ```
    */
-  public static _emitBaseCheck({ target }: EmitBaseCheckArgs): EmittedCheck {
-    throw new Error(`${this.name} has no base check to emit for \`${target.value}\`.`);
-  }
-
-  /**
-   * The checks of `schema.postModifierCalls` in `frame`, in chain order, as
-   * statements, each at the frame's target, reporting at its `issuePath` as
-   * the base check does. An emitter whose post-modifiers don't all check
-   * that value overrides it, as an object's `.strict()` checks its keys.
-   *
-   * ```ts
-   * StringSchemaEmitter._emitPostModifierChecks({ schema: <pvl.string().min(3)>, frame: <frame of field0, nested> })
-   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}']
-   * ```
-   */
-  public static _emitPostModifierChecks({
-    schema,
-    frame,
-  }: EmitPostModifierChecksArgs): EmittedCheck[] {
-    return schema.postModifierCalls.map((call) =>
-      this.emitPostModifierCheck({ call, target: frame.checkingTarget }),
-    );
+  public static _emitSchemaParts(
+    this: SchemaEmitter,
+    { schema, target }: EmitSchemaPartsArgs,
+  ): SchemaParts {
+    return {
+      baseCheck: this._emitBaseCheck({ schema, target }),
+      shortCircuitConditions: this._emitShortCircuitConditions({ schema, target }),
+      postModifierChecks: this._emitPostModifierChecks({ schema, target }),
+    };
   }
 
   /**
@@ -228,57 +219,22 @@ export abstract class Emitter {
   }
 
   /**
-   * Adds to `frame` what a composite checks and builds once its type check
-   * (base check) has passed, besides its post-modifiers' checks: its
-   * locals, its children's checks, which `_checkType` runs before its
-   * post-modifiers', and the statements building its output, which the
-   * frame hands on. Only a composite has any, so this one adds nothing,
-   * and a composite's emitter overrides it. Throws for a composite whose
-   * emitter doesn't, as its frame would hand on an output nothing built,
-   * which is a bug in an emitter, never a user error.
+   * The checks of `schema.postModifierCalls` at `target`, in chain order, as
+   * statements, each reporting at its `issuePath` as the base check does: a
+   * value one of them fails pushes its Issue. An emitter whose post-modifiers
+   * read its composite's locals instead of its value, as an object's
+   * `.strict()` reads its keys, writes them in its `_emitSchemaParts`.
    *
    * ```ts
-   * StringSchemaEmitter._addCompositeParts({ schema: <pvl.string()>, frame: <frame of field1, nested>, scope, postModifierChecks: [] })
-   * // adds nothing
-   * ArraySchemaEmitter._addCompositeParts({ schema: <pvl.array(pvl.string())>, frame: <frame of field0 at [...path1, "tags"]>, scope, postModifierChecks: [] })
-   * // adds the declarations ['const path2 = [...path1, "tags"];', 'const output2: unknown[] = [];'], and the loop as its one child's checks
+   * StringSchemaEmitter._emitPostModifierChecks({ schema: <pvl.string().min(3).max(20)>, target: { value: 'field0', path, issuePath } })
+   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}', 'if (field0.length > 20) {\n  issues.push({ code: "TOO_BIG", … });\n}']
    * ```
    */
-  public static _addCompositeParts({ frame }: AddCompositePartsArgs): void {
-    if (this._isComposite()) {
-      throw new Error(
-        `${this.name} is a composite, so it must add the parts of \`${frame.checkingTarget.value}\` that build its output.`,
-      );
-    }
-  }
-
-  /**
-   * Whether a Schema is a composite, one holding other Schemas (an object's
-   * fields, an array's element). Its checks then build an output that
-   * replaces its value, its frame declares numbered locals for it, and
-   * hands the output on in place of the value. `false` here; a
-   * composite's emitter overrides it.
-   *
-   * ```ts
-   * StringSchemaEmitter._isComposite() // false
-   * ObjectSchemaEmitter._isComposite() // true
-   * ```
-   */
-  public static _isComposite(): boolean {
-    return false;
-  }
-
-  /**
-   * How a field's or an element's value is declared: `const`, unless it is
-   * a composite, whose checks build an output its frame puts back on it.
-   *
-   * ```ts
-   * StringSchemaEmitter._spellValueDeclaration() // 'const'
-   * ObjectSchemaEmitter._spellValueDeclaration() // 'let'
-   * ```
-   */
-  public static _spellValueDeclaration(): 'const' | 'let' {
-    return this._isComposite() ? 'let' : 'const';
+  public static _emitPostModifierChecks({
+    schema,
+    target,
+  }: EmitPostModifierChecksArgs): EmittedCheck[] {
+    return schema.postModifierCalls.map((call) => this.emitCall({ call, target }) as EmittedCheck);
   }
 
   /**
@@ -301,27 +257,42 @@ export abstract class Emitter {
   }
 
   /**
-   * One Schema's checks at `target`, where a parent reads its value, each
-   * failure pushed onto `issues`: its base check, then its children's and
-   * post-modifiers' checks once that has passed, all guarded by its
-   * pre-modifiers' conditions, as its frame composes them. A composite's
-   * checks end by putting its output back on the value.
+   * A Schema nested in a composite, a field or the element, as the
+   * statements checking it where its parent reads it: its value read into
+   * its own local, then its checks at `path`, as its Frame composes the
+   * parts this emitter emits for it. A composite's value is declared with
+   * `let`, as its checks put the output they build back on it.
    *
    * ```ts
-   * StringSchemaEmitter.emitSchemaChecks({ schema: <pvl.string().optional().min(3)>, target: { value: 'field0', path, issuePath }, scope })
-   * // if (!((field0 === undefined))) {
-   * //   if (typeof field0 !== "string") {
-   * //     issues.push({ code: "INVALID_TYPE", … });
-   * //   } else {
-   * //     if (field0.length < 3) {
-   * //       issues.push({ code: "TOO_SMALL", … });
-   * //     }
-   * //   }
+   * StringSchemaEmitter.emitNestedSchemaChecks({ schema: <pvl.string().min(3)>, value: 'field0', valueType: undefined, read: 'input1["name"]', path: '[...path1, "name"]', scope })
+   * // const field0 = input1["name"];
+   * // if (typeof field0 !== "string") {
+   * //   issues.push({ code: "INVALID_TYPE", … path: [...path1, "name"] });
+   * // } else {
+   * //   if (field0.length < 3) { … }
+   * // }
+   * ArraySchemaEmitter.emitNestedSchemaChecks({ schema: <pvl.array(pvl.string())>, value: 'element1', valueType: 'unknown', read: 'value[index1]', path: '[...path1, index1]', scope })
+   * // let element1: unknown = value[index1];
+   * // if (!Array.isArray(element1)) {
+   * //   issues.push({ code: "INVALID_TYPE", … path: [...path1, index1] });
+   * // } else {
+   * //   …
+   * //   element1 = output2;
    * // }
    * ```
    */
-  public static emitSchemaChecks({ schema, target, scope }: EmitSchemaChecksArgs): string {
-    return this.buildFrame({ schema, target, scope }).composeChecks();
+  public static emitNestedSchemaChecks(
+    this: SchemaEmitter,
+    { schema, value, valueType, read, path, scope }: EmitNestedSchemaChecksArgs,
+  ): string {
+    const target: CheckingTarget = Frame.createNestedCheckingTarget({ value, path });
+    const parts: SchemaParts = this._emitSchemaParts({ schema, target, scope });
+    const declarationKeyword = parts.composite === undefined ? 'const' : 'let';
+    const typeAnnotation = valueType === undefined ? '' : `: ${valueType}`;
+    return [
+      js`${declarationKeyword} ${value}${typeAnnotation} = ${read};`,
+      Frame.composeChecks({ target, parts }),
+    ].join('\n');
   }
 
   /**
@@ -330,8 +301,8 @@ export abstract class Emitter {
    * `COMPILED_SCHEMA_IMPORT`), whose `_validate` checks `schema` at its own
    * parameters exactly as a nested Schema is checked where its parent reads
    * it, then returns the Issues, or the value its checks accepted. Its
-   * `Input` and `Output` types are spelled here, and its frame composes the
-   * expression.
+   * `Input` and `Output` types are spelled here, its parts are emitted at
+   * `Frame.rootCheckingTarget`, and the Frame composes the expression.
    *
    * Its Runtime Arguments are passed in the order they are written, each as
    * written or by the name of the `const` it is hoisted into
@@ -357,12 +328,10 @@ export abstract class Emitter {
    * // })() as PvlSchema<{ name: string }, { name: string }>)
    * ```
    */
-  public static emitCompiledSchema({
-    schema,
-    className,
-    indentation,
-    hoistedNameByExpression,
-  }: EmitCompiledSchemaArgs): string {
+  public static emitCompiledSchema(
+    this: SchemaEmitter,
+    { schema, className, indentation, hoistedNameByExpression }: EmitCompiledSchemaArgs,
+  ): string {
     const types = this._spellTypes({ schema });
     const runtimeArguments: RuntimeArgumentParameter[] = this.findRuntimeArgumentParameters({
       schema,
@@ -382,11 +351,17 @@ export abstract class Emitter {
                 expression: emitMessageAroundValue(messageOf, runtimeArgument.fieldName),
               },
       }));
-    return this.buildFrame({
-      schema,
-      target: Frame.rootCheckingTarget,
-      scope: new Scope(),
-    }).composeSchema({ className, types, indentation, runtimeArguments });
+    return Frame.composeSchema({
+      className,
+      types,
+      indentation,
+      runtimeArguments,
+      parts: this._emitSchemaParts({
+        schema,
+        target: Frame.rootCheckingTarget,
+        scope: new Scope(),
+      }),
+    });
   }
 
   /**
@@ -478,90 +453,5 @@ export abstract class Emitter {
       throw new Error(`${this.name} has no method to emit .${call.name}() with.`);
     }
     return emittingMethod({ target, args: call.args ?? [] });
-  }
-
-  /**
-   * What the post-modifier `call` compiles to at `target`, as a statement: a
-   * check, or source text such as `.strict()`'s loop.
-   *
-   * ```ts
-   * StringSchemaEmitter.emitPostModifierCheck({ call: <.min(3)>, target: { value: 'field0', path, issuePath } })
-   * // 'if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}'
-   * ```
-   */
-  protected static emitPostModifierCheck({
-    call,
-    target,
-  }: EmitPostModifierCheckArgs): EmittedCheck {
-    return this.emitCall({ call, target }) as EmittedCheck;
-  }
-
-  /**
-   * The locals a composite declares before its children, which its Emitter
-   * puts first among its declarations: its path, when `readsPath`, and the
-   * Issue count its frame gates any `postModifierChecks` behind.
-   *
-   * ```ts
-   * ArraySchemaEmitter.emitDeclarations({ frame: <frame of field0 at [...path1, "tags"]>, readsPath: true, postModifierChecks: [<.min(1)>] })
-   * // ['const path2 = [...path1, "tags"];', 'const issueCount2 = issues.length;']
-   * ArraySchemaEmitter.emitDeclarations({ frame: <frame of value, at the root>, readsPath: true, postModifierChecks: [] })
-   * // ['const path1 = path;']
-   * ```
-   */
-  protected static emitDeclarations({
-    frame,
-    readsPath,
-    postModifierChecks,
-  }: EmitDeclarationsArgs): EmittedVariableDeclaration[] {
-    return [
-      ...(readsPath ? [js`const ${frame.pathVariableName} = ${frame.checkingTarget.path};`] : []),
-      ...(postModifierChecks.length > 0
-        ? [js`const ${frame.issueCountVariableName} = issues.length;`]
-        : []),
-    ] as EmittedVariableDeclaration[];
-  }
-
-  /**
-   * The statements handing the checked value on: a composite's output is
-   * put back on its value, the one its parent reads, or `_validate`'s own
-   * `value` at the root, which returns it; any other value is left as it
-   * is.
-   *
-   * ```ts
-   * ObjectSchemaEmitter.emitOutputHandoff({ frame: <frame of value, at the root> }) // ['value = output1;']
-   * ObjectSchemaEmitter.emitOutputHandoff({ frame: <frame of field0, nested> })     // ['field0 = output2;']
-   * StringSchemaEmitter.emitOutputHandoff({ frame: <frame of field1, nested> })     // []
-   * ```
-   */
-  private static emitOutputHandoff({ frame }: EmitOutputHandoffArgs): EmittedOutputStatement[] {
-    return this._isComposite()
-      ? [js`${frame.checkingTarget.value} = ${frame.outputVariableName};` as EmittedOutputStatement]
-      : [];
-  }
-
-  /**
-   * The frame of one Schema at `target`, with every part of its checks set
-   * on it, ready to compose: inlined where a parent reads its value, or, at
-   * `Frame.rootCheckingTarget`, the body of a Compiled Schema's `_validate`.
-   * Each hook emits its parts, or adds a composite's, and the frame places
-   * them (see `Frame.composeChecks`), the output's handoff last among the
-   * output statements. The frame is created first, so a composite numbers
-   * its locals before any Schema nested in it.
-   *
-   * ```ts
-   * StringSchemaEmitter.buildFrame({ schema: <pvl.string().max(2)>, target: { value: 'field0', path, issuePath }, scope }).composeChecks()
-   * // 'if (typeof field0 !== "string") {\n  …\n} else {\n  if (field0.length > 2) { … }\n}'
-   * ```
-   */
-  private static buildFrame({ schema, target, scope }: BuildFrameArgs): Frame {
-    const frame = new Frame({ target, scope, isComposite: this._isComposite() });
-
-    frame.setBaseCheck(this._emitBaseCheck({ schema, target, scope }));
-    frame.addShortCircuitConditions(...this._emitShortCircuitConditions({ schema, target }));
-    const postModifierChecks = this._emitPostModifierChecks({ schema, frame });
-    frame.addPostModifierChecks(...postModifierChecks);
-    this._addCompositeParts({ schema, frame, scope, postModifierChecks });
-    frame.addOutputStatements(...this.emitOutputHandoff({ frame }));
-    return frame;
   }
 }
