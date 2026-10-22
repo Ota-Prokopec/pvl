@@ -14,17 +14,13 @@ export type ArraySchemaOptions = SchemaOptions & {
  * A `pvl.array(element)` as read from source, holding its element's Schema.
  *
  * ```ts
- * ArraySchema.fromFactory(<pvl.array(pvl.string())>, args) // <ArraySchema whose element is <StringSchema>>
+ * ArraySchema.readFactoryArgument(<pvl.array(pvl.string())>, args)(options) // <ArraySchema whose element is <StringSchema>>
  * ```
  */
 export class ArraySchema extends Schema {
   public static override readonly factory = SCHEMA_FACTORY.ARRAY;
 
   public static override readonly emitter = ArraySchemaEmitter;
-
-  static {
-    Schema.registerClass(ArraySchema);
-  }
 
   /** The Schema every element matches. */
   public readonly element: Schema;
@@ -36,13 +32,17 @@ export class ArraySchema extends Schema {
   }
 
   /**
-   * The `pvl.array(element)` `link` calls, its element read through
-   * `args.readNested`. Throws an UnresolvedNodeError when its element is
+   * Reads the element of the `pvl.array(element)` `link` calls through
+   * `readNested`, and returns how its ArraySchema is built from it and what
+   * every Schema holds. Throws an UnresolvedNodeError when its element is
    * missing or can't be read.
    */
-  public static fromFactory(link: CallChainLink, args: ReadFactoryArgs): ArraySchema {
-    const element = args.readNested(Schema.readArgument(link), link.followed);
-    return new ArraySchema({ ...Schema.readOptions(link, args), element });
+  public static readFactoryArgument(
+    link: CallChainLink,
+    { readNested }: ReadFactoryArgs,
+  ): (options: SchemaOptions) => ArraySchema {
+    const element = readNested(Schema.readArgument(link), link.followed);
+    return (options: SchemaOptions): ArraySchema => new ArraySchema({ ...options, element });
   }
 
   /**

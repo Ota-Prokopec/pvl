@@ -1,6 +1,7 @@
-// How each factory's argument is read, one `describe` per Schema subclass,
-// through `runCompilation()`: what a read argument compiles to, and what
-// can't be read.
+// How each factory's argument is read, through `runCompilation()`: one
+// `describe` per Schema subclass, on what a read argument compiles to and
+// what can't be read, then one on an argument that can't be read being the
+// one diagnostic of its call.
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCompilation, DIAGNOSTIC_CODE, type DiagnosticCode } from '../src/index.js';
@@ -187,6 +188,21 @@ describe('UnionSchema', () => {
     await expectCompileFailure(
       'export const a = pvl.compile(pvl.object({ id: pvl.union([pvl.string(), 1]) }));',
       [DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE],
+    );
+  });
+});
+
+describe('a factory argument that can’t be read', () => {
+  it('is the one diagnostic of its call, though a method chained onto it, or onto a Schema around it, can’t be compiled either', async () => {
+    await expectCompileFailure(
+      [
+        'const limits = [3] as const;',
+        'const isOk = (value: unknown): boolean => value !== undefined;',
+        "export const a = pvl.compile(pvl.array('a').max(...limits));",
+        'export const b = pvl.compile(pvl.literal({ a: 1 }).refine(isOk));',
+        'export const c = pvl.compile(pvl.object({ tags: pvl.array(1).max(...limits) }).refine(isOk));',
+      ].join('\n'),
+      Array.from({ length: 3 }, () => DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE),
     );
   });
 });

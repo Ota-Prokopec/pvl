@@ -22,7 +22,7 @@ export type ObjectSchemaOptions = SchemaOptions & {
  * order.
  *
  * ```ts
- * ObjectSchema.fromFactory(<pvl.object({ name: pvl.string() })>, args)
+ * ObjectSchema.readFactoryArgument(<pvl.object({ name: pvl.string() })>, args)(options)
  * // <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema> }]>
  * ```
  */
@@ -30,10 +30,6 @@ export class ObjectSchema extends Schema {
   public static override readonly factory = SCHEMA_FACTORY.OBJECT;
 
   public static override readonly emitter = ObjectSchemaEmitter;
-
-  static {
-    Schema.registerClass(ObjectSchema);
-  }
 
   /** Its fields, in shape order. */
   public readonly shape: ReadonlyArray<ObjectField>;
@@ -45,18 +41,22 @@ export class ObjectSchema extends Schema {
   }
 
   /**
-   * The `pvl.object(shape)` `link` calls, each field read through
-   * `args.readNested`. Throws an UnresolvedNodeError when its shape is
-   * missing or isn't an object literal, or a field can't be read.
+   * Reads the shape of the `pvl.object(shape)` `link` calls, each field
+   * through `readNested`, and returns how its ObjectSchema is built from it
+   * and what every Schema holds. Throws an UnresolvedNodeError when its
+   * shape is missing or isn't an object literal, or a field can't be read.
    */
-  public static fromFactory(link: CallChainLink, args: ReadFactoryArgs): ObjectSchema {
+  public static readFactoryArgument(
+    link: CallChainLink,
+    { readNested }: ReadFactoryArgs,
+  ): (options: SchemaOptions) => ObjectSchema {
     const fieldSchemaByKey = GenericAst.readObject(
       Schema.readArgument(link),
-      (field, fieldFollowed) => args.readNested(field, fieldFollowed),
+      readNested,
       link.followed,
     );
     const shape = Object.entries(fieldSchemaByKey).map(([key, schema]) => ({ key, schema }));
-    return new ObjectSchema({ ...Schema.readOptions(link, args), shape });
+    return (options: SchemaOptions): ObjectSchema => new ObjectSchema({ ...options, shape });
   }
 
   /**

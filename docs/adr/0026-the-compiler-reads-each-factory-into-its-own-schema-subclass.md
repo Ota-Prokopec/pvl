@@ -13,3 +13,5 @@ This replaces a single `SchemaModel` discriminated union, read by one `switch` o
 - **Keep the `SchemaModel` union and add per-factory helpers beside it.** Rejected: it leaves the factory `switch`, the Emitter map and the composite branching where they are, which is the scattering this removes.
 - **Hold the factory-to-class map in `schema.ts`, importing every subclass.** Rejected: that is the import cycle described above, and it breaks at load whichever module is entered first.
 - **Hold the map in the `src/schemas/` barrel.** Rejected: a barrel holds only re-exports (`@repo/conventions/barrel-exports-only`), and it would still be the same cycle.
+
+> Amended by [ADR-0034](./0034-every-factory-is-read-through-one-readschema-module-holding-the-factory-to-class-map.md): the factory-to-class map is a `const` in `src/schemas/readSchema.ts`, which imports every subclass and exports `readSchema`, the one entry point that reads a Schema. No subclass registers itself, nothing imports `src/schemas/` for a side effect, and a factory with no subclass is a type error.
