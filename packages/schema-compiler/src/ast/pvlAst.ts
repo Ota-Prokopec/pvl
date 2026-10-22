@@ -11,7 +11,10 @@ const PVL_PACKAGE = '@pvl/schema' as const;
 /** The methods that may still be read off the result of `pvl.compile(...)`. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
 const COMPILE_MARKER_ALLOWED_METHODS: ReadonlySet<string> = new Set(['validate']);
 
-/** One call in a call chain, with the `const`s followed to reach it, which reading its arguments carries on. */
+/** A method chained in a call chain, `.min(3)`. Its arguments never follow a `const` (ADR-0030), so it carries none of the ones followed to reach it. */
+export type ChainedMethodCall = Omit<PropertyAccessCall, 'receiver'>;
+
+/** A call chain's factory call, with the `const`s followed to reach it, which reading the factory's arguments carries on. */
 export type CallChainLink = Omit<PropertyAccessCall, 'receiver'> & {
   followed: FollowedConsts;
 };
@@ -28,7 +31,7 @@ export type CallChain = {
   /** The call of `pvl` itself: `pvl.string()`, or `pvl.compile(…)`. */
   factory: CallChainLink;
   /** The methods chained onto it, in chain order. */
-  methods: ReadonlyArray<CallChainLink>;
+  methods: ReadonlyArray<ChainedMethodCall>;
 };
 
 /**
@@ -186,6 +189,6 @@ export class PvlAst {
 
     const { call, receiver, methodName } = propertyAccessCall;
     const chain = PvlAst.readCallChain(receiver, pvlImportLocalNames, reading);
-    return { ...chain, methods: [...chain.methods, { call, methodName, followed: reading }] };
+    return { ...chain, methods: [...chain.methods, { call, methodName }] };
   }
 }

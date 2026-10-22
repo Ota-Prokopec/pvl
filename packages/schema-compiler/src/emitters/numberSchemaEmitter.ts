@@ -9,7 +9,12 @@ import {
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
-import type { EmittedCheck, EmitterMethodOf, ParameterTypesOf } from './emittersTypes.js';
+import type {
+  ArgumentMessagesOf,
+  EmittedCheck,
+  EmitterMethodOf,
+  ParameterTypesOf,
+} from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
@@ -19,6 +24,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
     max: ['number', ISSUE_OPTIONS_TYPE],
     int: [ISSUE_OPTIONS_TYPE],
   };
+
+  public static override readonly argumentMessages = {
+    min: NUMBER_SCHEMA_ISSUE_MESSAGE.min,
+    max: NUMBER_SCHEMA_ISSUE_MESSAGE.max,
+  } satisfies ArgumentMessagesOf<NumberInterpretedSchema>;
 
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
@@ -43,7 +53,7 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_SMALL,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.min, minValue),
+        defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
       }),
     });
 
@@ -58,7 +68,7 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_BIG,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.max, maxValue),
+        defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
       }),
     });
 

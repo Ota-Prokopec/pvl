@@ -44,9 +44,9 @@ export const DIAGNOSTIC_CODE = {
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
-  /** A `pvl.compile(...)` argument can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one, or an argument of a method chained in it isn't a literal. */
+  /** A `pvl.compile(...)` argument, or a factory's argument in it, can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one; or an argument of a method chained in it is spread. */
   COMPILE_ARGUMENT_UNRESOLVABLE: 'COMPILE_ARGUMENT_UNRESOLVABLE',
-  /** A `pvl.compile(...)` argument, or an argument of a method chained in it, follows a `const` that refers back to itself, so reading it would never end. */
+  /** A `pvl.compile(...)` argument, or a factory's argument in it, follows a `const` that refers back to itself, so reading it would never end. */
   COMPILE_ARGUMENT_CYCLE: 'COMPILE_ARGUMENT_CYCLE',
   /** Something is chained onto the result of `pvl.compile(...)`, which takes no Modifier: chain it inside the call. */
   COMPILE_RESULT_MODIFIED: 'COMPILE_RESULT_MODIFIED',

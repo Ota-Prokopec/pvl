@@ -10,7 +10,7 @@
 import type { Node } from 'ts-morph';
 import { ConstCycleError } from '../ast/constCycleError.js';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import { PvlAst, type CallChainLink } from '../ast/pvlAst.js';
+import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter } from '../emitters/emitter.js';
@@ -163,8 +163,8 @@ export abstract class Schema {
    * naming a `const` that reaches itself.
    *
    * ```ts
-   * // const MIN = 3;
-   * // export const user = pvl.compile(pvl.object({ name: pvl.string().min(MIN) }));
+   * // const name = pvl.string().min(3);
+   * // export const user = pvl.compile(pvl.object({ name }));
    * Schema.read({ expression: <pvl.compile(…)>, … })
    * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with postModifierCalls [min(3)]> }]> }
    * Schema.read({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <ObjectSchema> }: not marked, still read
@@ -396,14 +396,14 @@ export abstract class Schema {
    * ```
    */
   private static createCallsReader(
-    methods: ReadonlyArray<CallChainLink>,
+    methods: ReadonlyArray<ChainedMethodCall>,
     readOuterCalls: () => ReadonlyArray<SchemaModifierCall>,
     runtimeArguments: RuntimeArgument[],
   ): () => ReadonlyArray<SchemaModifierCall> {
     return () => [
-      ...methods.map(({ call, methodName, followed }) => ({
+      ...methods.map(({ call, methodName }) => ({
         name: methodName,
-        args: Schema.readCallArguments(call.getArguments(), followed, runtimeArguments),
+        args: Schema.readCallArguments(call.getArguments(), runtimeArguments),
         line: call.getStartLineNumber(),
       })),
       ...readOuterCalls(),
@@ -430,22 +430,22 @@ export abstract class Schema {
   }
 
   /**
-   * A method's arguments, each read statically as written, or else a
-   * Runtime Argument, numbered on from the ones `runtimeArguments` holds,
-   * which it is added to. `undefined` when one is spread (`...limits`, or
-   * `{ ...options }` written in place), as it has no fixed position. A
-   * `const` that reaches itself is still thrown: it is no value at all.
+   * A method's arguments, each read as the literal it is written as
+   * (`GenericAst.readLiteral`), or else a Runtime Argument, numbered on from
+   * the ones `runtimeArguments` holds, which it is added to. A `const` is
+   * never followed, so one is read where it is written, as the interpreted
+   * path reads it (ADR-0030). `undefined` when one is spread (`...limits`,
+   * or `{ ...options }` written in place), as it has no fixed position.
    *
    * ```ts
-   * Schema.readCallArguments([<3>, <{ message: 'short' }>], followed, []) // [3, { message: 'short' }]
-   * Schema.readCallArguments([<MIN>], followed, [])                       // [3], with `const MIN = 3`
-   * Schema.readCallArguments([<min>, <options>], followed, [])            // [<Runtime Argument min>, <Runtime Argument options>], with parameters `min` and `options`
-   * Schema.readCallArguments([<...limits>], followed, [])                 // undefined
+   * Schema.readCallArguments([<3>, <{ message: 'short' }>], []) // [3, { message: 'short' }]
+   * Schema.readCallArguments([<MIN>], [])                       // [<Runtime Argument MIN>], with `const MIN = 3`
+   * Schema.readCallArguments([<min>, <options>], [])            // [<Runtime Argument min>, <Runtime Argument options>], with parameters `min` and `options`
+   * Schema.readCallArguments([<...limits>], [])                 // undefined
    * ```
    */
   private static readCallArguments(
     args: ReadonlyArray<Node>,
-    followed: FollowedConsts,
     runtimeArguments: RuntimeArgument[],
   ): SchemaModifierCallArgument[] | undefined {
     if (args.some((argument) => GenericAst.isSpread(argument))) {
@@ -453,7 +453,7 @@ export abstract class Schema {
     }
     return args.map((argument) => {
       try {
-        return GenericAst.readStaticValue(argument, followed);
+        return GenericAst.readLiteral(argument);
       } catch (error) {
         if (!(error instanceof UnresolvedNodeError)) {
           throw error;

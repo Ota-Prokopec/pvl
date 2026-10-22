@@ -27,6 +27,7 @@ import type {
   EmittedVariableDeclaration,
 } from './emittersTypes.js';
 import { emitReturnValue, js } from './emitterUtils.js';
+import { emitMessageAroundValue } from '../issue.js';
 import { Frame, type FramePosition, type RuntimeArgumentParameter } from './frame.js';
 import { Scope } from './scope.js';
 
@@ -38,6 +39,9 @@ type EmittingMethod = (input: {
 
 /** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
 export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
+
+/** For each method whose default message names its first argument, that message (see `ArgumentMessagesOf`). */
+export type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
 
 /** What {@link Emitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
@@ -159,6 +163,16 @@ export abstract class Emitter {
    * arguments overrides it.
    */
   public static readonly parameterTypes: EmitterParameterTypes = {};
+
+  /**
+   * For each method this emitter compiles whose default message names its
+   * first argument, that message, which a Compiled Schema's constructor
+   * builds once for a Runtime Argument passed there. The method's own check
+   * reads its message from here too (`emitDefaultMessage`), so the two can't
+   * disagree. A subclass whose Constraints' messages name their bound
+   * overrides it.
+   */
+  public static readonly argumentMessages: EmitterArgumentMessages = {};
 
   /**
    * The base check of `schema` at `target`: its type check, as a statement,
@@ -357,12 +371,19 @@ export abstract class Emitter {
       schema,
     })
       .sort((left, right) => left.runtimeArgument.index - right.runtimeArgument.index)
-      .map(({ runtimeArgument, type }) => ({
+      .map(({ runtimeArgument, type, messageOf }) => ({
         fieldName: runtimeArgument.fieldName,
         type,
         passedExpression:
           hoistedNameByExpression.get(runtimeArgument.expression) ??
           runtimeArgument.expression.getText(),
+        messageField:
+          messageOf === undefined
+            ? undefined
+            : {
+                fieldName: runtimeArgument.messageFieldName,
+                expression: emitMessageAroundValue(messageOf, runtimeArgument.fieldName),
+              },
       }));
     return this.buildFrame({
       schema,
@@ -374,20 +395,21 @@ export abstract class Emitter {
   /**
    * Every Runtime Argument of the methods chained onto `schema` and onto
    * every Schema nested in it, each with the type of the parameter it is
-   * passed as, from its own Schema's emitter (`parameterTypes`). Throws for
-   * a parameter with no type, which is a bug in an emitter, never a user
-   * error.
+   * passed as, from its own Schema's emitter (`parameterTypes`), and, when
+   * it is a method's first argument, the default message naming it
+   * (`argumentMessages`). Throws for a parameter with no type, which is a
+   * bug in an emitter, never a user error.
    *
    * ```ts
    * StringSchemaEmitter.findRuntimeArgumentParameters({ schema: <pvl.string().max(max, options)> })
-   * // [{ runtimeArgument: <max>, type: 'number' }, { runtimeArgument: <options>, type: '{ message?: string } | undefined' }]
+   * // [{ runtimeArgument: <max>, type: 'number', messageOf: STRING_SCHEMA_ISSUE_MESSAGE.max }, { runtimeArgument: <options>, type: '{ message?: string } | undefined', messageOf: undefined }]
    * ```
    */
-  private static findRuntimeArgumentParameters({
-    schema,
-  }: {
-    schema: Schema;
-  }): Array<{ runtimeArgument: RuntimeArgument; type: string }> {
+  private static findRuntimeArgumentParameters({ schema }: { schema: Schema }): Array<{
+    runtimeArgument: RuntimeArgument;
+    type: string;
+    messageOf: EmitterArgumentMessages[string];
+  }> {
     const ownParameters = [...schema.preModifierCalls, ...schema.postModifierCalls].flatMap(
       (call) =>
         (call.args ?? []).flatMap((argument, index) => {
@@ -400,7 +422,9 @@ export abstract class Emitter {
               `${this.name} has no type for argument ${String(index)} of .${call.name}().`,
             );
           }
-          return [{ runtimeArgument: argument, type }];
+          // Only a method's first argument is a value its default message names.
+          const messageOf = index === 0 ? this.argumentMessages[call.name] : undefined;
+          return [{ runtimeArgument: argument, type, messageOf }];
         }),
     );
     return [

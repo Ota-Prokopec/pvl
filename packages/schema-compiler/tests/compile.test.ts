@@ -947,7 +947,7 @@ describe('runCompilation(): diagnostics', () => {
     );
   });
 
-  it('COMPILE_ARGUMENT_CYCLE: an argument or a method argument that reaches its own const', async () => {
+  it('COMPILE_ARGUMENT_CYCLE: an argument or a factory argument that reaches its own const', async () => {
     const path = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -957,10 +957,8 @@ describe('runCompilation(): diagnostics', () => {
         'const user = pvl.object({ friend: user });',
         'const first = second;',
         'const second = first;',
-        'const options = { message: options };',
         'export const selfReferencing = pvl.compile(user);',
         'export const mutual = pvl.compile(pvl.object({ name: first }));',
-        'export const selfReferencingOptions = pvl.compile(pvl.array(pvl.string()).max(3, options));',
         '',
       ].join('\n'),
     });
@@ -969,7 +967,7 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 3 }, () => ({
+      Array.from({ length: 2 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
         file: join(root, path),
       })),

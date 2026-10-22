@@ -80,7 +80,7 @@ const emitIsUndeclaredKey = (declaredKeys: ReadonlyArray<string>): string => {
  * Argument may replace it at runtime.
  *
  * ```ts
- * { code: "UNRECOGNIZED_KEY", message: "Unrecognized key \"" + key + "\"", path: [...path, key] }
+ * { code: "UNRECOGNIZED_KEY", message: `Unrecognized key "${key}"`, path: [...path, key] }
  * ```
  */
 const emitUnrecognizedKeyIssue = (
@@ -278,7 +278,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * ```ts
    * for (const key of Object.keys(input)) {
    *   if (key !== "name") {
-   *     issues.push({ code: "UNRECOGNIZED_KEY", message: "Unrecognized key \"" + key + "\"", path: [...path, key] });
+   *     issues.push({ code: "UNRECOGNIZED_KEY", message: `Unrecognized key "${key}"`, path: [...path, key] });
    *   }
    * }
    * ```

@@ -19,6 +19,7 @@ import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
+  ArgumentMessagesOf,
   EmittedCheck,
   EmittedVariableDeclaration,
   EmitterMethodOf,
@@ -88,6 +89,12 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     length: ['number', ISSUE_OPTIONS_TYPE],
   };
 
+  public static override readonly argumentMessages = {
+    min: ARRAY_SCHEMA_ISSUE_MESSAGE.min,
+    max: ARRAY_SCHEMA_ISSUE_MESSAGE.max,
+    length: ARRAY_SCHEMA_ISSUE_MESSAGE.length,
+  } satisfies ArgumentMessagesOf<ArrayInterpretedSchema>;
+
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static override _emitBaseCheck({
     target: { value, issuePath },
@@ -111,7 +118,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_SMALL,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.min, minLength),
+        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
       }),
     });
 
@@ -126,7 +133,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.TOO_BIG,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.max, maxLength),
+        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
       }),
     });
 
@@ -141,7 +148,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
         code: ISSUE_CODE.INVALID_LENGTH,
         issuePath,
         options,
-        defaultMessage: emitDefaultMessage(ARRAY_SCHEMA_ISSUE_MESSAGE.length, exactLength),
+        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
       }),
     });
 

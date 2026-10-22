@@ -4,17 +4,19 @@
 import type { Node } from 'ts-morph';
 
 /**
- * A method's argument that isn't a literal, a `const` holding one or
- * anything else the compiler reads statically, such as a parameter, a call
- * or an import: `max` in `(max: number) => pvl.compile(pvl.string().max(max))`.
- * Its Compiled Schema's constructor takes its value, which the expression
- * as written evaluates to, and its emitted checks read it off the instance.
+ * A method's argument that isn't a literal written in place, such as a
+ * `const`, a parameter, a call or an import: `max` in
+ * `(max: number) => pvl.compile(pvl.string().max(max))`. Its Compiled
+ * Schema's constructor takes its value, which the expression as written
+ * evaluates to, and builds any default message naming it, and its emitted
+ * checks read both off the instance.
  * Each one a `pvl.compile(...)` call reaches is numbered in the order it is
  * read, which is the order it is written in.
  *
  * ```ts
- * new RuntimeArgument(<max>, 0).fieldName     // 'arg0'
- * new RuntimeArgument(<max>, 0).emitReading() // 'this.arg0'
+ * new RuntimeArgument(<max>, 0).fieldName            // 'arg0'
+ * new RuntimeArgument(<max>, 0).emitReading()        // 'this.arg0'
+ * new RuntimeArgument(<max>, 0).emitMessageReading() // 'this.arg0Message'
  * ```
  */
 export class RuntimeArgument {
@@ -44,5 +46,22 @@ export class RuntimeArgument {
    */
   public emitReading(): string {
     return `this.${this.fieldName}`;
+  }
+
+  /** The Compiled Schema's field holding the default message naming its value, which its constructor builds: `arg0Message`, … */
+  public get messageFieldName(): string {
+    return `${this.fieldName}Message`;
+  }
+
+  /**
+   * How the Compiled Schema's checks read the default message naming its
+   * value: its field, off the instance.
+   *
+   * ```ts
+   * <the 1st Runtime Argument>.emitMessageReading() // 'this.arg0Message'
+   * ```
+   */
+  public emitMessageReading(): string {
+    return `this.${this.messageFieldName}`;
   }
 }
