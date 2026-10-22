@@ -1,12 +1,13 @@
 // The kinds of emitted source text, each branded so one can't be passed
-// where another is expected: a string becomes one only where it is written.
-// Also the parts an Emitter emits for one Schema, which its Frame composes,
-// the names of a composite's locals among them,
-// and what an emitter method reads: its target, and the arguments of the
-// method it mirrors, each read as written or a Runtime Argument.
+// where another is expected: a string becomes one only where it is written,
+// by one function each (`emitCheck` and its siblings). Also the parts an
+// Emitter emits for one Schema, which its Frame composes, the names of a
+// composite's locals among them, what an emitter method reads (its target,
+// and the arguments of the method it mirrors, each read as written or a
+// Runtime Argument), and the tables an Emitter dispatches its methods from.
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 
-/** A local a composite declares, which its frame places after its own and before its children: `const output2: unknown[] = [];`. `''` sets the code after it apart with a blank line. */
+/** A local a composite declares, which its frame places after its own and before its children: `const output2: unknown[] = [];`. */
 export type EmittedVariableDeclaration = string & { readonly __brand: 'variableDeclaration' };
 
 /** An Issue as an object literal, which a failed check pushes onto `issues`. */
@@ -45,7 +46,7 @@ export type CompositeLocals = {
  *
  * ```ts
  * <the composite parts of pvl.array(pvl.string()) at field0>
- * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'], childChecks: ['for (let index2 = 0; …) { … }'], outputStatements: [] }
+ * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'], childChecks: ['for (let index2 = 0; …) { … }'], setsChildrenApart: false, outputStatements: [] }
  * ```
  */
 export type CompositeParts = {
@@ -55,6 +56,8 @@ export type CompositeParts = {
   declarations: EmittedVariableDeclaration[];
   /** Its children's checks, each composed by the child's own Frame. */
   childChecks: string[];
+  /** Whether its Frame sets its children's checks apart with a blank line before, between and after them, as an object's fields are; an array's one loop isn't. */
+  setsChildrenApart: boolean;
   /** The statements building its output. */
   outputStatements: EmittedOutputStatement[];
 };
@@ -103,6 +106,10 @@ export type EmitterArgs<TParameters extends ReadonlyArray<unknown>> = {
   [Index in keyof TParameters]: TParameters[Index] | RuntimeArgument;
 };
 
+/** The kinds of source text an emitter method writes: a check, a pre-modifier's short-circuit condition, or a statement building a composite's output. */
+export type EmittedMethodText =
+  EmittedCheck | EmittedShortCircuitCondition | EmittedOutputStatement;
+
 /**
  * The type of an emitter method mirroring `TSchemaMethod`, a method of the
  * `@pvl/schema` schema it compiles. It takes one object: the target, and
@@ -122,10 +129,34 @@ export type EmitterArgs<TParameters extends ReadonlyArray<unknown>> = {
  */
 export type EmitterMethodOf<
   TSchemaMethod extends (...args: never[]) => unknown,
-  TOutput extends EmittedCheck | EmittedShortCircuitCondition | EmittedOutputStatement =
-    EmittedCheck,
+  TOutput extends EmittedMethodText = EmittedCheck,
   TInput extends CheckingTarget = CheckingTarget,
 > = (input: { target: TInput; args: EmitterArgs<Parameters<TSchemaMethod>> }) => TOutput;
+
+/**
+ * An Emitter's methods writing one kind of text at one kind of target, by
+ * the name of the Schema method each mirrors, which a chained method is
+ * dispatched by. Each method keeps its own `args` (`EmitterMethodOf`), so
+ * the table reads them as `never`: what a call's arguments are is the
+ * method's to say, and the compiler trusts the source to pass what it
+ * declares (`readCallArguments`). A method writing another kind of text,
+ * or reading a wider target, can't be held in it.
+ *
+ * ```ts
+ * const postModifierChecks = { min, max, length } satisfies EmitterMethodTable<EmittedCheck>;
+ * ({ strict } satisfies EmitterMethodTable<EmittedCheck>); // a type error: `.strict()` reads an `ObjectCheckingTarget`
+ * ```
+ */
+export type EmitterMethodTable<
+  TOutput extends EmittedMethodText,
+  TInput extends CheckingTarget = CheckingTarget,
+> = Readonly<Record<string, (input: { target: TInput; args: never }) => TOutput>>;
+
+/** An Emitter's pre-modifiers, each writing the condition a value short-circuits under: `{ optional, nullable }`. */
+export type ShortCircuitConditionTable = EmitterMethodTable<EmittedShortCircuitCondition>;
+
+/** An Emitter's post-modifiers that check its value, each writing its check: `{ min, max, length }`. */
+export type PostModifierCheckTable = EmitterMethodTable<EmittedCheck>;
 
 /**
  * For each method of `TSchema` an emitter compiles, the TypeScript type of

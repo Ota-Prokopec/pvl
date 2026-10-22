@@ -16,6 +16,26 @@ import { RuntimeArgument } from './schemas/runtimeArgument.js';
 // catches one that formats it.
 const MESSAGE_VALUE_PLACEHOLDER = '\u0000' as const;
 
+/** What {@link emitIssueLiteral} writes an Issue literal from: its code, and its message and path, each as an expression. */
+export type EmitIssueLiteralArgs = {
+  code: IssueCode;
+  message: string;
+  issuePath: string;
+};
+
+/**
+ * An Issue literal, which a failed check pushes onto `issues`: the one place
+ * an `EmittedIssue` is written.
+ *
+ * ```ts
+ * emitIssueLiteral({ code: 'TOO_SMALL', message: 'this.arg0Message', issuePath: '[...path1, "name"]' })
+ * // '{ code: "TOO_SMALL", message: this.arg0Message, path: [...path1, "name"] }'
+ * ```
+ */
+const emitIssueLiteral = ({ code, message, issuePath }: EmitIssueLiteralArgs): EmittedIssue => {
+  return js`{ code: ${JSON.stringify(code)}, message: ${message}, path: ${issuePath} }` as EmittedIssue;
+};
+
 /**
  * An Issue as a plain object literal, importing nothing. `path` is an
  * expression, not the path itself. The message goes through `@pvl/schema`'s
@@ -28,7 +48,11 @@ const MESSAGE_VALUE_PLACEHOLDER = '\u0000' as const;
  * ```
  */
 export const emitIssue = (issue: Issue): EmittedIssue => {
-  return js`{ code: ${JSON.stringify(issue.code)}, message: ${JSON.stringify(issue.message)}, path: ${issue.path} }` as EmittedIssue;
+  return emitIssueLiteral({
+    code: issue.code,
+    message: JSON.stringify(issue.message),
+    issuePath: `${issue.path}`,
+  });
 };
 
 /** What {@link emitConstraintIssue} writes an Issue literal from. */
@@ -71,7 +95,7 @@ export const emitConstraintIssue = ({
     options instanceof RuntimeArgument
       ? `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(new Issue(code, []).message)}`
       : defaultMessage;
-  return js`{ code: ${JSON.stringify(code)}, message: ${message}, path: ${issuePath} }` as EmittedIssue;
+  return emitIssueLiteral({ code, message, issuePath });
 };
 
 /**

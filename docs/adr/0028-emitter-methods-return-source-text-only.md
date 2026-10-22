@@ -12,6 +12,8 @@ Branded string types in `src/types.ts` keep the kinds of text apart at compile t
 
 > Amended by [ADR-0032](./0032-an-emitter-returns-a-schemas-parts-and-the-frame-composes-them-as-a-pure-function.md): `buildFrame` and `_addCompositeParts` are gone, and `ObjectSchemaEmitter` no longer overrides `_emitPostModifierChecks`. One hook, `_emitSchemaParts`, returns a Schema's parts as an object of source text (`SchemaParts`), which a composite's Emitter overrides to add its `composite` parts, and the Frame composes them as a pure function.
 
+> Amended by [ADR-0033](./0033-an-emitter-dispatches-chained-methods-through-typed-method-tables.md): `Emitter.emitCall` is gone. A method's text is typed by the table it is dispatched from, so nothing is cast back to its brand. Each brand is made by one function where its text is written (`emitCheck` and its siblings), and a composite's blank lines are the Frame's formatting, not an empty `EmittedVariableDeclaration`.
+
 ## Considered options
 
 - **The base check as its condition and its Issue, two strings from two hooks.** Rejected: it keeps the emitted root as it was, but every schema's Emitter would override two hooks for one check, and the Frame would hold the base check apart from every other check.

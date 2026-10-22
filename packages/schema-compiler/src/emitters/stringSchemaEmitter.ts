@@ -1,5 +1,5 @@
-// The code a `StringSchema` compiles to, one static method per method of
-// `StringInterpretedSchema` it mirrors.
+// The code a `StringSchema` compiles to, one method per method of
+// `StringInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
 import {
   ISSUE_CODE,
   Issue,
@@ -14,11 +14,64 @@ import type {
   EmittedCheck,
   EmitterMethodOf,
   ParameterTypesOf,
+  PostModifierCheckTable,
 } from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
+/** `.min(3)` → `field0.length < 3`, reporting `TOO_SMALL`. */
+const min: EmitterMethodOf<StringInterpretedSchema['min']> = ({
+  target: { value, issuePath },
+  args: [minLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_SMALL,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, minLength),
+    }),
+  });
+
+/** `.max(20)` → `field0.length > 20`, reporting `TOO_BIG`. */
+const max: EmitterMethodOf<StringInterpretedSchema['max']> = ({
+  target: { value, issuePath },
+  args: [maxLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_BIG,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.max, maxLength),
+    }),
+  });
+
+/** `.length(2)` → `field0.length !== 2`, reporting `INVALID_LENGTH`. */
+const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
+  target: { value, issuePath },
+  args: [exactLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.INVALID_LENGTH,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.length, exactLength),
+    }),
+  });
+
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly postModifierChecks = {
+    ...ChainableSchemaEmitter.postModifierChecks,
+    min,
+    max,
+    length,
+  } satisfies PostModifierCheckTable;
+
   public static override readonly parameterTypes: ParameterTypesOf<StringInterpretedSchema> = {
     min: ['number', ISSUE_OPTIONS_TYPE],
     max: ['number', ISSUE_OPTIONS_TYPE],
@@ -45,52 +98,4 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
       ),
     });
   }
-
-  /** `.min(3)` → `field0.length < 3`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<StringInterpretedSchema['min']> = ({
-    target: { value, issuePath },
-    args: [minLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_SMALL,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, minLength),
-      }),
-    });
-
-  /** `.max(20)` → `field0.length > 20`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<StringInterpretedSchema['max']> = ({
-    target: { value, issuePath },
-    args: [maxLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_BIG,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.max, maxLength),
-      }),
-    });
-
-  /** `.length(2)` → `field0.length !== 2`, reporting `INVALID_LENGTH`. */
-  public static readonly length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
-    target: { value, issuePath },
-    args: [exactLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.INVALID_LENGTH,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(
-          StringSchemaEmitter.argumentMessages.length,
-          exactLength,
-        ),
-      }),
-    });
 }
