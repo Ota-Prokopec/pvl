@@ -1,5 +1,5 @@
-// The code a `BigintSchema` compiles to, one static method per method of
-// `BigintInterpretedSchema` it mirrors.
+// The code a `BigintSchema` compiles to, one method per method of
+// `BigintInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
 import {
   BIGINT_SCHEMA_ISSUE_MESSAGE,
   ISSUE_CODE,
@@ -14,11 +14,48 @@ import type {
   EmittedCheck,
   EmitterMethodOf,
   ParameterTypesOf,
+  PostModifierCheckTable,
 } from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
+/** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
+const min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
+  target: { value, issuePath },
+  args: [minValue, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value} < ${emitArgument(minValue)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_SMALL,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.min, minValue),
+    }),
+  });
+
+/** `.max(9n)` → `field0 > 9n`, reporting `TOO_BIG`. */
+const max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
+  target: { value, issuePath },
+  args: [maxValue, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value} > ${emitArgument(maxValue)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_BIG,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.max, maxValue),
+    }),
+  });
+
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly postModifierChecks = {
+    ...ChainableSchemaEmitter.postModifierChecks,
+    min,
+    max,
+  } satisfies PostModifierCheckTable;
+
   public static override readonly parameterTypes: ParameterTypesOf<BigintInterpretedSchema> = {
     min: ['bigint', ISSUE_OPTIONS_TYPE],
     max: ['bigint', ISSUE_OPTIONS_TYPE],
@@ -38,34 +75,4 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
       ),
     });
   }
-
-  /** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
-    target: { value, issuePath },
-    args: [minValue, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value} < ${emitArgument(minValue)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_SMALL,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.min, minValue),
-      }),
-    });
-
-  /** `.max(9n)` → `field0 > 9n`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
-    target: { value, issuePath },
-    args: [maxValue, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value} > ${emitArgument(maxValue)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_BIG,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.max, maxValue),
-      }),
-    });
 }

@@ -1,5 +1,5 @@
-// The code a `NumberSchema` compiles to, one static method per method of
-// `NumberInterpretedSchema` it mirrors.
+// The code a `NumberSchema` compiles to, one method per method of
+// `NumberInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
 import {
   ISSUE_CODE,
   Issue,
@@ -14,11 +14,64 @@ import type {
   EmittedCheck,
   EmitterMethodOf,
   ParameterTypesOf,
+  PostModifierCheckTable,
 } from './emittersTypes.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
+/** `.min(0)` → `field0 < 0`, reporting `TOO_SMALL`. */
+const min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
+  target: { value, issuePath },
+  args: [minValue, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value} < ${emitArgument(minValue)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_SMALL,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
+    }),
+  });
+
+/** `.max(9)` → `field0 > 9`, reporting `TOO_BIG`. */
+const max: EmitterMethodOf<NumberInterpretedSchema['max']> = ({
+  target: { value, issuePath },
+  args: [maxValue, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value} > ${emitArgument(maxValue)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_BIG,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
+    }),
+  });
+
+/** `.int()` → `!Number.isInteger(field0)`, reporting `NOT_INTEGER`. */
+const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
+  target: { value, issuePath },
+  args: [options],
+}) =>
+  emitCheck({
+    failsWhen: js`!Number.isInteger(${value})`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.NOT_INTEGER,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int),
+    }),
+  });
+
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly postModifierChecks = {
+    ...ChainableSchemaEmitter.postModifierChecks,
+    min,
+    max,
+    int,
+  } satisfies PostModifierCheckTable;
+
   public static override readonly parameterTypes: ParameterTypesOf<NumberInterpretedSchema> = {
     min: ['number', ISSUE_OPTIONS_TYPE],
     max: ['number', ISSUE_OPTIONS_TYPE],
@@ -39,49 +92,4 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
       ),
     });
   }
-
-  /** `.min(0)` → `field0 < 0`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
-    target: { value, issuePath },
-    args: [minValue, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value} < ${emitArgument(minValue)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_SMALL,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
-      }),
-    });
-
-  /** `.max(9)` → `field0 > 9`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<NumberInterpretedSchema['max']> = ({
-    target: { value, issuePath },
-    args: [maxValue, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value} > ${emitArgument(maxValue)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_BIG,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
-      }),
-    });
-
-  /** `.int()` → `!Number.isInteger(field0)`, reporting `NOT_INTEGER`. */
-  public static readonly int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
-    target: { value, issuePath },
-    args: [options],
-  }) =>
-    emitCheck({
-      failsWhen: js`!Number.isInteger(${value})`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.NOT_INTEGER,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int),
-      }),
-    });
 }

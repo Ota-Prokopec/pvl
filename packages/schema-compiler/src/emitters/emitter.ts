@@ -8,35 +8,30 @@
 // composes those parts, the same way where a parent reads the value and at
 // the root, at `_validate`'s own parameters, where it wraps the checks in the
 // Compiled Schema's class (`emitCompiledSchema`). It also dispatches each
-// chained method to the emitter method of its name. Every method whose name
+// chained method to the emitter method of its name, through the table of
+// the kind of text that method writes (ADR-0033). Every method whose name
 // starts with `emit` or `_emit` returns source text, a string or a list of
 // them (ADR-0028), or, for `_emitSchemaParts`, the parts holding it
-// (ADR-0032). A subclass adds the methods mirroring its schema's and
-// overrides the `_` hooks.
+// (ADR-0032). A subclass adds the methods mirroring its schema's to its
+// tables and overrides the `_` hooks.
 import type { Node } from 'ts-morph';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
-import type {
-  SchemaModifierCall,
-  SchemaModifierCallArgument,
-  SchemaTypes,
-} from '../schemas/schemaTypes.js';
+import type { SchemaModifierCall, SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
   CheckingTarget,
   EmittedCheck,
+  EmittedMethodText,
   EmittedShortCircuitCondition,
+  EmitterMethodTable,
+  PostModifierCheckTable,
   SchemaParts,
+  ShortCircuitConditionTable,
 } from './emittersTypes.js';
-import { js } from './emitterUtils.js';
+import { js, readCallArguments } from './emitterUtils.js';
 import { emitMessageAroundValue } from '../issue.js';
 import { Frame, type RuntimeArgumentParameter } from './frame.js';
 import { Scope } from './scope.js';
-
-/** An emitter method mirroring a Schema method, as found by name: the source text it writes, typed by `EmitterMethodOf`. */
-type EmittingMethod = (input: {
-  target: CheckingTarget;
-  args: ReadonlyArray<SchemaModifierCallArgument>;
-}) => string;
 
 /** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
 export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
@@ -106,15 +101,16 @@ export type EmitCompiledSchemaArgs = {
   hoistedNameByExpression: ReadonlyMap<Node, string>;
 };
 
-/** What {@link Emitter.findEmittingMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
-export type FindEmittingMethodArgs = {
+/** What {@link Emitter.compilesMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
+export type CompilesMethodArgs = {
   name: string;
 };
 
-/** What {@link Emitter.emitCall} emits a chained method for: the call, at the target it checks. */
-export type EmitCallArgs = {
+/** What {@link Emitter.emitMethodCall} emits a chained method with: the table of the kind of text it writes, the call, and the target it reads. */
+export type EmitMethodCallArgs<TOutput extends EmittedMethodText, TInput extends CheckingTarget> = {
+  table: EmitterMethodTable<TOutput, TInput>;
   call: SchemaModifierCall;
-  target: CheckingTarget;
+  target: TInput;
 };
 
 /**
@@ -146,14 +142,30 @@ export type SchemaEmitter = typeof Emitter & {
  * The abstract base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
  * `StringSchemaEmitter._emitSchemaParts({ schema, target, scope })` emits
- * `.min(3)` with `StringSchemaEmitter.min`.
+ * `.min(3)` with `StringSchemaEmitter.postModifierChecks.min`.
  *
- * A static method an emitter below `Emitter` declares mirrors the Schema
- * method of its name, unless its name starts with `_`: those are the hooks
- * a subclass overrides. The methods declared here are never one either.
+ * The methods mirroring a Schema's are held in tables, one per kind of text
+ * they write, each spread from the table of the Emitter it extends: a
+ * chained method compiles exactly when a table holds a method of its name.
  * Every method takes one object, so a hook reads only what it needs.
  */
 export abstract class Emitter {
+  /**
+   * The pre-modifiers this emitter compiles, each writing the condition a
+   * value short-circuits under, by the name of the method it mirrors.
+   * `ChainableSchemaEmitter` adds `.optional()` and `.nullable()`.
+   */
+  public static readonly shortCircuitConditions: ShortCircuitConditionTable = {};
+
+  /**
+   * The post-modifiers this emitter compiles that check its value, each
+   * writing its check, by the name of the method it mirrors. A
+   * post-modifier reading something else, as an object's `.strict()` reads
+   * its keys, sits in a table of its emitter's own instead, which its
+   * `_emitSchemaParts` calls it from and its `compilesMethod` reads too.
+   */
+  public static readonly postModifierChecks: PostModifierCheckTable = {};
+
   /**
    * For each method this emitter compiles, the TypeScript type of each of
    * its parameters, which a Compiled Schema's constructor declares a
@@ -213,8 +225,8 @@ export abstract class Emitter {
     schema,
     target,
   }: EmitShortCircuitConditionsArgs): EmittedShortCircuitCondition[] {
-    return schema.preModifierCalls.map(
-      (call) => this.emitCall({ call, target }) as EmittedShortCircuitCondition,
+    return schema.preModifierCalls.map((call) =>
+      this.emitMethodCall({ table: this.shortCircuitConditions, call, target }),
     );
   }
 
@@ -234,7 +246,9 @@ export abstract class Emitter {
     schema,
     target,
   }: EmitPostModifierChecksArgs): EmittedCheck[] {
-    return schema.postModifierCalls.map((call) => this.emitCall({ call, target }) as EmittedCheck);
+    return schema.postModifierCalls.map((call) =>
+      this.emitMethodCall({ table: this.postModifierChecks, call, target }),
+    );
   }
 
   /**
@@ -408,50 +422,50 @@ export abstract class Emitter {
   }
 
   /**
-   * This emitter's method mirroring the Schema method `name`: its own, or
-   * else the one of the emitter it extends, down to `Emitter`, which has
-   * none. `undefined` when no emitter has one, so the method isn't compiled
-   * yet, or when `name` starts with `_`. Only own properties are read, so a
-   * name every class has (`toString`, `caller`) is never one.
+   * Whether this emitter compiles the Schema method `name`: one of its
+   * tables holds a method of that name, its own or one spread from the
+   * emitter it extends. Only own keys are read, so a name every object has
+   * (`toString`, `__proto__`) is never one. An emitter whose
+   * `_emitSchemaParts` calls a method itself overrides it to name that
+   * method too.
    *
    * ```ts
-   * StringSchemaEmitter.findEmittingMethod({ name: 'min' })           // StringSchemaEmitter.min
-   * StringSchemaEmitter.findEmittingMethod({ name: 'optional' })      // ChainableSchemaEmitter.optional
-   * StringSchemaEmitter.findEmittingMethod({ name: 'refine' })        // undefined
-   * StringSchemaEmitter.findEmittingMethod({ name: '_emitBaseCheck' }) // undefined
-   * BooleanSchemaEmitter.findEmittingMethod({ name: 'length' })       // undefined: only its own `length` number
+   * StringSchemaEmitter.compilesMethod({ name: 'min' })            // true
+   * StringSchemaEmitter.compilesMethod({ name: 'optional' })       // true: spread from ChainableSchemaEmitter
+   * StringSchemaEmitter.compilesMethod({ name: 'refine' })         // false
+   * StringSchemaEmitter.compilesMethod({ name: '_emitBaseCheck' }) // false: a hook, held in no table
+   * BooleanSchemaEmitter.compilesMethod({ name: 'length' })        // false
    * ```
    */
-  public static findEmittingMethod({ name }: FindEmittingMethodArgs): EmittingMethod | undefined {
-    if (this === Emitter || name.startsWith('_')) {
-      return undefined;
-    }
-    const method: unknown = Object.getOwnPropertyDescriptor(this, name)?.value;
-    if (typeof method === 'function') {
-      return method as EmittingMethod;
-    }
-    const extendedEmitter: typeof Emitter = Object.getPrototypeOf(this);
-    return extendedEmitter.findEmittingMethod({ name });
+  public static compilesMethod({ name }: CompilesMethodArgs): boolean {
+    return (
+      Object.hasOwn(this.shortCircuitConditions, name) ||
+      Object.hasOwn(this.postModifierChecks, name)
+    );
   }
 
   /**
-   * What `call` compiles to, written by this emitter's method of its name:
-   * a check such as `.min(3)`'s, a short-circuit condition such as
-   * `.optional()`'s, or a statement building the output such as
-   * `.passthrough()`'s loop. Only called on a Schema
-   * `Schema.findUncompilableDiagnostics` found nothing in, so the method and
-   * its arguments are there. Throws when no emitter has the method, which
-   * is a bug in an emitter, never a user error.
+   * What `call` compiles to, written at `target` by the method of its name
+   * in `table`, which holds the methods writing one kind of text: a check
+   * such as `.min(3)`'s, or a short-circuit condition such as
+   * `.optional()`'s. Typed by the table, so what it writes needs no cast.
+   * Only called on a Schema `Schema.findUncompilableDiagnostics` found
+   * nothing in, so the method and its arguments are there. Throws when
+   * `table` has no method of its name, which is a bug in an emitter, never
+   * a user error.
    *
    * ```ts
-   * StringSchemaEmitter.emitCall({ call: <.optional()>, target: { value: 'field0', path, issuePath } }) // 'field0 === undefined'
+   * StringSchemaEmitter.emitMethodCall({ table: StringSchemaEmitter.shortCircuitConditions, call: <.optional()>, target: { value: 'field0', path, issuePath } }) // 'field0 === undefined'
    * ```
    */
-  protected static emitCall({ call, target }: EmitCallArgs): string {
-    const emittingMethod = this.findEmittingMethod({ name: call.name });
-    if (emittingMethod === undefined) {
+  protected static emitMethodCall<
+    TOutput extends EmittedMethodText,
+    TInput extends CheckingTarget,
+  >({ table, call, target }: EmitMethodCallArgs<TOutput, TInput>): TOutput {
+    const emitterMethod = Object.hasOwn(table, call.name) ? table[call.name] : undefined;
+    if (emitterMethod === undefined) {
       throw new Error(`${this.name} has no method to emit .${call.name}() with.`);
     }
-    return emittingMethod({ target, args: call.args ?? [] });
+    return emitterMethod({ target, args: readCallArguments(call) });
   }
 }

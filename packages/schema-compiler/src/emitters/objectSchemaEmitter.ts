@@ -1,7 +1,10 @@
-// The code an `ObjectSchema` compiles to, one static method per method of
+// The code an `ObjectSchema` compiles to, one method per method of
 // `ObjectInterpretedSchema` it mirrors, and the checks of a compiled object, at the
 // root or nested in another Schema, which inline every field's checks,
-// nested objects' and arrays' included.
+// nested objects' and arrays' included. Its two methods, `.strict()` and
+// `.passthrough()`, read its keys rather than its value, so each sits in a
+// table of its own kind at that target, and its `_emitSchemaParts` calls the
+// one that wins itself.
 import {
   ISSUE_CODE,
   Issue,
@@ -14,20 +17,32 @@ import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
+import type {
+  CompilesMethodArgs,
+  EmitBaseCheckArgs,
+  EmitSchemaPartsArgs,
+  SpellFactoryTypesArgs,
+} from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import { emitConstraintIssue, emitIssue, emitMessageAroundValue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { emitCheck, js } from './emitterUtils.js';
+import {
+  emitCheck,
+  emitOutputStatement,
+  emitVariableDeclaration,
+  js,
+  readCallArguments,
+} from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
 import type {
   CheckingTarget,
   CompositeLocals,
   EmittedCheck,
+  EmittedIssue,
   EmittedOutputStatement,
-  EmittedVariableDeclaration,
   EmitterMethodOf,
+  EmitterMethodTable,
   ParameterTypesOf,
   SchemaParts,
 } from './emittersTypes.js';
@@ -35,6 +50,9 @@ import { MODIFIER_NAME } from '../enums.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
+
+/** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
+type PvlAnyObjectSchema = ObjectInterpretedSchema;
 
 /** An object's target, its value as a record, plus the output it builds and the keys its shape declares. */
 export type ObjectCheckingTarget = CheckingTarget & {
@@ -83,7 +101,7 @@ const emitIsUndeclaredKey = (declaredKeys: ReadonlyArray<string>): string => {
 const emitUnrecognizedKeyIssue = (
   path: string,
   options: IssueEditableProps | RuntimeArgument | undefined,
-): string => {
+): EmittedIssue => {
   return emitConstraintIssue({
     code: ISSUE_CODE.UNRECOGNIZED_KEY,
     issuePath: js`[...${path}, key]`,
@@ -197,7 +215,6 @@ export type EmitFieldChecksArgs = {
  * // // name
  * // const field0 = input1["name"];
  * // if (typeof field0 !== "string") { … path: [...path1, "name"] … }
- * //
  * ```
  */
 const emitFieldChecks = ({
@@ -216,7 +233,6 @@ const emitFieldChecks = ({
       path: js`[...${locals.path}, ${keyLiteral}]`,
       scope,
     }),
-    '',
   ].join('\n');
 };
 
@@ -244,18 +260,71 @@ const emitOutputAssignment = ({
     key === '__proto__'
       ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
       : js`${output}[${keyLiteral}] = ${value};`;
-  return (
-    isOptionalField(fieldSchema)
+  return emitOutputStatement({
+    statement: isOptionalField(fieldSchema)
       ? Frame.composeBlock({
           head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
           body: assignment,
         })
-      : assignment
-  ) as EmittedOutputStatement;
+      : assignment,
+  });
 };
 
-/** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
-type PvlAnyObjectSchema = ObjectInterpretedSchema;
+/**
+ * `.strict()`: an `UNRECOGNIZED_KEY` Issue per key of `input` the shape
+ * doesn't declare.
+ *
+ * ```ts
+ * for (const key of Object.keys(input)) {
+ *   if (key !== "name") {
+ *     issues.push({ code: "UNRECOGNIZED_KEY", message: `Unrecognized key "${key}"`, path: [...path, key] });
+ *   }
+ * }
+ * ```
+ */
+const strict: EmitterMethodOf<PvlAnyObjectSchema['strict'], EmittedCheck, ObjectCheckingTarget> = ({
+  target: { value, path, declaredKeys },
+  args: [options],
+}) =>
+  emitCheck({
+    loopHead: js`for (const key of Object.keys(${value}))`,
+    failsWhen: emitIsUndeclaredKey(declaredKeys),
+    issue: emitUnrecognizedKeyIssue(path, options),
+  });
+
+/**
+ * `.passthrough()`: copies every key of `input` the shape doesn't declare
+ * onto `output`, after the declared ones. `__proto__` is defined rather
+ * than assigned, which would reparent `output` instead.
+ *
+ * ```ts
+ * for (const key of Object.keys(input)) {
+ *   if (key !== "name") {
+ *     if (key === "__proto__") {
+ *       Object.defineProperty(output, key, { value: input[key], writable: true, enumerable: true, configurable: true });
+ *     } else {
+ *       output[key] = input[key];
+ *     }
+ *   }
+ * }
+ * ```
+ */
+const passthrough: EmitterMethodOf<
+  PvlAnyObjectSchema['passthrough'],
+  EmittedOutputStatement,
+  ObjectCheckingTarget
+> = ({ target: { value, output, declaredKeys } }) =>
+  emitOutputStatement({
+    statement: js`for (const key of Object.keys(${value})) {
+      if (${emitIsUndeclaredKey(declaredKeys)}) {
+        if (key === "__proto__") {
+          Object.defineProperty(${output}, key, { value: ${value}[key], writable: true, enumerable: true, configurable: true });
+        } else {
+          ${output}[key] = ${value}[key];
+        }
+      }
+    }`,
+  });
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   public static override readonly parameterTypes: ParameterTypesOf<PvlAnyObjectSchema> = {
@@ -274,47 +343,45 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /**
-   * `.strict()`: an `UNRECOGNIZED_KEY` Issue per key of `input` the shape
-   * doesn't declare.
-   *
-   * ```ts
-   * for (const key of Object.keys(input)) {
-   *   if (key !== "name") {
-   *     issues.push({ code: "UNRECOGNIZED_KEY", message: `Unrecognized key "${key}"`, path: [...path, key] });
-   *   }
-   * }
-   * ```
+   * `.strict()`, the post-modifier checking an object's keys rather than
+   * its value (`ObjectCheckingTarget`). Not in `postModifierChecks`, whose
+   * methods read a plain `CheckingTarget`, so it is never dispatched:
+   * `_emitSchemaParts` calls it itself when it is the last of `.strict()`
+   * and `.passthrough()` chained.
    */
-  public static readonly strict: EmitterMethodOf<
-    PvlAnyObjectSchema['strict'],
+  public static readonly keyChecks = { strict } satisfies EmitterMethodTable<
     EmittedCheck,
     ObjectCheckingTarget
-  > = ({ target: { value, path, declaredKeys }, args: [options] }) =>
-    js`for (const key of Object.keys(${value})) {
-      if (${emitIsUndeclaredKey(declaredKeys)}) {
-        issues.push(${emitUnrecognizedKeyIssue(path, options)});
-      }
-    }` as EmittedCheck;
+  >;
 
   /**
-   * `.passthrough()`: copies every key of `input` the shape doesn't declare
-   * onto `output`, after the declared ones. `__proto__` is defined rather
-   * than assigned, which would reparent `output` instead.
+   * `.passthrough()`, which copies an object's undeclared keys onto its
+   * output. `_emitSchemaParts` calls it itself when it is the last of
+   * `.strict()` and `.passthrough()` chained.
    */
-  public static readonly passthrough: EmitterMethodOf<
-    PvlAnyObjectSchema['passthrough'],
+  public static readonly outputStatements = { passthrough } satisfies EmitterMethodTable<
     EmittedOutputStatement,
     ObjectCheckingTarget
-  > = ({ target: { value, output, declaredKeys } }) =>
-    js`for (const key of Object.keys(${value})) {
-      if (${emitIsUndeclaredKey(declaredKeys)}) {
-        if (key === "__proto__") {
-          Object.defineProperty(${output}, key, { value: ${value}[key], writable: true, enumerable: true, configurable: true });
-        } else {
-          ${output}[key] = ${value}[key];
-        }
-      }
-    }` as EmittedOutputStatement;
+  >;
+
+  /**
+   * Whether it compiles the Schema method `name`: one of its tables holds
+   * it, those `_emitSchemaParts` calls itself (`keyChecks`,
+   * `outputStatements`) included.
+   *
+   * ```ts
+   * ObjectSchemaEmitter.compilesMethod({ name: 'strict' })   // true
+   * ObjectSchemaEmitter.compilesMethod({ name: 'optional' }) // true
+   * ObjectSchemaEmitter.compilesMethod({ name: 'refine' })   // false
+   * ```
+   */
+  public static override compilesMethod(args: CompilesMethodArgs): boolean {
+    return (
+      Object.hasOwn(this.keyChecks, args.name) ||
+      Object.hasOwn(this.outputStatements, args.name) ||
+      super.compilesMethod(args)
+    );
+  }
 
   /**
    * An object's parts, at the root or nested in another Schema: its base
@@ -333,8 +400,8 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * ObjectSchemaEmitter._emitSchemaParts({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <field0 at [...path1, "user"]>, scope })
    * // { baseCheck: 'if (typeof field0 !== "object" || …) { … }', shortCircuitConditions: [],
    * //   postModifierChecks: ['for (const key of Object.keys(input2)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path2, key] });\n  }\n}'],
-   * //   composite: { locals: <locals ending in 2>, declarations: ['const input2 = field0 as Record<string, unknown>;', ''],
-   * //                childChecks: ['// name\nconst field1 = input2["name"];\nif (typeof field1 !== "string") { … path: [...path2, "name"] … }\n'],
+   * //   composite: { locals: <locals ending in 2>, declarations: ['const input2 = field0 as Record<string, unknown>;'],
+   * //                childChecks: ['// name\nconst field1 = input2["name"];\nif (typeof field1 !== "string") { … path: [...path2, "name"] … }'], setsChildrenApart: true,
    * //                outputStatements: ['const output2: Record<string, unknown> = {};', 'output2["name"] = field1;'] } }
    * ```
    */
@@ -357,26 +424,35 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       baseCheck: this._emitBaseCheck({ schema, target }),
       shortCircuitConditions: this._emitShortCircuitConditions({ schema, target }),
       postModifierChecks:
-        unknownKeysCall?.name === 'strict'
-          ? [this.emitCall({ call: unknownKeysCall, target: objectTarget }) as EmittedCheck]
+        unknownKeysCall?.name === MODIFIER_NAME.STRICT
+          ? [
+              this.keyChecks.strict({
+                target: objectTarget,
+                args: readCallArguments(unknownKeysCall),
+              }),
+            ]
           : [],
       composite: {
         locals,
         declarations: [
-          js`const ${locals.input} = ${target.value} as Record<string, unknown>;` as EmittedVariableDeclaration,
-          // Sets the fields apart, each of which ends in a blank line too.
-          '' as EmittedVariableDeclaration,
+          emitVariableDeclaration({
+            name: locals.input,
+            initializer: js`${target.value} as Record<string, unknown>`,
+          }),
         ],
         childChecks: fields.map((field) => emitFieldChecks({ field, locals, scope })),
+        setsChildrenApart: true,
         outputStatements: [
-          js`const ${locals.output}: Record<string, unknown> = {};` as EmittedOutputStatement,
+          emitOutputStatement({
+            statement: js`const ${locals.output}: Record<string, unknown> = {};`,
+          }),
           ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
-          ...(unknownKeysCall?.name === 'passthrough'
+          ...(unknownKeysCall?.name === MODIFIER_NAME.PASSTHROUGH
             ? [
-                this.emitCall({
-                  call: unknownKeysCall,
+                this.outputStatements.passthrough({
                   target: objectTarget,
-                }) as EmittedOutputStatement,
+                  args: readCallArguments(unknownKeysCall),
+                }),
               ]
             : []),
         ],

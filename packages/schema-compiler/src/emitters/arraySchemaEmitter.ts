@@ -1,5 +1,5 @@
-// The code an `ArraySchema` compiles to, one static method per method of
-// `ArrayInterpretedSchema` it mirrors, and the checks of a compiled array, at the root
+// The code an `ArraySchema` compiles to, one method per method of
+// `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks` table, and the checks of a compiled array, at the root
 // or nested in another Schema: one loop with the element's checks inlined
 // into it, a nested object's or array's included.
 import {
@@ -13,7 +13,7 @@ import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { emitArgument, emitCheck, js } from './emitterUtils.js';
+import { emitArgument, emitCheck, emitVariableDeclaration, js } from './emitterUtils.js';
 import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
@@ -23,9 +23,9 @@ import type {
   CheckingTarget,
   CompositeLocals,
   EmittedCheck,
-  EmittedVariableDeclaration,
   EmitterMethodOf,
   ParameterTypesOf,
+  PostModifierCheckTable,
   SchemaParts,
 } from './emittersTypes.js';
 
@@ -84,7 +84,59 @@ const emitLoop = ({ elementSchema, target, locals, scope }: EmitLoopArgs): strin
   });
 };
 
+/** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
+const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
+  target: { value, issuePath },
+  args: [minLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_SMALL,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
+    }),
+  });
+
+/** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
+const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
+  target: { value, issuePath },
+  args: [maxLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_BIG,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
+    }),
+  });
+
+/** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
+const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
+  target: { value, issuePath },
+  args: [exactLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.INVALID_LENGTH,
+      issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
+    }),
+  });
+
 export class ArraySchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly postModifierChecks = {
+    ...ChainableSchemaEmitter.postModifierChecks,
+    min,
+    max,
+    length,
+  } satisfies PostModifierCheckTable;
+
   public static override readonly parameterTypes: ParameterTypesOf<ArrayInterpretedSchema> = {
     min: ['number', ISSUE_OPTIONS_TYPE],
     max: ['number', ISSUE_OPTIONS_TYPE],
@@ -107,51 +159,6 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     });
   }
 
-  /** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
-  public static readonly min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
-    target: { value, issuePath },
-    args: [minLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_SMALL,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
-      }),
-    });
-
-  /** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
-  public static readonly max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
-    target: { value, issuePath },
-    args: [maxLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.TOO_BIG,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
-      }),
-    });
-
-  /** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
-  public static readonly length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
-    target: { value, issuePath },
-    args: [exactLength, options],
-  }) =>
-    emitCheck({
-      failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
-      issue: emitConstraintIssue({
-        code: ISSUE_CODE.INVALID_LENGTH,
-        issuePath,
-        options,
-        defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
-      }),
-    });
-
   /**
    * An array's parts, at the root or nested in another Schema: its base
    * check, short-circuit conditions and post-modifiers' checks, which are
@@ -164,7 +171,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * ArraySchemaEmitter._emitSchemaParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
    * // { baseCheck: 'if (!Array.isArray(field0)) { … }', shortCircuitConditions: [], postModifierChecks: ['if (field0.length < 1) { … }'],
    * //   composite: { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
-   * //                childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], outputStatements: [] } }
+   * //                childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] } }
    * ```
    */
   public static override _emitSchemaParts(args: EmitSchemaPartsArgs<ArraySchema>): SchemaParts {
@@ -175,8 +182,11 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
       ...super._emitSchemaParts(args),
       composite: {
         locals,
-        declarations: [js`const ${locals.output}: unknown[] = [];` as EmittedVariableDeclaration],
+        declarations: [
+          emitVariableDeclaration({ name: locals.output, type: 'unknown[]', initializer: '[]' }),
+        ],
         childChecks: [emitLoop({ elementSchema: schema.element, target, locals, scope })],
+        setsChildrenApart: false,
         outputStatements: [],
       },
     };

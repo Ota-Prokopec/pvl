@@ -326,7 +326,10 @@ export class Frame {
    * What a composite runs once its type check (base check) has passed, as
    * statements: the Frame's own locals, then its declarations, its
    * children's checks, its post-modifiers' checks behind their gate, its
-   * output statements, and the handoff of its output.
+   * output statements, and the handoff of its output. Its children's checks
+   * are set apart by a blank line before, between and after them when the
+   * composite asks for it (`setsChildrenApart`), as an object does for its
+   * fields, so the blank lines are the Frame's formatting, never a part.
    *
    * A post-modifier runs only once the type check has (ADR-0010), and a
    * composite's type check includes its children, so a composite's
@@ -351,7 +354,7 @@ export class Frame {
   private static composeCompositeStatements({
     target,
     postModifierChecks,
-    composite: { locals, declarations, childChecks, outputStatements },
+    composite: { locals, declarations, childChecks, setsChildrenApart, outputStatements },
   }: ComposeCompositeStatementsArgs): string[] {
     const hasPostModifierChecks = postModifierChecks.length > 0;
     const readsPath = childChecks.length > 0 || hasPostModifierChecks;
@@ -359,7 +362,9 @@ export class Frame {
       ...(readsPath ? [js`const ${locals.path} = ${target.path};`] : []),
       ...(hasPostModifierChecks ? [js`const ${locals.issueCount} = issues.length;`] : []),
       ...declarations,
-      ...childChecks,
+      ...(setsChildrenApart
+        ? ['', ...childChecks.flatMap((childCheck) => [childCheck, ''])]
+        : childChecks),
       ...(hasPostModifierChecks
         ? [
             Frame.composeBlock({

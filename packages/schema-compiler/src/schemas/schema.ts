@@ -481,7 +481,7 @@ export abstract class Schema {
     emitter: typeof Emitter,
     call: SchemaModifierCall,
   ): Diagnostic | undefined {
-    if (emitter.findEmittingMethod({ name: call.name }) === undefined) {
+    if (!emitter.compilesMethod({ name: call.name })) {
       return new Diagnostic({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet.`,
