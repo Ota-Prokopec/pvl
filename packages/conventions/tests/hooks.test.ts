@@ -145,8 +145,8 @@ describe('checkEditedPath', () => {
     'packages/schema/src/pvl.ts',
     '/repo/AGENTS.md',
     '/repo/.claude/settings.json',
-    '.agents/skills/prototype-code/SKILL.md',
-    '/repo/.claude/skills/prototype-code/SKILL.md',
+    '.agents/skills/repo-owned/SKILL.md',
+    '/repo/.claude/skills/repo-owned/SKILL.md',
   ])('allows editing %s', (path) => {
     expect(checkEdit(path)).toEqual([]);
   });
@@ -161,7 +161,7 @@ describe('checkEditedPath', () => {
   );
 
   it.each([null, 'not json'])('denies editing any skill when the lock file is %j', (lock) => {
-    expect(checkEdit('.agents/skills/prototype-code/SKILL.md', lock)).toEqual([
+    expect(checkEdit('.agents/skills/repo-owned/SKILL.md', lock)).toEqual([
       expect.stringContaining('installed from an external source'),
     ]);
   });
