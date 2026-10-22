@@ -14,7 +14,11 @@ import {
 import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
-import { Path } from './path.js';
+import {
+  createAbsolutePathWithRelative,
+  type AbsolutePath,
+  type AbsolutePathWithRelative,
+} from './path.js';
 import type { Schema } from './schemas/schema.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
@@ -78,7 +82,7 @@ type TextEdit = {
  */
 export class Module {
   /** Where the scanned file is: its absolute path, and its path relative to the Root Directory. */
-  public readonly path: Required<Path> & { readonly absolutePath: ScannedPath };
+  public readonly path: AbsolutePathWithRelative<ScannedPath>;
 
   /** Its ts-morph source file, which the mirror reads and rewrites in place. */
   public readonly moduleFile: SourceFile;
@@ -108,7 +112,7 @@ export class Module {
     rootDirectory,
     destination,
   }: ModuleOptions) {
-    this.path = Path.create(scannedFilePath, rootDirectory) as Module['path'];
+    this.path = createAbsolutePathWithRelative(scannedFilePath, rootDirectory);
     this.moduleFile = tsMorphProject.addSourceFileAtPath(scannedFilePath);
     this.mirroredPath = path.join(
       destination.absolutePath,
@@ -432,22 +436,22 @@ export class Module {
     tsMorphProject,
     mirroredPathByScannedPath,
   }: RewriteSpecifiersArgs): void {
-    const outputDirectory = Path.create(path.dirname(this.mirroredPath));
+    const outputDirectory: AbsolutePath = { absolutePath: path.dirname(this.mirroredPath) };
 
     for (const literal of Module.findSpecifierLiterals(this.moduleFile)) {
-      const moduleSpecifier = literal.getLiteralValue();
-      const specifier = new Specifier(
-        moduleSpecifier,
-        this.resolveSpecifierTarget({
-          specifier: new Specifier(moduleSpecifier),
+      const specifier = new Specifier(literal.getLiteralValue());
+      const rewritten = specifier.rewrite({
+        target: this.resolveSpecifierTarget({
+          specifier,
           tsMorphProject,
           mirroredPathByScannedPath,
         }),
-      );
-      const rewritten = specifier.rewrite({ importerPath: this.path, outputDirectory }).value;
+        importerPath: this.path,
+        outputDirectory,
+      });
 
-      if (rewritten !== moduleSpecifier) {
-        literal.setLiteralValue(rewritten);
+      if (rewritten.value !== specifier.value) {
+        literal.setLiteralValue(rewritten.value);
       }
     }
   }
@@ -475,8 +479,9 @@ export class Module {
     const mirroredPath = mirroredPathByScannedPath.get(moduleFile.absolutePath);
     return mirroredPath === undefined
       ? { kind: SPECIFIER_TARGET_KIND.REPOSITORY, path: moduleFile }
-      : { kind: SPECIFIER_TARGET_KIND.MIRRORED, path: Path.create(mirroredPath) };
+      : { kind: SPECIFIER_TARGET_KIND.MIRRORED, path: { absolutePath: mirroredPath } };
   }
+
   /**
    * Every string literal in `sourceFile` that names a module, in any form a
    * module can be named in, each as written.
