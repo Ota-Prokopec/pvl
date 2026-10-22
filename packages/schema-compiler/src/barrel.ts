@@ -1,6 +1,7 @@
 // The barrel the Destination Directory opens with: `index.ts`, re-exporting
 // every mirrored module. Precheck reports the clashes that would make it
 // ambiguous.
+import { GenericAst } from './ast/genericAst.js';
 import { BARREL_FILE_NAME, GENERATED_HEADER } from './consts.js';
 import type { Module } from './module.js';
 import { Specifier } from './specifier.js';
@@ -26,7 +27,7 @@ export class Barrel {
    */
   public static renderBarrelFile(modules: ReadonlyArray<Module>): string {
     const reExportLines = modules
-      .filter((module) => module.hasExport())
+      .filter(({ moduleFile }) => GenericAst.hasExport(moduleFile))
       .map(({ path }) => path.relative.path)
       .sort()
       .map((relativePath) => {

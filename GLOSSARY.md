@@ -61,7 +61,7 @@ Turning a Schema into a Compiled Schema before the program runs, as opposed to v
 _Avoid_: JIT, runtime compilation.
 
 **Marked-to-Compile Schema**:
-A Schema passed to `pvl.compile(...)` in a Module, as the compiler reads it from the source before emitting anything. A Module holds any number of them, and each one belongs to exactly one Module. Each one that compiles becomes a Compiled Schema. In code, `Module.findMarkedToCompileSchemas` finds them, each a compiler `Schema` read through its `pvl.compile(...)` call, and they are the only Schemas the compiler passes to `Module.compileSchemas`. See [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
+A Schema passed to `pvl.compile(...)` in a Module, as the compiler reads it from the source before emitting anything. A Module holds any number of them, and each one belongs to exactly one Module. Each one that compiles becomes a Compiled Schema. In code, `findMarkedToCompileSchemas` (`src/schemas/readSchema.ts`) finds a Module's, each a compiler `Schema` read through its `pvl.compile(...)` call, and they are the only Schemas the compiler passes to `Module.compileSchemas`. See [ADR-0020](./docs/adr/0020-schema-class-owns-the-pipeline-and-compile-returns-a-plain-schema.md).
 _Avoid_: Compiled Schema (for the Schema before it is compiled).
 
 **Compilable Schema**:
@@ -92,7 +92,7 @@ The directory `@pvl/schema-compiler` writes: a mirror of the Root Directory hold
 _Avoid_: Destination File (the rejected single aggregate module), generated file, output bundle.
 
 **Module**:
-One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module`: `findMarkedToCompileSchemas()` finds its Marked-to-Compile Schemas, and `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression.
+One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module` places the file in the mirror and rewrites it there: `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression, and its module specifiers are rewritten to reach the right files from the mirror. Every check of it, and the DUPLICATE_EXPORT check across Modules, is `Precheck`'s (`src/precheck.ts`).
 _Avoid_: Scanned Module.
 
 **Root Directory**:

@@ -1118,4 +1118,58 @@ describe('runCompilation(): diagnostics', () => {
     ]);
     expect(payload.written).toBe(false);
   });
+
+  it("reports one file's diagnostics in a fixed order, and only FILE_OUTSIDE_ROOT_DIR beside PARSE_FAILED", async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({ include: ['lib/*.ts'] }),
+      'lib/broken.ts': 'export default = ;\n',
+      'lib/legacy.ts': [
+        "import { pvl } from '@pvl/schema';",
+        "import { address } from './address.js';",
+        '',
+        "console.log('loaded');",
+        'export default 1;',
+        'export const home = pvl.compile(address);',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(
+      payload.diagnostics.map(({ code, severity, file }) => ({ code, severity, file })),
+    ).toStrictEqual([
+      {
+        code: DIAGNOSTIC_CODE.PARSE_FAILED,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'lib/broken.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'lib/broken.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'lib/legacy.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'lib/legacy.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
+        severity: SEVERITY.WARNING,
+        file: join(root, 'lib/legacy.ts'),
+      },
+      {
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        severity: SEVERITY.ERROR,
+        file: join(root, 'lib/legacy.ts'),
+      },
+    ]);
+    expect(payload.written).toBe(false);
+  });
 });

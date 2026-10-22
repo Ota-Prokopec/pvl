@@ -1,6 +1,7 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
-// and reading literals as values. Nothing is imported or executed.
+// reading literals as values, and whether a file exports anything. Nothing is
+// imported or executed.
 import {
   Node,
   SyntaxKind,
@@ -8,6 +9,7 @@ import {
   type CallExpression,
   type Identifier,
   type PrefixUnaryExpression,
+  type SourceFile,
   type VariableDeclaration,
 } from 'ts-morph';
 import { ConstCycleError } from './constCycleError.js';
@@ -91,6 +93,28 @@ export class GenericAst {
       (Node.isObjectLiteralExpression(unwrappedNode) &&
         unwrappedNode.getProperties().some((property) => Node.isSpreadAssignment(property)))
     );
+  }
+
+  /**
+   * Whether any of `sourceFile`'s top-level statements exports a name, in
+   * any form:
+   *
+   * ```ts
+   * export const user = …;        export { user };
+   * export * from './user.js';    export type User = …;
+   * ```
+   *
+   * A file of only `const internal = 1;` exports nothing.
+   */
+  public static hasExport(sourceFile: SourceFile): boolean {
+    return sourceFile
+      .getStatements()
+      .some(
+        (statement) =>
+          Node.isExportDeclaration(statement) ||
+          Node.isExportAssignment(statement) ||
+          (Node.isExportable(statement) && statement.hasExportKeyword()),
+      );
   }
 
   /**
