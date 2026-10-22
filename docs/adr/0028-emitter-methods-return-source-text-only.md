@@ -8,6 +8,8 @@ Branded string types in `src/types.ts` keep the kinds of text apart at compile t
 
 `_emitTypedChecks`, which returned an object of parts, is gone. `Emitter.buildFrame`, which was `emitBody` and was renamed because it returns a Frame, not text, emits the base check, the short-circuit conditions (`_emitShortCircuitConditions`, still an overridable hook, as ADR-0027 decided) and the post-modifiers' checks (`_emitPostModifierChecks`), and sets each on the Frame. It then lets a composite add its declarations, children's checks and output statements (`_addCompositeParts`), and adds the output's handoff last. `ObjectSchemaEmitter` overrides `_emitPostModifierChecks` to emit only the last `.strict()`, which reads the object's keys rather than its value. The Frame's `addChildSchemaFrameOutputs` is `addChildChecks` again.
 
+> Amended by [ADR-0031](./0031-the-root-schema-compiles-as-a-nested-one-under-one-closing-return.md): the root is compiled as a nested Schema, its checks never return, and `_validate` closes with one `return issues.length > 0 ? { issues } : { value };`. The rest still runs in the base check's `else`.
+
 ## Considered options
 
 - **The base check as its condition and its Issue, two strings from two hooks.** Rejected: it keeps the emitted root as it was, but every schema's Emitter would override two hooks for one check, and the Frame would hold the base check apart from every other check.

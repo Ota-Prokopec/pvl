@@ -12,7 +12,7 @@
  * const scope = new Scope();
  * scope.nextField() // 'field0'
  * scope.nextField() // 'field1'
- * scope.nextLocalSuffix() // '1': a nested composite's locals are `input1`, `path1`, …
+ * scope.nextLocalSuffix() // '1': the first composite's locals are `input1`, `path1`, …, the root's when it is one
  * ```
  */
 export class Scope {
@@ -27,7 +27,7 @@ export class Scope {
     return name;
   }
 
-  /** The suffix of the next nested composite's locals: `1`, `2`, … */
+  /** The suffix of the next composite's locals, the root's included: `1`, `2`, … */
   public nextLocalSuffix(): string {
     this.nodeCount += 1;
     return String(this.nodeCount);
