@@ -13,3 +13,5 @@ A frame created with `compiledSchema` (its class name, line and types) is the ro
 - **Pre-modifier conditions stay fixed in `Emitter`.** Rejected: new specialised Emitters will add pre-modifiers of their own, so `_emitPreModifierConditions` is an overridable hook. It keeps returning `string[]` until an Emitter needs more.
 
 > Superseded in part by [ADR-0028](./0028-emitter-methods-return-source-text-only.md): the hooks emit source text only, `_emitTypedChecks` gave way to `_emitPostModifierChecks` and `_addCompositeParts`, `emitBody` is `buildFrame`, and the root's base check runs the rest in its `else` instead of returning.
+
+> Amended by [ADR-0031](./0031-the-root-schema-compiles-as-a-nested-one-under-one-closing-return.md): a root Frame is built at `_validate`'s own parameters like any nested one, so no `isRoot` flag or class name marks it. `composeSchema` takes the class's name and types, and the Frame places every gate the same way at the root as nested. `composeSchema` no longer throws for a nested frame: it wraps whatever checks its frame holds, so only `emitCompiledSchema`, which builds the frame at `Frame.rootCheckingTarget`, calls it.

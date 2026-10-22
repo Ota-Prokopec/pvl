@@ -1,16 +1,14 @@
 // What every emitter shares: the `js` tag its templates are written with,
-// how a check is written, the return of a checked value a `Frame` places
-// after a Schema's checks, and how a value, a Runtime Argument and a
+// how a check is written, and how a value, a Runtime Argument and a
 // literal's type are spelled in the emitted code (an Issue's are in
 // `../issue.ts`). A fragment of a fixed shape, whose slots each
 // hold a one-line expression, is written in a `js` template, as `js` would
 // misindent a multi-line one; a block wrapping any statements is
-// `Frame.composeBlock`'s, which keeps this module from importing the Frame
-// that imports it.
+// `Frame.composeBlock`'s.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
-import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './emittersTypes.js';
+import type { EmittedCheck, EmittedIssue } from './emittersTypes.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text
@@ -45,19 +43,6 @@ export const emitCheck = ({ failsWhen, issue }: EmitCheckArgs): EmittedCheck => 
   return js`if (${failsWhen}) {
     issues.push(${issue});
   }` as EmittedCheck;
-};
-
-/**
- * The statement returning `value` from `_validate` as the value it
- * checked: the Result's `value` property.
- *
- * ```ts
- * emitReturnValue('value')  // 'return { value: value };'
- * emitReturnValue('output') // 'return { value: output };'
- * ```
- */
-export const emitReturnValue = (value: string): EmittedOutputStatement => {
-  return js`return { value: ${value} };` as EmittedOutputStatement;
 };
 
 /**

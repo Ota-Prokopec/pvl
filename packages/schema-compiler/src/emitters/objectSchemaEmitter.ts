@@ -160,12 +160,12 @@ export type CreateObjectCheckingTargetArgs = {
 
 /**
  * The target `.strict()` and `.passthrough()` read: the object's value as a
- * record in its `input` local, its path local, its `output` local, and the
- * keys its shape declares.
+ * record in its `input` local, its path local, which an unknown key's Issue
+ * path extends, its `output` local, and the keys its shape declares.
  *
  * ```ts
- * createObjectCheckingTarget({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0, nested> })
- * // { value: 'input1', issuePath: 'path1', output: 'output1', declaredKeys: ['name'] }
+ * createObjectCheckingTarget({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path1, "user"]> })
+ * // { value: 'input2', path: 'path2', issuePath: '[...path1, "user"]', output: 'output2', declaredKeys: ['name'] }
  * ```
  */
 const createObjectCheckingTarget = ({
@@ -174,7 +174,8 @@ const createObjectCheckingTarget = ({
 }: CreateObjectCheckingTargetArgs): ObjectCheckingTarget => {
   return {
     value: frame.inputVariableName,
-    issuePath: frame.pathVariableName,
+    path: frame.pathVariableName,
+    issuePath: frame.checkingTarget.issuePath,
     output: frame.outputVariableName,
     declaredKeys: schema.shape.map(({ key }) => key),
   };
@@ -188,8 +189,8 @@ const createObjectCheckingTarget = ({
  * ```ts
  * emitFieldChecks({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, frame: <frame at the root>, scope })
  * // // name
- * // const field0 = input["name"];
- * // if (typeof field0 !== "string") { … path: [...path, "name"] … }
+ * // const field0 = input1["name"];
+ * // if (typeof field0 !== "string") { … path: [...path1, "name"] … }
  * //
  * ```
  */
@@ -204,12 +205,13 @@ const emitFieldChecks = ({
 }): string => {
   const { emitter } = fieldSchema;
   const keyLiteral = JSON.stringify(key);
+  const fieldPath = js`[...${frame.pathVariableName}, ${keyLiteral}]`;
   return [
     `// ${formatKey(key)}`,
     js`${emitter._spellValueDeclaration()} ${value} = ${frame.inputVariableName}[${keyLiteral}];`,
     emitter.emitSchemaChecks({
       schema: fieldSchema,
-      target: { value, issuePath: js`[...${frame.pathVariableName}, ${keyLiteral}]` },
+      target: Frame.createNestedCheckingTarget({ value, path: fieldPath }),
       scope,
     }),
     '',
@@ -222,10 +224,10 @@ const emitFieldChecks = ({
  * rather than assigned, which would reparent the output instead.
  *
  * ```ts
- * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input', output: 'output', … } })
- * // 'output["name"] = field0;'
+ * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input1', output: 'output1', … } })
+ * // 'output1["name"] = field0;'
  * emitOutputAssignment({ field: { key: 'age', schema: <pvl.number().optional()>, value: 'field1' }, objectTarget: <the same> })
- * // 'if (field1 !== undefined || Object.hasOwn(input, "age")) {\n  output["age"] = field1;\n}'
+ * // 'if (field1 !== undefined || Object.hasOwn(input1, "age")) {\n  output1["age"] = field1;\n}'
  * ```
  */
 const emitOutputAssignment = ({
@@ -287,10 +289,10 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     PvlAnyObjectSchema['strict'],
     EmittedCheck,
     ObjectCheckingTarget
-  > = ({ target: { value, issuePath, declaredKeys }, args: [options] }) =>
+  > = ({ target: { value, path, declaredKeys }, args: [options] }) =>
     js`for (const key of Object.keys(${value})) {
       if (${emitIsUndeclaredKey(declaredKeys)}) {
-        issues.push(${emitUnrecognizedKeyIssue(issuePath, options)});
+        issues.push(${emitUnrecognizedKeyIssue(path, options)});
       }
     }` as EmittedCheck;
 
@@ -324,7 +326,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    *
    * ```ts
    * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict()>, frame: <frame of field0, nested> })
-   * // ['for (const key of Object.keys(input1)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path1, key] });\n  }\n}']
+   * // ['for (const key of Object.keys(input2)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path2, key] });\n  }\n}']
    * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict().passthrough()>, frame }) // []
    * ```
    */
@@ -352,17 +354,16 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * chained. The frame hands the output on.
    *
    * ```ts
-   * ObjectSchemaEmitter._addCompositeParts({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path, "user"], nested>, scope, isRoot: false, postModifierChecks: [] })
-   * // adds the declarations ['const path1 = [...path, "user"];', 'const input1 = field0 as Record<string, unknown>;', ''],
-   * // the child's checks ['// name\nconst field1 = input1["name"];\nif (typeof field1 !== "string") { … path: [...path1, "name"] … }\n'],
-   * // and the output statements ['const output1: Record<string, unknown> = {};', 'output1["name"] = field1;']
+   * ObjectSchemaEmitter._addCompositeParts({ schema: <pvl.object({ name: pvl.string() })>, frame: <frame of field0 at [...path1, "user"]>, scope, postModifierChecks: [] })
+   * // adds the declarations ['const path2 = [...path1, "user"];', 'const input2 = field0 as Record<string, unknown>;', ''],
+   * // the child's checks ['// name\nconst field1 = input2["name"];\nif (typeof field1 !== "string") { … path: [...path2, "name"] … }\n'],
+   * // and the output statements ['const output2: Record<string, unknown> = {};', 'output2["name"] = field1;']
    * ```
    */
   public static override _addCompositeParts({
     schema,
     frame,
     scope,
-    isRoot,
     postModifierChecks,
   }: AddCompositePartsArgs<ObjectSchema>): void {
     const fields = nameFields(schema.shape, scope);
@@ -372,7 +373,6 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     frame.addDeclarations(
       ...this.emitDeclarations({
         frame,
-        isRoot,
         readsPath: fields.length > 0 || postModifierChecks.length > 0,
         postModifierChecks,
       }),
@@ -392,8 +392,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * `true`: an object holds its fields' Schemas, and its checks build its
-   * output, field by field, in locals of their own (`input`, `output`;
-   * `input1`, … nested).
+   * output, field by field, in locals of their own (`input1`, `output1`).
    *
    * ```ts
    * ObjectSchemaEmitter._isComposite() // true

@@ -4,7 +4,7 @@
 // method it mirrors, each read as written or a Runtime Argument.
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 
-/** A local's declaration, which a composite's frame places before its children: `const path1 = [...path, "tags"];`. `''` sets the code after it apart with a blank line. */
+/** A local's declaration, which a composite's frame places before its children: `const path2 = [...path1, "tags"];`. `''` sets the code after it apart with a blank line. */
 export type EmittedVariableDeclaration = string & { readonly __brand: 'variableDeclaration' };
 
 /** An Issue as an object literal, which a failed check pushes onto `issues`. */
@@ -19,11 +19,13 @@ export type EmittedShortCircuitCondition = string & { readonly __brand: 'shortCi
 /** A statement building a composite's output or handing it on: `output1["name"] = field1;`, `field0 = output1;`. */
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
 
-/** A Modifier method input: what an emitter method reads, the value it checks and the Issue path it reports at, each as an expression. */
+/** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. */
 export type CheckingTarget = {
-  /** The checked value, as an expression: `value`, `field0`, `element`. */
+  /** The checked value, as an expression: `value`, `field0`, `element1`. */
   value: string;
-  /** The full `path` of an Issue reported for it, as an expression: `[...path, "name"]`, not just the key. */
+  /** The value's path, as an array expression, which its fields' and elements' paths extend: `path` at the root, `[...path1, "name"]` nested. */
+  path: string;
+  /** The full `path` of an Issue reported for the value itself, as an expression: `[...path1, "name"]`, not just the key. It holds the same array as `path`, except at the root, where it is `undefined` when `path` is empty, as `@pvl/schema`'s own `Issue` makes it. */
   issuePath: string;
 };
 

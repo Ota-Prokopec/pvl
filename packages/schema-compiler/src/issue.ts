@@ -1,9 +1,9 @@
 // How the emitted code reports an Issue: the Issue literal a failed check
 // pushes onto `issues`, its message as a literal, as the field a Compiled
 // Schema's constructor builds a message naming a Runtime Argument into, or as
-// a template literal built around the default message's text, and the
-// fragments a `Frame` places around the checks to return the Issues collected
-// so far.
+// a template literal built around the default message's text, the Issue path
+// of an Issue at the root, and the condition a `Frame` gates a composite's
+// post-modifiers behind.
 import { Issue, type IssueCode, type IssueEditableProps } from '@pvl/schema';
 import { js } from './emitters/emitterUtils.js';
 import type { EmittedIssue } from './emitters/emittersTypes.js';
@@ -132,8 +132,8 @@ export const emitRootIssuePath = (pathVariableName: string): string => {
 
 /**
  * The condition under which no Issue was added since `issueCount`, the
- * local holding the count of Issues taken before a nested composite's
- * children: every child passed.
+ * local holding the count of Issues taken before a composite's children:
+ * every child passed.
  *
  * ```ts
  * emitNoNewIssuesCondition('issueCount1') // 'issues.length === issueCount1'
@@ -141,30 +141,4 @@ export const emitRootIssuePath = (pathVariableName: string): string => {
  */
 export const emitNoNewIssuesCondition = (issueCountVariableName: string): string => {
   return js`issues.length === ${issueCountVariableName}`;
-};
-
-/**
- * The statement returning the Issues collected so far: at the root, after a
- * base check whose `else` returns the value, so it runs only once that check
- * has failed.
- *
- * ```ts
- * emitReturnIssues() // 'return { issues };'
- * ```
- */
-export const emitReturnIssues = (): string => {
-  return 'return { issues };';
-};
-
-/**
- * The statement returning the Issues collected so far, if there are any.
- *
- * ```ts
- * emitReturnIssuesIfAny() // 'if (issues.length > 0) {\n  return { issues };\n}'
- * ```
- */
-export const emitReturnIssuesIfAny = (): string => {
-  return js`if (issues.length > 0) {
-    return { issues };
-  }`;
 };

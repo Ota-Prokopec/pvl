@@ -33,7 +33,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * ```ts
-   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', issuePath }, scope })
+   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', path, issuePath }, scope })
    * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
    * ```
    */

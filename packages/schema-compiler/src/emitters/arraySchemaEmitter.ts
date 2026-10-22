@@ -51,10 +51,10 @@ export type EmitLoopArgs = {
  *
  * ```ts
  * emitLoop({ elementSchema: <pvl.string()>, frame: <frame of value, at the root>, scope })
- * // for (let index = 0; index < value.length; index++) {
- * //   const element: unknown = value[index];
- * //   if (typeof element !== "string") { … path: [...path, index] … }
- * //   output.push(element);
+ * // for (let index1 = 0; index1 < value.length; index1++) {
+ * //   const element1: unknown = value[index1];
+ * //   if (typeof element1 !== "string") { … path: [...path1, index1] … }
+ * //   output1.push(element1);
  * // }
  * ```
  */
@@ -67,6 +67,7 @@ const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
     pathVariableName: path,
   } = frame;
   const array = frame.checkingTarget.value;
+  const elementPath = js`[...${path}, ${index}]`;
 
   return Frame.composeBlock({
     head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
@@ -74,7 +75,7 @@ const emitLoop = ({ elementSchema, frame, scope }: EmitLoopArgs): string => {
       js`${emitter._spellValueDeclaration()} ${element}: unknown = ${array}[${index}];`,
       emitter.emitSchemaChecks({
         schema: elementSchema,
-        target: { value: element, issuePath: js`[...${path}, ${index}]` },
+        target: Frame.createNestedCheckingTarget({ value: element, path: elementPath }),
         scope,
       }),
       js`${output}.push(${element});`,
@@ -161,20 +162,19 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * output on.
    *
    * ```ts
-   * ArraySchemaEmitter._addCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, frame: <frame of field0 at [...path, "tags"], nested>, scope, isRoot: false, postModifierChecks: [<.min(1)>] })
-   * // adds the declarations ['const path1 = [...path, "tags"];', 'const issueCount1 = issues.length;', 'const output1: unknown[] = [];']
-   * // and the child's checks ['for (let index1 = 0; index1 < field0.length; index1++) {\n  const element1: unknown = field0[index1];\n  …\n  output1.push(element1);\n}']
+   * ArraySchemaEmitter._addCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, frame: <frame of field0 at [...path1, "tags"]>, scope, postModifierChecks: [<.min(1)>] })
+   * // adds the declarations ['const path2 = [...path1, "tags"];', 'const issueCount2 = issues.length;', 'const output2: unknown[] = [];']
+   * // and the child's checks ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}']
    * ```
    */
   public static override _addCompositeParts({
     schema,
     frame,
     scope,
-    isRoot,
     postModifierChecks,
   }: AddCompositePartsArgs<ArraySchema>): void {
     frame.addDeclarations(
-      ...this.emitDeclarations({ frame, isRoot, readsPath: true, postModifierChecks }),
+      ...this.emitDeclarations({ frame, readsPath: true, postModifierChecks }),
       js`const ${frame.outputVariableName}: unknown[] = [];` as EmittedVariableDeclaration,
     );
     frame.addChildChecks(emitLoop({ elementSchema: schema.element, frame, scope }));
@@ -182,8 +182,8 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * `true`: an array holds its element's Schema, and its checks build its
-   * output, element by element, in locals of their own (`output`, `index`,
-   * `element`; `output1`, … nested).
+   * output, element by element, in locals of their own (`output1`,
+   * `index1`, `element1`).
    *
    * ```ts
    * ArraySchemaEmitter._isComposite() // true
