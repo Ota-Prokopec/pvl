@@ -1,6 +1,24 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { IssueCode } from './enums.js';
 
+/**
+ * The message an {@link Issue} reported with `message` carries: `message`
+ * itself, or `'Invalid type'` when it is missing or empty.
+ * `@pvl/schema-compiler` calls it to write a message into a Compiled Schema
+ * as the interpreted path reports it.
+ *
+ * ```ts
+ * replaceEmptyIssueMessage('too short') // 'too short'
+ * replaceEmptyIssueMessage('')          // 'Invalid type'
+ * replaceEmptyIssueMessage(undefined)   // 'Invalid type'
+ * ```
+ *
+ * @internal
+ */
+export const replaceEmptyIssueMessage = (message: string | undefined): string => {
+  return message ? message : 'Invalid type';
+};
+
 // Extra fields stay structurally compatible with `StandardSchemaV1.Issue`, so
 // this is the single representation returned by both `.validate()` and
 // `"~standard".validate`.
@@ -47,7 +65,7 @@ export class Issue implements StandardSchemaV1.Issue {
    * result.issues?.[0]?.message; // 'too short'
    * ```
    */
-  public message: string = 'Invalid type';
+  public message: string;
   /**
    * Where in the validated value the failure is: object keys and array
    * indices from the root. `undefined` for a failure at the root itself.
@@ -65,7 +83,7 @@ export class Issue implements StandardSchemaV1.Issue {
   /** @internal */
   constructor(code: IssueCode, path: ReadonlyArray<PropertyKey>, message?: string) {
     this.code = code;
-    this.message = message ? message : this.message;
+    this.message = replaceEmptyIssueMessage(message);
     this.path = path.length > 0 ? path : undefined;
   }
 

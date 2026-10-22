@@ -1,11 +1,6 @@
 // The code a `StringSchema` compiles to, one method per method of
 // `StringInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import {
-  ISSUE_CODE,
-  Issue,
-  STRING_SCHEMA_ISSUE_MESSAGE,
-  type StringInterpretedSchema,
-} from '@pvl/schema';
+import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
@@ -28,7 +23,7 @@ const min: EmitterMethodOf<StringInterpretedSchema['min']> = ({
     failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_SMALL,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, minLength),
     }),
@@ -43,7 +38,7 @@ const max: EmitterMethodOf<StringInterpretedSchema['max']> = ({
     failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_BIG,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.max, maxLength),
     }),
@@ -58,7 +53,7 @@ const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
     failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.INVALID_LENGTH,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.length, exactLength),
     }),
@@ -93,9 +88,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "string"`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], STRING_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
+        path: issuePath,
+      }),
     });
   }
 }

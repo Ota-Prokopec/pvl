@@ -1,6 +1,6 @@
 // The code an `EnumSchema` compiles to: its membership check, as it has no
 // Constraint.
-import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, Issue } from '@pvl/schema';
+import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
@@ -20,13 +20,11 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
   }: EmitBaseCheckArgs<EnumSchema>): EmittedCheck {
     return emitCheck({
       failsWhen: members.map((member) => js`${value} !== ${emitLiteral(member)}`).join(' && '),
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.INVALID_VALUE,
-          [issuePath],
-          ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
-        ),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_VALUE,
+        message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
+        path: issuePath,
+      }),
     });
   }
 

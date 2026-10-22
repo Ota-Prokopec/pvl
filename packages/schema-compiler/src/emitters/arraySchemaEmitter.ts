@@ -2,12 +2,7 @@
 // `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks` table, and the checks of a compiled array, at the root
 // or nested in another Schema: one loop with the element's checks inlined
 // into it, a nested object's or array's included.
-import {
-  ARRAY_SCHEMA_ISSUE_MESSAGE,
-  ISSUE_CODE,
-  Issue,
-  type ArrayInterpretedSchema,
-} from '@pvl/schema';
+import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
@@ -93,7 +88,7 @@ const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
     failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_SMALL,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
     }),
@@ -108,7 +103,7 @@ const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
     failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_BIG,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
     }),
@@ -123,7 +118,7 @@ const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
     failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.INVALID_LENGTH,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
     }),
@@ -153,9 +148,11 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`!Array.isArray(${value})`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], ARRAY_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(),
+        path: issuePath,
+      }),
     });
   }
 

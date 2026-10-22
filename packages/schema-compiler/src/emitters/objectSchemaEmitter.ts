@@ -7,7 +7,6 @@
 // one that wins itself.
 import {
   ISSUE_CODE,
-  Issue,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
   type IssueEditableProps,
   type ObjectInterpretedSchema,
@@ -104,7 +103,7 @@ const emitUnrecognizedKeyIssue = (
 ): EmittedIssue => {
   return emitConstraintIssue({
     code: ISSUE_CODE.UNRECOGNIZED_KEY,
-    issuePath: js`[...${path}, key]`,
+    path: js`[...${path}, key]`,
     options,
     defaultMessage: emitMessageAroundValue(OBJECT_SCHEMA_ISSUE_MESSAGE.strict, 'key'),
   });
@@ -336,9 +335,11 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "object" || ${value} === null || Array.isArray(${value})`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], OBJECT_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
+        path: issuePath,
+      }),
     });
   }
 

@@ -1,11 +1,6 @@
 // The code a `NumberSchema` compiles to, one method per method of
 // `NumberInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import {
-  ISSUE_CODE,
-  Issue,
-  NUMBER_SCHEMA_ISSUE_MESSAGE,
-  type NumberInterpretedSchema,
-} from '@pvl/schema';
+import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
@@ -28,7 +23,7 @@ const min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
     failsWhen: js`${value} < ${emitArgument(minValue)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_SMALL,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
     }),
@@ -43,7 +38,7 @@ const max: EmitterMethodOf<NumberInterpretedSchema['max']> = ({
     failsWhen: js`${value} > ${emitArgument(maxValue)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_BIG,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
     }),
@@ -58,7 +53,7 @@ const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
     failsWhen: js`!Number.isInteger(${value})`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.NOT_INTEGER,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int),
     }),
@@ -87,9 +82,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], NUMBER_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: NUMBER_SCHEMA_ISSUE_MESSAGE._checkType(),
+        path: issuePath,
+      }),
     });
   }
 }
