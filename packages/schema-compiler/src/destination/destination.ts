@@ -2,7 +2,7 @@
 // beside it go. Pure: touches no file.
 import * as path from 'node:path';
 import type { PvlConfig } from '../config/config.js';
-import { Path } from '../path.js';
+import { createAbsolutePathWithRelative, type AbsolutePathWithRelative } from '../path.js';
 import {
   BACKUP_DESTINATION_SUFFIX,
   DEFAULT_DESTINATION_DIRECTORY,
@@ -11,7 +11,7 @@ import {
 
 /**
  * Where the Destination Directory of one compilation run goes. Its
- * `relative.path` is relative to the base directory, the form `include`
+ * `relativePath.pathFromBase` is relative to the base directory, the form `include`
  * patterns match against. It also says where the temporary and old
  * directories a run keeps beside it go, so the scanner can skip them and
  * `DestinationWriter` can swap them in.
@@ -22,15 +22,21 @@ import {
  * destination.getOldDestination().absolutePath;       // '/repo/.pvl.pvl-old'
  * ```
  */
-export class Destination extends Path {
+export class Destination implements AbsolutePathWithRelative {
+  /** Its absolute path. */
+  public readonly absolutePath: string;
   /** Its path relative to the base directory. */
-  declare public readonly relative: NonNullable<Path['relative']>;
+  public readonly relativePath: AbsolutePathWithRelative['relativePath'];
   /** Whether `destination` was unset, so the default `.pvl` directory is used. */
   public readonly isDefault: boolean;
 
-  /** A `Destination` of `path`; `Destination.resolveDestination` makes one. */
-  private constructor({ absolutePath, relative }: Required<Path>, isDefault: boolean) {
-    super(absolutePath, relative);
+  /** A `Destination` at `absolutePath`; `Destination.resolveDestination` makes one. */
+  private constructor(
+    { absolutePath, relativePath }: AbsolutePathWithRelative,
+    isDefault: boolean,
+  ) {
+    this.absolutePath = absolutePath;
+    this.relativePath = relativePath;
     this.isDefault = isDefault;
   }
 
@@ -40,9 +46,9 @@ export class Destination extends Path {
    *
    * ```ts
    * Destination.resolveDestination('/repo', { destination: undefined, … })
-   * // { absolutePath: '/repo/.pvl', relative: { absoluteBase: '/repo', path: '.pvl' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl' }, isDefault: true }
    * Destination.resolveDestination('/repo', { destination: './out/../generated', … })
-   * // { absolutePath: '/repo/generated', relative: { absoluteBase: '/repo', path: 'generated' }, isDefault: false }
+   * // { absolutePath: '/repo/generated', relativePath: { absoluteBase: '/repo', pathFromBase: 'generated' }, isDefault: false }
    * ```
    */
   public static resolveDestination(
@@ -50,7 +56,7 @@ export class Destination extends Path {
     config: Pick<PvlConfig, 'destination'>,
   ): Destination {
     return new Destination(
-      Path.create(
+      createAbsolutePathWithRelative(
         path.resolve(baseDirectory, config.destination ?? DEFAULT_DESTINATION_DIRECTORY),
         baseDirectory,
       ),
@@ -65,7 +71,7 @@ export class Destination extends Path {
    * ```ts
    * // destination.absolutePath '/repo/.pvl'
    * destination.getTemporaryDestination()
-   * // { absolutePath: '/repo/.pvl.pvl-tmp', relative: { absoluteBase: '/repo', path: '.pvl.pvl-tmp' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl.pvl-tmp', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl.pvl-tmp' }, isDefault: true }
    * ```
    */
   public getTemporaryDestination(): Destination {
@@ -79,18 +85,28 @@ export class Destination extends Path {
    * ```ts
    * // destination.absolutePath '/repo/.pvl'
    * destination.getOldDestination()
-   * // { absolutePath: '/repo/.pvl.pvl-old', relative: { absoluteBase: '/repo', path: '.pvl.pvl-old' }, isDefault: true }
+   * // { absolutePath: '/repo/.pvl.pvl-old', relativePath: { absoluteBase: '/repo', pathFromBase: '.pvl.pvl-old' }, isDefault: true }
    * ```
    */
   public getOldDestination(): Destination {
     return this.toSiblingDestination(BACKUP_DESTINATION_SUFFIX);
   }
 
-  // This Destination with `suffix` appended to its name, in the same parent
-  // and against the same base directory.
+  /**
+   * This Destination with `suffix` appended to its name, in the same parent
+   * and against the same base directory.
+   *
+   * ```ts
+   * // destination.absolutePath '/repo/.pvl'
+   * destination.toSiblingDestination('.pvl-tmp').absolutePath // '/repo/.pvl.pvl-tmp'
+   * ```
+   */
   private toSiblingDestination(suffix: string): Destination {
     return new Destination(
-      Path.create(`${this.absolutePath}${suffix}`, this.relative.absoluteBase),
+      createAbsolutePathWithRelative(
+        `${this.absolutePath}${suffix}`,
+        this.relativePath.absoluteBase,
+      ),
       this.isDefault,
     );
   }

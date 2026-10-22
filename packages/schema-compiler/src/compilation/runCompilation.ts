@@ -2,7 +2,7 @@
 // written Destination Directory. It prepares the run and collects every
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
-import path from 'node:path';
+import * as path from 'node:path';
 import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
 import { ConfigResolver } from '../config/configResolver.js';
 import { Barrel } from '../barrel.js';
@@ -12,7 +12,6 @@ import { compileAll } from './compileAll.js';
 import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../enums.js';
-import type { Module } from '../module.js';
 import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject.js';
 import { Precheck } from '../precheck.js';
@@ -40,53 +39,6 @@ export type RunCompilationPayload = {
   written: boolean;
 };
 
-type CreateRunCompilationPayloadArgs = Pick<
-  RunCompilationPayload,
-  'settings' | 'destination' | 'written'
-> & {
-  diagnostics: ReadonlyArray<Diagnostic>;
-  strict: boolean;
-};
-
-/**
- * Builds the {@link RunCompilationPayload} a {@link runCompilation} run
- * reports, at any point of the run.
- *
- * Handles:
- * - `strict`: every warning is promoted to an error, so the caller's
- *   `Diagnostics.hasError` check then stops the run before anything is written. An
- *   error stays an error, so promoting twice changes nothing.
- * - Without `strict`: the diagnostics are copied unchanged, so later pushes to
- *   the caller's array don't leak into the payload.
- *
- * Reports: the `settings`, `destination` and `written` as given. `settings`
- * and `destination` are `undefined` when the settings couldn't be resolved.
- *
- * Ignores: whether an error is present. Deciding to write or bail is
- * {@link runCompilation}'s job, so it never sets `written` itself.
- *
- * ```ts
- * createRunCompilationPayload({ diagnostics: [<warning>], settings, destination, written: false, strict: true })
- * // { diagnostics: [<the warning as an error>], settings, destination, written: false }
- * createRunCompilationPayload({ diagnostics: [], settings, destination, written: true, strict: false })
- * // { diagnostics: [], settings, destination, written: true }
- * ```
- */
-const createRunCompilationPayload = ({
-  diagnostics,
-  settings,
-  destination,
-  written,
-  strict,
-}: CreateRunCompilationPayloadArgs): RunCompilationPayload => {
-  return {
-    diagnostics: strict ? Diagnostics.promote(diagnostics) : [...diagnostics],
-    settings,
-    destination,
-    written,
-  };
-};
-
 /**
  * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
  * matches the Destination Directory or anything inside it, so the compiler
@@ -103,7 +55,7 @@ const createDestinationInsideIncludeDiagnostic = (
 ): Diagnostic => {
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-    message: `The destination ${destination.relative.path} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+    message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
     file: destination.absolutePath,
   });
 };
@@ -141,8 +93,9 @@ export type RunCompilationArgs = {
  * 4. unless an error fired, compiles every scanned module with `compileAll`
  *    and writes the Destination Directory.
  *
- * Nothing is written when any error fired. Problems come back as
- * diagnostics; it doesn't throw for them.
+ * Nothing is written when any error fired, or under `strict` any warning,
+ * which then comes back as an error. Problems come back as diagnostics; it
+ * doesn't throw for them.
  *
  * @example
  * ```ts
@@ -155,7 +108,30 @@ export type RunCompilationArgs = {
  * const failed = Diagnostics.hasError(diagnostics);
  * ```
  */
-export const runCompilation = async ({
+export const runCompilation = async (args: RunCompilationArgs): Promise<RunCompilationPayload> => {
+  const payload = await runCompilationWithoutPromoting(args);
+  // Promoted here, once, so every warning comes back as an error whichever
+  // step the run returned from.
+  return args.strict === true
+    ? { ...payload, diagnostics: Diagnostics.promote(payload.diagnostics) }
+    : payload;
+};
+
+/**
+ * The {@link runCompilation} run, with every diagnostic left at its own
+ * severity. `strict` only decides here that a warning stops the Destination
+ * Directory from being written too; `runCompilation` promotes the warnings
+ * once this returns.
+ *
+ * ```ts
+ * // src/schemas/setup.ts exports nothing
+ * runCompilationWithoutPromoting({ cwd, strict: false })
+ * // { diagnostics: [FILE_EXPORTS_NOTHING, a warning], written: true, … }
+ * runCompilationWithoutPromoting({ cwd, strict: true })
+ * // { diagnostics: [FILE_EXPORTS_NOTHING, a warning], written: false, … }
+ * ```
+ */
+const runCompilationWithoutPromoting = async ({
   cwd,
   configPath,
   overrides = {},
@@ -168,13 +144,12 @@ export const runCompilation = async ({
   });
 
   if (resolvedSettingsPayload.settings === undefined) {
-    return createRunCompilationPayload({
+    return {
       diagnostics: resolvedSettingsPayload.diagnostics,
       settings: undefined,
       destination: undefined,
       written: false,
-      strict,
-    });
+    };
   }
 
   const { settings, baseDirectory } = resolvedSettingsPayload;
@@ -186,15 +161,36 @@ export const runCompilation = async ({
     Scanner.scan({ baseDirectory, include: settings.include, destination }),
   ]);
 
-  const { tsMorphProject, diagnostics: tsMorphProjectDiagnostics } =
-    TsMorphProject.create(baseDirectory);
+  // What the destination and `include` raise before any file is read.
+  const scanScopeDiagnostics: Diagnostic[] = [
+    ...findPatternsMatchingPath(settings.include, destination.relativePath.pathFromBase).map(
+      (pattern) => createDestinationInsideIncludeDiagnostic(destination, pattern),
+    ),
+    ...destinationDiagnostics,
+    ...(scannedFilePaths.length === 0
+      ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
+      : []),
+  ];
 
+  const tsMorphProjectPayload = TsMorphProject.create(baseDirectory);
   // Without a project, no file can be read, so TSCONFIG_UNREADABLE is
   // reported alone, before any scanned module.
-  const modules: Module[] =
-    tsMorphProject === undefined
-      ? []
-      : Scanner.getModules({ tsMorphProject, scannedFilePaths, rootDirectory, destination });
+  if (tsMorphProjectPayload.tsMorphProject === undefined) {
+    return {
+      diagnostics: [...scanScopeDiagnostics, ...tsMorphProjectPayload.diagnostics],
+      settings,
+      destination: destination.absolutePath,
+      written: false,
+    };
+  }
+  const { tsMorphProject } = tsMorphProjectPayload;
+
+  const modules = Scanner.getModules({
+    tsMorphProject,
+    scannedFilePaths,
+    rootDirectory,
+    destination,
+  });
   // A scanned `<rootDir>/index.ts` is mirrored in place of the generated barrel.
   const generatesBarrel = !Barrel.hasScannedBarrel(modules);
   const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({
@@ -202,33 +198,14 @@ export const runCompilation = async ({
     generatesBarrel,
   });
 
-  const foundDiagnostics: Diagnostic[] = [
-    ...findPatternsMatchingPath(settings.include, destination.relative.path).map((pattern) =>
-      createDestinationInsideIncludeDiagnostic(destination, pattern),
-    ),
-    ...destinationDiagnostics,
-    ...(scannedFilePaths.length === 0
-      ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
-      : []),
-    ...tsMorphProjectDiagnostics,
-    ...moduleDiagnostics,
-  ];
+  const diagnostics = [...scanScopeDiagnostics, ...moduleDiagnostics];
 
-  // Built before the error check, so `strict` has promoted every warning by then.
-  const unwrittenPayload = createRunCompilationPayload({
-    diagnostics: foundDiagnostics,
-    settings,
-    destination: destination.absolutePath,
-    written: false,
-    strict,
-  });
-
-  // Any error means nothing is compiled or written; warnings alone let the run
-  // go ahead. A missing project always comes with TSCONFIG_UNREADABLE, and
+  // Any error means nothing is compiled or written, and so does any warning
+  // under `strict`; warnings alone let the run go ahead otherwise.
   // PARSE_FAILED is an error, so past this point every scanned module parsed
   // and has its compilation.
-  if (tsMorphProject === undefined || Diagnostics.hasError(unwrittenPayload.diagnostics)) {
-    return unwrittenPayload;
+  if (Diagnostics.hasError(diagnostics) || (strict && diagnostics.length > 0)) {
+    return { diagnostics, settings, destination: destination.absolutePath, written: false };
   }
 
   const mirroredFiles = compileAll({ tsMorphProject, compilations, generatesBarrel });
@@ -236,11 +213,10 @@ export const runCompilation = async ({
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });
 
-  return createRunCompilationPayload({
-    diagnostics: [...foundDiagnostics, ...writeDestinationDiagnostics],
+  return {
+    diagnostics: [...diagnostics, ...writeDestinationDiagnostics],
     settings,
     destination: destination.absolutePath,
     written: isWritten,
-    strict,
-  });
+  };
 };
