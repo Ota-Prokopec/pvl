@@ -91,6 +91,12 @@
       "skillPath": "skills/engineering/prototype/SKILL.md",
       "computedHash": "d3fc74689bd993e39c44bfae510d014eecffbeec2922764b065377fd1327c0f6"
     },
+    "prototype-code": {
+      "source": "Ota-Prokopec/skills",
+      "sourceType": "github",
+      "skillPath": "skills/prototype-code/SKILL.md",
+      "computedHash": "cbf6004f8da302b9af53fc83934370219d98afedb9a9b6d8a53fc5311d6a93ed"
+    },
     "research": {
       "source": "mattpocock/skills",
       "sourceType": "github",
