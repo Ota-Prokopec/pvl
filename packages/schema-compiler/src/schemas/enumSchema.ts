@@ -7,7 +7,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
+import { Schema, type SchemaOptions } from './schema.js';
 
 /** What an EnumSchema holds besides what every Schema does. */
 export type EnumSchemaOptions = SchemaOptions & {
@@ -18,18 +18,14 @@ export type EnumSchemaOptions = SchemaOptions & {
  * A `pvl.enum(members)` as read from source, holding its members.
  *
  * ```ts
- * EnumSchema.fromFactory(<pvl.enum(['A', 'B', 'A'])>, args) // <EnumSchema whose members are ['A', 'B']>
- * EnumSchema.fromFactory(<pvl.enum([])>, args)              // throws
+ * EnumSchema.readFactoryArgument(<pvl.enum(['A', 'B', 'A'])>)(options) // <EnumSchema whose members are ['A', 'B']>
+ * EnumSchema.readFactoryArgument(<pvl.enum([])>)                       // throws
  * ```
  */
 export class EnumSchema extends Schema {
   public static override readonly factory = SCHEMA_FACTORY.ENUM;
 
   public static override readonly emitter = EnumSchemaEmitter;
-
-  static {
-    Schema.registerClass(EnumSchema);
-  }
 
   /** Every member it accepts, each once, in the order first written. */
   public readonly members: ReadonlyArray<EnumMember>;
@@ -41,13 +37,14 @@ export class EnumSchema extends Schema {
   }
 
   /**
-   * The `pvl.enum(members)` `link` calls. Throws an UnresolvedNodeError
-   * when its argument is missing, or isn't a non-empty string array or
-   * object of strings and numbers.
+   * Reads the members of the `pvl.enum(members)` `link` calls, and returns
+   * how its EnumSchema is built from them and what every Schema holds.
+   * Throws an UnresolvedNodeError when its argument is missing, or isn't a
+   * non-empty string array or object of strings and numbers.
    */
-  public static fromFactory(link: CallChainLink, args: ReadFactoryArgs): EnumSchema {
+  public static readFactoryArgument(link: CallChainLink): (options: SchemaOptions) => EnumSchema {
     const members = EnumSchema.readMembers(Schema.readArgument(link), link.followed);
-    return new EnumSchema({ ...Schema.readOptions(link, args), members });
+    return (options: SchemaOptions): EnumSchema => new EnumSchema({ ...options, members });
   }
 
   /**

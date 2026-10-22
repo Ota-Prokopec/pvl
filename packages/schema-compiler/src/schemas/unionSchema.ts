@@ -15,7 +15,7 @@ export type UnionSchemaOptions = SchemaOptions & {
  * A `pvl.union(members)` as read from source, holding its members' Schemas.
  *
  * ```ts
- * UnionSchema.fromFactory(<pvl.union([pvl.string(), pvl.number()])>, args)
+ * UnionSchema.readFactoryArgument(<pvl.union([pvl.string(), pvl.number()])>, args)(options)
  * // <UnionSchema whose members are [<StringSchema>, <NumberSchema>]>
  * ```
  */
@@ -24,10 +24,6 @@ export class UnionSchema extends Schema {
 
   /** `undefined`: a union can't be compiled yet, which reports UNSUPPORTED_SCHEMA. */
   public static override readonly emitter = undefined;
-
-  static {
-    Schema.registerClass(UnionSchema);
-  }
 
   /** The Schemas a value may match, in the order written. */
   public readonly members: ReadonlyArray<Schema>;
@@ -39,17 +35,18 @@ export class UnionSchema extends Schema {
   }
 
   /**
-   * The `pvl.union(members)` `link` calls, each member read through
-   * `args.readNested`. Throws an UnresolvedNodeError when its members
-   * are missing or aren't an array literal, or a member can't be read.
+   * Reads the members of the `pvl.union(members)` `link` calls, each
+   * through `readNested`, and returns how its UnionSchema is built from
+   * them and what every Schema holds. Throws an UnresolvedNodeError when
+   * its members are missing or aren't an array literal, or a member can't
+   * be read.
    */
-  public static fromFactory(link: CallChainLink, args: ReadFactoryArgs): UnionSchema {
-    const members = GenericAst.readArray(
-      Schema.readArgument(link),
-      (member, memberFollowed) => args.readNested(member, memberFollowed),
-      link.followed,
-    );
-    return new UnionSchema({ ...Schema.readOptions(link, args), members });
+  public static readFactoryArgument(
+    link: CallChainLink,
+    { readNested }: ReadFactoryArgs,
+  ): (options: SchemaOptions) => UnionSchema {
+    const members = GenericAst.readArray(Schema.readArgument(link), readNested, link.followed);
+    return (options: SchemaOptions): UnionSchema => new UnionSchema({ ...options, members });
   }
 
   /**

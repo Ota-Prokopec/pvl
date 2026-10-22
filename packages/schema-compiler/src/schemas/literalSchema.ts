@@ -7,7 +7,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
+import { Schema, type SchemaOptions } from './schema.js';
 
 /** What a LiteralSchema holds besides what every Schema does. */
 export type LiteralSchemaOptions = SchemaOptions & {
@@ -18,18 +18,14 @@ export type LiteralSchemaOptions = SchemaOptions & {
  * A `pvl.literal(value)` as read from source, holding its value.
  *
  * ```ts
- * LiteralSchema.fromFactory(<pvl.literal('a')>, args)      // <LiteralSchema whose value is 'a'>
- * LiteralSchema.fromFactory(<pvl.literal({ a: 1 })>, args) // throws
+ * LiteralSchema.readFactoryArgument(<pvl.literal('a')>)(options) // <LiteralSchema whose value is 'a'>
+ * LiteralSchema.readFactoryArgument(<pvl.literal({ a: 1 })>)     // throws
  * ```
  */
 export class LiteralSchema extends Schema {
   public static override readonly factory = SCHEMA_FACTORY.LITERAL;
 
   public static override readonly emitter = LiteralSchemaEmitter;
-
-  static {
-    Schema.registerClass(LiteralSchema);
-  }
 
   /** The value it accepts. */
   public readonly value: PossibleLiteralValue;
@@ -41,13 +37,16 @@ export class LiteralSchema extends Schema {
   }
 
   /**
-   * The `pvl.literal(value)` `link` calls. Throws an UnresolvedNodeError
-   * when its argument is missing, isn't a literal, or is an object or an
-   * array.
+   * Reads the value of the `pvl.literal(value)` `link` calls, and returns
+   * how its LiteralSchema is built from it and what every Schema holds.
+   * Throws an UnresolvedNodeError when its argument is missing, isn't a
+   * literal, or is an object or an array.
    */
-  public static fromFactory(link: CallChainLink, args: ReadFactoryArgs): LiteralSchema {
+  public static readFactoryArgument(
+    link: CallChainLink,
+  ): (options: SchemaOptions) => LiteralSchema {
     const value = LiteralSchema.readValue(Schema.readArgument(link), link.followed);
-    return new LiteralSchema({ ...Schema.readOptions(link, args), value });
+    return (options: SchemaOptions): LiteralSchema => new LiteralSchema({ ...options, value });
   }
 
   /**

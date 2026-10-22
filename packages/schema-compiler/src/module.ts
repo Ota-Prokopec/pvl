@@ -18,9 +18,8 @@ import type { Destination } from './destination/destination.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
 import { Precheck, type ModuleCompilation } from './precheck.js';
-import { Schema } from './schemas/schema.js';
-// Registers every Schema subclass, which `Schema.read` picks one from.
-import './schemas/index.js';
+import { readSchema } from './schemas/readSchema.js';
+import type { Schema } from './schemas/schema.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';
@@ -286,7 +285,7 @@ export class Module {
       }
 
       // The whole call, which the Schema is read through and which compiling replaces.
-      const schemaPayload = Schema.read({ module: this, expression: call, pvlImportLocalNames });
+      const schemaPayload = readSchema({ module: this, expression: call, pvlImportLocalNames });
 
       if ('diagnostic' in schemaPayload) {
         diagnostics.push(schemaPayload.diagnostic);
