@@ -23,7 +23,7 @@ const min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
     failsWhen: js`${value} < ${emitArgument(minValue)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_SMALL,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
     }),
@@ -38,7 +38,7 @@ const max: EmitterMethodOf<NumberInterpretedSchema['max']> = ({
     failsWhen: js`${value} > ${emitArgument(maxValue)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_BIG,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
     }),
@@ -53,7 +53,7 @@ const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
     failsWhen: js`!Number.isInteger(${value})`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.NOT_INTEGER,
-      issuePath,
+      path: issuePath,
       options,
       defaultMessage: emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int),
     }),
@@ -85,7 +85,7 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
       issue: emitIssue({
         code: ISSUE_CODE.INVALID_TYPE,
         message: NUMBER_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        path: issuePath,
       }),
     });
   }

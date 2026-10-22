@@ -24,7 +24,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
       issue: emitIssue({
         code: ISSUE_CODE.INVALID_VALUE,
         message: LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
-        issuePath,
+        path: issuePath,
       }),
     });
   }

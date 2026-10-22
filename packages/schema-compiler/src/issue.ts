@@ -4,7 +4,12 @@
 // a template literal built around the default message's text, the Issue path
 // of an Issue at the root, and the condition a `Frame` gates a composite's
 // post-modifiers behind.
-import { replaceEmptyIssueMessage, type IssueCode, type IssueEditableProps } from '@pvl/schema';
+import {
+  replaceEmptyIssueMessage,
+  type IssueCode,
+  type IssueEditableProps,
+  type IssueProps,
+} from '@pvl/schema';
 import { js } from './emitters/emitterUtils.js';
 import type { EmittedIssue } from './emitters/emittersTypes.js';
 import { RuntimeArgument } from './schemas/runtimeArgument.js';
@@ -20,7 +25,7 @@ const MESSAGE_VALUE_PLACEHOLDER = '\u0000' as const;
 export type EmitIssueLiteralArgs = {
   code: IssueCode;
   message: string;
-  issuePath: string;
+  path: string;
 };
 
 /**
@@ -28,21 +33,21 @@ export type EmitIssueLiteralArgs = {
  * an `EmittedIssue` is written.
  *
  * ```ts
- * emitIssueLiteral({ code: 'TOO_SMALL', message: 'this.arg0Message', issuePath: '[...path1, "name"]' })
+ * emitIssueLiteral({ code: 'TOO_SMALL', message: 'this.arg0Message', path: '[...path1, "name"]' })
  * // '{ code: "TOO_SMALL", message: this.arg0Message, path: [...path1, "name"] }'
  * ```
  */
-const emitIssueLiteral = ({ code, message, issuePath }: EmitIssueLiteralArgs): EmittedIssue => {
-  return js`{ code: ${JSON.stringify(code)}, message: ${message}, path: ${issuePath} }` as EmittedIssue;
+const emitIssueLiteral = ({ code, message, path }: EmitIssueLiteralArgs): EmittedIssue => {
+  return js`{ code: ${JSON.stringify(code)}, message: ${message}, path: ${path} }` as EmittedIssue;
 };
 
-/** What {@link emitIssue} writes an Issue literal from. */
-export type EmitIssueArgs = {
-  code: IssueCode;
-  /** The Issue's message, as text. */
-  message: string;
+/**
+ * What {@link emitIssue} writes an Issue literal from: the props of
+ * `@pvl/schema`'s own Issue, its `path` as an expression.
+ */
+export type EmitIssueArgs = Omit<IssueProps, 'path'> & {
   /** The Issue's path, as an expression. */
-  issuePath: string;
+  path: string;
 };
 
 /**
@@ -52,17 +57,17 @@ export type EmitIssueArgs = {
  * as the interpreted path's does.
  *
  * ```ts
- * emitIssue({ code: 'TOO_SMALL', message: 'too short', issuePath: '[...path1, "name"]' })
+ * emitIssue({ code: 'TOO_SMALL', message: 'too short', path: '[...path1, "name"]' })
  * // '{ code: "TOO_SMALL", message: "too short", path: [...path1, "name"] }'
- * emitIssue({ code: 'TOO_SMALL', message: '', issuePath: '[...path1, "name"]' })
+ * emitIssue({ code: 'TOO_SMALL', message: '', path: '[...path1, "name"]' })
  * // '{ code: "TOO_SMALL", message: "Invalid type", path: [...path1, "name"] }'
  * ```
  */
-export const emitIssue = ({ code, message, issuePath }: EmitIssueArgs): EmittedIssue => {
+export const emitIssue = ({ code, message, path }: EmitIssueArgs): EmittedIssue => {
   return emitIssueLiteral({
     code,
     message: JSON.stringify(replaceEmptyIssueMessage(message)),
-    issuePath,
+    path,
   });
 };
 
@@ -70,7 +75,7 @@ export const emitIssue = ({ code, message, issuePath }: EmitIssueArgs): EmittedI
 export type EmitConstraintIssueArgs = {
   code: IssueCode;
   /** The Issue's path, as an expression. */
-  issuePath: string;
+  path: string;
   /** The Issue options of the method that reports it: as written, a Runtime Argument, or none. */
   options: IssueEditableProps | RuntimeArgument | undefined;
   /** Its default message, as an expression (`emitDefaultMessage`). */
@@ -86,22 +91,22 @@ export type EmitConstraintIssueArgs = {
  * evaluates.
  *
  * ```ts
- * emitConstraintIssue({ code: 'TOO_SMALL', issuePath: '[...path, "name"]', options: { message: 'short' }, defaultMessage })
+ * emitConstraintIssue({ code: 'TOO_SMALL', path: '[...path, "name"]', options: { message: 'short' }, defaultMessage })
  * // '{ code: "TOO_SMALL", message: "short", path: [...path, "name"] }'
- * emitConstraintIssue({ code: 'TOO_SMALL', issuePath, options: undefined, defaultMessage: 'this.arg0Message' })
+ * emitConstraintIssue({ code: 'TOO_SMALL', path, options: undefined, defaultMessage: 'this.arg0Message' })
  * // '{ code: "TOO_SMALL", message: this.arg0Message, path: … }'
- * emitConstraintIssue({ code: 'TOO_SMALL', issuePath, options: <the 2nd Runtime Argument>, defaultMessage: '"String must contain at least 3 character(s)"' })
+ * emitConstraintIssue({ code: 'TOO_SMALL', path, options: <the 2nd Runtime Argument>, defaultMessage: '"String must contain at least 3 character(s)"' })
  * // '{ code: "TOO_SMALL", message: (this.arg1?.message ?? "String must contain at least 3 character(s)") || "Invalid type", path: … }'
  * ```
  */
 export const emitConstraintIssue = ({
   code,
-  issuePath,
+  path,
   options,
   defaultMessage,
 }: EmitConstraintIssueArgs): EmittedIssue => {
   if (!(options instanceof RuntimeArgument) && options?.message !== undefined) {
-    return emitIssue({ code, message: options.message, issuePath });
+    return emitIssue({ code, message: options.message, path });
   }
   // A message a Runtime Argument decides is only known when the check runs,
   // and the emitted code imports nothing, so `||` mirrors
@@ -112,7 +117,7 @@ export const emitConstraintIssue = ({
     options instanceof RuntimeArgument
       ? `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(replaceEmptyIssueMessage(''))}`
       : defaultMessage;
-  return emitIssueLiteral({ code, message, issuePath });
+  return emitIssueLiteral({ code, message, path });
 };
 
 /**

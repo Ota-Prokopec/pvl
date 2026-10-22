@@ -103,7 +103,7 @@ const emitUnrecognizedKeyIssue = (
 ): EmittedIssue => {
   return emitConstraintIssue({
     code: ISSUE_CODE.UNRECOGNIZED_KEY,
-    issuePath: js`[...${path}, key]`,
+    path: js`[...${path}, key]`,
     options,
     defaultMessage: emitMessageAroundValue(OBJECT_SCHEMA_ISSUE_MESSAGE.strict, 'key'),
   });
@@ -338,7 +338,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       issue: emitIssue({
         code: ISSUE_CODE.INVALID_TYPE,
         message: OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        path: issuePath,
       }),
     });
   }

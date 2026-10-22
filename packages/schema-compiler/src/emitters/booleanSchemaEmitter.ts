@@ -15,7 +15,7 @@ export class BooleanSchemaEmitter extends ChainableSchemaEmitter {
       issue: emitIssue({
         code: ISSUE_CODE.INVALID_TYPE,
         message: BOOLEAN_SCHEMA_ISSUE_MESSAGE._checkType(),
-        issuePath,
+        path: issuePath,
       }),
     });
   }

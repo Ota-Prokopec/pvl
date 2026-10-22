@@ -23,7 +23,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
       issue: emitIssue({
         code: ISSUE_CODE.INVALID_VALUE,
         message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
-        issuePath,
+        path: issuePath,
       }),
     });
   }
