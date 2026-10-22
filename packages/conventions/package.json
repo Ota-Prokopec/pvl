@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./eslint": "./src/eslint/index.ts"
+    "./eslint": "./src/eslint/index.ts",
+    "./naming": "./src/hooks/naming.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",

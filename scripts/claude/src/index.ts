@@ -3,9 +3,11 @@
  * picked from a `@clack/prompts` menu. The worktree this runs from is listed
  * first, so it is preselected, and Claude Code starts in this terminal. Every
  * other worktree opens in a new VS Code window, and so does the new worktree
- * the green last entry creates under `.claude/worktrees/`, once `pnpm install`
- * has run in it. A generated
- * workspace file runs `claude` in that window's terminal as soon as it opens.
+ * the green last entry creates, once `pnpm install` has run in it. The new
+ * worktree is named after the `<type>/<slug>` branch the script asks for:
+ * branch `refactor/enum-factory` goes to `.claude/worktrees/refactor+enum-factory/`.
+ * A generated workspace file runs `claude` in that window's terminal as soon
+ * as it opens.
  * Arguments given to the script are forwarded to `claude`, so
  * `pnpm claude --continue` works.
  */
@@ -14,6 +16,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { styleText } from 'node:util';
 import { cancel, intro, isCancel, log, outro, select, text } from '@clack/prompts';
+import { BRANCH_NAME } from '@repo/conventions/naming';
 import {
   getCurrentWorktreePath,
   getMainCheckoutPath,
@@ -139,23 +142,31 @@ if (choice === currentPath) {
 
 if (choice !== CREATE_WORKTREE) openInVSCode(choice);
 
-const name = await text({
-  message: 'Name of the new worktree',
-  placeholder: 'e.g. enum-factory',
+/** The worktree's directory name: the branch's one `/` becomes `+`, so `refactor/x` → `refactor+x`. */
+const nameWorktree = (branch: string): string => {
+  return branch.replace('/', '+');
+};
+
+const branchInput = await text({
+  message: 'Branch of the new worktree',
+  placeholder: 'e.g. refactor/enum-factory',
   validate: (value = '') => {
     const trimmed = value.trim();
-    if (!/^[\w.-]+$/.test(trimmed)) return 'Use letters, digits, ".", "_" and "-" only.';
-    if (existsSync(join(worktreesDirectory, trimmed))) return `${trimmed} already exists.`;
+    if (!BRANCH_NAME.test(trimmed)) return 'Use <type>/<slug>, e.g. feat/enum-factory.';
+    if (git(['branch', '--list', trimmed]) !== '') return `The branch ${trimmed} already exists.`;
+    const name = nameWorktree(trimmed);
+    if (existsSync(join(worktreesDirectory, name))) return `${name} already exists.`;
     return undefined;
   },
 });
 
-if (isCancel(name)) {
+if (isCancel(branchInput)) {
   cancel('Claude Code was not started.');
   process.exit(0);
 }
 
-const worktreeName = name.trim();
+const branch = branchInput.trim();
+const worktreeName = nameWorktree(branch);
 const worktreePath = join(worktreesDirectory, worktreeName);
 const base = `origin/${MAIN_BRANCH}`;
 
@@ -168,8 +179,8 @@ try {
   );
 }
 try {
-  // The `worktree-<name>` branch and the placement match `claude --worktree`.
-  git(['worktree', 'add', '--no-track', '-b', `worktree-${worktreeName}`, worktreePath, base]);
+  // The placement matches `claude --worktree`; the branch is ready to commit on, unlike its `worktree-<name>`.
+  git(['worktree', 'add', '--no-track', '-b', branch, worktreePath, base]);
 } catch (error) {
   log.error(`Could not create the worktree:\n${describeError(error)}`);
   process.exit(1);
