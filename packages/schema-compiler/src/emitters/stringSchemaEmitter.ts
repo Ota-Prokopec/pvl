@@ -1,11 +1,6 @@
 // The code a `StringSchema` compiles to, one method per method of
 // `StringInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import {
-  ISSUE_CODE,
-  Issue,
-  STRING_SCHEMA_ISSUE_MESSAGE,
-  type StringInterpretedSchema,
-} from '@pvl/schema';
+import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
@@ -93,9 +88,11 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "string"`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], STRING_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
+        issuePath,
+      }),
     });
   }
 }

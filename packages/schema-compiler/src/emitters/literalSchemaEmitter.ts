@@ -1,6 +1,6 @@
 // The code a `LiteralSchema` compiles to: its value check, as it has no
 // Constraint.
-import { ISSUE_CODE, Issue, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
+import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
@@ -21,13 +21,11 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
   }: EmitBaseCheckArgs<LiteralSchema>): EmittedCheck {
     return emitCheck({
       failsWhen: js`!Object.is(${value}, ${emitLiteral(literalValue)})`,
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.INVALID_VALUE,
-          [issuePath],
-          LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
-        ),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_VALUE,
+        message: LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
+        issuePath,
+      }),
     });
   }
 

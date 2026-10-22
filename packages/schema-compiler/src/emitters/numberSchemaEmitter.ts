@@ -1,11 +1,6 @@
 // The code a `NumberSchema` compiles to, one method per method of
 // `NumberInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import {
-  ISSUE_CODE,
-  Issue,
-  NUMBER_SCHEMA_ISSUE_MESSAGE,
-  type NumberInterpretedSchema,
-} from '@pvl/schema';
+import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
@@ -87,9 +82,11 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "number" || Number.isNaN(${value})`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], NUMBER_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: NUMBER_SCHEMA_ISSUE_MESSAGE._checkType(),
+        issuePath,
+      }),
     });
   }
 }

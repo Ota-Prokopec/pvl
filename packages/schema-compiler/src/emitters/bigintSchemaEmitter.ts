@@ -1,11 +1,6 @@
 // The code a `BigintSchema` compiles to, one method per method of
 // `BigintInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import {
-  BIGINT_SCHEMA_ISSUE_MESSAGE,
-  ISSUE_CODE,
-  Issue,
-  type BigintInterpretedSchema,
-} from '@pvl/schema';
+import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type BigintInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
@@ -70,9 +65,11 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "bigint"`,
-      issue: emitIssue(
-        new Issue(ISSUE_CODE.INVALID_TYPE, [issuePath], BIGINT_SCHEMA_ISSUE_MESSAGE._checkType()),
-      ),
+      issue: emitIssue({
+        code: ISSUE_CODE.INVALID_TYPE,
+        message: BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
+        issuePath,
+      }),
     });
   }
 }

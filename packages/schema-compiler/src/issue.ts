@@ -4,7 +4,7 @@
 // a template literal built around the default message's text, the Issue path
 // of an Issue at the root, and the condition a `Frame` gates a composite's
 // post-modifiers behind.
-import { Issue, type IssueCode, type IssueEditableProps } from '@pvl/schema';
+import { replaceEmptyIssueMessage, type IssueCode, type IssueEditableProps } from '@pvl/schema';
 import { js } from './emitters/emitterUtils.js';
 import type { EmittedIssue } from './emitters/emittersTypes.js';
 import { RuntimeArgument } from './schemas/runtimeArgument.js';
@@ -36,22 +36,33 @@ const emitIssueLiteral = ({ code, message, issuePath }: EmitIssueLiteralArgs): E
   return js`{ code: ${JSON.stringify(code)}, message: ${message}, path: ${issuePath} }` as EmittedIssue;
 };
 
+/** What {@link emitIssue} writes an Issue literal from. */
+export type EmitIssueArgs = {
+  code: IssueCode;
+  /** The Issue's message, as text. */
+  message: string;
+  /** The Issue's path, as an expression. */
+  issuePath: string;
+};
+
 /**
- * An Issue as a plain object literal, importing nothing. `path` is an
- * expression, not the path itself. The message goes through `@pvl/schema`'s
- * own `Issue`, so an empty custom message falls back to its default exactly
+ * An Issue as a plain object literal, importing nothing, its message written
+ * as a literal. The message goes through `@pvl/schema`'s own
+ * `replaceEmptyIssueMessage`, so an empty custom message falls back exactly
  * as the interpreted path's does.
  *
  * ```ts
- * emitIssue('TOO_SMALL', 'too short', '[...path, "name"]')
- * // '{ code: "TOO_SMALL", message: "too short", path: [...path, "name"] }'
+ * emitIssue({ code: 'TOO_SMALL', message: 'too short', issuePath: '[...path1, "name"]' })
+ * // '{ code: "TOO_SMALL", message: "too short", path: [...path1, "name"] }'
+ * emitIssue({ code: 'TOO_SMALL', message: '', issuePath: '[...path1, "name"]' })
+ * // '{ code: "TOO_SMALL", message: "Invalid type", path: [...path1, "name"] }'
  * ```
  */
-export const emitIssue = (issue: Issue): EmittedIssue => {
+export const emitIssue = ({ code, message, issuePath }: EmitIssueArgs): EmittedIssue => {
   return emitIssueLiteral({
-    code: issue.code,
-    message: JSON.stringify(issue.message),
-    issuePath: `${issue.path}`,
+    code,
+    message: JSON.stringify(replaceEmptyIssueMessage(message)),
+    issuePath,
   });
 };
 
@@ -70,8 +81,9 @@ export type EmitConstraintIssueArgs = {
  * The Issue a Constraint reports when it fails, as an object literal, with
  * its message decided as the interpreted path decides it: the options'
  * `message` when there is one, else the default, and `@pvl/schema`'s own
- * fallback for an empty one. A message written as a literal is the literal;
- * one a Runtime Argument decides is an expression the check evaluates.
+ * `replaceEmptyIssueMessage` for an empty one. A message written as a literal
+ * is the literal; one a Runtime Argument decides is an expression the check
+ * evaluates.
  *
  * ```ts
  * emitConstraintIssue({ code: 'TOO_SMALL', issuePath: '[...path, "name"]', options: { message: 'short' }, defaultMessage })
@@ -89,11 +101,16 @@ export const emitConstraintIssue = ({
   defaultMessage,
 }: EmitConstraintIssueArgs): EmittedIssue => {
   if (!(options instanceof RuntimeArgument) && options?.message !== undefined) {
-    return emitIssue(new Issue(code, [issuePath], options.message));
+    return emitIssue({ code, message: options.message, issuePath });
   }
+  // A message a Runtime Argument decides is only known when the check runs,
+  // and the emitted code imports nothing, so `||` mirrors
+  // `replaceEmptyIssueMessage` there, with the text it replaces an empty one
+  // with. The differential test's empty Runtime Argument message keeps the
+  // two in step.
   const message =
     options instanceof RuntimeArgument
-      ? `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(new Issue(code, []).message)}`
+      ? `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(replaceEmptyIssueMessage(''))}`
       : defaultMessage;
   return emitIssueLiteral({ code, message, issuePath });
 };

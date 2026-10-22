@@ -45,6 +45,11 @@ describe('pvl.string()', () => {
       const result = pvl.string().min(3, { message: 'too short' }).validate('ab');
       expect(result.issues?.[0]?.message).toBe('too short');
     });
+
+    it('falls back to "Invalid type" for an empty custom message', () => {
+      const result = pvl.string().min(3, { message: '' }).validate('ab');
+      expect(result.issues?.[0]?.message).toBe('Invalid type');
+    });
   });
 
   describe('.max()', () => {
