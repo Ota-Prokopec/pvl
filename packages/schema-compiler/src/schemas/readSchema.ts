@@ -1,10 +1,10 @@
-// Reading a Schema from source, statically (ADR-0002): the `pvl.*` call chain
-// an expression holds, read into the Schema subclass of its factory, with
-// every Schema nested in it. This module holds the map from each factory to
-// its subclass, so it imports every subclass, and nothing has to load
-// `src/schemas/` before a Schema is read. Nothing imports it back:
-// `schema.ts` never does, and a subclass reads the Schemas nested in it
-// through the `readNested` it is handed (ADR-0034).
+// Reading Schemas from source, statically (ADR-0002): every Marked-to-Compile
+// Schema of a Module, and the `pvl.*` call chain an expression holds, read
+// into the Schema subclass of its factory, with every Schema nested in it.
+// This module holds the map from each factory to its subclass, so it imports
+// every subclass, and nothing has to load `src/schemas/` before a Schema is
+// read. Nothing imports it back: `schema.ts` never does, and a subclass reads
+// the Schemas nested in it through the `readNested` it is handed (ADR-0034).
 import type { Node } from 'ts-morph';
 import { ConstCycleError } from '../ast/constCycleError.js';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
@@ -54,6 +54,81 @@ const SCHEMA_CLASS_BY_FACTORY = {
   [SCHEMA_FACTORY.ARRAY]: ArraySchema,
   [SCHEMA_FACTORY.UNION]: UnionSchema,
 } satisfies { readonly [Factory in SchemaFactory]: SchemaClass & { readonly factory: Factory } };
+
+/** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
+export type ModuleCompilation = {
+  module: Module;
+  /** Its Marked-to-Compile Schemas that compile. */
+  schemas: Schema[];
+  /** The errors of its `pvl.compile(...)` calls that don't. */
+  diagnostics: Diagnostic[];
+};
+
+/**
+ * Finds every Marked-to-Compile Schema in `module`, one per
+ * `pvl.compile(...)` call, keeping the ones that compile and reporting each
+ * one that doesn't with its errors:
+ *
+ * - COMPILE_RESULT_MODIFIED: something is chained onto the result
+ *   (`pvl.compile(user).optional()`).
+ * - COMPILE_ARGUMENT_UNRESOLVABLE: the argument can't be read statically, as
+ *   when it is imported, built by a function or spread.
+ * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
+ *   to itself.
+ * - UNSUPPORTED_SCHEMA, and COMPILE_ARGUMENT_UNRESOLVABLE for a spread
+ *   method argument: see Schema.findUncompilableDiagnostics, one error per
+ *   problem.
+ *
+ * ```ts
+ * // /repo/src/schemas/user.ts
+ * import { pvl } from '@pvl/schema';
+ * import { address } from './address.js';
+ * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
+ * export const home = pvl.compile(address);
+ * findMarkedToCompileSchemas(<user.ts>)
+ * // { module: <user.ts>, schemas: [<ObjectSchema>], diagnostics: [COMPILE_ARGUMENT_UNRESOLVABLE] }
+ * ```
+ *
+ * A module that doesn't import `pvl` from `@pvl/schema` has no call to read.
+ */
+export const findMarkedToCompileSchemas = (module: Module): ModuleCompilation => {
+  const diagnostics: Diagnostic[] = [];
+  const schemas: Schema[] = [];
+  const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(module.moduleFile);
+
+  for (const call of PvlAst.findCompileCalls(module.moduleFile, pvlImportLocalNames)) {
+    const line = call.getStartLineNumber();
+    const modifierName = PvlAst.findModifierOnCompileMarker(call);
+
+    if (modifierName !== undefined) {
+      diagnostics.push(
+        new Diagnostic({
+          code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
+          message: `\`.${modifierName}\` is chained onto the result of pvl.compile() on line ${String(line)}, which is a plain Schema. Chain it inside: pvl.compile(schema.${modifierName}(…)).`,
+          file: module.path.absolutePath,
+        }),
+      );
+      continue;
+    }
+
+    // The whole call, which the Schema is read through and which compiling replaces.
+    const schemaPayload = readSchema({ module, expression: call, pvlImportLocalNames });
+
+    if ('diagnostic' in schemaPayload) {
+      diagnostics.push(schemaPayload.diagnostic);
+      continue;
+    }
+
+    const uncompilableDiagnostics = schemaPayload.schema.findUncompilableDiagnostics();
+    if (uncompilableDiagnostics.length > 0) {
+      diagnostics.push(...uncompilableDiagnostics);
+      continue;
+    }
+
+    schemas.push(schemaPayload.schema);
+  }
+  return { module, schemas, diagnostics };
+};
 
 /** The expression a Schema is read from, and the Module it is written in. */
 export type ReadSchemaArgs = {

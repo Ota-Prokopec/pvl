@@ -1,7 +1,7 @@
 // One scanned file as the mirror sees it: its parsed source, where it lands
-// in the Destination Directory, what the mirror asks of it, its precheck, and
-// compiling it into its mirrored file, module specifiers rewritten to reach
-// the right files from there.
+// in the Destination Directory, and compiling it into its mirrored file in
+// place, module specifiers rewritten to reach the right files from there.
+// `Precheck` checks it before that.
 import * as path from 'node:path';
 import {
   Node,
@@ -11,14 +11,10 @@ import {
   type StringLiteral,
   type VariableDeclaration,
 } from 'ts-morph';
-import { PvlAst } from './ast/pvlAst.js';
 import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
-import { DIAGNOSTIC_CODE, SPECIFIER_TARGET_KIND } from './enums.js';
+import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
-import { Diagnostic } from './diagnostics/diagnostic.js';
 import { Path } from './path.js';
-import { Precheck, type ModuleCompilation } from './precheck.js';
-import { readSchema } from './schemas/readSchema.js';
 import type { Schema } from './schemas/schema.js';
 import type { ScannedPath } from './scanner.js';
 import { Specifier, type SpecifierTarget } from './specifier.js';
@@ -68,12 +64,6 @@ type TextEdit = {
   start: number;
   end: number;
   text: string;
-};
-
-export type PrecheckModulePayload = {
-  diagnostics: Diagnostic[];
-  /** Its compilation, or `undefined` when it doesn't parse. */
-  compilation: ModuleCompilation | undefined;
 };
 
 /**
@@ -127,85 +117,6 @@ export class Module {
   }
 
   /**
-   * Whether the module's `path.relative.path`, relative to the Root Directory,
-   * leads outside it, so the module has no place in the mirror.
-   *
-   * ```ts
-   * // relative: { absoluteBase: '/repo/src', path: 'schemas/user.ts' }
-   * module.isOutsideRootDirectory() // false
-   * // relative: { absoluteBase: '/repo/src', path: '../lib/user.ts' }
-   * module.isOutsideRootDirectory() // true
-   * ```
-   */
-  public isOutsideRootDirectory(): boolean {
-    const relativePath = this.path.relative.path;
-    return relativePath === '..' || relativePath.startsWith('../') || path.isAbsolute(relativePath);
-  }
-
-  /**
-   * Every error and warning the module raises on its own, found before its
-   * source file is rewritten, with its compilation when it parses. A clash
-   * with another module's exports (DUPLICATE_EXPORT) needs every module, so
-   * `Precheck.runforAllModules` checks it.
-   *
-   * A module with syntax errors gets PARSE_FAILED, and FILE_OUTSIDE_ROOT_DIR
-   * when it applies, and has no compilation: the tree TypeScript recovers
-   * from broken code holds statements nobody wrote, so every later check
-   * needs the module to parse.
-   *
-   * - PARSE_FAILED: the file isn't valid syntax.
-   * - FILE_OUTSIDE_ROOT_DIR: the file isn't under the Root Directory.
-   * - DEFAULT_EXPORT: the file has a default export.
-   * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
-   * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_CYCLE,
-   *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
-   *   can't be compiled (see findMarkedToCompileSchemas).
-   *
-   * ```ts
-   * // /repo/src/schemas/user.ts
-   * export default pvl.compile(pvl.object({ name: pvl.string() }));
-   * user.precheck()
-   * // { diagnostics: [DEFAULT_EXPORT], compilation: { module: user, schemas: [<1 Schema>], … } }
-   *
-   * // /repo/src/schemas/broken.ts
-   * export const user = pvl.object({ name: pvl.string() ;
-   * broken.precheck()
-   * // { diagnostics: [PARSE_FAILED], compilation: undefined }
-   * ```
-   */
-  public precheck(): PrecheckModulePayload {
-    const parseFailureDiagnostics = Precheck.findParseFailuresDiagnostics(
-      this.moduleFile.getProject(),
-      [this],
-    );
-    const outsideRootDirectoryDiagnostics = Precheck.findFilesOutsideRootDirectoryDiagnostics(
-      [this],
-      this.path.relative.absoluteBase,
-    );
-    if (parseFailureDiagnostics.length > 0) {
-      return {
-        diagnostics: [...parseFailureDiagnostics, ...outsideRootDirectoryDiagnostics],
-        compilation: undefined,
-      };
-    }
-
-    const compilation: ModuleCompilation = {
-      module: this,
-      ...this.findMarkedToCompileSchemas(),
-    };
-
-    return {
-      diagnostics: [
-        ...outsideRootDirectoryDiagnostics,
-        ...Precheck.findDefaultExportsDiagnostics(this),
-        ...Precheck.findWarningsDiagnostics(this),
-        ...compilation.diagnostics,
-      ],
-      compilation,
-    };
-  }
-
-  /**
    * Turns the module into its mirrored file by editing its source file in
    * place: replaces its `pvl.compile(...)` calls with straight-line code,
    * points its module specifiers at the right files from the mirrored
@@ -235,72 +146,6 @@ export class Module {
       relativePath: this.path.relative.path,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
-  }
-
-  /**
-   * Finds every Marked-to-Compile Schema in the module, one per
-   * `pvl.compile(...)` call, keeping the ones that compile and reporting each
-   * one that doesn't with its errors:
-   *
-   * - COMPILE_RESULT_MODIFIED: something is chained onto the result
-   *   (`pvl.compile(user).optional()`).
-   * - COMPILE_ARGUMENT_UNRESOLVABLE: the argument can't be read statically, as
-   *   when it is imported, built by a function or spread.
-   * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
-   *   to itself.
-   * - UNSUPPORTED_SCHEMA, and COMPILE_ARGUMENT_UNRESOLVABLE for a method
-   *   argument that isn't a literal: see Schema.findUncompilableDiagnostics,
-   *   one error per problem.
-   *
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   * import { address } from './address.js';
-   * export const user = pvl.compile(pvl.object({ name: pvl.string() })); // a Schema
-   * export const home = pvl.compile(address);                            // COMPILE_ARGUMENT_UNRESOLVABLE
-   * ```
-   *
-   * A module that doesn't import `pvl` from `@pvl/schema` has no call to read.
-   */
-  public findMarkedToCompileSchemas(): {
-    diagnostics: Diagnostic[];
-    schemas: Schema[];
-  } {
-    const diagnostics: Diagnostic[] = [];
-    const schemas: Schema[] = [];
-    const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(this.moduleFile);
-
-    for (const call of PvlAst.findCompileCalls(this.moduleFile, pvlImportLocalNames)) {
-      const line = call.getStartLineNumber();
-      const modifierName = PvlAst.findModifierOnCompileMarker(call);
-
-      if (modifierName !== undefined) {
-        diagnostics.push(
-          new Diagnostic({
-            code: DIAGNOSTIC_CODE.COMPILE_RESULT_MODIFIED,
-            message: `\`.${modifierName}\` is chained onto the result of pvl.compile() on line ${String(line)}, which is a plain Schema. Chain it inside: pvl.compile(schema.${modifierName}(…)).`,
-            file: this.path.absolutePath,
-          }),
-        );
-        continue;
-      }
-
-      // The whole call, which the Schema is read through and which compiling replaces.
-      const schemaPayload = readSchema({ module: this, expression: call, pvlImportLocalNames });
-
-      if ('diagnostic' in schemaPayload) {
-        diagnostics.push(schemaPayload.diagnostic);
-        continue;
-      }
-
-      const uncompilableDiagnostics = schemaPayload.schema.findUncompilableDiagnostics();
-      if (uncompilableDiagnostics.length > 0) {
-        diagnostics.push(...uncompilableDiagnostics);
-        continue;
-      }
-
-      schemas.push(schemaPayload.schema);
-    }
-    return { diagnostics, schemas };
   }
 
   /**
@@ -562,28 +407,6 @@ export class Module {
     const lineStart = moduleText.lastIndexOf('\n', position - 1) + 1;
     const lineText = moduleText.slice(lineStart, position);
     return lineText.slice(0, lineText.length - lineText.trimStart().length);
-  }
-
-  /**
-   * Whether any of the module's top-level statements exports a name, in any
-   * form:
-   *
-   * ```ts
-   * export const user = …;        export { user };
-   * export * from './user.js';    export type User = …;
-   * ```
-   *
-   * A file of only `const internal = 1;` exports nothing.
-   */
-  public hasExport(): boolean {
-    return this.moduleFile
-      .getStatements()
-      .some(
-        (statement) =>
-          Node.isExportDeclaration(statement) ||
-          Node.isExportAssignment(statement) ||
-          (Node.isExportable(statement) && statement.hasExportKeyword()),
-      );
   }
 
   /**

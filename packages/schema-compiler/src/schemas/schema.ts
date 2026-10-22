@@ -46,7 +46,7 @@ export type ReadFactoryArgs = {
  * One Schema written in a Module, which holds any number of them, as the
  * subclass of the factory that built it. Its `compile` compiles it whether
  * it is marked to compile or not; which Schemas get compiled is the
- * caller's choice (see `Module.findMarkedToCompileSchemas`). A Schema nested
+ * caller's choice (see `findMarkedToCompileSchemas`). A Schema nested
  * in it is a Schema of its own, in the same Module, read from its own
  * expression; only the root is ever compiled and replaced.
  *

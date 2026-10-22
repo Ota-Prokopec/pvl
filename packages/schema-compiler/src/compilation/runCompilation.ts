@@ -5,12 +5,14 @@
 import path from 'node:path';
 import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
 import { ConfigResolver } from '../config/configResolver.js';
+import { Barrel } from '../barrel.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { compileAll } from './compileAll.js';
 import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../enums.js';
+import type { Module } from '../module.js';
 import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject.js';
 import { Precheck } from '../precheck.js';
@@ -189,17 +191,16 @@ export const runCompilation = async ({
 
   // Without a project, no file can be read, so TSCONFIG_UNREADABLE is
   // reported alone, before any scanned module.
-  const { diagnostics: moduleDiagnostics, compilations } =
+  const modules: Module[] =
     tsMorphProject === undefined
-      ? { diagnostics: [], compilations: [] }
-      : Precheck.runforAllModules(
-          Scanner.getModules({
-            tsMorphProject,
-            scannedFilePaths,
-            rootDirectory,
-            destination,
-          }),
-        );
+      ? []
+      : Scanner.getModules({ tsMorphProject, scannedFilePaths, rootDirectory, destination });
+  // A scanned `<rootDir>/index.ts` is mirrored in place of the generated barrel.
+  const generatesBarrel = !Barrel.hasScannedBarrel(modules);
+  const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({
+    modules,
+    generatesBarrel,
+  });
 
   const foundDiagnostics: Diagnostic[] = [
     ...findPatternsMatchingPath(settings.include, destination.relative.path).map((pattern) =>
@@ -230,7 +231,7 @@ export const runCompilation = async ({
     return unwrittenPayload;
   }
 
-  const mirroredFiles = compileAll({ tsMorphProject, compilations });
+  const mirroredFiles = compileAll({ tsMorphProject, compilations, generatesBarrel });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });
