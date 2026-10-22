@@ -30,9 +30,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   } satisfies ArgumentMessagesOf<BigintInterpretedSchema>;
 
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
-  public static override _emitBaseCheck({
-    target: { value, issuePath },
-  }: EmitBaseCheckArgs): EmittedCheck {
+  public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
     return emitCheck({
       failsWhen: js`typeof ${value} !== "bigint"`,
       issue: emitIssue(

@@ -14,7 +14,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
    * `pvl.enum(['A', 'B'])` → `field0 !== "A" && field0 !== "B"`, reporting
    * `INVALID_VALUE`.
    */
-  public static override _emitBaseCheck({
+  public static _emitBaseCheck({
     target: { value, issuePath },
     schema: { members },
   }: EmitBaseCheckArgs<EnumSchema>): EmittedCheck {
