@@ -74,14 +74,17 @@ export class ArrayInterpretedSchema<
   // An accessor with no setter, so the property cannot be written. One schema
   // rather than a keyed collection, so — unlike `ObjectInterpretedSchema`'s `shape` —
   // there is nothing below it to make read-only. The schema handed back is the
-  // very instance the caller declared, so its own modifiers come with it. A
-  // Compiled Schema has no `element` (ADR-0020): a caller who validates one
-  // item on its own keeps a reference to the element's schema.
+  // very instance the caller declared, so its own modifiers come with it.
+  // Every array has one, marked or not, and a compiled array too: the
+  // marker only decides whether a compiled `element` is compiled (ADR-0036).
   /**
    * The schema every element of this array is validated against, so a single
    * item can be reached and validated on its own without validating a whole
-   * array. A composite item carries its own `shape` or `element`, so nested
-   * structure is reachable all the way down.
+   * array. An object item carries its own `shape`, holding its Standalone
+   * Keys, and an array item its own `element`, so nested structure is
+   * reachable all the way down. It survives every modifier, `.standalone()`
+   * and `pvl.compile()`, but not `.transform()`, whose value needn't be an
+   * array.
    *
    * Read-only: reading the item schema never affects how this schema
    * validates, and it cannot be replaced.
@@ -90,7 +93,7 @@ export class ArrayInterpretedSchema<
    * ```ts
    * import { pvl } from '@pvl/schema';
    *
-   * const users = pvl.array(pvl.object({ name: pvl.string() }));
+   * const users = pvl.array(pvl.object({ name: pvl.string().standalone() }));
    *
    * users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
    * users.element.shape.name.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }

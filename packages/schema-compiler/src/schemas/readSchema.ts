@@ -12,6 +12,7 @@ import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAs
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { MODIFIER_NAME, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import { STANDALONE_METHOD_NAME } from '../consts.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { ArraySchema } from './arraySchema.js';
@@ -218,6 +219,7 @@ type ReadingArgs = ReadSchemaArgs & {
  * readExpression(args, <pvl.string().transform(trim)>) // <StringSchema with calls [] and transformCall transform(<Runtime Argument trim>)>
  * readExpression(args, <user>)                      // what `const user = …` holds
  * readExpression(args, <pvl.compile(pvl.string())>) // <StringSchema> read from <pvl.compile(…)>
+ * readExpression(args, <pvl.compile(pvl.string()).standalone()>) // <StringSchema with calls [], a Standalone Key>
  * readExpression(args, <pvl.object({ name: pvl.string().max(max) }).strict(options)>)
  * // <ObjectSchema with calls [strict(<Runtime Argument options, the 2nd>)]>, whose field reads <Runtime Argument max, the 1st>
  * readExpression(args, <makeSchema()>)              // throws
@@ -245,13 +247,19 @@ const readExpression = (
       readExpression({ ...args, expression: nestedExpression }, nestedExpression, nestedFollowed),
   });
   // Read once the factory's argument is, as they are written after it.
-  const calls = chainedMethods.map((method) => readMethodCall(method, args.runtimeArguments));
+  // `.standalone()` is a marker, not a Modifier, so it takes no place in the
+  // chain, wherever it is written: `pvl.compile(x.standalone())` and
+  // `pvl.compile(x).standalone()` read the same.
+  const calls = chainedMethods
+    .filter((method) => method.methodName !== STANDALONE_METHOD_NAME)
+    .map((method) => readMethodCall(method, args.runtimeArguments));
   return buildSchema({
     module: args.module,
     expression: args.expression,
     line: factory.call.getStartLineNumber(),
     calls: calls.filter((call) => call.name !== MODIFIER_NAME.TRANSFORM),
     transformCall: calls.find((call) => call.name === MODIFIER_NAME.TRANSFORM),
+    isStandalone: chainedMethods.some((method) => method.methodName === STANDALONE_METHOD_NAME),
   });
 };
 

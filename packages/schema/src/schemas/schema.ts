@@ -1,4 +1,4 @@
-import type { SCHEMA_BRAND } from '../consts.js';
+import type { SCHEMA_BRAND, STANDALONE_BRAND } from '../consts.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
 
@@ -29,8 +29,10 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 // implements it for every schema a factory builds. `"~standard"` is the
 // spec's `StandardSchemaV1.Props` narrowed, so every Schema is a
 // `StandardSchemaV1`. The brand keeps it nominal, which is what keeps a
-// Standard Schema from another library from being a field (ADR-0018).
-export type Schema<Input = unknown, Output = Input> = {
+// Standard Schema from another library from being a field (ADR-0018). An
+// interface rather than a `type`, as `.standalone()`'s return type reads the
+// polymorphic `this`, which only an interface or a class has (ADR-0036).
+export interface Schema<Input = unknown, Output = Input> {
   /** @internal */
   readonly [SCHEMA_BRAND]: true;
 
@@ -75,4 +77,66 @@ export type Schema<Input = unknown, Output = Input> = {
   // its `validate` is the one place that casts. Its signature is part of the
   // compiler's contract (compile.md).
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<unknown>;
+
+  /**
+   * Whether `.standalone()` marked this schema, which is what an object
+   * reads to keep it in its `shape`.
+   *
+   * @internal
+   */
+  readonly _standalone: boolean;
+
+  /**
+   * Marks this schema as a Standalone Key: as a field of `pvl.object()`, it
+   * is kept in that object's `shape`, so it can be validated on its own, and
+   * once the object is compiled, `@pvl/schema-compiler` gives it a compiled
+   * validator of its own. Validation is unchanged.
+   *
+   * The schema comes back as the same type it went in as, marked, so the
+   * chain goes on: modifiers can follow it, and an object keeps its `shape`
+   * and an array its `element`. It is valid on any schema, a field or not,
+   * and calling it again changes nothing.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({
+   *   email: pvl.string().standalone().min(3),
+   *   age: pvl.number().int(),
+   * });
+   *
+   * user.shape.email.validate('a@b.c'); // { value: 'a@b.c' }
+   * // user.shape.age — a compile error: `age` isn't a Standalone Key
+   * ```
+   */
+  standalone(): this & StandaloneMarker;
+}
+
+/**
+ * The type-only marker `.standalone()` adds to a schema's type: an object
+ * keeps a field carrying it in its `shape`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneMarker } from '@pvl/schema';
+ *
+ * const email = pvl.string().standalone();
+ * const isMarked: typeof email extends StandaloneMarker ? true : false = true;
+ * ```
+ */
+export type StandaloneMarker = {
+  /** @internal */
+  readonly [STANDALONE_BRAND]: true;
 };
+
+/**
+ * {@link StandaloneMarker} when `TSchema` carries it, and nothing otherwise:
+ * what a call handing back another schema type keeps of the marker, so
+ * `.standalone()` can be chained anywhere.
+ *
+ * @internal
+ */
+export type StandaloneMarkerOf<TSchema> = TSchema extends StandaloneMarker
+  ? StandaloneMarker
+  : unknown;

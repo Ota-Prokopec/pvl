@@ -38,7 +38,21 @@ export const GENERATED_HEADER =
  * class, so it needs nothing from `@pvl/schema` at runtime.
  */
 export const COMPILED_SCHEMA_IMPORT =
-  "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
+  "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandaloneMarker as PvlStandaloneMarker, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
+
+/** The name `COMPILED_SCHEMA_IMPORT` aliases `@pvl/schema`'s `StandaloneMarker` as, which `standalone()` and a marked Compiled Schema's type intersect. */
+export const STANDALONE_MARKER_TYPE_NAME = 'PvlStandaloneMarker' as const;
+
+/** The name `STANDALONE_BRAND_IMPORT` aliases `@pvl/schema`'s `STANDALONE_BRAND` as, which a marked Compiled Schema declares. */
+export const STANDALONE_BRAND_NAME = 'PVL_STANDALONE_BRAND' as const;
+
+/**
+ * The import a module holding a Compiled Schema marked `.standalone()` gets
+ * besides `COMPILED_SCHEMA_IMPORT`, for the marker's brand it declares, so a
+ * module with none imports nothing unused.
+ */
+export const STANDALONE_BRAND_IMPORT =
+  "import type { STANDALONE_BRAND as PVL_STANDALONE_BRAND } from '@pvl/schema';" as const;
 
 /**
  * The import a module with type aliases gets (`withTypes`), aliasing the
@@ -54,6 +68,13 @@ export const TYPE_ALIAS_IMPORT =
  * `IssueEditableProps` spells it.
  */
 export const ISSUE_OPTIONS_TYPE = '{ message?: string } | undefined' as const;
+
+/**
+ * The method marking a Schema as a Standalone Key. It is no Modifier: it
+ * changes no check, only what a Compiled Schema exposes, so reading a Schema
+ * takes it off the chain (ADR-0036).
+ */
+export const STANDALONE_METHOD_NAME = 'standalone' as const;
 
 /**
  * The methods `@pvl/schema` adds as pre-modifiers, through

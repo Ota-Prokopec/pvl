@@ -48,3 +48,5 @@ The rest of the shape follows from those:
 - **A runtime base class that both `InterpretedSchema` and each Compiled Schema extend, holding `validate` and `"~standard"`, so the emitted class has one method.** Rejected: it ships one more class in `@pvl/schema` for two short methods, where a type built on the Standard Schema spec's own types costs nothing at runtime.
 - **A type built on `StandardTypedV1` alone.** Rejected: it has no `"~standard".validate`, so neither path would be a Standard Schema ([ADR-0001](./0001-adopt-standard-schema.md)).
 - **Class declarations hoisted after the imports, as before.** Rejected: they put a schema's checks far from where the schema is declared.
+
+> Amended by [ADR-0036](./0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md): `Schema` is now an interface, as `.standalone()`'s return type reads the polymorphic `this`, and a Compiled Schema also writes `_standalone` and `.standalone()`.

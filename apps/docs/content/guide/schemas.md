@@ -184,12 +184,14 @@ const users = pvl.array(pvl.object({ name: pvl.string() }));
 users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
 ```
 
-It is the schema instance you declared, not a copy, so its own modifiers come with it, and it stays reachable through the length constraints and the modifiers (`pvl.array(item).min(1).element` is still `item`). It is read-only — it cannot be replaced — and reading it never affects how the array schema validates.
+It is the schema instance you declared, not a copy, so its own modifiers come with it, and it stays reachable through the length constraints, the modifiers, `.standalone()` and `pvl.compile()` (`pvl.array(item).min(1).element` is still `item`), but not `.transform()`. Every array has one, whether or not its item is marked [`.standalone()`](#standalone): the marker only decides whether a compiled array's `element` is compiled too. It is read-only — it cannot be replaced — and reading it never affects how the array schema validates.
 
-Because a composite item carries its own `element` or [`shape`](#reaching-a-field-schema-with-shape), nested structure is reachable all the way down:
+Because an object item carries its own [`shape`](#reaching-a-field-schema-with-shape) and an array item its own `element`, nested structure is reachable all the way down, through the keys marked `.standalone()`:
 
 ```ts
-users.element.shape.name.validate(42);
+const people = pvl.array(pvl.object({ name: pvl.string().standalone() }));
+
+people.element.shape.name.validate(42);
 // { issues: [{ code: 'INVALID_TYPE', ... }] }
 ```
 
@@ -261,26 +263,38 @@ tagged
 
 ### Reaching a field schema with `shape`
 
-`shape` hands back the schema declared for each key, so a single field can be validated on its own without validating the whole object:
+`shape` hands back the schema of each key you marked `.standalone()` — a **Standalone Key** — so that one field can be validated on its own without validating the whole object. A key you did not mark is not in it: reading it is a compile error, never an `undefined` at runtime, and an object with no marked key has `shape: {}`.
 
 ```ts
-user.shape.name.validate('Ada'); // { value: 'Ada' }
-user.shape.name.validate(''); // { issues: [{ code: 'TOO_SMALL', ... }] }
+const account = pvl.object({
+  email: pvl.string().min(3).standalone(),
+  age: pvl.number().int(),
+});
+
+account.shape.email.validate('a@b.c'); // { value: 'a@b.c' }
+account.shape.email.validate('ab'); // { issues: [{ code: 'TOO_SMALL', ... }] }
+// account.shape.age — a compile error: `age` isn't a Standalone Key
 ```
 
-Each field is the schema instance you declared, not a copy, so its own modifiers come with it, and the shape stays reachable through `.strict()`, `.passthrough()` and the modifiers (`user.strict().shape.name` is still `user.shape.name`). It is read-only — neither the shape nor any one field can be replaced — and reading a field never affects how the object schema validates. Swapping a field out would not change validation anyway: the fields are fixed when the schema is built, so the type system stops the write rather than letting `shape` drift from what `validate()` checks.
+Each field is the schema instance you declared, not a copy, so its own modifiers come with it, and validating it alone gives the Result it gives inside the object, minus the key on each Issue's path. The shape stays reachable through `.strict()`, `.passthrough()`, the modifiers, `.standalone()` and `pvl.compile()` (`account.strict().shape.email` is still `account.shape.email`), but not `.transform()`. It is read-only — neither the shape nor any one field can be replaced — and reading a field never affects how the object schema validates.
 
-Because a composite field carries its own `shape` or [`element`](#reaching-the-item-schema-with-element), nested structure is reachable all the way down:
+A nested object's own `shape` follows the same rule, so it is reachable only when the nested key is itself marked:
 
 ```ts
 const order = pvl.object({
-  customer: pvl.object({ city: pvl.string() }),
-  items: pvl.array(pvl.string()),
+  customer: pvl.object({ city: pvl.string().standalone() }).standalone(),
+  items: pvl.array(pvl.string()).standalone(),
 });
 
 order.shape.customer.shape.city.validate('London'); // { value: 'London' }
 order.shape.items.element.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 ```
+
+`shape` is the same before and after `@pvl/schema-compiler` compiles the object: a compiled object exposes exactly the Standalone Keys, each as a compiled validator of its own, so swapping the import to the compiled schemas never changes what compiles. That is why `shape` is opt-in: a compiled validator for every key of every object would grow the generated code with keys nobody validates alone.
+
+### `.standalone()`
+
+`.standalone()` marks a schema as a Standalone Key, and changes nothing about what it accepts or the Issues it reports. The schema comes back as the same type, marked, so the chain goes on: `pvl.string().standalone().min(3)` and `pvl.string().min(3).standalone()` are the same Standalone Key, and every modifier after it, `.transform()` included, keeps the mark. It keeps an object's `shape` and an array's `element`. It is valid on any schema, a field or not — a schema marked in one file can be used as a field in another — and on the result of `.transform()` or `pvl.compile()`, where `pvl.compile(x.standalone())` and `pvl.compile(x).standalone()` mean the same. Calling it twice changes nothing.
 
 ## `union`
 
@@ -325,7 +339,7 @@ pvl.string().min(3).optional(); // fine
 pvl.string().optional().min(3); // also fine — still a string schema
 ```
 
-`.transform()` is the one exception: it ends the chain (see [below](#transform)).
+`.transform()` is the exception: it ends the chain (see [below](#transform)). [`.standalone()`](#standalone) isn't one: it hands back the same schema type, marked.
 
 ### `.optional()`
 
@@ -395,7 +409,7 @@ const shortSlug = pvl
   .transform((value) => value.trim().toLowerCase());
 ```
 
-A transformed `object` or `array` likewise has no `shape` or `element`.
+A transformed `object` has no `shape`, and a transformed `array` no `element`: they describe a value the transform replaces with whatever it returns. Keep a reference to a field's or item's schema to validate it on its own.
 
 ### `.coerce()`
 

@@ -36,6 +36,8 @@ export type SchemaOptions = {
   calls: ReadonlyArray<SchemaModifierCall>;
   /** The `.transform()` that ends its chain, if any. */
   transformCall: SchemaModifierCall | undefined;
+  /** Whether `.standalone()` is chained onto it. */
+  isStandalone: boolean;
 };
 
 /** What a subclass's `readFactoryArgument` reads its factory's argument with. */
@@ -89,6 +91,14 @@ export abstract class Schema {
    * it trusts that.
    */
   public readonly transformCall: SchemaModifierCall | undefined;
+  /**
+   * Whether `.standalone()` is chained onto it, making it a Standalone Key
+   * as an object's field: its Compiled Schema is then reachable through the
+   * object's compiled `shape`, or an array's compiled `element`. It is no
+   * Modifier, so it is in neither `calls` nor `transformCall`, and changes
+   * no check (ADR-0036).
+   */
+  public readonly isStandalone: boolean;
 
   /** Its subclass's Emitter, `undefined` while it can't be compiled yet. */
   private readonly subclassEmitter: SchemaEmitter | undefined;
@@ -97,7 +107,14 @@ export abstract class Schema {
    * A Schema holding `options`, with the factory and Emitter of the
    * subclass being constructed (`new.target`).
    */
-  protected constructor({ module, expression, line, calls, transformCall }: SchemaOptions) {
+  protected constructor({
+    module,
+    expression,
+    line,
+    calls,
+    transformCall,
+    isStandalone,
+  }: SchemaOptions) {
     this.factory = new.target.factory;
     this.subclassEmitter = new.target.emitter;
     this.module = module;
@@ -105,6 +122,7 @@ export abstract class Schema {
     this.line = line;
     this.calls = calls;
     this.transformCall = transformCall;
+    this.isStandalone = isStandalone;
   }
 
   /** Its pre-modifiers, in chain order: they run before the type check (ADR-0010). */

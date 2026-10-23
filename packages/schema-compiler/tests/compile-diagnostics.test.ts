@@ -575,13 +575,16 @@ describe('runCompilation(): diagnostics', () => {
       'optionalRoot',
       'nullableRoot',
     ].entries()) {
-      expect(mirrored).toContain(
-        `export const ${exportName} = (new (class PvlCompiledSchema${String(index)} implements PvlSchema<`,
+      // An array's is built by a generic arrow function, typing its element.
+      expect(mirrored).toMatch(
+        new RegExp(
+          `export const ${exportName} = \\(.*class PvlCompiledSchema${String(index)} implements PvlSchema<`,
+        ),
       );
     }
   });
 
-  it('COMPILE_RESULT_MODIFIED: a Modifier chained onto the result, but not validate()', async () => {
+  it('COMPILE_RESULT_MODIFIED: a Modifier chained onto the result, but not validate(), standalone(), shape or element', async () => {
     const schemaFilePath = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -591,6 +594,9 @@ describe('runCompilation(): diagnostics', () => {
         'export const user = pvl.compile(pvl.object({})).optional();',
         'export const tags = pvl.compile(pvl.array(pvl.string())).min(1);',
         'export const checked = pvl.compile(pvl.object({})).validate({});',
+        'export const marked = pvl.compile(pvl.string()).standalone();',
+        'export const shape = pvl.compile(pvl.object({ name: pvl.string().standalone() })).shape;',
+        'export const element = pvl.compile(pvl.array(pvl.string())).element;',
         '',
       ].join('\n'),
     });

@@ -15,7 +15,13 @@ import {
 import { ConstCycleError } from './ast/constCycleError.js';
 import { PvlAst } from './ast/pvlAst.js';
 import { UnresolvedNodeError } from './ast/unresolvedNodeError.js';
-import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER, TYPE_ALIAS_IMPORT } from './consts.js';
+import {
+  COMPILED_SCHEMA_IMPORT,
+  GENERATED_HEADER,
+  STANDALONE_BRAND_IMPORT,
+  STANDALONE_BRAND_NAME,
+  TYPE_ALIAS_IMPORT,
+} from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
 import {
@@ -300,16 +306,17 @@ export class Module {
     );
     const hoistedNameByExpression = this.nameHoistedArguments(outermostSchemas);
 
+    const compiledSchemaEdits: TextEdit[] = outermostSchemas.map((schema, index) => ({
+      start: schema.expression.getStart(),
+      end: schema.expression.getEnd(),
+      text: schema.compile({
+        className: Module.toCompiledSchemaClassName(index),
+        indentation: Module.findLineIndentation(moduleText, schema.expression.getStart()),
+        hoistedNameByExpression,
+      }),
+    }));
     const edits: TextEdit[] = [
-      ...outermostSchemas.map((schema, index) => ({
-        start: schema.expression.getStart(),
-        end: schema.expression.getEnd(),
-        text: schema.compile({
-          className: Module.toCompiledSchemaClassName(index),
-          indentation: Module.findLineIndentation(moduleText, schema.expression.getStart()),
-          hoistedNameByExpression,
-        }),
-      })),
+      ...compiledSchemaEdits,
       // One inside another call is passed by its name in that call's own
       // Compiled Schema, which replaces it with the rest of the call.
       ...[...hoistedNameByExpression]
@@ -339,6 +346,11 @@ export class Module {
     }
 
     this.insertAfterImports(COMPILED_SCHEMA_IMPORT);
+    // Read off the text: the brand is declared only where a Compiled Schema
+    // is marked `.standalone()`, its own or one it exposes.
+    if (compiledSchemaEdits.some(({ text }) => text.includes(STANDALONE_BRAND_NAME))) {
+      this.insertAfterImports(STANDALONE_BRAND_IMPORT);
+    }
   }
 
   /**
