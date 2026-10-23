@@ -1,25 +1,31 @@
 // What stops a scanned file from being mirrored, and what is worth a warning
-// when it is. Reads the scanned modules before anything is rewritten.
-import { Node, ts, type Project, type Statement } from 'ts-morph';
-import { Barrel } from './barrel.js';
-import { DIAGNOSTIC_CODE } from './enums.js';
+// when it is: every check of one module, and the DUPLICATE_EXPORT check across
+// them. Reads the scanned modules before anything is rewritten.
+import * as path from 'node:path';
+import { Node, ts, type Statement } from 'ts-morph';
+import { GenericAst } from './ast/genericAst.js';
+import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import type { Module } from './module.js';
-import type { Schema } from './schemas/schema.js';
+import { findMarkedToCompileSchemas, type ModuleCompilation } from './schemas/readSchema.js';
 
-/** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
-export type ModuleCompilation = {
-  module: Module;
-  /** Its Marked-to-Compile Schemas that compile. */
-  schemas: Schema[];
-  /** The errors of its `pvl.compile(...)` calls that don't. */
-  diagnostics: Diagnostic[];
+export type PrecheckModulesArgs = {
+  /** Every scanned module, in scan order. */
+  modules: ReadonlyArray<Module>;
+  /** Whether the barrel is generated, rather than a scanned `<rootDir>/index.ts` mirrored in its place. */
+  generatesBarrel: boolean;
 };
 
-export type RunPrecheckPayload = {
+export type PrecheckModulesPayload = {
   diagnostics: Diagnostic[];
   /** One per scanned module that parses, in scan order. */
   compilations: ModuleCompilation[];
+};
+
+export type PrecheckModulePayload = {
+  diagnostics: Diagnostic[];
+  /** Its compilation, or `undefined` when it doesn't parse. */
+  compilation: ModuleCompilation | undefined;
 };
 
 /** Names `export *` never re-exports, so they can't clash in the barrel: DEFAULT_EXPORT reports them instead. */
@@ -38,72 +44,127 @@ export class Precheck {
    * source file is touched so one run reports all the problems instead of
    * stopping at the first, with the compilation of each module that parses.
    *
-   * Each module's own checks are its `Module.precheck`; on top of them,
+   * Each module's own checks are its `precheckModule`; on top of them,
    * DUPLICATE_EXPORT reports two parsed modules exporting one name bound to
-   * different things, checked only for a generated barrel.
+   * different things, checked only when the barrel is generated, as no export
+   * can clash in a scanned `<rootDir>/index.ts` mirrored in its place.
    *
    * ```ts
    * // user.ts parses, broken.ts doesn't
-   * Precheck.runforAllModules([<user.ts>, <broken.ts>])
+   * Precheck.precheckModules({ modules: [<user.ts>, <broken.ts>], generatesBarrel: true })
    * // { diagnostics: […user.ts's diagnostics, PARSE_FAILED (broken.ts)],
    * //   compilations: [{ module: <user.ts>, … }] }
    * ```
    */
-  public static runforAllModules(modules: ReadonlyArray<Module>): RunPrecheckPayload {
-    const modulePrechecks = modules.map((module) => module.precheck());
+  public static precheckModules({
+    modules,
+    generatesBarrel,
+  }: PrecheckModulesArgs): PrecheckModulesPayload {
+    const modulePrechecks = modules.map((module) => Precheck.precheckModule(module));
     const compilations = modulePrechecks.flatMap(({ compilation }) => compilation ?? []);
 
     return {
       diagnostics: [
         ...modulePrechecks.flatMap(({ diagnostics }) => diagnostics),
-        // A scanned `<rootDir>/index.ts` replaces the generated barrel, so no
-        // export can clash in it.
-        ...(Barrel.hasScannedBarrel(modules)
-          ? []
-          : Precheck.findDuplicateExportsDiagnostics(compilations.map(({ module }) => module))),
+        ...(generatesBarrel
+          ? Precheck.findDuplicateExportsDiagnostics(compilations.map(({ module }) => module))
+          : []),
       ],
       compilations,
     };
   }
 
   /**
-   * A PARSE_FAILED error for each scanned file that isn't valid syntax, read
-   * from the TypeScript compiler's syntactic diagnostics. Only a file's first
-   * syntax error is reported, as the later ones are usually its knock-on
-   * effects.
+   * Every error and warning `module` raises on its own, with its compilation
+   * when it parses. A clash with another module's exports (DUPLICATE_EXPORT)
+   * needs every module, so `precheckModules` checks it.
+   *
+   * A module with syntax errors gets PARSE_FAILED, and FILE_OUTSIDE_ROOT_DIR
+   * when it applies, and has no compilation: the tree TypeScript recovers
+   * from broken code holds statements nobody wrote, so every later check
+   * needs the module to parse.
+   *
+   * - PARSE_FAILED: the file isn't valid syntax.
+   * - FILE_OUTSIDE_ROOT_DIR: the file isn't under the Root Directory.
+   * - DEFAULT_EXPORT: the file has a default export.
+   * - FILE_EXPORTS_NOTHING, SIDE_EFFECT_COPIED: warnings.
+   * - COMPILE_ARGUMENT_UNRESOLVABLE, COMPILE_ARGUMENT_CYCLE,
+   *   COMPILE_RESULT_MODIFIED, UNSUPPORTED_SCHEMA: a `pvl.compile(...)` call
+   *   can't be compiled (see findMarkedToCompileSchemas).
+   *
+   * ```ts
+   * // /repo/src/schemas/user.ts
+   * import { pvl } from '@pvl/schema';
+   * export default pvl.compile(pvl.object({ name: pvl.string() }));
+   * Precheck.precheckModule(<user.ts>)
+   * // { diagnostics: [DEFAULT_EXPORT], compilation: { module: <user.ts>, schemas: [<1 Schema>], … } }
+   *
+   * // /repo/src/schemas/broken.ts
+   * export const user = pvl.object({ name: pvl.string() ;
+   * Precheck.precheckModule(<broken.ts>)
+   * // { diagnostics: [PARSE_FAILED], compilation: undefined }
+   * ```
+   */
+  private static precheckModule(module: Module): PrecheckModulePayload {
+    const parseFailureDiagnostics = Precheck.findParseFailureDiagnostics(module);
+    const outsideRootDirectoryDiagnostics = Precheck.findOutsideRootDirectoryDiagnostics(module);
+    if (parseFailureDiagnostics.length > 0) {
+      return {
+        diagnostics: [...parseFailureDiagnostics, ...outsideRootDirectoryDiagnostics],
+        compilation: undefined,
+      };
+    }
+
+    const compilation = findMarkedToCompileSchemas(module);
+
+    return {
+      diagnostics: [
+        ...outsideRootDirectoryDiagnostics,
+        ...Precheck.findDefaultExportsDiagnostics(module),
+        ...Precheck.findWarningsDiagnostics(module),
+        ...compilation.diagnostics,
+      ],
+      compilation,
+    };
+  }
+
+  /**
+   * A PARSE_FAILED error when the scanned module isn't valid syntax, read
+   * from the TypeScript compiler's syntactic diagnostics. Only the file's
+   * first syntax error is reported, as the later ones are usually its
+   * knock-on effects.
    *
    * ```ts
    * // src/schemas/user.ts
    * export const user = pvl.object({ name: pvl.string() ;
-   * // → PARSE_FAILED: This file doesn't parse, so it can't be mirrored: ',' expected. (line 2).
+   * // → PARSE_FAILED: This file doesn't parse, so it can't be mirrored: ',' expected. (line 1).
    * ```
    *
    * Only syntax is checked: a type error such as `const age: number = 'x'`
    * parses fine and isn't reported.
    */
-  public static findParseFailuresDiagnostics(
-    tsMorphProject: Project,
-    modules: ReadonlyArray<Module>,
-  ): Diagnostic[] {
-    return modules.flatMap(({ path: { absolutePath }, moduleFile }) =>
-      tsMorphProject
-        .getProgram()
-        .getSyntacticDiagnostics(moduleFile)
-        .slice(0, 1)
-        .map(
-          (syntaxDiagnostic) =>
-            new Diagnostic({
-              code: DIAGNOSTIC_CODE.PARSE_FAILED,
-              message: `This file doesn't parse, so it can't be mirrored: ${ts.flattenDiagnosticMessageText(syntaxDiagnostic.compilerObject.messageText, ' ')} (line ${String(syntaxDiagnostic.getLineNumber())}).`,
-              file: absolutePath,
-            }),
-        ),
-    );
+  private static findParseFailureDiagnostics({
+    path: { absolutePath },
+    moduleFile,
+  }: Module): Diagnostic[] {
+    return moduleFile
+      .getProject()
+      .getProgram()
+      .getSyntacticDiagnostics(moduleFile)
+      .slice(0, 1)
+      .map(
+        (syntaxDiagnostic) =>
+          new Diagnostic({
+            code: DIAGNOSTIC_CODE.PARSE_FAILED,
+            message: `This file doesn't parse, so it can't be mirrored: ${ts.flattenDiagnosticMessageText(syntaxDiagnostic.compilerObject.messageText, ' ')} (line ${String(syntaxDiagnostic.getLineNumber())}).`,
+            file: absolutePath,
+          }),
+      );
   }
 
   /**
-   * A FILE_OUTSIDE_ROOT_DIR error for each scanned module outside the Root
-   * Directory, which has no path inside the mirror.
+   * A FILE_OUTSIDE_ROOT_DIR error when the scanned module is outside the
+   * Root Directory, so it has no path inside the mirror.
    *
    * ```ts
    * // rootDir: 'src', include: ['src/**\/*.ts', 'lib/*.ts']
@@ -111,20 +172,17 @@ export class Precheck {
    * // lib/helpers.ts      → FILE_OUTSIDE_ROOT_DIR
    * ```
    */
-  public static findFilesOutsideRootDirectoryDiagnostics(
-    modules: ReadonlyArray<Module>,
-    rootDirectory: string,
-  ): Diagnostic[] {
-    return modules
-      .filter((module) => module.isOutsideRootDirectory())
-      .map(
-        ({ path: { absolutePath } }) =>
-          new Diagnostic({
-            code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
-            message: `This file isn't under rootDir (${rootDirectory}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
-            file: absolutePath,
-          }),
-      );
+  private static findOutsideRootDirectoryDiagnostics(module: Module): Diagnostic[] {
+    if (!Precheck.isOutsideRootDirectory(module)) {
+      return [];
+    }
+    return [
+      new Diagnostic({
+        code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
+        message: `This file isn't under rootDir (${module.path.relativePath.absoluteBase}), so it has no place in the mirror. Move it under rootDir, or point rootDir at a directory holding every included file.`,
+        file: module.path.absolutePath,
+      }),
+    ];
   }
 
   /**
@@ -141,7 +199,7 @@ export class Precheck {
    * export const user = pvl.object({ … });     // fine
    * ```
    */
-  public static findDefaultExportsDiagnostics({
+  private static findDefaultExportsDiagnostics({
     path: { absolutePath },
     moduleFile,
   }: Module): Diagnostic[] {
@@ -171,14 +229,14 @@ export class Precheck {
    * // src/schemas/c.ts: export { user } from './a.js';           // fine: the same binding
    * ```
    */
-  public static findDuplicateExportsDiagnostics(modules: ReadonlyArray<Module>): Diagnostic[] {
+  private static findDuplicateExportsDiagnostics(modules: ReadonlyArray<Module>): Diagnostic[] {
     const firstExportByExportedName = new Map<string, FirstExport>();
     const duplicateExportDiagnostics: Diagnostic[] = [];
     for (const {
-      path: { absolutePath, relative },
+      path: { absolutePath, relativePath },
       moduleFile,
     } of [...modules].sort((first, second) =>
-      first.path.relative.path < second.path.relative.path ? -1 : 1,
+      first.path.relativePath.pathFromBase < second.path.relativePath.pathFromBase ? -1 : 1,
     )) {
       for (const [exportedName, declarations] of moduleFile.getExportedDeclarations()) {
         const firstExport = firstExportByExportedName.get(exportedName);
@@ -187,7 +245,7 @@ export class Precheck {
         }
         if (firstExport === undefined) {
           firstExportByExportedName.set(exportedName, {
-            relativePath: relative.path,
+            relativePath: relativePath.pathFromBase,
             declarations,
           });
         } else if (!Precheck.isSameBinding(firstExport.declarations, declarations)) {
@@ -214,12 +272,11 @@ export class Precheck {
    *   `console.log('loaded');`, which runs again wherever the mirror is
    *   loaded.
    */
-  public static findWarningsDiagnostics(module: Module): Diagnostic[] {
-    const {
-      path: { absolutePath },
-      moduleFile,
-    } = module;
-    const exportsNothingWarnings = module.hasExport()
+  private static findWarningsDiagnostics({
+    path: { absolutePath },
+    moduleFile,
+  }: Module): Diagnostic[] {
+    const exportsNothingWarnings = GenericAst.hasExport(moduleFile)
       ? []
       : [
           new Diagnostic({
@@ -242,6 +299,25 @@ export class Precheck {
           }),
       );
     return [...exportsNothingWarnings, ...sideEffectWarnings];
+  }
+
+  /**
+   * Whether the module's path, relative to the Root Directory, leads outside
+   * it, so the module has no place in the mirror.
+   *
+   * ```ts
+   * // relativePath: { absoluteBase: '/repo/src', pathFromBase: 'schemas/user.ts' }
+   * Precheck.isOutsideRootDirectory(<user.ts>)    // false
+   * // relativePath: { absoluteBase: '/repo/src', pathFromBase: '../lib/helpers.ts' }
+   * Precheck.isOutsideRootDirectory(<helpers.ts>) // true
+   * ```
+   */
+  private static isOutsideRootDirectory({ path: { relativePath } }: Module): boolean {
+    return (
+      relativePath.pathFromBase === '..' ||
+      relativePath.pathFromBase.startsWith('../') ||
+      path.isAbsolute(relativePath.pathFromBase)
+    );
   }
 
   // Whether two exports of one name are bound to the same declarations, as a

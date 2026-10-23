@@ -2,11 +2,11 @@ import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import type { InterpretedSchemaKind } from '../types.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
- * The default message of every Issue `StringSchema` reports, keyed by the method
+ * The default message of every Issue `StringInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -20,8 +20,10 @@ export const STRING_SCHEMA_ISSUE_MESSAGE = {
     `String must contain exactly ${exactLength} character(s)`,
 } as const;
 
-interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
-  readonly type: StringSchema<this['Input'], this['Output']>;
+interface StringInterpretedSchemaKind extends InterpretedSchemaKind<
+  StringInterpretedSchema<unknown, unknown>
+> {
+  readonly type: StringInterpretedSchema<this['Input'], this['Output']>;
 }
 
 /**
@@ -45,9 +47,12 @@ interface StringSchemaKind extends SchemaKind<StringSchema<unknown, unknown>> {
  * username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class StringSchema<Input = string, Output = string> extends ChainableSchema<Input, Output> {
+export class StringInterpretedSchema<
+  Input = string,
+  Output = string,
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': StringSchemaKind;
+  declare readonly '~kind': StringInterpretedSchemaKind;
 
   /** @internal */
   constructor() {

@@ -1,8 +1,8 @@
 // VitePress site configuration for the @pvl/schema documentation.
 // The content root is `content/`, so the package's own files (package.json,
 // typedoc.json, AGENTS.md) never become pages.
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import * as fs from 'node:fs';
+import * as url from 'node:url';
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
 /**
@@ -12,9 +12,9 @@ import { defineConfig, type DefaultTheme } from 'vitepress';
  * --noEmit` fail on a clean checkout that has not run `docs:api` yet.
  */
 const loadApiSidebar = (): DefaultTheme.SidebarItem[] => {
-  const path = fileURLToPath(new URL('../api/typedoc-sidebar.json', import.meta.url));
+  const path = url.fileURLToPath(new URL('../api/typedoc-sidebar.json', import.meta.url));
   try {
-    return JSON.parse(readFileSync(path, 'utf8')) as DefaultTheme.SidebarItem[];
+    return JSON.parse(fs.readFileSync(path, 'utf8')) as DefaultTheme.SidebarItem[];
   } catch {
     throw new Error(
       `Generated API sidebar not found at ${path}. Run \`pnpm --filter docs docs:api\` first ` +
@@ -29,7 +29,7 @@ export default defineConfig({
   cleanUrls: true,
   // The repo-root `assets/` folder is the site's public directory, so the
   // banner has one copy, shared with the README.
-  vite: { publicDir: fileURLToPath(new URL('../../../../assets', import.meta.url)) },
+  vite: { publicDir: url.fileURLToPath(new URL('../../../../assets', import.meta.url)) },
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },

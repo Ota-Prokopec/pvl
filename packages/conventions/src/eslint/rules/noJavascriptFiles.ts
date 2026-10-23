@@ -1,5 +1,5 @@
 /** Rule: reports every JavaScript file ESLint is handed; the repo is TypeScript only. */
-import { basename } from 'node:path';
+import * as path from 'node:path';
 import { createRule } from '../utils.ts';
 
 export const noJavascriptFiles = createRule({
@@ -20,7 +20,7 @@ export const noJavascriptFiles = createRule({
         context.report({
           node,
           messageId: 'noJavascript',
-          data: { file: basename(context.filename) },
+          data: { file: path.basename(context.filename) },
         });
       },
     };

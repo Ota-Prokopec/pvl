@@ -2,10 +2,11 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { RetypedSchema } from '../types.js';
-import { Schema } from './schema.js';
+import { InterpretedSchema } from './interpretedSchema.js';
+import type { Schema } from './schema.js';
 
 /**
- * The base class every schema in this library extends: a {@link Schema}
+ * The base class every schema a `pvl.*` factory builds extends: a {@link Schema}
  * modifiers can be chained onto. You never construct one directly —
  * `pvl.string()`, `pvl.object()` and the rest hand you a subclass — and every
  * modifier hands back that same subclass, so its own methods stay chainable
@@ -18,22 +19,22 @@ import { Schema } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type ChainableSchema } from '@pvl/schema';
+ * import { pvl, type ChainableInterpretedSchema } from '@pvl/schema';
  *
- * // Still a `StringSchema`, so `.min()` is still there.
+ * // Still a `StringInterpretedSchema`, so `.min()` is still there.
  * const nickname = pvl.string().optional().min(2);
- * const asBase: ChainableSchema<string | undefined, string | undefined> = nickname;
+ * const asBase: ChainableInterpretedSchema<string | undefined, string | undefined> = nickname;
  *
  * const result = asBase.refine((value) => value !== 'admin').validate(undefined);
  * result.issues; // undefined — an absent value is accepted
  * ```
  */
 // Only the Shared Modifiers live here; the pipeline they feed and the
-// `_with*Modifier` helpers they build on are `Schema`'s (ADR-0020).
-export abstract class ChainableSchema<Input = unknown, Output = Input> extends Schema<
-  Input,
-  Output
-> {
+// `_with*Modifier` helpers they build on are `InterpretedSchema`'s (ADR-0020).
+export abstract class ChainableInterpretedSchema<
+  Input = unknown,
+  Output = Input,
+> extends InterpretedSchema<Input, Output> {
   /**
    * Accepts `undefined` in addition to whatever this schema already accepts.
    * As an object field, it also makes the key itself optional: an omitted key

@@ -1,7 +1,7 @@
 /** Shared setup for the rule tests: both rule testers wired to vitest, and on-disk fixtures. */
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import json from '@eslint/json';
 import markdown from '@eslint/markdown';
 import { RuleTester as TypeScriptRuleTester } from '@typescript-eslint/rule-tester';
@@ -30,10 +30,10 @@ export const markdownTester = new RuleTester({ plugins: { markdown }, language: 
 
 /** Writes `files` (path relative to a fresh temporary directory → content) and returns that directory. */
 export const createFixture = (files: Record<string, string>): string => {
-  const root = mkdtempSync(join(tmpdir(), 'conventions-'));
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), content);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'conventions-'));
+  for (const [filePath, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(root, filePath)), { recursive: true });
+    fs.writeFileSync(path.join(root, filePath), content);
   }
   return root;
 };

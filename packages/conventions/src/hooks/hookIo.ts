@@ -1,5 +1,5 @@
 /** Reading a Claude Code hook's input and answering it. */
-import { readFileSync } from 'node:fs';
+import * as fs from 'node:fs';
 
 export type HookInput = {
   cwd: string;
@@ -12,7 +12,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 
 /** The hook's JSON input from stdin. */
 export const readHookInput = (): HookInput => {
-  const parsed: unknown = JSON.parse(readFileSync(0, 'utf8'));
+  const parsed: unknown = JSON.parse(fs.readFileSync(0, 'utf8'));
   const input = isRecord(parsed) ? parsed : {};
   return {
     cwd: typeof input.cwd === 'string' ? input.cwd : process.cwd(),
@@ -23,7 +23,7 @@ export const readHookInput = (): HookInput => {
 /** The UTF-8 contents of `path`, or `undefined` when it can't be read. */
 export const readFile = (path: string): string | undefined => {
   try {
-    return readFileSync(path, 'utf8');
+    return fs.readFileSync(path, 'utf8');
   } catch {
     return undefined;
   }

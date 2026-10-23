@@ -3,7 +3,7 @@
  * number literal) has an UPPER_SNAKE_CASE name and UPPER_SNAKE_CASE keys, and
  * when exported lives in an `enums.ts`.
  */
-import { basename } from 'node:path';
+import * as path from 'node:path';
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule, isUpperSnakeCase } from '../utils.ts';
 
@@ -117,7 +117,7 @@ export const enumShape = createRule({
         }
       },
       'Program:exit': (): void => {
-        if (basename(context.filename) === 'enums.ts') {
+        if (path.basename(context.filename) === 'enums.ts') {
           return;
         }
         for (const name of exported) {

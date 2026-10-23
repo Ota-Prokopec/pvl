@@ -10,13 +10,13 @@ import {
   type PvlConfigOverrides,
 } from './config.js';
 import {
-  CONFIG_FILE_NAME,
   DEFAULT_INCLUDE,
   DEFAULT_ROOT_DIR,
   DEFAULT_WATCH,
   DEFAULT_WITH_TYPES,
-} from '../consts.js';
-import { DIAGNOSTIC_CODE } from '../enums.js';
+} from './defaults/consts.js';
+import { CONFIG_FILE_NAME } from './consts.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { definedOnlyKeys, errorMessage } from '../utils.js';
 

@@ -1,10 +1,10 @@
 // The package's standalone types: the inference helpers and the type plumbing
-// behind the Modifiers (`SchemaKind`, `RetypedSchema`, `PreModifiersResult`).
+// behind the Modifiers (`InterpretedSchemaKind`, `RetypedSchema`, `PreModifiersResult`).
 // It is in the barrel, so that plumbing is tagged `@internal`.
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
-import type { ChainableSchema } from './schemas/chainableSchema.js';
-import type { Schema } from './schemas/schema.js';
+import type { ChainableInterpretedSchema } from './schemas/chainableInterpretedSchema.js';
+import type { InterpretedSchema } from './schemas/interpretedSchema.js';
 
 /**
  * The type a schema accepts as input — what a value must look like going in.
@@ -47,14 +47,14 @@ export type PreModifiersResult = {
 
 /**
  * How a schema class is rebuilt with new `Input`/`Output` types. A subclass
- * declares a `'~kind'` extending `SchemaKind<ItsOwnClass<…, unknown, unknown>>`
+ * declares a `'~kind'` extending `InterpretedSchemaKind<ItsOwnClass<…, unknown, unknown>>`
  * and overrides `type` with the subclass re-parameterized with
  * `this['Input']` and `this['Output']`, so a modifier that widens the types
  * still hands back that subclass. Type-only: nothing exists at runtime.
  *
  * @internal
  */
-export type SchemaKind<TSchema extends Schema> = {
+export type InterpretedSchemaKind<TSchema extends InterpretedSchema> = {
   readonly Input: unknown;
   readonly Output: unknown;
   readonly type: TSchema;
@@ -62,12 +62,12 @@ export type SchemaKind<TSchema extends Schema> = {
 
 /**
  * `TSchema`'s own class re-typed with `Input` and `Output` through its
- * `'~kind'`, or the base `ChainableSchema` for a class that declares none.
+ * `'~kind'`, or the base `ChainableInterpretedSchema` for a class that declares none.
  *
  * @internal
  */
 export type RetypedSchema<TSchema, Input, Output> = TSchema extends {
-  readonly '~kind': infer Kind extends SchemaKind<ChainableSchema>;
+  readonly '~kind': infer Kind extends InterpretedSchemaKind<ChainableInterpretedSchema>;
 }
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
-  : ChainableSchema<Input, Output>;
+  : ChainableInterpretedSchema<Input, Output>;

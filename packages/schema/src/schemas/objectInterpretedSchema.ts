@@ -2,9 +2,9 @@ import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Modifier } from '../modifiers/modifiers.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
-import { ChainableSchema } from './chainableSchema.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
 /**
@@ -82,7 +82,7 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
 }>;
 
 /**
- * The default message of every Issue `ObjectSchema` reports, keyed by the method
+ * The default message of every Issue `ObjectInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -150,10 +150,10 @@ const unknownKeysStrictModifier = (
 // the strip modifier, `_checkType`'s output already keeps every key.
 const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
 
-interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
-  ObjectSchema<Shape, unknown, unknown>
+interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends InterpretedSchemaKind<
+  ObjectInterpretedSchema<Shape, unknown, unknown>
 > {
-  readonly type: ObjectSchema<Shape, this['Input'], this['Output']>;
+  readonly type: ObjectInterpretedSchema<Shape, this['Input'], this['Output']>;
 }
 
 /**
@@ -172,7 +172,7 @@ interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
  * unambiguous way to read an object out of a non-object. A field that needs
  * coercion opts into it on its own schema.
  *
- * Every modifier hands back an object schema rather than the base `ChainableSchema`,
+ * Every modifier hands back an object schema rather than the base `ChainableInterpretedSchema`,
  * so a modified object schema is still something `pvl.compile()` accepts,
  * and `.strict()`/`.passthrough()` carry an earlier modifier's types through.
  * `.transform()` ends the chain.
@@ -194,13 +194,13 @@ interface ObjectSchemaKind<Shape extends ObjectShape> extends SchemaKind<
  * // { issues: [{ path: ['name'], ... }, { path: ['age'], ... }] } — both fields reported
  * ```
  */
-export class ObjectSchema<
+export class ObjectInterpretedSchema<
   Shape extends ObjectShape = ObjectShape,
   Input = ObjectInput<Shape>,
   Output = ObjectOutput<Shape>,
-> extends ChainableSchema<Input, Output> {
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': ObjectSchemaKind<Shape>;
+  declare readonly '~kind': ObjectInterpretedSchemaKind<Shape>;
   // Derived from the shape once at construction rather than per `.validate()`
   private readonly _shapeKeys: ReadonlySet<string>;
 
@@ -298,8 +298,8 @@ export class ObjectSchema<
    * // { value: { id: 'a1', meta: { source: 'api' } } }
    * ```
    */
-  passthrough(): ObjectSchema<Shape, Input, WithUnknownKeys<Output>> {
-    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS) as unknown as ObjectSchema<
+  passthrough(): ObjectInterpretedSchema<Shape, Input, WithUnknownKeys<Output>> {
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS) as unknown as ObjectInterpretedSchema<
       Shape,
       Input,
       WithUnknownKeys<Output>

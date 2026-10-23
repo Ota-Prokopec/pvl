@@ -1,12 +1,12 @@
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
 /**
- * The default message of every Issue `ArraySchema` reports, keyed by the method
+ * The default message of every Issue `ArrayInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -19,10 +19,10 @@ export const ARRAY_SCHEMA_ISSUE_MESSAGE = {
   length: (exactLength: number): string => `Array must contain exactly ${exactLength} element(s)`,
 } as const;
 
-interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends SchemaKind<
-  ArraySchema<ItemSchema, unknown, unknown>
-> {
-  readonly type: ArraySchema<ItemSchema, this['Input'], this['Output']>;
+interface ArrayInterpretedSchemaKind<
+  ItemSchema extends Schema<unknown, unknown>,
+> extends InterpretedSchemaKind<ArrayInterpretedSchema<ItemSchema, unknown, unknown>> {
+  readonly type: ArrayInterpretedSchema<ItemSchema, this['Input'], this['Output']>;
 }
 
 /**
@@ -41,7 +41,7 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  * stopping at the first. `.coerce()` is inherited but does nothing here —
  * there is no unambiguous way to read an array out of a non-array.
  *
- * Every modifier hands back an array schema rather than the base `ChainableSchema`,
+ * Every modifier hands back an array schema rather than the base `ChainableInterpretedSchema`,
  * so a modified array schema is still something `pvl.compile()` accepts and
  * the length constraints stay chainable. `.transform()` ends the chain.
  *
@@ -56,13 +56,13 @@ interface ArraySchemaKind<ItemSchema extends Schema<unknown, unknown>> extends S
  * // { issues: [{ path: [1], ... }, { path: [2], ... }] } — every failing element
  * ```
  */
-export class ArraySchema<
+export class ArrayInterpretedSchema<
   ItemSchema extends Schema = Schema,
   Input = InferInput<ItemSchema>[],
   Output = InferOutput<ItemSchema>[],
-> extends ChainableSchema<Input, Output> {
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': ArraySchemaKind<ItemSchema>;
+  declare readonly '~kind': ArrayInterpretedSchemaKind<ItemSchema>;
   private readonly itemSchema: ItemSchema;
 
   /** @internal */
@@ -72,7 +72,7 @@ export class ArraySchema<
   }
 
   // An accessor with no setter, so the property cannot be written. One schema
-  // rather than a keyed collection, so — unlike `ObjectSchema`'s `shape` —
+  // rather than a keyed collection, so — unlike `ObjectInterpretedSchema`'s `shape` —
   // there is nothing below it to make read-only. The schema handed back is the
   // very instance the caller declared, so its own modifiers come with it. A
   // Compiled Schema has no `element` (ADR-0020): a caller who validates one

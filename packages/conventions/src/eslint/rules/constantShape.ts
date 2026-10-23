@@ -3,7 +3,7 @@
  * UPPER_SNAKE_CASE, ends in `as const`, and when exported lives in a
  * `consts.ts`.
  */
-import { basename } from 'node:path';
+import * as path from 'node:path';
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule, isUpperSnakeCase } from '../utils.ts';
 
@@ -101,7 +101,7 @@ export const constantShape = createRule({
         }
       },
       'Program:exit': (): void => {
-        if (basename(context.filename) === 'consts.ts') {
+        if (path.basename(context.filename) === 'consts.ts') {
           return;
         }
         for (const name of exported) {

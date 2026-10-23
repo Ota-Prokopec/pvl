@@ -101,20 +101,6 @@ const isAdmin = (user: Admin | Guest): user is Admin => {
 };
 ```
 
-## Importing Node built-ins
-
-- **Import a Node built-in module as a namespace** and call it through that namespace, so a call site shows where the function comes from. Name the namespace after the module: `path` for `node:path`, `fs` for `node:fs`, `fsPromises` for `node:fs/promises`.
-
-```typescript
-// Wrong
-import { resolve } from 'node:path';
-const absolutePath = resolve(rootPath, 'src');
-
-// Right
-import * as path from 'node:path';
-const absolutePath = path.resolve(rootPath, 'src');
-```
-
 ## Barrels
 
 A module whose exports aren't public API (e.g. `src/modifiers/` in `@pvl/schema`) stays out of its package's barrel, and the barrel names it in a comment saying why. Every other module is exported through the barrel.

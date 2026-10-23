@@ -1,13 +1,19 @@
-// The code the Shared Modifiers of `ChainableSchema` compile to, one static
-// method per pre-modifier it mirrors. Each returns the condition under which
-// a value short-circuits, since a value it accepts skips every later check.
-// Every schema's emitter extends it, as every schema extends `ChainableSchema`.
-import type { ChainableSchema } from '@pvl/schema';
+// The code the Shared Modifiers of `ChainableInterpretedSchema` compile to, one method
+// per pre-modifier it mirrors, held in its `shortCircuitConditions` table.
+// Each returns the condition under which a value short-circuits, since a
+// value it accepts skips every later check. Every schema's emitter extends
+// it, as every schema extends `ChainableInterpretedSchema`.
+import type { ChainableInterpretedSchema } from '@pvl/schema';
+import { MODIFIER_NAME } from '../enums.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { Emitter, type SpellTypesArgs } from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { EmittedShortCircuitCondition, EmitterMethodOf } from './emittersTypes.js';
-import { js } from './emitterUtils.js';
+import type {
+  EmittedShortCircuitCondition,
+  EmitterMethodOf,
+  ShortCircuitConditionTable,
+} from './emittersTypes.js';
+import { emitShortCircuitCondition, js } from './emitterUtils.js';
 
 /**
  * `type` with `| undefined` or `| null` added for each `.optional()` and
@@ -21,27 +27,34 @@ import { js } from './emitterUtils.js';
 const widenType = (type: string, calls: ReadonlyArray<SchemaModifierCall>): string => {
   return calls.reduce(
     (widened, call) =>
-      call.name === 'optional'
+      call.name === MODIFIER_NAME.OPTIONAL
         ? `${widened} | undefined`
-        : call.name === 'nullable'
+        : call.name === MODIFIER_NAME.NULLABLE
           ? `${widened} | null`
           : widened,
     type,
   );
 };
 
-export class ChainableSchemaEmitter extends Emitter {
-  /** `.optional()` → `field0 === undefined`, which short-circuits. */
-  public static readonly optional: EmitterMethodOf<
-    ChainableSchema['optional'],
-    EmittedShortCircuitCondition
-  > = ({ target: { value } }) => js`${value} === undefined` as EmittedShortCircuitCondition;
+/** `.optional()` → `field0 === undefined`, which short-circuits. */
+const optional: EmitterMethodOf<
+  ChainableInterpretedSchema['optional'],
+  EmittedShortCircuitCondition
+> = ({ target: { value } }) =>
+  emitShortCircuitCondition({ acceptsWhen: js`${value} === undefined` });
 
-  /** `.nullable()` → `field0 === null`, which short-circuits. */
-  public static readonly nullable: EmitterMethodOf<
-    ChainableSchema['nullable'],
-    EmittedShortCircuitCondition
-  > = ({ target: { value } }) => js`${value} === null` as EmittedShortCircuitCondition;
+/** `.nullable()` → `field0 === null`, which short-circuits. */
+const nullable: EmitterMethodOf<
+  ChainableInterpretedSchema['nullable'],
+  EmittedShortCircuitCondition
+> = ({ target: { value } }) => emitShortCircuitCondition({ acceptsWhen: js`${value} === null` });
+
+export class ChainableSchemaEmitter extends Emitter {
+  public static override readonly shortCircuitConditions = {
+    ...Emitter.shortCircuitConditions,
+    optional,
+    nullable,
+  } satisfies ShortCircuitConditionTable;
 
   /**
    * The factory call's types, with `| undefined` or `| null` added for each

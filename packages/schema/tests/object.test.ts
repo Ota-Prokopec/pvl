@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { ObjectSchema, pvl, type Schema } from '../src/index.js';
+import { ObjectInterpretedSchema, pvl, type Schema } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.object()', () => {
@@ -226,8 +226,8 @@ describe('pvl.object()', () => {
       const schema = pvl.object({ name: pvl.string() });
       const refined = schema.refine(() => true);
       expect(refined).not.toBe(schema);
-      expect(refined).toBeInstanceOf(ObjectSchema);
-      expect(schema.optional().nullable()).toBeInstanceOf(ObjectSchema);
+      expect(refined).toBeInstanceOf(ObjectInterpretedSchema);
+      expect(schema.optional().nullable()).toBeInstanceOf(ObjectInterpretedSchema);
       // The original is untouched — a modifier never mutates in place.
       expect(schema.validate(undefined).issues).toBeDefined();
     });

@@ -1,6 +1,6 @@
 // Helpers with no better home; internal, so outside the barrel.
-import fs from 'node:fs/promises';
-import { posix } from 'node:path';
+import * as fsPromises from 'node:fs/promises';
+import * as path from 'node:path';
 import { minimatch } from 'minimatch';
 
 /** The message of a caught value, which may not be an `Error`. */
@@ -27,7 +27,7 @@ export const definedOnlyKeys = <T extends object>(
 };
 
 /**
- * What `stat` says about `path`, or `undefined` when nothing is there (or it can't be read).
+ * What `stat` says about `filePath`, or `undefined` when nothing is there (or it can't be read).
  *
  * ```ts
  * await statOrUndefined('/repo')        // Stats: a directory
@@ -35,10 +35,10 @@ export const definedOnlyKeys = <T extends object>(
  * ```
  */
 export const statOrUndefined = async (
-  path: string,
-): Promise<Awaited<ReturnType<typeof fs.stat>> | undefined> => {
+  filePath: string,
+): Promise<Awaited<ReturnType<typeof fsPromises.stat>> | undefined> => {
   try {
-    return await fs.stat(path);
+    return await fsPromises.stat(filePath);
   } catch {
     return undefined;
   }
@@ -61,6 +61,6 @@ export const findPatternsMatchingPath = (
 ): string[] => {
   // `partial`: the pattern matches `relativePath` or could match something inside it.
   return patterns.filter((pattern) =>
-    minimatch(relativePath, posix.normalize(pattern), { partial: true }),
+    minimatch(relativePath, path.posix.normalize(pattern), { partial: true }),
   );
 };

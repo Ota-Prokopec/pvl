@@ -9,3 +9,7 @@ The accepted cost is output size. Emitted code grows with the size of the whole 
 **Default Issue messages exist once, in `@pvl/schema`.** Each schema file exports an `@internal` `<SCHEMA>_SCHEMA_ISSUE_MESSAGE` object above its class, keyed by method name, with every entry a function (`STRING_SCHEMA_ISSUE_MESSAGE.min(3)`). The schema class calls the entry at runtime. The emitter calls it at compile time and writes the result into the emitted Issue as a literal, so the runtime and codegen halves of a message can't drift. The rest of each check is still written twice, which the differential test covers.
 
 > Superseded in part by [ADR-0028](./0028-emitter-methods-return-source-text-only.md): an emitter method now returns source text only, a check as a whole statement rather than its condition and Issue apart.
+
+> Amended by [ADR-0029](./0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md): the one method holding the checks of the whole tree is now `_validate`, as a Compiled Schema implements the `Schema` type rather than filling `_checkType`.
+
+> Amended by [ADR-0033](./0033-an-emitter-dispatches-chained-methods-through-typed-method-tables.md): a chained method is dispatched through an Emitter's method tables, one per kind of text, each typed by its brand, rather than to a static method found by name. A method no table holds is `UNSUPPORTED_SCHEMA`, and an object's `.strict()` and `.passthrough()` are called by its `_emitSchemaParts` directly.

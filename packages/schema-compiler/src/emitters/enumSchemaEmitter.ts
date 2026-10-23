@@ -1,12 +1,11 @@
 // The code an `EnumSchema` compiles to: its membership check, as it has no
 // Constraint.
-import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, Issue } from '@pvl/schema';
+import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
-import { emitIssue } from '../issue.js';
 import type { EmittedCheck } from './emittersTypes.js';
-import { emitCheck, emitLiteral, js, spellLiteralType } from './emitterUtils.js';
+import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class EnumSchemaEmitter extends ChainableSchemaEmitter {
@@ -14,19 +13,15 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
    * `pvl.enum(['A', 'B'])` → `field0 !== "A" && field0 !== "B"`, reporting
    * `INVALID_VALUE`.
    */
-  public static override _emitBaseCheck({
+  public static _emitBaseCheck({
     target: { value, issuePath },
     schema: { members },
   }: EmitBaseCheckArgs<EnumSchema>): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: members.map((member) => js`${value} !== ${emitLiteral(member)}`).join(' && '),
-      issue: emitIssue(
-        new Issue(
-          ISSUE_CODE.INVALID_VALUE,
-          [issuePath],
-          ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
-        ),
-      ),
+      message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
+      issuePath,
+      code: ISSUE_CODE.INVALID_VALUE,
     });
   }
 

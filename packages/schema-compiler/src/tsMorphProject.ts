@@ -1,11 +1,11 @@
 // The ts-morph project the scanned files are read into, and how a module
 // specifier written in one of them resolves.
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { Project, ts } from 'ts-morph';
 import { Diagnostic } from './diagnostics/diagnostic.js';
-import { DIAGNOSTIC_CODE } from './enums.js';
-import { Path } from './path.js';
+import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
+import type { AbsolutePath } from './path.js';
 import { Specifier } from './specifier.js';
 
 /** The project the mirror reads into, or why the application's tsconfig stops it from being built. */
@@ -14,7 +14,7 @@ export type CreateTsMorphProjectPayload =
   | { tsMorphProject: undefined; diagnostics: [Diagnostic] };
 
 /** The file a module specifier resolves to. */
-export type ModuleFile = Path & {
+export type ModuleFile = AbsolutePath & {
   /** Whether it was found through `node_modules`, as a package, rather than by path or alias. */
   isPackage: boolean;
 };
@@ -66,9 +66,9 @@ export class TsMorphProject {
    * A tsconfig whose own `include` matches no file is fine.
    */
   public static create(baseDirectory: string): CreateTsMorphProjectPayload {
-    const tsConfigFilePath = join(baseDirectory, TsMorphProject.TSCONFIG_FILE_NAME);
+    const tsConfigFilePath = path.join(baseDirectory, TsMorphProject.TSCONFIG_FILE_NAME);
 
-    const tsConfig = existsSync(tsConfigFilePath)
+    const tsConfig = fs.existsSync(tsConfigFilePath)
       ? TsMorphProject.readTsConfig(tsConfigFilePath, baseDirectory)
       : { compilerOptions: {} };
 
@@ -202,13 +202,13 @@ export class TsMorphProject {
       ).resolvedModule;
 
       if (resolvedPackage?.isExternalLibraryImport === true) {
-        return { ...Path.create(resolve(resolvedPackage.resolvedFileName)), isPackage: true };
+        return { absolutePath: path.resolve(resolvedPackage.resolvedFileName), isPackage: true };
       }
     }
 
     // Normalised to an absolute path, the form the mirror's paths are keyed by.
     return {
-      ...Path.create(resolve(resolvedModule.resolvedFileName)),
+      absolutePath: path.resolve(resolvedModule.resolvedFileName),
       isPackage: resolvedModule.isExternalLibraryImport ?? false,
     };
   }

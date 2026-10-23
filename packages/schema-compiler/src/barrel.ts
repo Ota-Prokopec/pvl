@@ -1,9 +1,20 @@
 // The barrel the Destination Directory opens with: `index.ts`, re-exporting
-// every mirrored module. Precheck reports the clashes that would make it
-// ambiguous.
+// every mirrored module, and how it spells each module it re-exports.
+// Precheck reports the clashes that would make it ambiguous.
+import * as path from 'node:path';
+import { GenericAst } from './ast/genericAst.js';
 import { BARREL_FILE_NAME, GENERATED_HEADER } from './consts.js';
 import type { Module } from './module.js';
+import { isDeclarationFile, stripFileExtension } from './path.js';
 import { Specifier } from './specifier.js';
+
+/** The extension a barrel spells for each TypeScript extension, so it resolves under Node and bundlers alike. */
+const BARREL_EXTENSION_BY_SOURCE_EXTENSION: ReadonlyMap<string, string> = new Map([
+  ['.ts', '.js'],
+  ['.tsx', '.js'],
+  ['.mts', '.mjs'],
+  ['.cts', '.cjs'],
+]);
 
 export class Barrel {
   /**
@@ -26,13 +37,13 @@ export class Barrel {
    */
   public static renderBarrelFile(modules: ReadonlyArray<Module>): string {
     const reExportLines = modules
-      .filter((module) => module.hasExport())
-      .map(({ path }) => path.relative.path)
+      .filter(({ moduleFile }) => GenericAst.hasExport(moduleFile))
+      .map(({ path }) => path.relativePath.pathFromBase)
       .sort()
-      .map((relativePath) => {
-        const specifier = new Specifier(relativePath);
-        return `${specifier.isDeclarationFile() ? 'export type *' : 'export *'} from '${specifier.toBarrel().value}';`;
-      });
+      .map(
+        (relativePath) =>
+          `${isDeclarationFile(relativePath) ? 'export type *' : 'export *'} from '${Barrel.toReExportSpecifier(relativePath).value}';`,
+      );
     return `${[GENERATED_HEADER, ...reExportLines].join('\n')}\n`;
   }
 
@@ -47,6 +58,29 @@ export class Barrel {
    * ```
    */
   public static hasScannedBarrel(modules: ReadonlyArray<Module>): boolean {
-    return modules.some(({ path }) => path.relative.path === BARREL_FILE_NAME);
+    return modules.some(({ path }) => path.relativePath.pathFromBase === BARREL_FILE_NAME);
+  }
+
+  /**
+   * The module specifier the barrel re-exports the mirrored module at
+   * `relativePath` (relative to the Destination Directory) through, with the
+   * `.js` family extension a TypeScript import of it spells, which resolves
+   * under both `NodeNext` and `bundler` module resolution without
+   * `allowImportingTsExtensions`. A declaration file is named by the module
+   * it describes.
+   *
+   * ```ts
+   * Barrel.toReExportSpecifier('schemas/user.ts').value     // './schemas/user.js'
+   * Barrel.toReExportSpecifier('schemas/legacy.mts').value  // './schemas/legacy.mjs'
+   * Barrel.toReExportSpecifier('schemas/types.d.ts').value  // './schemas/types.js'
+   * Barrel.toReExportSpecifier('schemas/types.d.cts').value // './schemas/types.cjs'
+   * Barrel.toReExportSpecifier('schemas/plain.js').value    // './schemas/plain.js'
+   * ```
+   */
+  private static toReExportSpecifier(relativePath: string): Specifier {
+    const sourceExtension = path.extname(relativePath);
+    const barrelExtension =
+      BARREL_EXTENSION_BY_SOURCE_EXTENSION.get(sourceExtension) ?? sourceExtension;
+    return Specifier.fromRelativePath(`${stripFileExtension(relativePath)}${barrelExtension}`);
   }
 }

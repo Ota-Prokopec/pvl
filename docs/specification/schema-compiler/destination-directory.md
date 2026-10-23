@@ -8,9 +8,9 @@ The compiler writes a single **`Destination Directory`** and modifies nothing el
 
 ## A complete mirror of the source root
 
-The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror: every Compiled Schema extends its `Schema` class, and the mirror carries ordinary interpreted schemas too.
+The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror, which carries ordinary interpreted schemas too, though a Compiled Schema imports only its types ([ADR-0029](../../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md)).
 
-Each mirrored module is its source's code under a `@generated` header, with only module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`):
+Each mirrored module is its source's code under a `@generated` header, with each `pvl.compile(...)` call replaced by its Compiled Schema ([code-generation.md](./code-generation.md#each-compiled-schema-is-a-class-expression-implementing-schema)), a Runtime Argument in a `const` such a call follows hoisted (below), and module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`):
 
 - **A relative import of a scanned file** stays as written: the layout is the same, so it already reaches the mirrored file.
 - **A relative import of anything else** (an unscanned helper, a `.json` file) is rewritten to reach the original file from the mirrored module's directory.
@@ -18,6 +18,17 @@ Each mirrored module is its source's code under a `@generated` header, with only
 - **A package import** (`@pvl/schema`) is kept, even when tsconfig `paths` also maps it, as a workspace often maps its own packages: a bare module specifier that `node_modules` resolves is a package.
 
 Import and export declarations, a dynamic `import()`, an `import x = require()` and an `import('…')` type all follow these rules; a computed `import()` is left alone.
+
+A Runtime Argument written in a top-level `const` that a `pvl.compile(...)` call follows, outside the call, is hoisted, so it still runs once, where it is written ([ADR-0030](../../adr/0030-a-method-argument-the-compiler-cant-read-is-a-runtime-argument-evaluated-once-where-it-is-written.md)). Its value goes into a `const pvlArg<n>`, a name the module doesn't use, right before the `const`'s declarator, which then reads it, and every call it reaches passes that name. A declarator after the first of its statement is split off into a statement of its own, keeping the statement's keywords:
+
+```ts
+export const first = 1,
+  base = pvl.string().max(getMax());
+// ↓
+export const first = 1;
+const pvlArg0 = getMax();
+export const base = pvl.string().max(pvlArg0);
+```
 
 A default export would have no name in the barrel and a different import shape from every other mirrored export, so `export default`, `export =` and `export { x as default }` are the `DEFAULT_EXPORT` error: export it by name.
 

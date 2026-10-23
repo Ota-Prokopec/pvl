@@ -2,11 +2,11 @@ import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE } from '../enums.js';
 import { Issue, type IssueEditableProps } from '../issue.js';
 import type { Result } from '../result.js';
-import type { SchemaKind } from '../types.js';
-import { ChainableSchema } from './chainableSchema.js';
+import type { InterpretedSchemaKind } from '../types.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
- * The default message of every Issue `NumberSchema` reports, keyed by the method
+ * The default message of every Issue `NumberInterpretedSchema` reports, keyed by the method
  * that reports it. `@pvl/schema-compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
@@ -19,8 +19,10 @@ export const NUMBER_SCHEMA_ISSUE_MESSAGE = {
   int: (): string => 'Number must be an integer',
 } as const;
 
-interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
-  readonly type: NumberSchema<this['Input'], this['Output']>;
+interface NumberInterpretedSchemaKind extends InterpretedSchemaKind<
+  NumberInterpretedSchema<unknown, unknown>
+> {
+  readonly type: NumberInterpretedSchema<this['Input'], this['Output']>;
 }
 
 /**
@@ -48,9 +50,12 @@ interface NumberSchemaKind extends SchemaKind<NumberSchema<unknown, unknown>> {
  * age.validate(Number.NaN); // { issues: [{ code: 'INVALID_TYPE', ... }] }
  * ```
  */
-export class NumberSchema<Input = number, Output = number> extends ChainableSchema<Input, Output> {
+export class NumberInterpretedSchema<
+  Input = number,
+  Output = number,
+> extends ChainableInterpretedSchema<Input, Output> {
   /** @internal */
-  declare readonly '~kind': NumberSchemaKind;
+  declare readonly '~kind': NumberInterpretedSchemaKind;
 
   /** @internal */
   constructor() {

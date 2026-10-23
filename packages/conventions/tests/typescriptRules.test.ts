@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import * as path from 'node:path';
 import { argsTypeAboveFunction } from '../src/eslint/rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from '../src/eslint/rules/barrelExportsOnly.ts';
 import { classFileName } from '../src/eslint/rules/classFileName.ts';
@@ -9,6 +9,7 @@ import { noInlineEnumValue } from '../src/eslint/rules/noInlineEnumValue.ts';
 import { noInterface } from '../src/eslint/rules/noInterface.ts';
 import { noJavascriptFiles } from '../src/eslint/rules/noJavascriptFiles.ts';
 import { noLocalFunctions } from '../src/eslint/rules/noLocalFunctions.ts';
+import { nodeBuiltinNamespaceImport } from '../src/eslint/rules/nodeBuiltinNamespaceImport.ts';
 import { noRegex } from '../src/eslint/rules/noRegex.ts';
 import { tsMorphThroughAst } from '../src/eslint/rules/tsMorphThroughAst.ts';
 import { createFixture, typescriptTester } from './helpers.ts';
@@ -89,6 +90,55 @@ typescriptTester.run('no-import-alias', noImportAlias, {
   ],
 });
 
+typescriptTester.run('node-builtin-namespace-import', nodeBuiltinNamespaceImport, {
+  valid: [
+    "import * as path from 'node:path';",
+    "import 'node:process';",
+    "import { readFile } from 'fs-extra';",
+    "import * as childProcess from 'node:child_process';",
+    "import * as nodePath from 'node:path';\nconst path = '';",
+    "import * as path from 'path';",
+  ],
+  invalid: [
+    {
+      code: "import { join } from 'path';",
+      errors: [
+        { messageId: 'namespace', data: { moduleSpecifier: 'path', namespaceName: 'path' } },
+      ],
+    },
+    {
+      code: "import * as nodePath from 'node:path';",
+      errors: [
+        {
+          messageId: 'namespaceName',
+          data: { moduleSpecifier: 'node:path', namespaceName: 'path', localName: 'nodePath' },
+        },
+      ],
+    },
+    {
+      code: "import { join } from 'node:path';",
+      errors: [
+        { messageId: 'namespace', data: { moduleSpecifier: 'node:path', namespaceName: 'path' } },
+      ],
+    },
+    {
+      code: "import fs from 'node:fs/promises';",
+      errors: [
+        {
+          messageId: 'namespace',
+          data: { moduleSpecifier: 'node:fs/promises', namespaceName: 'fsPromises' },
+        },
+      ],
+    },
+    {
+      code: "import type { Stats } from 'node:fs';",
+      errors: [
+        { messageId: 'namespace', data: { moduleSpecifier: 'node:fs', namespaceName: 'fs' } },
+      ],
+    },
+  ],
+});
+
 const barrelRoot = createFixture({
   'packages/lib/src/index.ts': '',
   'packages/lib/src/issue.ts': '',
@@ -96,7 +146,7 @@ const barrelRoot = createFixture({
   'packages/lib/src/schemas/index.ts': '',
   'packages/lib/src/types.d.ts': '',
 });
-const barrel = join(barrelRoot, 'packages/lib/src/index.ts');
+const barrel = path.join(barrelRoot, 'packages/lib/src/index.ts');
 
 typescriptTester.run('barrel-exports-only', barrelExportsOnly, {
   valid: [
@@ -110,7 +160,7 @@ typescriptTester.run('barrel-exports-only', barrelExportsOnly, {
     },
     {
       code: 'export const VALUE = 1 as const;',
-      filename: join(barrelRoot, 'apps/web/src/index.ts'),
+      filename: path.join(barrelRoot, 'apps/web/src/index.ts'),
     },
   ],
   invalid: [
@@ -148,14 +198,14 @@ typescriptTester.run('no-inline-enum-value', noInlineEnumValue, {
     "import type { ValueOfEnum } from '@repo/types';\ntype Role = ValueOfEnum<typeof ROLE>;",
     {
       code: 'export type ValueOfEnum<T> = T[keyof T];',
-      filename: join(typesRoot, 'packages/types/src/valueOfEnum.ts'),
+      filename: path.join(typesRoot, 'packages/types/src/valueOfEnum.ts'),
     },
   ],
   invalid: [
     { code: 'type Role = (typeof ROLE)[keyof typeof ROLE];', errors: [{ messageId: 'inline' }] },
     {
       code: 'type ValueOfEnum<T> = T[keyof T];',
-      filename: join(typesRoot, 'packages/other/src/enums.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/enums.ts'),
       errors: [{ messageId: 'redeclared' }],
     },
   ],
@@ -170,23 +220,23 @@ typescriptTester.run('enum-shape', enumShape, {
     "const config = { name: 'x' };",
     {
       code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
-      filename: join(typesRoot, 'packages/other/src/enums.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/enums.ts'),
     },
     {
       code: 'export const OPTIONS = { depth: 1, name: foo() } as const;',
-      filename: join(typesRoot, 'packages/other/src/options.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/options.ts'),
     },
   ],
   invalid: [
     { code: "const systemRole = { OWNER: 'OWNER' } as const;", errors: [{ messageId: 'name' }] },
     {
       code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
-      filename: join(typesRoot, 'packages/other/src/consts.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/consts.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
       code: "const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;\nexport { SYSTEM_ROLE };",
-      filename: join(typesRoot, 'packages/other/src/roles.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/roles.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
@@ -208,7 +258,7 @@ typescriptTester.run('constant-shape', constantShape, {
     'const greeting = `hello ${name}`;',
     {
       code: "export const VENDOR = '@pvl/schema' as const;",
-      filename: join(typesRoot, 'packages/other/src/consts.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/consts.ts'),
     },
   ],
   invalid: [
@@ -216,12 +266,12 @@ typescriptTester.run('constant-shape', constantShape, {
     { code: 'const RULE_WIDTH = 68;', errors: [{ messageId: 'asConst' }] },
     {
       code: "export const VENDOR = '@pvl/schema' as const;",
-      filename: join(typesRoot, 'packages/other/src/schema.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
       code: "const VENDOR = '@pvl/schema' as const;\nexport { VENDOR };",
-      filename: join(typesRoot, 'packages/other/src/schema.ts'),
+      filename: path.join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
     },
   ],

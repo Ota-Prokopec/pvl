@@ -2,7 +2,7 @@
 // else; `enums.ts` holds the tags that describe one. A Modifier itself lives
 // with the schema class that builds it, either inline in the method or as a
 // module-local, non-exported factory beside the class (`object`'s unknown-key
-// modifiers in `objectSchema.ts`), because a schema file is in the barrel.
+// modifiers in `objectInterpretedSchema.ts`), because a schema file is in the barrel.
 // Internal-only, so it stays out of the barrel.
 import type { Result } from '../result.js';
 import type { ModifierTag } from './enums.js';
