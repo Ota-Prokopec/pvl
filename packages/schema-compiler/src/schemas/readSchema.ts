@@ -12,7 +12,8 @@ import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAs
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { DIAGNOSTIC_CODE, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import { SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { ArraySchema } from './arraySchema.js';
 import { BigintSchema } from './bigintSchema.js';

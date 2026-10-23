@@ -23,7 +23,7 @@ import type {
   SpellFactoryTypesArgs,
 } from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { emitConstraintIssue, emitIssue, emitMessageAroundValue } from '../issue.js';
+import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
   composeBlock,
@@ -333,13 +333,10 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
 
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: js`typeof ${value} !== "object" || ${value} === null || Array.isArray(${value})`,
-      issue: emitIssue({
-        code: ISSUE_CODE.INVALID_TYPE,
-        message: OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
-        path: issuePath,
-      }),
+      message: OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
+      issuePath,
     });
   }
 

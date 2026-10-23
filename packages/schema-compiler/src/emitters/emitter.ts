@@ -14,6 +14,7 @@
 // them (ADR-0028), or, for `_emitSchemaParts`, the parts holding it
 // (ADR-0032). A subclass adds the methods mirroring its schema's to its
 // tables and overrides the `_` hooks.
+import { ISSUE_CODE } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
@@ -28,8 +29,8 @@ import type {
   SchemaParts,
   ShortCircuitConditionTable,
 } from './emittersTypes.js';
-import { js, readCallArguments } from './emitterUtils.js';
-import { emitMessageAroundValue } from '../issue.js';
+import { emitCheck, js, readCallArguments } from './emitterUtils.js';
+import { emitIssue, emitMessageAroundValue, type EmitIssueArgs } from '../issue.js';
 import { Frame, type RuntimeArgumentParameter } from './frame.js';
 import { Scope } from './scope.js';
 
@@ -43,6 +44,15 @@ export type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: ne
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
   target: CheckingTarget;
+};
+
+/** What {@link Emitter.emitTypeCheck} writes a base check from: the condition it fails under, its message, the Issue path it reports at, and its code. */
+export type EmitTypeCheckArgs = Omit<EmitIssueArgs, 'code' | 'path'> & {
+  failsWhen: string;
+  /** The Issue's path, as an expression: the target's `issuePath`. */
+  issuePath: string;
+  /** `INVALID_TYPE` unless the check compares the value to fixed values, as `pvl.literal` and `pvl.enum`'s report `INVALID_VALUE`. */
+  code?: EmitIssueArgs['code'];
 };
 
 /** What {@link Emitter._emitShortCircuitConditions} emits its pre-modifiers' conditions for: a Schema at the target it checks. */
@@ -442,6 +452,26 @@ export abstract class Emitter {
       Object.hasOwn(this.shortCircuitConditions, name) ||
       Object.hasOwn(this.postModifierChecks, name)
     );
+  }
+
+  /**
+   * A base check, as every `_emitBaseCheck` writes it: a check that pushes
+   * an Issue of `code` with `message` at `issuePath` when `failsWhen` holds.
+   * Named after the `_checkType` it compiles, which every interpreted Schema
+   * names its base check, a literal's and an enum's value check included.
+   *
+   * ```ts
+   * this.emitTypeCheck({ failsWhen: 'typeof field0 !== "string"', message: 'Expected string', issuePath: '[...path1, "name"]' })
+   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path1, "name"] });\n}'
+   * ```
+   */
+  protected static emitTypeCheck({
+    failsWhen,
+    message,
+    issuePath,
+    code = ISSUE_CODE.INVALID_TYPE,
+  }: EmitTypeCheckArgs): EmittedCheck {
+    return emitCheck({ failsWhen, issue: emitIssue({ code, message, path: issuePath }) });
   }
 
   /**

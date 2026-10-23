@@ -4,9 +4,8 @@ import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
-import { emitIssue } from '../issue.js';
 import type { EmittedCheck } from './emittersTypes.js';
-import { emitCheck, emitLiteral, js, spellLiteralType } from './emitterUtils.js';
+import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 
 export class EnumSchemaEmitter extends ChainableSchemaEmitter {
@@ -18,13 +17,11 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
     target: { value, issuePath },
     schema: { members },
   }: EmitBaseCheckArgs<EnumSchema>): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: members.map((member) => js`${value} !== ${emitLiteral(member)}`).join(' && '),
-      issue: emitIssue({
-        code: ISSUE_CODE.INVALID_VALUE,
-        message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
-        path: issuePath,
-      }),
+      message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
+      issuePath,
+      code: ISSUE_CODE.INVALID_VALUE,
     });
   }
 

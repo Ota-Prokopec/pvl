@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import configJsonSchema from '../src/config/json-schema.json' with { type: 'json' };
 import {
-  configSchema,
   DEFAULT_INCLUDE,
   DEFAULT_ROOT_DIR,
   DEFAULT_WATCH,
   DEFAULT_WITH_TYPES,
-} from '../src/index.js';
+} from '../src/config/defaults/consts.js';
+import { configSchema } from '../src/index.js';
 
 describe('json-schema.json', () => {
   it('describes every pvlconfig.json setting, with its default', () => {

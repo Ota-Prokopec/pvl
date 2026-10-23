@@ -1,6 +1,6 @@
 // One problem the compiler found, and what can be asked of or done to it.
-import { DIAGNOSTIC_SEVERITY } from '../consts.js';
-import { SEVERITY, type DiagnosticCode, type Severity } from '../enums.js';
+import { DIAGNOSTIC_SEVERITY } from './consts.js';
+import { SEVERITY, type DiagnosticCode, type Severity } from './enums.js';
 
 export type DiagnosticOptions = {
   code: DiagnosticCode;

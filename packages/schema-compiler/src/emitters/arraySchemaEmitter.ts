@@ -6,7 +6,7 @@ import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } f
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
-import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
   composeBlock,
@@ -151,13 +151,10 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: js`!Array.isArray(${value})`,
-      issue: emitIssue({
-        code: ISSUE_CODE.INVALID_TYPE,
-        message: ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(),
-        path: issuePath,
-      }),
+      message: ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(),
+      issuePath,
     });
   }
 
