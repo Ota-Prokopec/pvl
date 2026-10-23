@@ -3,7 +3,7 @@ import { Issue, type IssueEditableProps } from '../issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';
-import type { Schema } from './schema.js';
+import type { Schema, SchemaStructure } from './schema.js';
 
 /**
  * The base class every schema a `pvl.*` factory builds extends: a {@link Schema}
@@ -109,7 +109,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * // Still an object schema, so `shape` is still there.
    * const range = pvl
-   *   .object({ min: pvl.number(), max: pvl.number() })
+   *   .object({ min: pvl.number().standalone(), max: pvl.number() })
    *   .refine((value) => value.min <= value.max);
    * range.shape.min.validate(1); // { value: 1 }
    * ```
@@ -139,7 +139,8 @@ export abstract class ChainableInterpretedSchema<
    *
    * It ends the chain: the result is a plain {@link Schema}, which can
    * validate but takes no further modifier, so chain those before
-   * transforming.
+   * transforming. A transformed object keeps its `shape`, and a transformed
+   * array its `element`: each field or item still validates as declared.
    *
    * @example
    * ```ts
@@ -154,13 +155,17 @@ export abstract class ChainableInterpretedSchema<
    * label.validate(null); // { value: 'none' }
    * ```
    */
-  transform<NewOutput>(fn: (value: Output) => NewOutput): Schema<Input, NewOutput> {
+  // The return type keeps `shape`/`element`, which describe the declared
+  // fields and item, not the transformed value (ADR-0036).
+  transform<NewOutput>(
+    fn: (value: Output) => NewOutput,
+  ): Schema<Input, NewOutput> & SchemaStructure<this> {
     return this._withPostModifier<Output, NewOutput>({
       tags: [MODIFIER_TAG.REQUIRES_ALL_PASSED, MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT],
       fn: (value) => {
         return { value: fn(value) };
       },
-    }) as unknown as Schema<Input, NewOutput>;
+    }) as unknown as Schema<Input, NewOutput> & SchemaStructure<this>;
   }
 
   /**

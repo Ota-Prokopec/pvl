@@ -38,7 +38,7 @@ import type {
 } from './emittersTypes.js';
 import { emitCheck, js, readCallArguments } from './emitterUtils.js';
 import { emitIssue, emitMessageAroundValue, type EmitIssueArgs } from '../issue.js';
-import { Frame, type RuntimeArgumentParameter } from './frame.js';
+import { Frame, type ComposedStructure, type RuntimeArgumentParameter } from './frame.js';
 import { Scope } from './scope.js';
 
 /** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
@@ -136,6 +136,63 @@ export type EmitCompiledSchemaArgs = {
   hoistedNameByExpression: ReadonlyMap<Node, string>;
 };
 
+/** What {@link Emitter.emitStandaloneCompiledSchema} writes the Compiled Schema of a Standalone Key or a marked element for. */
+export type EmitStandaloneCompiledSchemaArgs = {
+  /** The Standalone Key's or the element's Schema. */
+  schema: Schema;
+  className: string;
+  /** Numbers the unmarked elements the root exposes, at any depth, in the order they are reached. */
+  nextElementIndex: () => number;
+};
+
+/** What `Emitter.emitCompiledSchemaClass` writes a class expression for: at the root, with how its Runtime Arguments are passed, or a Standalone Key's or marked element's, built by its parent. */
+type EmitCompiledSchemaClassArgs = EmitStandaloneCompiledSchemaArgs & {
+  indentation: string;
+  /** Set at the root only. */
+  root: Pick<EmitCompiledSchemaArgs, 'hoistedNameByExpression'> | undefined;
+};
+
+/** What {@link Emitter._emitCompiledStructure} emits a Compiled Schema's `shape` or `element` for. */
+export type EmitCompiledStructureArgs<TSchema extends Schema = Schema> = {
+  schema: TSchema;
+  /** The name of its class, which names the classes of what it exposes: `PvlCompiledSchema0_1`. */
+  className: string;
+  nextElementIndex: () => number;
+};
+
+/**
+ * An unmarked array element a Compiled Schema exposes as the interpreted
+ * Schema it is, which the root's caller passes in, as written (ADR-0036).
+ */
+export type UnmarkedElement = {
+  /** Its number among the root's, which names its type parameter, `TElement0`, and the parameter handing it on, `pvlElement0`. */
+  index: number;
+  /** The array whose `element` it is. */
+  array: Schema;
+  /** Its source, which the root's caller evaluates. */
+  expression: string;
+};
+
+/** A Standalone Key's or marked element's Compiled Schema, as `Emitter.emitStandaloneCompiledSchema` writes it. */
+export type StandaloneCompiledSchema = {
+  /** The expression building it, a class expression's instance. */
+  expression: string;
+  /** The type it is cast up to: `PvlSchema<string, string> & PvlStandaloneMarker`. */
+  type: string;
+  /** The unmarked elements it exposes, at any depth, its constructor takes. */
+  elements: ReadonlyArray<UnmarkedElement>;
+};
+
+/** A Compiled Schema's `shape` or `element`, as its class holds it (ADR-0036). */
+export type CompiledStructure = {
+  /** Its type, which the Compiled Schema's type intersects: `{ readonly element: TElement0 }`. */
+  type: string;
+  /** How the class declares and builds it, `undefined` when its constructor takes it, as an unmarked `element`. */
+  composed: ComposedStructure | undefined;
+  /** The unmarked elements it exposes, at any depth, which the class's constructor takes, in the order they are numbered. */
+  elements: ReadonlyArray<UnmarkedElement>;
+};
+
 /** What {@link Emitter.compilesMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
 export type CompilesMethodArgs = {
   name: string;
@@ -147,6 +204,29 @@ export type EmitMethodCallArgs<TOutput extends EmittedMethodText, TInput extends
   call: SchemaModifierCall;
   target: TInput;
 };
+
+/** The field an array's Compiled Schema holds its unmarked element in, which its constructor takes. */
+const ELEMENT_FIELD_NAME = 'element' as const;
+
+/**
+ * The type parameter an unmarked element exposed by a Compiled Schema is
+ * typed by, inferred from its source where the root is built.
+ *
+ * ```ts
+ * toElementTypeParameter(0) // 'TElement0'
+ * ```
+ */
+const toElementTypeParameter = (index: number): string => `TElement${String(index)}`;
+
+/**
+ * The constructor parameter an unmarked element is handed on to the class
+ * exposing it as, through each class between it and the root.
+ *
+ * ```ts
+ * toElementParameterName(1) // 'pvlElement1'
+ * ```
+ */
+const toElementParameterName = (index: number): string => `pvlElement${String(index)}`;
 
 /**
  * An Emitter a Schema subclass compiles with (`Schema.emitter`): `Emitter`'s
@@ -272,6 +352,20 @@ export abstract class Emitter {
    * ```
    */
   protected static _emitCompositeParts?(args: EmitSchemaPartsArgs): CompositeParts;
+
+  /**
+   * The hook writing what a Compiled Schema of this Emitter's schema type
+   * exposes besides validating: an object's `shape`, holding the Compiled
+   * Schema of each Standalone Key, or an array's `element`, its own Compiled
+   * Schema when it is marked and else the interpreted Schema it is
+   * (ADR-0036). Only a composite's Emitter has one.
+   *
+   * ```ts
+   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly element: TElement0 }', composed: undefined, elements: [{ index: 0, array: <pvl.array(…)>, expression: 'pvl.string()' }] }
+   * ```
+   */
+  protected static _emitCompiledStructure?(args: EmitCompiledStructureArgs): CompiledStructure;
 
   /**
    * The parts of `schema.preModifierCalls` at `target`, in chain order: a
@@ -435,17 +529,22 @@ export abstract class Emitter {
    * parameters exactly as a nested Schema is checked where its parent reads
    * it, then returns the Issues, or the value its checks accepted. Its
    * `Input` and `Output` types are spelled here, its parts are emitted at
-   * `Frame.rootCheckingTarget`, and the Frame composes the expression.
+   * `Frame.rootCheckingTarget`, and the Frame composes the expression. A
+   * composite's also exposes its `shape` or `element`
+   * (`_emitCompiledStructure`, ADR-0036).
    *
    * Its Runtime Arguments are passed in the order they are written, each as
    * written or by the name of the `const` it is hoisted into
-   * (`hoistedNameByExpression`), and the class's lines after its first are
-   * indented by `indentation`.
+   * (`hoistedNameByExpression`), then each unmarked element it exposes, by
+   * its source, and the class's lines after its first are indented by
+   * `indentation`.
    *
    * ```ts
    * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', indentation: '', hoistedNameByExpression: new Map() })
    * // (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
+   * //   readonly _standalone: boolean = false;
+   * //   readonly shape: {} = {};
    * //   get "~standard"(): … { … }
    * //   validate(value: unknown): PvlResult<{ name: string }> { … }
    * //   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
@@ -458,13 +557,64 @@ export abstract class Emitter {
    * //     }
    * //     return issues.length > 0 ? { issues } : { value };
    * //   }
-   * // })() as PvlSchema<{ name: string }, { name: string }>)
+   * //   standalone(): PvlStandaloneSchema<this> { … }
+   * // })() as PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} })
    * ```
    */
   public static emitCompiledSchema(
     this: SchemaEmitter,
     { schema, className, indentation, hoistedNameByExpression }: EmitCompiledSchemaArgs,
   ): string {
+    let elementCount = 0;
+    return this.emitCompiledSchemaClass({
+      schema,
+      className,
+      indentation,
+      root: { hoistedNameByExpression },
+      nextElementIndex: () => elementCount++,
+    }).expression;
+  }
+
+  /**
+   * The Compiled Schema of a Standalone Key, or a marked element, of a
+   * Compiled Schema whose constructor builds it into its `shape` or
+   * `element`: a class expression as `emitCompiledSchema`'s, inlining every
+   * check of `schema` on its own, and exposing its own Standalone Keys in
+   * turn (ADR-0036). It is written inside its parent, so it is generic in
+   * nothing: the root's type parameters are in scope. Each of its Runtime
+   * Arguments is passed as the parent holds it (`this.arg0`), so it is
+   * still evaluated once, where the root's `pvl.compile(...)` call was, and
+   * each unmarked element it exposes by the parameter the parent took it as
+   * (`pvlElement1`).
+   *
+   * ```ts
+   * StringSchemaEmitter.emitStandaloneCompiledSchema({ schema: <pvl.string().max(max).standalone()>, className: 'PvlCompiledSchema0_0', nextElementIndex })
+   * // { expression: '(new (class PvlCompiledSchema0_0 implements PvlSchema<string, string> { … })(this.arg0) as PvlSchema<string, string> & PvlStandaloneMarker)', type: 'PvlSchema<string, string> & PvlStandaloneMarker', elements: [] }
+   * ```
+   */
+  public static emitStandaloneCompiledSchema(
+    this: SchemaEmitter,
+    { schema, className, nextElementIndex }: EmitStandaloneCompiledSchemaArgs,
+  ): StandaloneCompiledSchema {
+    return this.emitCompiledSchemaClass({
+      schema,
+      className,
+      indentation: '',
+      root: undefined,
+      nextElementIndex,
+    });
+  }
+
+  /**
+   * A Compiled Schema's class expression, at the root (`root` set) or
+   * a Standalone Key's or marked element's (see `emitStandaloneCompiledSchema`), with its type
+   * and the unmarked elements it exposes. Its `shape` or `element` comes
+   * from its Emitter's `_emitCompiledStructure`.
+   */
+  private static emitCompiledSchemaClass(
+    this: SchemaEmitter,
+    { schema, className, indentation, root, nextElementIndex }: EmitCompiledSchemaClassArgs,
+  ): StandaloneCompiledSchema {
     const types = this._spellTypes({ schema });
     const runtimeArgumentParameters = this.findRuntimeArgumentParameters({ schema }).sort(
       (left, right) => left.runtimeArgument.index - right.runtimeArgument.index,
@@ -474,8 +624,10 @@ export abstract class Emitter {
         fieldName: runtimeArgument.fieldName,
         type,
         passedExpression:
-          hoistedNameByExpression.get(runtimeArgument.expression) ??
-          runtimeArgument.expression.getText(),
+          root === undefined
+            ? js`this.${runtimeArgument.fieldName}`
+            : (root.hoistedNameByExpression.get(runtimeArgument.expression) ??
+              runtimeArgument.expression.getText()),
         messageField:
           messageOf === undefined
             ? undefined
@@ -485,21 +637,48 @@ export abstract class Emitter {
               },
       }),
     );
-    return Frame.composeSchema({
+    const structure = this._emitCompiledStructure?.({ schema, className, nextElementIndex });
+    const unmarkedElements = structure?.elements ?? [];
+    const type = Frame.spellCompiledSchemaType({
+      types,
+      isStandalone: schema.isStandalone,
+      structureType: structure?.type,
+    });
+    const expression = Frame.composeSchema({
       className,
       types,
-      // In the order their Runtime Arguments are numbered.
-      typeParameters: runtimeArgumentParameters.flatMap(({ typeParameter }) =>
-        typeParameter === undefined ? [] : [typeParameter],
-      ),
+      compiledSchemaType: type,
+      isStandalone: schema.isStandalone,
+      // In the order their Runtime Arguments are numbered, then the elements'.
+      typeParameters:
+        root === undefined
+          ? []
+          : [
+              ...runtimeArgumentParameters.flatMap(({ typeParameter }) =>
+                typeParameter === undefined ? [] : [typeParameter],
+              ),
+              ...unmarkedElements.map(({ index }) => toElementTypeParameter(index)),
+            ],
       indentation,
       runtimeArguments,
+      elementParameters: unmarkedElements.map((element) => {
+        const isField = element.array === schema;
+        return {
+          name: isField ? ELEMENT_FIELD_NAME : toElementParameterName(element.index),
+          isField,
+          type: toElementTypeParameter(element.index),
+          passedExpression:
+            root === undefined ? toElementParameterName(element.index) : element.expression,
+        };
+      }),
+      structure: structure?.composed,
       parts: this._emitSchemaParts({
         schema,
         target: Frame.rootCheckingTarget,
         scope: new Scope(),
       }),
     });
+    return { expression, type, elements: unmarkedElements };
   }
 
   /**

@@ -6,7 +6,13 @@
 import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellTypesArgs } from './emitter.js';
+import type {
+  CompiledStructure,
+  EmitBaseCheckArgs,
+  EmitCompiledStructureArgs,
+  EmitSchemaPartsArgs,
+  SpellTypesArgs,
+} from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
@@ -208,5 +214,50 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }: SpellTypesArgs<ArraySchema>): SchemaTypes {
     const { input, output } = element.emitter._spellTypes({ schema: element });
     return { input: spellArrayType(input), output: spellArrayType(output) };
+  }
+
+  /**
+   * A compiled array's `element`: the element's own Compiled Schema, built
+   * by the constructor, when it is marked `.standalone()`, and else the
+   * interpreted Schema it is, which its source, passed where the root's
+   * `pvl.compile(...)` call was, builds, typed by a type parameter inferred
+   * from it, so no code is emitted for an element nobody validates alone
+   * (ADR-0036).
+   *
+   * ```ts
+   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly element: TElement0 }', composed: undefined, elements: [{ index: 0, array: <pvl.array(…)>, expression: 'pvl.string()' }] }
+   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }, elements: [] }
+   * ```
+   */
+  protected static override _emitCompiledStructure({
+    schema,
+    className,
+    nextElementIndex,
+  }: EmitCompiledStructureArgs<ArraySchema>): CompiledStructure {
+    const { element } = schema;
+    if (!element.isStandalone) {
+      const index = nextElementIndex();
+      return {
+        type: js`{ readonly element: TElement${String(index)} }`,
+        composed: undefined,
+        elements: [{ index, array: schema, expression: element.expression.getText() }],
+      };
+    }
+    const elementSchema = element.emitter.emitStandaloneCompiledSchema({
+      schema: element,
+      className: js`${className}_element`,
+      nextElementIndex,
+    });
+    return {
+      type: js`{ readonly element: ${elementSchema.type} }`,
+      composed: {
+        declaration: js`readonly element: ${elementSchema.type};`,
+        // A plain template: `js` would strip the multi-line class's indentation.
+        statement: `this.element = ${elementSchema.expression};`,
+      },
+      elements: elementSchema.elements,
+    };
   }
 }

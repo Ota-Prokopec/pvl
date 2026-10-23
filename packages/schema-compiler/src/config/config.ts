@@ -1,6 +1,7 @@
 // `pvlconfig.json`'s own schema, defined with `@pvl/schema`. The shipped
 // JSON Schema is written by hand in `json-schema.json`, so a change here needs
-// the same change there; `tests/json-schema.test.ts` catches the two drifting.
+// the same change there; `tests/json-schema.test.ts` catches the two drifting,
+// reading every key through `shape`, which is why each one is a Standalone Key.
 import { pvl, type InferOutput } from '@pvl/schema';
 
 /**
@@ -18,12 +19,12 @@ import { pvl, type InferOutput } from '@pvl/schema';
  */
 export const configSchema = pvl
   .object({
-    $schema: pvl.string().optional(),
-    include: pvl.array(pvl.string()).optional(),
-    rootDir: pvl.string().optional(),
-    destination: pvl.string().optional(),
-    withTypes: pvl.boolean().optional(),
-    watch: pvl.boolean().optional(),
+    $schema: pvl.string().optional().standalone(),
+    include: pvl.array(pvl.string()).optional().standalone(),
+    rootDir: pvl.string().optional().standalone(),
+    destination: pvl.string().optional().standalone(),
+    withTypes: pvl.boolean().optional().standalone(),
+    watch: pvl.boolean().optional().standalone(),
   })
   .strict();
 
