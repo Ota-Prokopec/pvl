@@ -1,4 +1,4 @@
-import { copyFile } from 'node:fs/promises';
+import * as fsPromises from 'node:fs/promises';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
@@ -14,6 +14,6 @@ export default defineConfig({
   clean: true,
   // `@pvl/schema-compiler/json-schema`, shipped as written.
   onSuccess: async (): Promise<void> => {
-    await copyFile('src/config/json-schema.json', 'dist/json-schema.json');
+    await fsPromises.copyFile('src/config/json-schema.json', 'dist/json-schema.json');
   },
 });

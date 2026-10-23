@@ -4,15 +4,15 @@
  * browser each time the PDF is rewritten. A TeX error doesn't stop the watch,
  * so fix the source and save again.
  */
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import * as childProcess from 'node:child_process';
+import * as url from 'node:url';
 import browserSync from 'browser-sync';
 
-const thesisDir = fileURLToPath(new URL('../../../thesis/', import.meta.url));
-const pageDir = fileURLToPath(new URL('.', import.meta.url));
-const pdfDir = fileURLToPath(new URL('../../../thesis/build/', import.meta.url));
+const thesisDir = url.fileURLToPath(new URL('../../../thesis/', import.meta.url));
+const pageDir = url.fileURLToPath(new URL('.', import.meta.url));
+const pdfDir = url.fileURLToPath(new URL('../../../thesis/build/', import.meta.url));
 
-const latexmk = spawn('latexmk', ['-pvc', '-view=none', '-Werror', 'main.tex'], {
+const latexmk = childProcess.spawn('latexmk', ['-pvc', '-view=none', '-Werror', 'main.tex'], {
   cwd: thesisDir,
   stdio: 'inherit',
 });

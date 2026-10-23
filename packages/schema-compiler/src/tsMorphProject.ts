@@ -1,6 +1,6 @@
 // The ts-morph project the scanned files are read into, and how a module
 // specifier written in one of them resolves.
-import { existsSync } from 'node:fs';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Project, ts } from 'ts-morph';
 import { Diagnostic } from './diagnostics/diagnostic.js';
@@ -68,7 +68,7 @@ export class TsMorphProject {
   public static create(baseDirectory: string): CreateTsMorphProjectPayload {
     const tsConfigFilePath = path.join(baseDirectory, TsMorphProject.TSCONFIG_FILE_NAME);
 
-    const tsConfig = existsSync(tsConfigFilePath)
+    const tsConfig = fs.existsSync(tsConfigFilePath)
       ? TsMorphProject.readTsConfig(tsConfigFilePath, baseDirectory)
       : { compilerOptions: {} };
 

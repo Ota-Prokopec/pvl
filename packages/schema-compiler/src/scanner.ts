@@ -1,7 +1,7 @@
 // Finds the files `include` selects and reads them statically (ADR-0002):
 // nothing scanned is ever imported or executed.
-import { glob } from 'node:fs/promises';
-import { join, posix } from 'node:path';
+import * as fsPromises from 'node:fs/promises';
+import * as path from 'node:path';
 import type { Project } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from './enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
@@ -69,19 +69,20 @@ export class Scanner {
       destination.getOldDestination().absolutePath,
     ]);
 
-    const entries = glob(
-      include.map((pattern) => posix.normalize(pattern)),
+    const entries = fsPromises.glob(
+      include.map((pattern) => path.posix.normalize(pattern)),
       {
         cwd: baseDirectory,
         withFileTypes: true,
         exclude: (entry) =>
-          entry.name === 'node_modules' || excludedPaths.has(join(entry.parentPath, entry.name)),
+          entry.name === 'node_modules' ||
+          excludedPaths.has(path.join(entry.parentPath, entry.name)),
       },
     );
 
     for await (const entry of entries) {
       if (entry.isFile()) {
-        files.add(join(entry.parentPath, entry.name) as ScannedPath);
+        files.add(path.join(entry.parentPath, entry.name) as ScannedPath);
       }
     }
     return [...files].sort();

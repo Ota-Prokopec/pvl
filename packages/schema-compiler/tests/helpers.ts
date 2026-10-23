@@ -1,16 +1,11 @@
-import {
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join, posix, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+// What every `runCompilation()` test shares: fixture projects in a temporary
+// directory, reading their files back, and asserting a run's diagnostics and
+// a Compiled Schema's Results.
+import * as fsPromises from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import * as url from 'node:url';
+import type { Issue, Result, Schema } from '@pvl/schema';
 import { afterEach, expect } from 'vitest';
 import { SEVERITY, type RunCompilationPayload, type DiagnosticCode } from '../src/index.js';
 
@@ -20,7 +15,9 @@ export type FixtureFiles = Readonly<Record<string, string>>;
 const fixtures: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(fixtures.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    fixtures.splice(0).map((root) => fsPromises.rm(root, { recursive: true, force: true })),
+  );
 });
 
 /**
@@ -30,11 +27,13 @@ afterEach(async () => {
 export const createFixture = async (files: FixtureFiles): Promise<string> => {
   // `realpath`, so paths the compiler reports compare equal on macOS, where
   // the temporary directory sits behind a `/var` → `/private/var` symlink.
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'pvl-compiler-')));
+  const root = await fsPromises.realpath(
+    await fsPromises.mkdtemp(path.join(os.tmpdir(), 'pvl-compiler-')),
+  );
   fixtures.push(root);
-  for (const [path, content] of Object.entries(files)) {
-    await mkdir(dirname(join(root, path)), { recursive: true });
-    await writeFile(join(root, path), content);
+  for (const [filePath, content] of Object.entries(files)) {
+    await fsPromises.mkdir(path.dirname(path.join(root, filePath)), { recursive: true });
+    await fsPromises.writeFile(path.join(root, filePath), content);
   }
   return root;
 };
@@ -48,33 +47,37 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
  * const root = await createFixture({ 'src/schemas/order.ts': ORDER_SOURCE, … });
  * await linkSchemaPackage(root);
  * await runCompilation({ cwd: root });
- * const mirrored = await import(join(root, '.pvl/schemas/order.ts'));
- * const source = await import(join(root, 'src/schemas/order.ts'));
+ * const mirrored = await import(path.join(root, '.pvl/schemas/order.ts'));
+ * const source = await import(path.join(root, 'src/schemas/order.ts'));
  * ```
  *
  * Needs `@pvl/schema` built first; `pnpm test` builds it through Turborepo.
  */
 export const linkSchemaPackage = async (root: string): Promise<void> => {
-  await mkdir(join(root, 'node_modules/@pvl'), { recursive: true });
-  await symlink(
-    fileURLToPath(new URL('../../schema', import.meta.url)),
-    join(root, 'node_modules/@pvl/schema'),
+  await fsPromises.mkdir(path.join(root, 'node_modules/@pvl'), { recursive: true });
+  await fsPromises.symlink(
+    url.fileURLToPath(new URL('../../schema', import.meta.url)),
+    path.join(root, 'node_modules/@pvl/schema'),
     'dir',
   );
 };
 
-/** The contents of `path` under `root`, or `undefined` when it doesn't exist. */
-export const readFixtureFile = async (root: string, path: string): Promise<string | undefined> => {
+/** The contents of `filePath` under `root`, or `undefined` when it doesn't exist. */
+export const readFixtureFile = async (
+  root: string,
+  filePath: string,
+): Promise<string | undefined> => {
   try {
-    return await readFile(join(root, path), 'utf8');
+    return await fsPromises.readFile(path.join(root, filePath), 'utf8');
   } catch {
     return undefined;
   }
 };
 
 /**
- * Every file under `path` in the fixture at `root`, relative to `path` with
- * `/` separators, sorted; `undefined` when `path` doesn't exist.
+ * Every file under `directoryPath` in the fixture at `root`, relative to
+ * `directoryPath` with `/` separators, sorted; `undefined` when
+ * `directoryPath` doesn't exist.
  *
  * ```ts
  * await listFixtureFiles(root, '.pvl'); // ['.gitignore', '.pvl-generated', 'index.ts', 'schemas/user.ts']
@@ -82,15 +85,21 @@ export const readFixtureFile = async (root: string, path: string): Promise<strin
  */
 export const listFixtureFiles = async (
   root: string,
-  path: string,
+  directoryPath: string,
 ): Promise<string[] | undefined> => {
-  const directory = join(root, path);
+  const directory = path.join(root, directoryPath);
   try {
-    const filesAndDirectories = await readdir(directory, { recursive: true, withFileTypes: true });
+    const filesAndDirectories = await fsPromises.readdir(directory, {
+      recursive: true,
+      withFileTypes: true,
+    });
     return filesAndDirectories
       .filter((fileOrDirectory) => fileOrDirectory.isFile())
       .map((file) =>
-        relative(directory, join(file.parentPath, file.name)).split(sep).join(posix.sep),
+        path
+          .relative(directory, path.join(file.parentPath, file.name))
+          .split(path.sep)
+          .join(path.posix.sep),
       )
       .sort();
   } catch {
@@ -113,6 +122,40 @@ export const diagnosticCodes = (
  */
 export const schemaFile = (source: string): string =>
   ["import { pvl } from '@pvl/schema';", '', source, ''].join('\n');
+
+/** A module's Schemas by export name, as a test imports a source module or its mirror. */
+export type SchemasModule = Readonly<Record<string, Pick<Schema<unknown>, 'validate'>>>;
+
+/** A fixture project a test has compiled: its root, and what the run returned. */
+export type CompiledFixture = {
+  root: string;
+  payload: RunCompilationPayload;
+};
+
+/**
+ * A Result as plain data, to compare a Compiled Schema's with the
+ * interpreted one's. An Issue is compared by its code, message and path,
+ * its class left out; an accepted object, by its keys in order too, which
+ * comparing the values alone would miss.
+ *
+ * ```ts
+ * describeResult({ value: { b: 1, a: 2 } }) // { value: { b: 1, a: 2 }, keys: ['b', 'a'] }
+ * describeResult({ issues: [<Issue TOO_SMALL at ['name']>] })
+ * // { issues: [{ code: 'TOO_SMALL', message: '…', path: ['name'] }] }
+ * ```
+ */
+export const describeResult = (result: Result<unknown>): unknown => {
+  if (result.issues) {
+    return {
+      issues: result.issues.map(({ code, message, path }: Issue) => ({ code, message, path })),
+    };
+  }
+  const { value } = result;
+  return {
+    value,
+    keys: typeof value === 'object' && value !== null ? Reflect.ownKeys(value) : undefined,
+  };
+};
 
 /** A `pvlconfig.json` body. */
 export const configJson = (config: Readonly<Record<string, unknown>>): string =>

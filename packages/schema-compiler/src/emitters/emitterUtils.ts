@@ -5,8 +5,8 @@
 // takes them, and how a value, a Runtime Argument and a literal's type are
 // spelled in the emitted code. A fragment of a fixed shape, whose slots each
 // hold a one-line expression, is written in a `js` template, as `js` would
-// misindent a multi-line one; a block wrapping any statements is
-// `Frame.composeBlock`'s.
+// misindent a multi-line one; a block wrapping any statements is written
+// with `composeBlock`, which indents them.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import dedent from 'dedent';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
@@ -33,6 +33,31 @@ import type {
  * ```
  */
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
+
+/** What {@link composeBlock} writes a block from: what precedes its braces, and the statements they wrap. */
+export type ComposeBlockArgs = {
+  /** What precedes the braces: `if (ok)`, `for (const key of Object.keys(input1))`, a base check and its `else`. */
+  head: string;
+  /** The statements, on one line or several. */
+  body: string;
+};
+
+/**
+ * A block: `head`, then `body` inside braces, every line of it indented one
+ * level, so a multi-line `body` (another block, a list of checks) keeps its
+ * own indentation beneath it. An empty line stays empty.
+ *
+ * ```ts
+ * composeBlock({ head: 'if (ok)', body: 'run();\n\nstop();' }) // 'if (ok) {\n  run();\n\n  stop();\n}'
+ * ```
+ */
+export const composeBlock = ({ head, body }: ComposeBlockArgs): string => {
+  const indentedBody = body
+    .split('\n')
+    .map((line) => (line === '' ? line : `  ${line}`))
+    .join('\n');
+  return `${head} {\n${indentedBody}\n}`;
+};
 
 /** What {@link emitCheck} writes a check from: the condition it fails under, the Issue it reports then, and the loop it runs in, if any. */
 export type EmitCheckArgs = {

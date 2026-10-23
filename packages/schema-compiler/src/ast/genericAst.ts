@@ -264,17 +264,14 @@ export class GenericAst {
       return value.getLiteralValue() as bigint;
     }
 
-    /** with Unary prefix */
     if (Node.isPrefixUnaryExpression(value)) {
       return GenericAst.readPrefixUnary(value, reading);
     }
 
-    /** Array */
     if (Node.isArrayLiteralExpression(value)) {
       return GenericAst.readArray(value, GenericAst.readStaticValue, reading);
     }
 
-    /** Object */
     if (Node.isObjectLiteralExpression(value)) {
       // Spread back onto a plain object, which keeps an own `__proto__` key.
       return {

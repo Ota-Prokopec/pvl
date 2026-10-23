@@ -15,6 +15,7 @@ import { noInlineEnumValue } from './rules/noInlineEnumValue.ts';
 import { noInterface } from './rules/noInterface.ts';
 import { noJavascriptFiles } from './rules/noJavascriptFiles.ts';
 import { noLocalFunctions } from './rules/noLocalFunctions.ts';
+import { nodeBuiltinNamespaceImport } from './rules/nodeBuiltinNamespaceImport.ts';
 import { noRegex } from './rules/noRegex.ts';
 import { noSourceLayoutHeading } from './rules/noSourceLayoutHeading.ts';
 import { packageJsonModuleType } from './rules/packageJsonModuleType.ts';
@@ -37,6 +38,7 @@ const plugin = {
     'no-interface': noInterface,
     'no-javascript-files': noJavascriptFiles,
     'no-local-functions': noLocalFunctions,
+    'node-builtin-namespace-import': nodeBuiltinNamespaceImport,
     'no-regex': noRegex,
     'no-source-layout-heading': noSourceLayoutHeading,
     'package-json-module-type': packageJsonModuleType,

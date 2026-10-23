@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import * as path from 'node:path';
 import { entryHasAgentsMd } from '../src/eslint/rules/entryHasAgentsMd.ts';
 import { envFileNames } from '../src/eslint/rules/envFileNames.ts';
 import { noSourceLayoutHeading } from '../src/eslint/rules/noSourceLayoutHeading.ts';
@@ -70,16 +70,16 @@ const workspace = createFixture({
 
 jsonTester.run('env-file-names', envFileNames, {
   valid: [
-    { code: '{}', filename: join(workspace, 'apps/web/package.json') },
-    { code: '{}', filename: join(workspace, 'package.json') },
+    { code: '{}', filename: path.join(workspace, 'apps/web/package.json') },
+    { code: '{}', filename: path.join(workspace, 'package.json') },
   ],
   invalid: [
     {
       code: '{}',
-      filename: join(workspace, 'apps/api/package.json'),
+      filename: path.join(workspace, 'apps/api/package.json'),
       errors: [
         { messageId: 'envName', data: { file: '.env' } },
-        { messageId: 'envName', data: { file: join('config', '.env.local') } },
+        { messageId: 'envName', data: { file: path.join('config', '.env.local') } },
       ],
     },
   ],
@@ -87,15 +87,15 @@ jsonTester.run('env-file-names', envFileNames, {
 
 jsonTester.run('entry-has-agents-md', entryHasAgentsMd, {
   valid: [
-    { code: '{}', filename: join(workspace, 'apps/web/package.json') },
-    { code: '{}', filename: join(workspace, 'scripts/tool/package.json') },
-    { code: '{}', filename: join(workspace, 'package.json') },
+    { code: '{}', filename: path.join(workspace, 'apps/web/package.json') },
+    { code: '{}', filename: path.join(workspace, 'scripts/tool/package.json') },
+    { code: '{}', filename: path.join(workspace, 'package.json') },
   ],
   invalid: [
     {
       code: '{}',
-      filename: join(workspace, 'packages/lib/package.json'),
-      errors: [{ messageId: 'missing', data: { entry: join('packages', 'lib') } }],
+      filename: path.join(workspace, 'packages/lib/package.json'),
+      errors: [{ messageId: 'missing', data: { entry: path.join('packages', 'lib') } }],
     },
   ],
 });
