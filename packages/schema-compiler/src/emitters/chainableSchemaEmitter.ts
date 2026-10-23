@@ -1,66 +1,82 @@
 // The code the Shared Modifiers of `ChainableInterpretedSchema` compile to:
 // `.optional()` and `.nullable()`, held in its `shortCircuitConditions`
 // table, each returning the condition under which a value short-circuits,
-// since a value it accepts skips every later check; `.coerce()`'s identity,
-// held in its `coercions` table, which a primitive's emitter overrides; and
-// `.refine()`, held in its `postModifierChecks` table, and `.transform()`,
-// held in its `transforms` table, which call the user's own functions. Every schema's emitter extends it, as every schema
-// extends `ChainableInterpretedSchema`.
+// since a value it accepts skips every later check; `.refine()`, held in its
+// `postModifierChecks` table, and `.transform()`, written by its
+// `_emitTransform` hook, which call the user's own functions; and
+// `.coerce()`, the identity here, which a primitive's emitter converts with
+// in its `_emitCoercion` hook. It also spells the types they widen. Every
+// schema's emitter extends it, as every schema extends
+// `ChainableInterpretedSchema`.
 import { ISSUE_CODE, replaceEmptyIssueMessage, type ChainableInterpretedSchema } from '@pvl/schema';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { MODIFIER_NAME } from '../enums.js';
+import { MODIFIER_NAME, UNDEFINEDNESS } from '../enums.js';
 import { emitConstraintIssue } from '../issue.js';
-import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
-import { Emitter, type SpellParameterTypesArgs, type SpellTypesArgs } from './emitter.js';
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
+import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import {
+  Emitter,
+  type CompilesMethodArgs,
+  type EmitTransformHookArgs,
+  type SpellParameterTypesArgs,
+  type SpellTypesArgs,
+} from './emitter.js';
 import type {
-  CoercionTable,
-  EmittedCoercion,
   EmittedShortCircuitCondition,
-  EmittedTransform,
+  EmitterArgs,
   EmitterMethodOf,
   PostModifierCheckTable,
   ShortCircuitConditionTable,
-  TransformTable,
+  TransformParts,
 } from './emittersTypes.js';
 import {
   emitCheck,
-  emitCoercion,
   emitFunctionCall,
   emitShortCircuitCondition,
   emitTransform,
   js,
+  readCallArguments,
+  readFunctionArgument,
 } from './emitterUtils.js';
+
+// The Input of a coerced Schema, which takes any value.
+const UNKNOWN_TYPE: SpelledType = { text: 'unknown', undefinedness: UNDEFINEDNESS.ALWAYS };
 
 /**
  * `type` with `| undefined` or `| null` added for each `.optional()` and
- * `.nullable()` in `calls`, in chain order. A `.coerce()` in `calls`
- * widens it to `unknown`, which they then leave as it is, when `type` is
- * an input type: a coerced Schema takes any value.
+ * `.nullable()` in `calls`, in chain order, admitting `undefined` once an
+ * `.optional()` is.
  *
  * ```ts
- * widenType('string', [nullable(), optional()], { isInput: false })    // 'string | null | undefined'
- * widenType('string', [min(3)], { isInput: false })                    // 'string'
- * widenType('string', [nullable(), coerce(), optional()], { isInput: true }) // 'unknown'
+ * widenType({ text: 'string', undefinedness: 'NEVER' }, [nullable(), optional()]) // { text: 'string | null | undefined', undefinedness: 'ALWAYS' }
+ * widenType({ text: 'string', undefinedness: 'NEVER' }, [min(3)])                 // { text: 'string', undefinedness: 'NEVER' }
  * ```
  */
-const widenType = (
-  type: string,
-  calls: ReadonlyArray<SchemaModifierCall>,
-  { isInput }: { isInput: boolean },
-): string => {
-  if (isInput && calls.some((call) => call.name === MODIFIER_NAME.COERCE)) {
-    return 'unknown';
-  }
+const widenType = (type: SpelledType, calls: ReadonlyArray<SchemaModifierCall>): SpelledType => {
   return calls.reduce(
-    (widened, call) =>
+    (widened, call): SpelledType =>
       call.name === MODIFIER_NAME.OPTIONAL
-        ? `${widened} | undefined`
+        ? { text: `${widened.text} | undefined`, undefinedness: UNDEFINEDNESS.ALWAYS }
         : call.name === MODIFIER_NAME.NULLABLE
-          ? `${widened} | null`
+          ? { ...widened, text: `${widened.text} | null` }
           : widened,
     type,
   );
+};
+
+/**
+ * The function `transformCall`, a `.transform(fn)`, is passed, read as
+ * `.transform()`'s own parameters type it: the Runtime Argument it always
+ * is (`readFunctionArgument`).
+ *
+ * ```ts
+ * readTransformFunction(<.transform(trim)>) // <Runtime Argument trim>
+ * ```
+ */
+const readTransformFunction = (transformCall: SchemaModifierCall): RuntimeArgument => {
+  const [fn]: EmitterArgs<Parameters<ChainableInterpretedSchema['transform']>> =
+    readCallArguments(transformCall);
+  return readFunctionArgument(fn);
 };
 
 /** `.optional()` → `field0 === undefined`, which short-circuits. */
@@ -77,16 +93,9 @@ const nullable: EmitterMethodOf<
 > = ({ target: { value } }) => emitShortCircuitCondition({ acceptsWhen: js`${value} === null` });
 
 /**
- * `.coerce()` → nothing: the identity, as `@pvl/schema`'s base
- * `_coerceInput` is, which an object, an array and an enum keep.
- */
-const coerce: EmitterMethodOf<ChainableInterpretedSchema['coerce'], EmittedCoercion> = () =>
-  emitCoercion({ statement: '' });
-
-/**
- * `.refine(isOk)` → `!this.arg0.call(undefined, field0 as never)`, reporting `CUSTOM`, whose
- * default message is the one `@pvl/schema`'s `Issue` gives an Issue reported
- * without one.
+ * `.refine(isOk)` → `!this.arg0.call(undefined, field0 as never)`, reporting
+ * `CUSTOM`, whose default message is the one `@pvl/schema`'s `Issue` gives an
+ * Issue reported without one.
  */
 const refine: EmitterMethodOf<ChainableInterpretedSchema['refine']> = ({
   target: { value, issuePath },
@@ -102,15 +111,6 @@ const refine: EmitterMethodOf<ChainableInterpretedSchema['refine']> = ({
     }),
   });
 
-/**
- * `.transform(fn)` → `field0 = this.arg0.call(undefined, field0 as never);`, which the Frame
- * runs only when nothing failed.
- */
-const transform: EmitterMethodOf<ChainableInterpretedSchema['transform'], EmittedTransform> = ({
-  target: { value },
-  args: [fn],
-}) => emitTransform({ statement: js`${value} = ${emitFunctionCall(fn, value)};` });
-
 export class ChainableSchemaEmitter extends Emitter {
   public static override readonly shortCircuitConditions = {
     ...Emitter.shortCircuitConditions,
@@ -118,20 +118,53 @@ export class ChainableSchemaEmitter extends Emitter {
     nullable,
   } satisfies ShortCircuitConditionTable;
 
-  public static override readonly coercions = {
-    ...Emitter.coercions,
-    coerce,
-  } satisfies CoercionTable;
-
   public static override readonly postModifierChecks = {
     ...Emitter.postModifierChecks,
     refine,
   } satisfies PostModifierCheckTable;
 
-  public static override readonly transforms = {
-    ...Emitter.transforms,
-    transform,
-  } satisfies TransformTable;
+  /**
+   * Whether it compiles the Schema method `name`: one of its tables holds
+   * it, or it is `.coerce()` or `.transform()`, which a hook emits
+   * (`_emitCoercion`, `_emitTransform`).
+   *
+   * ```ts
+   * StringSchemaEmitter.compilesMethod({ name: 'transform' }) // true
+   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })      // true: the identity
+   * ```
+   */
+  public static override compilesMethod(args: CompilesMethodArgs): boolean {
+    return (
+      args.name === MODIFIER_NAME.COERCE ||
+      args.name === MODIFIER_NAME.TRANSFORM ||
+      super.compilesMethod(args)
+    );
+  }
+
+  /**
+   * `.transform(fn)` → `field0 = this.arg0.call(undefined, field0 as never);`,
+   * which the Frame runs only when nothing failed, behind the count of
+   * Issues taken before `schema`'s checks, named after the value.
+   *
+   * ```ts
+   * StringSchemaEmitter._emitTransform({ schema: <pvl.string().transform(trim)>, target: { value: 'field0', path, issuePath } })
+   * // { issueCount: 'field0IssueCount', statement: 'field0 = this.arg0.call(undefined, field0 as never);' }
+   * StringSchemaEmitter._emitTransform({ schema: <pvl.string()>, target }) // undefined
+   * ```
+   */
+  public static override _emitTransform({
+    schema: { transformCall },
+    target: { value },
+  }: EmitTransformHookArgs): TransformParts | undefined {
+    if (transformCall === undefined) {
+      return undefined;
+    }
+    const fn = readTransformFunction(transformCall);
+    return {
+      issueCount: `${value}IssueCount`,
+      statement: emitTransform({ statement: js`${value} = ${emitFunctionCall(fn, value)};` }),
+    };
+  }
 
   /**
    * Its emitter's `parameterTypes`, `.refine()`'s and `.transform()`'s: a
@@ -142,6 +175,8 @@ export class ChainableSchemaEmitter extends Emitter {
    * ```ts
    * StringSchemaEmitter._spellParameterTypes({ schema: <pvl.string().refine(isOk).optional()>, call: <.refine(isOk)> })
    * // ['(value: string) => boolean', '{ message?: string } | undefined']
+   * StringSchemaEmitter._spellParameterTypes({ schema: <pvl.string().optional().transform(trim)>, call: <.transform(trim)> })
+   * // ['(value: string | undefined) => TArg0Output']
    * ```
    */
   public static override _spellParameterTypes(
@@ -149,40 +184,47 @@ export class ChainableSchemaEmitter extends Emitter {
   ): ReadonlyArray<string> | undefined {
     const { schema, call } = args;
     if (call.name === MODIFIER_NAME.REFINE) {
-      const { output } = this._spellTypes({ schema, chainEnd: call.chainIndex });
-      return [`(value: ${output}) => boolean`, ISSUE_OPTIONS_TYPE];
+      const { output } = this._spellTypes({ schema, before: call });
+      return [`(value: ${output.text}) => boolean`, ISSUE_OPTIONS_TYPE];
     }
-    if (call.name === MODIFIER_NAME.TRANSFORM) {
-      const { output } = this._spellTypes({ schema, chainEnd: call.chainIndex });
-      return [`(value: ${output}) => ${this.spellTransformOutputType({ call })}`];
+    if (call === schema.transformCall) {
+      const { output } = this._spellTypes({ schema, before: call });
+      return [`(value: ${output.text}) => ${readTransformFunction(call).outputTypeParameterName}`];
     }
     return super._spellParameterTypes(args);
   }
 
   /**
    * The factory call's types, with `| undefined` or `| null` added for each
-   * `.optional()` and `.nullable()` chained before `chainEnd`, in chain
-   * order, and the input `unknown` once a `.coerce()` is. A `.transform()`
-   * makes the output its type parameter.
+   * `.optional()` and `.nullable()` chained before `before`, in chain order,
+   * and the Input `unknown` once a `.coerce()` is. Over the whole chain, a
+   * `.transform()` makes the Output its type parameter, which admits
+   * `undefined` only when its function may return it.
    *
    * ```ts
    * StringSchemaEmitter._spellTypes({ schema: <pvl.string().nullable().optional()> })
-   * // { input: 'string | null | undefined', output: <the same> }
+   * // { input: { text: 'string | null | undefined', undefinedness: 'ALWAYS' }, output: <the same> }
+   * StringSchemaEmitter._spellTypes({ schema: <pvl.number().coerce().transform(String)> })
+   * // { input: { text: 'unknown', undefinedness: 'ALWAYS' }, output: { text: 'TArg0Output', undefinedness: 'CONDITIONAL' } }
    * ```
    */
   public static override _spellTypes(args: SpellTypesArgs): SchemaTypes {
     const { input, output } = super._spellTypes(args);
-    const { schema, chainEnd = Infinity } = args;
-    const calls = schema.preModifierCalls.filter(({ chainIndex }) => chainIndex < chainEnd);
-    const transformCall = [...schema.postModifierCalls]
-      .reverse()
-      .find((call) => call.name === MODIFIER_NAME.TRANSFORM && call.chainIndex < chainEnd);
+    const { schema, before } = args;
+    const { transformCall } = schema;
+    const calls = schema.findCallsBefore(before);
     return {
-      input: widenType(input, calls, { isInput: true }),
+      input: calls.some((call) => call.name === MODIFIER_NAME.COERCE)
+        ? UNKNOWN_TYPE
+        : widenType(input, calls),
+      // A `.transform()` is chained last, so after any `before`.
       output:
-        transformCall === undefined
-          ? widenType(output, calls, { isInput: false })
-          : this.spellTransformOutputType({ call: transformCall }),
+        transformCall === undefined || before !== undefined
+          ? widenType(output, calls)
+          : {
+              text: readTransformFunction(transformCall).outputTypeParameterName,
+              undefinedness: UNDEFINEDNESS.CONDITIONAL,
+            },
     };
   }
 }

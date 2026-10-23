@@ -1,17 +1,18 @@
 // Where one Schema's checks are composed. Its Emitter emits every part as
-// source text (`SchemaParts`: the base check, the pre-modifiers' conditions,
-// the post-modifiers' checks, and a composite's locals, declarations,
-// children's checks and output statements), and the Frame's pure functions
-// compose them, placing each part behind the gate it needs, the same at the
-// root of a Compiled Schema's `_validate` as nested in a parent: the root is
-// checked at `_validate`'s own parameters (`Frame.rootCheckingTarget`), as a
-// nested Schema is at the target its parent hands on
-// (`Frame.createNestedCheckingTarget`). At the root it also wraps the checks
-// in the Compiled Schema's class expression, which replaces its
-// `pvl.compile(...)` call, and closes `_validate` with its one return. A
+// source text (`SchemaParts`: the base check, the pre-modifiers' parts, the
+// post-modifiers' checks, the transform, and a composite's locals,
+// declarations, children's checks and output statements), and the Frame's
+// pure functions compose them, placing each part behind the gate it needs,
+// the same at the root of a Compiled Schema's `_validate` as nested in a
+// parent: the root is checked at `_validate`'s own parameters
+// (`Frame.rootCheckingTarget`), as a nested Schema is at the target its
+// parent hands on (`Frame.createNestedCheckingTarget`). At the root it also
+// wraps the checks in the Compiled Schema's class expression, which replaces
+// its `pvl.compile(...)` call, and closes `_validate` with its one return. A
 // Frame writes no check of its own, only the JavaScript fragments it places:
 // a composite's path and Issue-count locals, the gate behind them
-// (`../issue.ts`), and the handoff of its output.
+// (`../issue.ts`), the pre-modifiers' guards, the transform's gate, and the
+// handoff of its output.
 import { VENDOR } from '@pvl/schema';
 import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
@@ -19,6 +20,8 @@ import type {
   CheckingTarget,
   CompositeParts,
   EmittedCheck,
+  EmittedCoercion,
+  EmittedShortCircuitCondition,
   PreModifierStep,
   SchemaParts,
 } from './emittersTypes.js';
@@ -58,12 +61,14 @@ export type ComposeSchemaArgs = {
   parts: SchemaParts;
 };
 
-/** What {@link Frame.composePreModifierSteps} composes: a Schema's pre-modifiers' parts, and the checks they come before. */
-export type ComposePreModifierStepsArgs = {
+/** What {@link Frame.groupPreModifierSteps} groups: a Schema's pre-modifiers' parts. */
+export type GroupPreModifierStepsArgs = {
   steps: ReadonlyArray<PreModifierStep>;
-  /** Its base check and everything in its `else`. */
-  checks: string;
 };
+
+/** A Schema's pre-modifier step as grouped: a conversion, which replaces the value before what follows it, or the conditions chained one after another, whose one guard what follows runs behind. */
+export type GroupedPreModifierStep =
+  { coercion: EmittedCoercion } | { conditions: EmittedShortCircuitCondition[] };
 
 /** What {@link Frame.createNestedCheckingTarget} creates a nested Schema's target from: its value and its path, as expressions. */
 export type CreateNestedCheckingTargetArgs = {
@@ -142,8 +147,11 @@ export class Frame {
    * One Schema's checks at `target`, as statements: its base check, then,
    * in its `else`, a composite's declarations, its children's checks, its
    * output statements, and its post-modifiers' checks behind their gate,
-   * all after its pre-modifiers' parts (`composePreModifierSteps`), and
-   * then its transforms, which run unless one of those reported an Issue.
+   * all after its pre-modifiers' parts (`groupPreModifierSteps`), and
+   * then its transform, which runs unless one of those reported an Issue.
+   * What follows a short-circuit condition runs only when it doesn't hold,
+   * the value it holds for being accepted as it is, so the guard of the
+   * conditions chained one after another negates any of them holding.
    *
    * The rest goes in the base check's `else`, so it runs only once that
    * check has passed, reading the value as the type it checked. The checks
@@ -160,7 +168,7 @@ export class Frame {
    */
   public static composeChecks({
     target,
-    parts: { baseCheck, preModifierSteps, postModifierChecks, composite, transforms },
+    parts: { baseCheck, preModifierSteps, postModifierChecks, composite, transform },
   }: ComposeChecksArgs): string {
     const statements =
       composite === undefined
@@ -175,60 +183,82 @@ export class Frame {
             body: statements.join('\n'),
           });
 
-    const guardedChecks = Frame.composePreModifierSteps({ steps: preModifierSteps, checks });
-    if (transforms === undefined) {
+    const guardedChecks = Frame.groupPreModifierSteps({ steps: preModifierSteps }).reduceRight(
+      (body, step) =>
+        'coercion' in step
+          ? [step.coercion, body].join('\n')
+          : composeBlock({
+              head: `if (!(${step.conditions.map((condition) => `(${condition})`).join(' || ')}))`,
+              body,
+            }),
+      checks,
+    );
+    if (transform === undefined) {
       return guardedChecks;
     }
     // A transform runs after a short-circuit too, but only once nothing failed.
     return [
-      js`const ${transforms.issueCount} = issues.length;`,
+      js`const ${transform.issueCount} = issues.length;`,
       guardedChecks,
       composeBlock({
-        head: `if (${emitNoNewIssuesCondition(transforms.issueCount)})`,
-        body: transforms.statements.join('\n'),
+        head: `if (${emitNoNewIssuesCondition(transform.issueCount)})`,
+        body: transform.statement,
       }),
     ].join('\n');
   }
 
   /**
-   * `checks` after `steps`, a Schema's pre-modifiers' parts, in chain
-   * order, as ADR-0010 runs them: a conversion replaces the value before
-   * what follows it, and what follows a short-circuit condition runs only
-   * when it doesn't hold, the value it holds for being accepted as it is.
-   * Conditions chained one after another share one guard, as any one of
-   * them holding skips the rest.
+   * Whether the checks composed from `parts` replace the value they read,
+   * so it is declared with `let`: a composite puts its output back on it, a
+   * conversion converts it, and a transform replaces it.
    *
    * ```ts
-   * Frame.composePreModifierSteps({ steps: [{ shortCircuitCondition: 'field0 === null' }, { shortCircuitCondition: 'field0 === undefined' }], checks })
-   * // 'if (!((field0 === null) || (field0 === undefined))) {\n  <checks>\n}'
-   * Frame.composePreModifierSteps({ steps: [{ coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }], checks })
-   * // 'field0 = String(field0);\nif (!((field0 === undefined))) {\n  <checks>\n}'
+   * Frame.replacesValue(<the parts of pvl.string().min(3)>)             // false
+   * Frame.replacesValue(<the parts of pvl.string().coerce()>)           // true
+   * Frame.replacesValue(<the parts of pvl.array(pvl.string())>)         // true
+   * Frame.replacesValue(<the parts of pvl.string().transform(trim)>)    // true
    * ```
    */
-  private static composePreModifierSteps({ steps, checks }: ComposePreModifierStepsArgs): string {
+  public static replacesValue({ composite, transform, preModifierSteps }: SchemaParts): boolean {
+    return (
+      composite !== undefined ||
+      transform !== undefined ||
+      preModifierSteps.some((step) => 'coercion' in step)
+    );
+  }
+
+  /**
+   * `steps`, a Schema's pre-modifiers' parts, in chain order, as ADR-0010
+   * runs them: a conversion replaces the value before what follows it, and
+   * conditions chained one after another are grouped, to share one guard,
+   * as any one of them holding skips the rest. `composeChecks` wraps the
+   * checks in them.
+   *
+   * ```ts
+   * Frame.groupPreModifierSteps({ steps: [{ shortCircuitCondition: 'field0 === null' }, { shortCircuitCondition: 'field0 === undefined' }] })
+   * // [{ conditions: ['field0 === null', 'field0 === undefined'] }]
+   * Frame.groupPreModifierSteps({ steps: [{ coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }] })
+   * // [{ coercion: 'field0 = String(field0);' }, { conditions: ['field0 === undefined'] }]
+   * ```
+   */
+  private static groupPreModifierSteps({
+    steps,
+  }: GroupPreModifierStepsArgs): GroupedPreModifierStep[] {
     const [step] = steps;
     if (step === undefined) {
-      return checks;
+      return [];
     }
     if ('coercion' in step) {
-      return [step.coercion, Frame.composePreModifierSteps({ steps: steps.slice(1), checks })].join(
-        '\n',
-      );
+      return [step, ...Frame.groupPreModifierSteps({ steps: steps.slice(1) })];
     }
     const coercionIndex = steps.findIndex((nextStep) => 'coercion' in nextStep);
     const conditionCount = coercionIndex === -1 ? steps.length : coercionIndex;
-    const shortCircuits = steps
+    const conditions = steps
       .slice(0, conditionCount)
       .flatMap((conditionStep) =>
-        'shortCircuitCondition' in conditionStep
-          ? [`(${conditionStep.shortCircuitCondition})`]
-          : [],
-      )
-      .join(' || ');
-    return composeBlock({
-      head: `if (!(${shortCircuits}))`,
-      body: Frame.composePreModifierSteps({ steps: steps.slice(conditionCount), checks }),
-    });
+        'shortCircuitCondition' in conditionStep ? [conditionStep.shortCircuitCondition] : [],
+      );
+    return [{ conditions }, ...Frame.groupPreModifierSteps({ steps: steps.slice(conditionCount) })];
   }
 
   /**
@@ -246,7 +276,7 @@ export class Frame {
    * it is.
    *
    * ```ts
-   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: 'string', output: 'string' }, indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' } }], parts: <the parts of pvl.string().max(max) at the root> })
+   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' } }], parts: <the parts of pvl.string().max(max) at the root> })
    * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
    * //
@@ -284,7 +314,10 @@ export class Frame {
   // is no unused private member.
   public static composeSchema({
     className,
-    types: { input, output },
+    types: {
+      input: { text: input },
+      output: { text: output },
+    },
     typeParameters,
     indentation,
     runtimeArguments,

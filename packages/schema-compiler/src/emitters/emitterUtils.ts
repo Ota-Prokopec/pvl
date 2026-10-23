@@ -115,15 +115,14 @@ export const emitShortCircuitCondition = ({
   return acceptsWhen as EmittedShortCircuitCondition;
 };
 
-/** What {@link emitCoercion} writes `.coerce()`'s conversion from: the statements replacing the value, none for the identity. */
+/** What {@link emitCoercion} writes `.coerce()`'s conversion from: the statements replacing the value. */
 export type EmitCoercionArgs = {
   statement: string;
 };
 
 /**
  * `.coerce()`'s conversion, as statements replacing the value before its
- * type check, or `''` where `@pvl/schema`'s `_coerceInput` is the identity.
- * The one place an `EmittedCoercion` is written.
+ * type check. The one place an `EmittedCoercion` is written.
  *
  * ```ts
  * emitCoercion({ statement: 'field0 = String(field0);' }) // 'field0 = String(field0);'
@@ -240,6 +239,9 @@ export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): 
   return argument instanceof RuntimeArgument ? argument.emitReading() : emitLiteral(argument);
 };
 
+/** A function the user passes a method, as `.refine()`'s and `.transform()`'s own parameters type it. */
+export type UserFunction = (...args: never[]) => unknown;
+
 /**
  * A call to a function the user passed a method, `.refine()`'s predicate or
  * `.transform()`'s function, on `value`, read off the Compiled Schema's
@@ -255,7 +257,7 @@ export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): 
  * emitFunctionCall(<the 1st Runtime Argument>, 'field0') // 'this.arg0.call(undefined, field0 as never)'
  * ```
  */
-export const emitFunctionCall = (fn: unknown, value: string): string => {
+export const emitFunctionCall = (fn: RuntimeArgument | UserFunction, value: string): string => {
   return js`${readFunctionArgument(fn).emitReading()}.call(undefined, ${value} as never)`;
 };
 
@@ -267,10 +269,10 @@ export const emitFunctionCall = (fn: unknown, value: string): string => {
  *
  * ```ts
  * readFunctionArgument(<the 1st Runtime Argument>) // <the 1st Runtime Argument>
- * readFunctionArgument(3)                          // throws
+ * readFunctionArgument((value) => value > 0)      // throws: a function is never read as a literal
  * ```
  */
-export const readFunctionArgument = (fn: unknown): RuntimeArgument => {
+export const readFunctionArgument = (fn: RuntimeArgument | UserFunction): RuntimeArgument => {
   if (!(fn instanceof RuntimeArgument)) {
     throw new Error(`A function passed a method is always a Runtime Argument, not ${String(fn)}.`);
   }

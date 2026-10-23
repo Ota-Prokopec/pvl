@@ -1,19 +1,14 @@
 // The code a `StringSchema` compiles to, one method per method of
 // `StringInterpretedSchema` it mirrors: its Constraints, held in its
-// `postModifierChecks` table, and `.coerce()`, held in its `coercions` table.
-import {
-  type ChainableInterpretedSchema,
-  ISSUE_CODE,
-  STRING_SCHEMA_ISSUE_MESSAGE,
-  type StringInterpretedSchema,
-} from '@pvl/schema';
+// `postModifierChecks` table, and `.coerce()`, written by its `_emitCoercion`
+// hook.
+import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToString } from './coercions.js';
-import type { EmitBaseCheckArgs } from './emitter.js';
+import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
-  CoercionTable,
   EmittedCheck,
   EmittedCoercion,
   EmitterMethodOf,
@@ -68,16 +63,11 @@ const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
     }),
   });
 
-/** `.coerce()` → `field0 = String(field0);`, as `coerceToString` converts. */
-const coerce: EmitterMethodOf<ChainableInterpretedSchema['coerce'], EmittedCoercion> = ({
-  target: { value },
-}) => emitCoerceToString(value);
-
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
-  public static override readonly coercions = {
-    ...ChainableSchemaEmitter.coercions,
-    coerce,
-  } satisfies CoercionTable;
+  /** `.coerce()` → `field0 = String(field0);`, as `coerceToString` converts. */
+  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
+    return emitCoerceToString(value);
+  }
 
   public static override readonly postModifierChecks = {
     ...ChainableSchemaEmitter.postModifierChecks,

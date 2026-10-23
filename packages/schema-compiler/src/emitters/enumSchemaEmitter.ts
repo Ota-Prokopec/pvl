@@ -3,10 +3,11 @@
 import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs, SpellFactoryTypesArgs } from './emitter.js';
+import type { EmitBaseCheckArgs, SpellTypesArgs } from './emitter.js';
 import type { EmittedCheck } from './emittersTypes.js';
 import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import { UNDEFINEDNESS } from '../enums.js';
 
 export class EnumSchemaEmitter extends ChainableSchemaEmitter {
   /**
@@ -29,13 +30,14 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
    * The union of the members' types.
    *
    * ```ts
-   * EnumSchemaEmitter._spellFactoryTypes({ schema: <pvl.enum(['A', 'B'])> }) // { input: '"A" | "B"', output: '"A" | "B"' }
+   * EnumSchemaEmitter._spellFactoryTypes({ schema: <pvl.enum(['A', 'B'])> }) // { input: { text: '"A" | "B"', undefinedness: 'NEVER' }, output: <the same> }
    * ```
    */
-  public static override _spellFactoryTypes({
-    schema,
-  }: SpellFactoryTypesArgs<EnumSchema>): SchemaTypes {
-    const type = schema.members.map((member) => spellLiteralType(member)).join(' | ');
+  public static override _spellFactoryTypes({ schema }: SpellTypesArgs<EnumSchema>): SchemaTypes {
+    const type: SpelledType = {
+      text: schema.members.map((member) => spellLiteralType(member)).join(' | '),
+      undefinedness: UNDEFINEDNESS.NEVER,
+    };
     return { input: type, output: type };
   }
 }

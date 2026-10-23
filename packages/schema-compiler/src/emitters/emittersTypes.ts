@@ -5,6 +5,8 @@
 // composite's locals among them, what an emitter method reads (its target,
 // and the arguments of the method it mirrors, each read as written or a
 // Runtime Argument), and the tables an Emitter dispatches its methods from.
+// `.coerce()`'s conversion and `.transform()`'s call are written by hooks of
+// their own, not dispatched from a table (ADR-0035).
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 
 /** A local a composite declares, which its frame places after its own and before its children: `const output2: unknown[] = [];`. */
@@ -19,7 +21,7 @@ export type EmittedCheck = string & { readonly __brand: 'check' };
 /** A pre-modifier's condition, as an expression: a value it holds for skips every other check, as `.optional()`'s `field0 === undefined`. */
 export type EmittedShortCircuitCondition = string & { readonly __brand: 'shortCircuitCondition' };
 
-/** `.coerce()`'s conversion, as statements replacing the value before its type check: `field0 = String(field0);`. Empty where the conversion is the identity, as on an object. */
+/** `.coerce()`'s conversion, as statements replacing the value before its type check: `field0 = String(field0);`. */
 export type EmittedCoercion = string & { readonly __brand: 'coercion' };
 
 /** `.transform()`'s call, as a statement replacing the value with what the user's function returns: `field0 = this.arg0.call(undefined, field0 as never);`. */
@@ -87,7 +89,7 @@ export type CompositeParts = {
  * ```
  */
 export type SchemaParts = {
-  /** Its type check, whose `else` everything but its pre-modifiers' parts and its transforms runs in. */
+  /** Its type check, whose `else` everything but its pre-modifiers' parts and its transform runs in. */
   baseCheck: EmittedCheck;
   /** Its pre-modifiers' parts, in chain order: a condition skips every check after it, and a conversion replaces the value. */
   preModifierSteps: PreModifierStep[];
@@ -95,24 +97,24 @@ export type SchemaParts = {
   postModifierChecks: EmittedCheck[];
   /** What a composite adds; `undefined` for any other Schema. */
   composite?: CompositeParts;
-  /** Its `.transform()`s, which run once every other check has, unless one of them reported an Issue, and after a short-circuit too; `undefined` when it has none. */
-  transforms?: TransformParts;
+  /** Its `.transform()`, which runs once every other check has, unless one of them reported an Issue, and after a short-circuit too; `undefined` when it has none. */
+  transform?: TransformParts;
 };
 
 /**
- * A Schema's `.transform()`s, which replace its value once its checks have
+ * A Schema's `.transform()`, which replaces its value once its checks have
  * run, and the local holding the count of Issues taken before them, which
- * they are gated behind.
+ * it is gated behind. A chain holds at most one, always last.
  *
  * ```ts
- * <the transforms of pvl.string().transform(trim) at field0>
- * // { issueCount: 'field0IssueCount', statements: ['field0 = this.arg0.call(undefined, field0 as never);'] }
+ * <the transform of pvl.string().transform(trim) at field0>
+ * // { issueCount: 'field0IssueCount', statement: 'field0 = this.arg0.call(undefined, field0 as never);' }
  * ```
  */
 export type TransformParts = {
   /** The count of Issues taken before its checks: `field0IssueCount`. */
   issueCount: string;
-  statements: EmittedTransform[];
+  statement: EmittedTransform;
 };
 
 /** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. */
@@ -138,13 +140,9 @@ export type EmitterArgs<TParameters extends ReadonlyArray<unknown>> = {
   [Index in keyof TParameters]: TParameters[Index] | RuntimeArgument;
 };
 
-/** The kinds of source text an emitter method writes: a check, a pre-modifier's short-circuit condition, `.coerce()`'s conversion, `.transform()`'s call, or a statement building a composite's output. */
+/** The kinds of source text an emitter method writes: a check, a pre-modifier's short-circuit condition, or a statement building a composite's output. */
 export type EmittedMethodText =
-  | EmittedCheck
-  | EmittedShortCircuitCondition
-  | EmittedCoercion
-  | EmittedTransform
-  | EmittedOutputStatement;
+  EmittedCheck | EmittedShortCircuitCondition | EmittedOutputStatement;
 
 /**
  * The type of an emitter method mirroring `TSchemaMethod`, a method of the
@@ -190,12 +188,6 @@ export type EmitterMethodTable<
 
 /** An Emitter's pre-modifiers, each writing the condition a value short-circuits under: `{ optional, nullable }`. */
 export type ShortCircuitConditionTable = EmitterMethodTable<EmittedShortCircuitCondition>;
-
-/** An Emitter's `.coerce()`, writing its conversion: `{ coerce }`. */
-export type CoercionTable = EmitterMethodTable<EmittedCoercion>;
-
-/** An Emitter's `.transform()`, writing its call: `{ transform }`. */
-export type TransformTable = EmitterMethodTable<EmittedTransform>;
 
 /** An Emitter's post-modifiers that check its value, each writing its check: `{ min, max, length }`. */
 export type PostModifierCheckTable = EmitterMethodTable<EmittedCheck>;
