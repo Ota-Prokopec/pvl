@@ -245,7 +245,9 @@ const readExpression = (
       readExpression({ ...args, expression: nestedExpression }, nestedExpression, nestedFollowed),
   });
   // Read once the factory's argument is, as they are written after it.
-  const calls = chainedMethods.map((method) => readMethodCall(method, args.runtimeArguments));
+  const calls = chainedMethods.map((method, chainIndex) =>
+    readMethodCall(method, chainIndex, args.runtimeArguments),
+  );
   return buildSchema({
     module: args.module,
     expression: args.expression,
@@ -269,21 +271,24 @@ const isSchemaFactory = (methodName: string): methodName is SchemaFactory =>
   Object.hasOwn(SCHEMA_CLASS_BY_FACTORY, methodName);
 
 /**
- * `method`, a method chained onto a Schema, with its arguments read (see
- * `readMethodArguments`), each Runtime Argument added to `runtimeArguments`.
+ * `method`, the `chainIndex`th method chained onto a Schema, with its
+ * arguments read (see `readMethodArguments`), each Runtime Argument added to
+ * `runtimeArguments`.
  *
  * ```ts
- * readMethodCall(<.min(3)>, [])   // { name: 'min', args: [3], line: 1 }
- * readMethodCall(<.min(min)>, []) // { name: 'min', args: [<Runtime Argument min>], line: 1 }
+ * readMethodCall(<.min(3)>, 0, [])   // { name: 'min', args: [3], line: 1, chainIndex: 0 }
+ * readMethodCall(<.min(min)>, 1, []) // { name: 'min', args: [<Runtime Argument min>], line: 1, chainIndex: 1 }
  * ```
  */
 const readMethodCall = (
   { call, methodName }: ChainedMethodCall,
+  chainIndex: number,
   runtimeArguments: RuntimeArgument[],
 ): SchemaModifierCall => ({
   name: methodName,
   args: readMethodArguments(call.getArguments(), runtimeArguments),
   line: call.getStartLineNumber(),
+  chainIndex,
 });
 
 /**

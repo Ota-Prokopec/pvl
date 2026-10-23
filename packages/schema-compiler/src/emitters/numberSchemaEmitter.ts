@@ -1,12 +1,21 @@
 // The code a `NumberSchema` compiles to, one method per method of
-// `NumberInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
+// `NumberInterpretedSchema` it mirrors: its Constraints, held in its
+// `postModifierChecks` table, and `.coerce()`, held in its `coercions` table.
+import {
+  type ChainableInterpretedSchema,
+  ISSUE_CODE,
+  NUMBER_SCHEMA_ISSUE_MESSAGE,
+  type NumberInterpretedSchema,
+} from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { emitCoerceToNumber } from './coercions.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
+  CoercionTable,
   EmittedCheck,
+  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -59,7 +68,17 @@ const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
     }),
   });
 
+/** `.coerce()` → `field0 = Number(field0)` for a string or a boolean, as `coerceToNumber` converts. */
+const coerce: EmitterMethodOf<ChainableInterpretedSchema['coerce'], EmittedCoercion> = ({
+  target: { value },
+}) => emitCoerceToNumber(value);
+
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly coercions = {
+    ...ChainableSchemaEmitter.coercions,
+    coerce,
+  } satisfies CoercionTable;
+
   public static override readonly postModifierChecks = {
     ...ChainableSchemaEmitter.postModifierChecks,
     min,

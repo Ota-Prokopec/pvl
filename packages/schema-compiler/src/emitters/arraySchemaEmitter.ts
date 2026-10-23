@@ -160,15 +160,16 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * An array's parts, at the root or nested in another Schema: its base
-   * check, short-circuit conditions and post-modifiers' checks, which are
-   * its own Constraints, and its composite parts: its locals, the output it
+   * check, pre-modifiers' parts and post-modifiers' checks, its own
+   * Constraints and `.refine()`s, which read the output it builds, and its
+   * composite parts: its locals, the output it
    * builds, declared among them, and one loop with the element's checks
    * inlined as its one child. The frame runs its Constraints only once every
    * element has passed, and hands the output on.
    *
    * ```ts
    * ArraySchemaEmitter._emitSchemaParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
-   * // { baseCheck: 'if (!Array.isArray(field0)) { … }', shortCircuitConditions: [], postModifierChecks: ['if (field0.length < 1) { … }'],
+   * // { baseCheck: 'if (!Array.isArray(field0)) { … }', preModifierSteps: [], postModifierChecks: ['if (output2.length < 1) { … }'],
    * //   composite: { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
    * //                childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] } }
    * ```
@@ -178,7 +179,14 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     // Numbered first, so before the element's own locals.
     const locals: CompositeLocals = scope.nextCompositeLocals();
     return {
-      ...super._emitSchemaParts(args),
+      baseCheck: this._emitBaseCheck({ schema, target }),
+      preModifierSteps: this._emitPreModifierSteps({ schema, target }),
+      // They read the output the loop builds, as the interpreted ones read `_checkType`'s.
+      postModifierChecks: this._emitPostModifierChecks({
+        schema,
+        target: { ...target, value: locals.output },
+      }),
+      transforms: this._emitTransforms({ schema, target }),
       composite: {
         locals,
         declarations: [

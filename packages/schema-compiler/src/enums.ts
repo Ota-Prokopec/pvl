@@ -30,6 +30,8 @@ export const MODIFIER_NAME = {
   INT: 'int',
   STRICT: 'strict',
   PASSTHROUGH: 'passthrough',
+  REFINE: 'refine',
+  TRANSFORM: 'transform',
 } as const;
 
 export type ModifierName = ValueOfEnum<typeof MODIFIER_NAME>;

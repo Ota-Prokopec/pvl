@@ -13,9 +13,11 @@ import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import type {
   EmittedCheck,
+  EmittedCoercion,
   EmittedIssue,
   EmittedOutputStatement,
   EmittedShortCircuitCondition,
+  EmittedTransform,
   EmittedVariableDeclaration,
 } from './emittersTypes.js';
 
@@ -113,6 +115,41 @@ export const emitShortCircuitCondition = ({
   return acceptsWhen as EmittedShortCircuitCondition;
 };
 
+/** What {@link emitCoercion} writes `.coerce()`'s conversion from: the statements replacing the value, none for the identity. */
+export type EmitCoercionArgs = {
+  statement: string;
+};
+
+/**
+ * `.coerce()`'s conversion, as statements replacing the value before its
+ * type check, or `''` where `@pvl/schema`'s `_coerceInput` is the identity.
+ * The one place an `EmittedCoercion` is written.
+ *
+ * ```ts
+ * emitCoercion({ statement: 'field0 = String(field0);' }) // 'field0 = String(field0);'
+ * ```
+ */
+export const emitCoercion = ({ statement }: EmitCoercionArgs): EmittedCoercion => {
+  return statement as EmittedCoercion;
+};
+
+/** What {@link emitTransform} writes `.transform()`'s call from: the statement replacing the value. */
+export type EmitTransformArgs = {
+  statement: string;
+};
+
+/**
+ * `.transform()`'s call, as a statement replacing the value with what the
+ * user's function returns. The one place an `EmittedTransform` is written.
+ *
+ * ```ts
+ * emitTransform({ statement: 'field0 = this.arg0.call(undefined, field0 as never);' }) // 'field0 = this.arg0.call(undefined, field0 as never);'
+ * ```
+ */
+export const emitTransform = ({ statement }: EmitTransformArgs): EmittedTransform => {
+  return statement as EmittedTransform;
+};
+
 /** What {@link emitOutputStatement} writes a statement building a composite's output from: the statement. */
 export type EmitOutputStatementArgs = {
   statement: string;
@@ -201,6 +238,43 @@ export const spellLiteralType = (literalValue: PossibleLiteralValue): string => 
  */
 export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): string => {
   return argument instanceof RuntimeArgument ? argument.emitReading() : emitLiteral(argument);
+};
+
+/**
+ * A call to a function the user passed a method, `.refine()`'s predicate or
+ * `.transform()`'s function, on `value`, read off the Compiled Schema's
+ * instance (`readFunctionArgument`) and called with no `this`, as the
+ * interpreted path calls it, so a `function` never sees the instance. Its
+ * constructor types the function's parameter as the
+ * interpreted Schema does at that point of its chain, but `value` may be
+ * typed otherwise where it is read (a literal's check doesn't narrow it, a
+ * composite's output is a record), so it is passed as `never`: the
+ * compiler checks syntax, not types (ADR-0024).
+ *
+ * ```ts
+ * emitFunctionCall(<the 1st Runtime Argument>, 'field0') // 'this.arg0.call(undefined, field0 as never)'
+ * ```
+ */
+export const emitFunctionCall = (fn: unknown, value: string): string => {
+  return js`${readFunctionArgument(fn).emitReading()}.call(undefined, ${value} as never)`;
+};
+
+/**
+ * A function the user passed a method, `.refine()`'s predicate or
+ * `.transform()`'s function, as the Runtime Argument it always is, as it is
+ * never a literal; anything else is a bug in the compiler, never a user
+ * error, which throws.
+ *
+ * ```ts
+ * readFunctionArgument(<the 1st Runtime Argument>) // <the 1st Runtime Argument>
+ * readFunctionArgument(3)                          // throws
+ * ```
+ */
+export const readFunctionArgument = (fn: unknown): RuntimeArgument => {
+  if (!(fn instanceof RuntimeArgument)) {
+    throw new Error(`A function passed a method is always a Runtime Argument, not ${String(fn)}.`);
+  }
+  return fn;
 };
 
 /**

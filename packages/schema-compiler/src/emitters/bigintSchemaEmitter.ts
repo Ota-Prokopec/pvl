@@ -1,12 +1,21 @@
 // The code a `BigintSchema` compiles to, one method per method of
-// `BigintInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
-import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type BigintInterpretedSchema } from '@pvl/schema';
+// `BigintInterpretedSchema` it mirrors: its Constraints, held in its
+// `postModifierChecks` table, and `.coerce()`, held in its `coercions` table.
+import {
+  BIGINT_SCHEMA_ISSUE_MESSAGE,
+  type BigintInterpretedSchema,
+  type ChainableInterpretedSchema,
+  ISSUE_CODE,
+} from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { emitCoerceToBigint } from './coercions.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
+  CoercionTable,
   EmittedCheck,
+  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -44,7 +53,17 @@ const max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
     }),
   });
 
+/** `.coerce()` → `field0 = BigInt(field0)` for a string or a number it accepts, as `coerceToBigint` converts. */
+const coerce: EmitterMethodOf<ChainableInterpretedSchema['coerce'], EmittedCoercion> = ({
+  target: { value },
+}) => emitCoerceToBigint(value);
+
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly coercions = {
+    ...ChainableSchemaEmitter.coercions,
+    coerce,
+  } satisfies CoercionTable;
+
   public static override readonly postModifierChecks = {
     ...ChainableSchemaEmitter.postModifierChecks,
     min,

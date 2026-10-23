@@ -146,7 +146,77 @@ const spellObjectType = (fields: ReadonlyArray<{ key: string; type: string }>): 
  * ```
  */
 const isOptionalField = (fieldSchema: Schema): boolean => {
-  return fieldSchema.preModifierCalls.some((call) => call.name === MODIFIER_NAME.OPTIONAL);
+  return fieldSchema.hasModifier({ name: MODIFIER_NAME.OPTIONAL });
+};
+
+/**
+ * An object's output type from its fields, each with its key formatted and
+ * its output type: a field's key is marked `?` when it is optional, and a
+ * transformed one's when its function may return `undefined`, which only a
+ * conditional type on its type parameter can say. The conditional parts are
+ * intersected with the rest and flattened by a homomorphic mapped type, as
+ * `@pvl/schema`'s own `ObjectOutput` flattens its parts, so the type is
+ * identical to the interpreted one once the type parameter is inferred.
+ * `ObjectOutput` itself can't be named: an `as` clause over a type
+ * parameter makes each reference a type of its own, which TypeScript can't
+ * relate to another.
+ *
+ * ```ts
+ * spellOutputObjectType([{ key: 'name', fieldSchema: <pvl.string().optional()>, output: 'string | undefined' }])
+ * // '{ name?: string | undefined }'
+ * spellOutputObjectType([{ key: 'name', fieldSchema: <pvl.string()>, output: 'string' }, { key: 'age', fieldSchema: <pvl.string().transform(fn)>, output: 'TArg0Output' }])
+ * // '{ [K in keyof ({ name: string } & (undefined extends TArg0Output ? { age?: TArg0Output } : { age: TArg0Output }))]: ({ name: string } & (…))[K] }'
+ * ```
+ */
+const spellOutputObjectType = (
+  fields: ReadonlyArray<{ key: string; fieldSchema: Schema; output: string }>,
+): string => {
+  const plainType = spellObjectType(
+    fields
+      .filter(({ fieldSchema }) => !isTransformedField(fieldSchema))
+      .map(({ key, fieldSchema, output: type }) => ({
+        key: `${key}${isOptionalField(fieldSchema) ? '?' : ''}`,
+        type,
+      })),
+  );
+  const transformedTypes = fields
+    .filter(({ fieldSchema }) => isTransformedField(fieldSchema))
+    .map(
+      ({ key, output: type }) =>
+        `(undefined extends ${type} ? { ${key}?: ${type} } : { ${key}: ${type} })`,
+    );
+  if (transformedTypes.length === 0) {
+    return plainType;
+  }
+  const composedType = `(${[plainType, ...transformedTypes].join(' & ')})`;
+  return `{ [K in keyof ${composedType}]: ${composedType}[K] }`;
+};
+
+/**
+ * Whether a `.transform()` is chained onto a field's Schema, so its output
+ * is whatever the user's function returns, `undefined` included.
+ *
+ * ```ts
+ * isTransformedField(<pvl.string().transform(trim)>) // true
+ * isTransformedField(<pvl.string()>)                 // false
+ * ```
+ */
+const isTransformedField = (fieldSchema: Schema): boolean => {
+  return fieldSchema.hasModifier({ name: MODIFIER_NAME.TRANSFORM });
+};
+
+/**
+ * Whether a field's Schema takes `undefined`, so its key may be left out of
+ * the input type: it is `.optional()`, or `.coerce()` makes it take any
+ * value.
+ *
+ * ```ts
+ * isOptionalInputField(<pvl.number().coerce()>) // true
+ * isOptionalInputField(<pvl.number()>)          // false
+ * ```
+ */
+const isOptionalInputField = (fieldSchema: Schema): boolean => {
+  return isOptionalField(fieldSchema) || fieldSchema.hasModifier({ name: MODIFIER_NAME.COERCE });
 };
 
 /**
@@ -236,9 +306,11 @@ const emitFieldChecks = ({
 };
 
 /**
- * The statement putting a passed field's value on the output. An optional
- * field is left off when its key was omitted, and `__proto__` is defined
- * rather than assigned, which would reparent the output instead.
+ * The statement putting a passed field's value on the output. A field whose
+ * value may be `undefined`, an optional or a transformed one, is left off
+ * when it is and its key was omitted, as the interpreted path leaves it,
+ * and `__proto__` is defined rather than assigned, which would reparent the
+ * output instead.
  *
  * ```ts
  * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input1', output: 'output1', … } })
@@ -260,12 +332,13 @@ const emitOutputAssignment = ({
       ? js`Object.defineProperty(${output}, ${keyLiteral}, { value: ${value}, writable: true, enumerable: true, configurable: true });`
       : js`${output}[${keyLiteral}] = ${value};`;
   return emitOutputStatement({
-    statement: isOptionalField(fieldSchema)
-      ? composeBlock({
-          head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
-          body: assignment,
-        })
-      : assignment,
+    statement:
+      isOptionalField(fieldSchema) || isTransformedField(fieldSchema)
+        ? composeBlock({
+            head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
+            body: assignment,
+          })
+        : assignment,
   });
 };
 
@@ -370,7 +443,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * ```ts
    * ObjectSchemaEmitter.compilesMethod({ name: 'strict' })   // true
    * ObjectSchemaEmitter.compilesMethod({ name: 'optional' }) // true
-   * ObjectSchemaEmitter.compilesMethod({ name: 'refine' })   // false
+   * ObjectSchemaEmitter.compilesMethod({ name: 'union' })    // false
    * ```
    */
   public static override compilesMethod(args: CompilesMethodArgs): boolean {
@@ -383,20 +456,23 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * An object's parts, at the root or nested in another Schema: its base
-   * check, short-circuit conditions and post-modifiers' checks, and its
+   * check, pre-modifiers' parts and post-modifiers' checks, and its
    * composite parts: its locals, every field's checks inlined in shape order
    * as its children, and the output built from the fields.
    *
-   * Its post-modifiers read its keys rather than its value. `.strict()`
-   * checks them when it is the last of `.strict()` and `.passthrough()`
-   * chained, which wins (ADR-0007), and the frame runs it only once every
-   * field has passed. `.passthrough()` copies them onto the output instead,
-   * after the declared fields, and with neither the keys the shape doesn't
-   * declare are stripped. The frame hands the output on.
+   * Its post-modifiers run in chain order, once every field has passed.
+   * `.strict()` reads its keys rather than its value, and checks them where
+   * the last of `.strict()` and `.passthrough()` chained is, which wins
+   * (ADR-0007); any other, such as `.refine()`, reads the output, as the
+   * interpreted one reads `_checkType`'s (ADR-0035). `.passthrough()` copies
+   * the keys the shape doesn't declare onto the output, after the declared
+   * fields, and so does `.strict()` under a `.refine()`, which reads them as
+   * the interpreted one does; otherwise they are stripped. The frame hands
+   * the output on.
    *
    * ```ts
    * ObjectSchemaEmitter._emitSchemaParts({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <field0 at [...path1, "user"]>, scope })
-   * // { baseCheck: 'if (typeof field0 !== "object" || …) { … }', shortCircuitConditions: [],
+   * // { baseCheck: 'if (typeof field0 !== "object" || …) { … }', preModifierSteps: [],
    * //   postModifierChecks: ['for (const key of Object.keys(input2)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path2, key] });\n  }\n}'],
    * //   composite: { locals: <locals ending in 2>, declarations: ['const input2 = field0 as Record<string, unknown>;'],
    * //                childChecks: ['// name\nconst field1 = input2["name"];\nif (typeof field1 !== "string") { … path: [...path2, "name"] … }'], setsChildrenApart: true,
@@ -417,19 +493,37 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       locals,
     });
     const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
+    // `.strict()` only reports the undeclared keys, so a `.refine()` reads
+    // them on the value, as `.passthrough()` keeps them there; with any of
+    // them, `.strict()` fails, so the output is never accepted.
+    const keepsUndeclaredKeys =
+      unknownKeysCall?.name === MODIFIER_NAME.PASSTHROUGH ||
+      (unknownKeysCall?.name === MODIFIER_NAME.STRICT &&
+        schema.hasModifier({ name: MODIFIER_NAME.REFINE }));
 
     return {
       baseCheck: this._emitBaseCheck({ schema, target }),
-      shortCircuitConditions: this._emitShortCircuitConditions({ schema, target }),
-      postModifierChecks:
-        unknownKeysCall?.name === MODIFIER_NAME.STRICT
-          ? [
-              this.keyChecks.strict({
-                target: objectTarget,
-                args: readCallArguments(unknownKeysCall),
-              }),
-            ]
-          : [],
+      preModifierSteps: this._emitPreModifierSteps({ schema, target }),
+      // In chain order, `.strict()` where the one that wins is chained, as
+      // each `.strict()` moves it there and `.passthrough()` removes it.
+      postModifierChecks: schema.postModifierCalls.flatMap((call) => {
+        if (this.isTransform({ call })) {
+          return [];
+        }
+        if (call.name !== MODIFIER_NAME.STRICT && call.name !== MODIFIER_NAME.PASSTHROUGH) {
+          return [
+            this.emitMethodCall({
+              table: this.postModifierChecks,
+              call,
+              // It reads the output, as the interpreted one reads `_checkType`'s.
+              target: { ...target, value: locals.output },
+            }),
+          ];
+        }
+        return call === unknownKeysCall && call.name === MODIFIER_NAME.STRICT
+          ? [this.keyChecks.strict({ target: objectTarget, args: readCallArguments(call) })]
+          : [];
+      }),
       composite: {
         locals,
         declarations: [
@@ -445,40 +539,51 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
             statement: js`const ${locals.output}: Record<string, unknown> = {};`,
           }),
           ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
-          ...(unknownKeysCall?.name === MODIFIER_NAME.PASSTHROUGH
-            ? [
-                this.outputStatements.passthrough({
-                  target: objectTarget,
-                  args: readCallArguments(unknownKeysCall),
-                }),
-              ]
+          ...(keepsUndeclaredKeys
+            ? [this.outputStatements.passthrough({ target: objectTarget, args: [] })]
             : []),
         ],
       },
+      transforms: this._emitTransforms({ schema, target }),
     };
   }
 
   /**
-   * An object type of the fields' types, an optional field's key marked `?`.
-   * `.passthrough()` widens the output for good, even under a later
-   * `.strict()`, as `ObjectInterpretedSchema`'s own types do.
+   * An object type of the fields' types, the key of a field that takes
+   * `undefined` marked `?`: in the input, an optional or coerced one's, and
+   * in the output, an optional one's, and a transformed one's when its
+   * function may return `undefined` (`spellOutputObjectType`). A
+   * `.passthrough()` chained before
+   * `chainEnd` widens the output for good, even under a later `.strict()`,
+   * as `ObjectInterpretedSchema`'s own types do.
    *
    * ```ts
    * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ name: pvl.string(), age: pvl.number().optional() })> })
    * // { input: '{ name: string; age?: number | undefined }', output: <the same> }
+   * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ age: pvl.number().coerce() })> })
+   * // { input: '{ age?: unknown }', output: '{ age: number }' }
+   * ObjectSchemaEmitter._spellFactoryTypes({ schema: <pvl.object({ age: pvl.string().transform(Number) })> })
+   * // { input: '{ age: string }', output: '{ [K in keyof ({} & (undefined extends TArg0Output ? { age?: TArg0Output } : { age: TArg0Output }))]: …[K] }' }
    * ```
    */
   public static override _spellFactoryTypes({
     schema,
+    chainEnd = Infinity,
   }: SpellFactoryTypesArgs<ObjectSchema>): SchemaTypes {
-    const fields = schema.shape.map(({ key, schema: fieldSchema }) => {
-      const { input, output } = fieldSchema.emitter._spellTypes({ schema: fieldSchema });
-      return { key: `${formatKey(key)}${isOptionalField(fieldSchema) ? '?' : ''}`, input, output };
-    });
-    const input = spellObjectType(fields.map(({ key, input: type }) => ({ key, type })));
-    const output = spellObjectType(fields.map(({ key, output: type }) => ({ key, type })));
+    const fields = schema.shape.map(({ key, schema: fieldSchema }) => ({
+      key: formatKey(key),
+      fieldSchema,
+      ...fieldSchema.emitter._spellTypes({ schema: fieldSchema }),
+    }));
+    const input = spellObjectType(
+      fields.map(({ key, fieldSchema, input: type }) => ({
+        key: `${key}${isOptionalInputField(fieldSchema) ? '?' : ''}`,
+        type,
+      })),
+    );
+    const output = spellOutputObjectType(fields);
     const hasPassthrough = schema.postModifierCalls.some(
-      (call) => call.name === MODIFIER_NAME.PASSTHROUGH,
+      (call) => call.name === MODIFIER_NAME.PASSTHROUGH && call.chainIndex < chainEnd,
     );
     return { input, output: hasPassthrough ? `${output} & Record<string, unknown>` : output };
   }

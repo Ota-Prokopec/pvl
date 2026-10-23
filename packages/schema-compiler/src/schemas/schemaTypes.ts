@@ -16,6 +16,12 @@ export type SchemaModifierCall = {
   args: ReadonlyArray<SchemaModifierCallArgument> | undefined;
   /** The 1-based line it is written on. */
   line: number;
+  /**
+   * Its place in its Schema's chain, from 0, pre- and post-modifiers
+   * counted together, so the types a Modifier sees can be spelled as
+   * the methods chained before it left them.
+   */
+  chainIndex: number;
 };
 
 /** A Schema's `Input` and `Output` types, spelled as TypeScript. */

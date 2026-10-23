@@ -14,7 +14,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
-import type { SchemaFactory } from '../enums.js';
+import type { ModifierName, SchemaFactory } from '../enums.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { RuntimeArgument } from './runtimeArgument.js';
@@ -22,6 +22,11 @@ import type { SchemaModifierCall } from './schemaTypes.js';
 
 /** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`). */
 export type CompileSchemaArgs = Omit<EmitCompiledSchemaArgs, 'schema'>;
+
+/** What {@link Schema.hasModifier} looks a chained method up by: its name. */
+export type HasModifierArgs = {
+  name: ModifierName;
+};
 
 /** What every Schema holds, whichever factory built it. */
 export type SchemaOptions = {
@@ -174,6 +179,19 @@ export abstract class Schema {
    */
   public compile(compileSchemaArgs: CompileSchemaArgs): string {
     return this.emitter.emitCompiledSchema({ ...compileSchemaArgs, schema: this });
+  }
+
+  /**
+   * Whether a method named `name` is chained onto it, a pre-modifier or a
+   * post-modifier.
+   *
+   * ```ts
+   * <pvl.string().optional().min(3)>.hasModifier({ name: 'optional' }) // true
+   * <pvl.string().optional().min(3)>.hasModifier({ name: 'refine' })   // false
+   * ```
+   */
+  public hasModifier({ name }: HasModifierArgs): boolean {
+    return [...this.preModifierCalls, ...this.postModifierCalls].some((call) => call.name === name);
   }
 
   /**
