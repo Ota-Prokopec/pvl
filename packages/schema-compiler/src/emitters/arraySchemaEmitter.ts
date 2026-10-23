@@ -8,8 +8,13 @@ import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { emitArgument, emitCheck, emitVariableDeclaration, js } from './emitterUtils.js';
-import { Frame } from './frame.js';
+import {
+  composeBlock,
+  emitArgument,
+  emitCheck,
+  emitVariableDeclaration,
+  js,
+} from './emitterUtils.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
@@ -63,7 +68,7 @@ const emitLoop = ({ elementSchema, target, locals, scope }: EmitLoopArgs): strin
   const { index, element, output, path } = locals;
   const array = target.value;
 
-  return Frame.composeBlock({
+  return composeBlock({
     head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
     body: [
       elementSchema.emitter.emitNestedSchemaChecks({

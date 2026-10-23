@@ -3,7 +3,7 @@
  * whole workspace rather than one entry's TypeScript (`package.json`,
  * `tsconfig*.json`, `AGENTS.md`, and any JavaScript file).
  */
-import { fileURLToPath } from 'node:url';
+import * as url from 'node:url';
 import { includeIgnoreFile } from '@eslint/compat';
 import json from '@eslint/json';
 import markdown from '@eslint/markdown';
@@ -11,7 +11,7 @@ import { conventionsPlugin } from '@repo/conventions/eslint';
 import type { Linter } from 'eslint';
 import { defineConfig } from 'eslint/config';
 
-const GITIGNORE = fileURLToPath(new URL('../../../.gitignore', import.meta.url));
+const GITIGNORE = url.fileURLToPath(new URL('../../../.gitignore', import.meta.url));
 
 export const config: Linter.Config[] = defineConfig(
   includeIgnoreFile(GITIGNORE),

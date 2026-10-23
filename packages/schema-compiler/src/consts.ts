@@ -2,7 +2,13 @@
 // each diagnostic code's severity, the Destination Directory's layout, the
 // text every generated module shares, and which chained methods are
 // pre-modifiers.
-import { SEVERITY, type DiagnosticCode, type Severity } from './enums.js';
+import {
+  MODIFIER_NAME,
+  SEVERITY,
+  type DiagnosticCode,
+  type ModifierName,
+  type Severity,
+} from './enums.js';
 
 /** The file name the compiler looks for in the working directory. */
 export const CONFIG_FILE_NAME = 'pvlconfig.json' as const;
@@ -101,4 +107,8 @@ export const ISSUE_OPTIONS_TYPE = '{ message?: string } | undefined' as const;
  * `_withPreModifier`, which run before the type check; every other chained
  * method is a post-modifier (ADR-0010).
  */
-export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set(['optional', 'nullable', 'coerce']);
+export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set<ModifierName>([
+  MODIFIER_NAME.OPTIONAL,
+  MODIFIER_NAME.NULLABLE,
+  MODIFIER_NAME.COERCE,
+]);

@@ -3,8 +3,8 @@
  * `export * from '…'` statements and comments, and every sibling module or
  * directory is either re-exported or named in a comment.
  */
-import { readdirSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { AST_NODE_TYPES } from '@typescript-eslint/utils';
 import { createRule } from '../utils.ts';
 
@@ -58,8 +58,10 @@ export const barrelExportsOnly = createRule({
           .getAllComments()
           .map((comment): string => comment.value)
           .join('\n');
-        const own = basename(context.filename);
-        for (const sibling of readdirSync(dirname(context.filename), { withFileTypes: true })) {
+        const own = path.basename(context.filename);
+        for (const sibling of fs.readdirSync(path.dirname(context.filename), {
+          withFileTypes: true,
+        })) {
           const isModule =
             sibling.isFile() && /\.tsx?$/.test(sibling.name) && !sibling.name.endsWith('.d.ts');
           if (sibling.name === own || (!isModule && !sibling.isDirectory())) {

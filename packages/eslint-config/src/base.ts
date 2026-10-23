@@ -77,6 +77,7 @@ export const config: Linter.Config[] = defineConfig(
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX],
       '@repo/conventions/no-interface': 'error',
       '@repo/conventions/no-import-alias': 'error',
+      '@repo/conventions/node-builtin-namespace-import': 'error',
       '@repo/conventions/barrel-exports-only': 'error',
       '@repo/conventions/no-inline-enum-value': 'error',
       '@repo/conventions/enum-shape': 'error',

@@ -3,7 +3,7 @@
  * command can break, checked before Claude Code runs it. Pure: the current
  * branch and file contents come in through `CheckBashCommandArgs`.
  */
-import { resolve } from 'node:path';
+import * as path from 'node:path';
 import { parse } from 'shell-quote';
 import { BRANCH_NAME, CONVENTIONAL_SUBJECT } from './naming.ts';
 
@@ -85,7 +85,7 @@ const parseGit = (
   while (index < words.length && words[index]?.startsWith('-')) {
     const option = words[index];
     if (option === '-C') {
-      target = resolve(target, words[index + 1] ?? '.');
+      target = path.resolve(target, words[index + 1] ?? '.');
       index += 2;
     } else if (option === '-c') {
       if (words[index + 1]?.toLowerCase().startsWith('core.hookspath')) {
@@ -183,13 +183,13 @@ const checkGh = (
     }
   }
   if (GH_POSTING_COMMANDS.has(action)) {
-    const bodyFiles = flagValues(words, ['--body-file', '-F'])
-      .filter((path): boolean => path !== '-')
-      .map((path): string => args.readFile(resolve(args.cwd, path)) ?? '');
+    const bodyFileContents = flagValues(words, ['--body-file', '-F'])
+      .filter((bodyFilePath): boolean => bodyFilePath !== '-')
+      .map((bodyFilePath): string => args.readFile(path.resolve(args.cwd, bodyFilePath)) ?? '');
     // `gh issue close` posts its closing comment through `--comment`/`-c`.
     const textFlags =
       action === 'issue close' ? ['--comment', '-c'] : ['--title', '-t', '--body', '-b'];
-    const posted = [...flagValues(words, textFlags), ...bodyFiles];
+    const posted = [...flagValues(words, textFlags), ...bodyFileContents];
     // A heredoc fed to stdin never reaches the words, so the raw command stands in for it.
     if (command.includes('<<')) {
       posted.push(command);
@@ -223,7 +223,10 @@ export const checkBashCommand = (args: CheckBashCommandArgs): string[] => {
     );
     const [program] = commandWords;
     if (program === 'cd') {
-      state = { directory: resolve(state.directory, commandWords[1] ?? '.'), branch: undefined };
+      state = {
+        directory: path.resolve(state.directory, commandWords[1] ?? '.'),
+        branch: undefined,
+      };
     } else if (program === 'git') {
       state = checkGit(commandWords, state, args, reasons);
     } else if (program === 'gh') {

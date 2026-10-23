@@ -6,9 +6,9 @@
  * which places it under `.claude/worktrees/`). Arguments given to the script
  * are forwarded to `claude`, so `pnpm claude --continue` works.
  */
-import { spawnSync } from 'node:child_process';
-import { basename } from 'node:path';
-import { styleText } from 'node:util';
+import * as childProcess from 'node:child_process';
+import * as path from 'node:path';
+import * as util from 'node:util';
 import { cancel, intro, isCancel, log, outro, select, text } from '@clack/prompts';
 import {
   getCurrentWorktreePath,
@@ -32,7 +32,7 @@ type LaunchClaudeArgs = {
  * a bare `--worktree` would be taken as the name.
  */
 const launchClaude = ({ cwd, args }: LaunchClaudeArgs): never => {
-  const { error, status } = spawnSync(
+  const { error, status } = childProcess.spawnSync(
     'claude',
     ['--dangerously-skip-permissions', ...process.argv.slice(2), ...args],
     {
@@ -55,7 +55,7 @@ const labelWorktree = (worktree: Worktree): string => {
     worktree.path === mainCheckoutPath && 'main checkout',
     worktree.path === currentPath && 'current',
   ];
-  return [basename(worktree.path), ...tags.filter((tag) => tag !== false)].join(' · ');
+  return [path.basename(worktree.path), ...tags.filter((tag) => tag !== false)].join(' · ');
 };
 
 const worktrees = listWorktrees();
@@ -76,7 +76,7 @@ const choice = await select<string | typeof CREATE_WORKTREE>({
     })),
     {
       value: CREATE_WORKTREE,
-      label: styleText('green', '+ Create a new worktree'),
+      label: util.styleText('green', '+ Create a new worktree'),
       hint: 'under .claude/worktrees/',
     },
   ],

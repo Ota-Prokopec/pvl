@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli/runCli.js';
 import {
@@ -59,7 +59,7 @@ describe('pvl compile: settings from flags', () => {
 
     expect(exitCode).toBe(0);
     expect(payload.written).toBe(true);
-    expect(payload.destination).toBe(join(root, 'out'));
+    expect(payload.destination).toBe(path.join(root, 'out'));
     expect(await readFixtureFile(root, 'out/user.ts')).toContain('@generated');
   });
 
@@ -128,7 +128,7 @@ describe('pvl compile: settings from flags', () => {
     ]);
 
     expect(exitCode).toBe(0);
-    expect(payload.destination).toBe(join(root, 'apps/web/.pvl'));
+    expect(payload.destination).toBe(path.join(root, 'apps/web/.pvl'));
   });
 });
 
@@ -139,7 +139,7 @@ describe('pvl compile: output', () => {
     const { exitCode, stdout, stderr } = await run(root, ['compile', '--destination', 'out']);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toBe(`Wrote ${join(root, 'out')}\n`);
+    expect(stdout).toBe(`Wrote ${path.join(root, 'out')}\n`);
     expect(stderr).toBe('');
   });
 

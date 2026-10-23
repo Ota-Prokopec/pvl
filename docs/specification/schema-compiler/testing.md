@@ -6,7 +6,7 @@ Tests exercise external behaviour only: what the compiler writes and reports, an
 
 ## Runner and layout
 
-Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. Tests live in `packages/schema-compiler/tests/` as `*.test.ts`, one file per seam or concern. `tests/helpers.ts` builds fixture projects in a temporary directory (`createFixture`, removed after each test), links the workspace's built `@pvl/schema` into one so its Destination Directory can be imported and run (`linkSchemaPackage`), reads diagnostics back by code (`diagnosticCodes`), and asserts a failed run's errors with their `file`, plus that nothing was written (`expectFailure`).
+Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. Tests live in `packages/schema-compiler/tests/` as `*.test.ts`, one file per seam or concern. `tests/helpers.ts` builds fixture projects in a temporary directory (`createFixture`, removed after each test), links the workspace's built `@pvl/schema` into one so its Destination Directory can be imported and run (`linkSchemaPackage`), reads diagnostics back by code (`diagnosticCodes`), asserts a failed run's errors with their `file`, plus that nothing was written (`expectFailure`), and turns a Result into plain data to compare a Compiled Schema's with the interpreted one's (`describeResult`).
 
 ## The two seams
 
@@ -14,10 +14,10 @@ Vitest, with [`fast-check`](https://fast-check.dev) for the differential test. T
    - the returned diagnostics, asserted by **code** (never by message wording), plus `written` and the file on disk, since nothing may be written once an error fired;
    - an inline snapshot of each emitted mirrored module, written by hand as the expected output, to catch unintended churn in generated output;
    - importing an emitted mirrored module and diffing its `validate()` against the source module it mirrors, which shows the mirror runs as its source did;
-   - a differential test: import the generated output and diff its `validate()` against the source module it mirrors, whose `pvl.compile()` is the identity, under `fast-check`, comparing accepted values (key order included), Issue messages and Issue paths ([code-generation.md](./code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)). A new compiled feature adds a case to `DIFFERENTIAL_CASES`;
+   - a differential test: import the generated output and diff its `validate()` against the source module it mirrors, whose `pvl.compile()` is the identity, under `fast-check`, comparing accepted values (key order included), Issue messages and Issue paths ([code-generation.md](./code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)). A new compiled feature adds a case to `DIFFERENTIAL_CASES` in `tests/compile-differential.test.ts`;
    - typechecking the generated output under strict TypeScript, asserting each Compiled Schema infers the same `Input` and `Output` as the Schema it compiles.
 
-   Examples: `tests/compile.test.ts`, `tests/compile-schemas.test.ts` and `tests/read-schemas.test.ts` (how each factory's argument is read).
+   Examples, one file per concern: `tests/compile-destination.test.ts` (what a run writes), `tests/compile-settings.test.ts`, `tests/compile-diagnostics.test.ts`, `tests/compile-schemas.test.ts` (the emitted Compiled Schemas' snapshots), `tests/compile-differential.test.ts`, `tests/compile-runtime-arguments.test.ts`, `tests/compile-deep-schemas.test.ts` and `tests/read-schemas.test.ts` (how each factory's argument is read).
 
 2. **The CLI, `runCli()`**, kept deliberately thin: argv to settings and their precedence, exit codes, the `--json` output shape, and `--strict` promoting warnings. It runs in process with captured `stdout`/`stderr`, and reads results back through `--json`. It doesn't re-test what seam 1 already covers. Example: `tests/cli.test.ts`.
 
@@ -25,6 +25,6 @@ The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of 
 
 ## Required cases
 
-- **Every diagnostic code has a test at each seam that can raise it** (`INVALID_ARGUMENTS` only exists at the CLI): at seam 1 its code, severity and `file`; at seam 2 its exit code (`1` for an error, `0` for a warning) and that nothing was written. A new code adds a row to `ERROR_CASES` in `tests/cli.test.ts` and a case in `tests/compile.test.ts`.
+- **Every diagnostic code has a test at each seam that can raise it** (`INVALID_ARGUMENTS` only exists at the CLI): at seam 1 its code, severity and `file`; at seam 2 its exit code (`1` for an error, `0` for a warning) and that nothing was written. A new code adds a row to `ERROR_CASES` in `tests/cli.test.ts` and a case in `tests/compile-diagnostics.test.ts`.
 - **Every warning is also run with `strict`**, which must turn it into an error that writes nothing.
 - **Relative paths** are checked from both the config's directory and an ancestor (`--config apps/web/pvlconfig.json`), which must produce identical output.

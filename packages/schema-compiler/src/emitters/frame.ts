@@ -16,7 +16,7 @@ import { VENDOR } from '@pvl/schema';
 import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type { CheckingTarget, CompositeParts, EmittedCheck, SchemaParts } from './emittersTypes.js';
-import { js } from './emitterUtils.js';
+import { composeBlock, js } from './emitterUtils.js';
 
 /** A Runtime Argument as its Compiled Schema's constructor takes it. */
 export type RuntimeArgumentParameter = {
@@ -124,25 +124,6 @@ export class Frame {
   }
 
   /**
-   * Composes (assembles) a block (from `head` and `body`)
-   *
-   * ```ts
-   * Frame.composeBlock({ head: 'if (ok)', body: 'run();\n\nstop();' })
-   * // 'if (ok) {
-   * //   run();
-   * //   stop();
-   * // }'
-   * ```
-   */
-  public static composeBlock({ head, body }: { head: string; body: string }): string {
-    const prettifiedBody = body
-      .split('\n')
-      .map((line) => (line === '' ? line : `${'  '}${line}`))
-      .join('\n');
-    return `${head} {\n${prettifiedBody}\n}`;
-  }
-
-  /**
    * One Schema's checks at `target`, as statements: its base check, then,
    * in its `else`, a composite's declarations, its children's checks, its
    * post-modifiers' checks behind their gate, and its output statements,
@@ -173,7 +154,7 @@ export class Frame {
     const checks =
       statements.length === 0
         ? baseCheck
-        : Frame.composeBlock({
+        : composeBlock({
             head: `${baseCheck} else`,
             body: statements.join('\n'),
           });
@@ -187,7 +168,7 @@ export class Frame {
       .map((shortCircuitCondition) => `(${shortCircuitCondition})`)
       .join(' || ');
 
-    return Frame.composeBlock({
+    return composeBlock({
       head: `if (!(${shortCircuits}))`,
       body: checks,
     });
@@ -266,23 +247,23 @@ export class Frame {
         : messageFields.length === 0
           ? [`${constructorHead} {}`]
           : [
-              Frame.composeBlock({
+              composeBlock({
                 head: constructorHead,
                 body: messageFields
                   .map(({ fieldName, expression }) => `this.${fieldName} = ${expression};`)
                   .join('\n'),
               }),
             ]),
-      Frame.composeBlock({
+      composeBlock({
         head: `get "~standard"(): PvlStandardSchemaProps<${input}, ${output}>`,
         // `types` as the interpreted path writes it: a phantom, `undefined` at runtime.
         body: `return { version: 1, vendor: ${JSON.stringify(VENDOR)}, types: undefined, validate: (${VALIDATE_VALUE_PARAMETER_NAME}: unknown) => this.validate(${VALIDATE_VALUE_PARAMETER_NAME}) };`,
       }),
-      Frame.composeBlock({
+      composeBlock({
         head: `validate(${VALIDATE_VALUE_PARAMETER_NAME}: unknown): PvlResult<${output}>`,
         body: `return this._validate(${VALIDATE_VALUE_PARAMETER_NAME}, []) as PvlResult<${output}>;`,
       }),
-      Frame.composeBlock({
+      composeBlock({
         head: `_validate(${VALIDATE_PARAMETERS}): PvlResult<unknown>`,
         body: [
           'const issues: PvlIssue[] = [];',
@@ -292,7 +273,7 @@ export class Frame {
       }),
     ];
     const classExpression = Frame.indentContinuationLines(
-      Frame.composeBlock({
+      composeBlock({
         head: `class ${className} implements ${schemaType}`,
         body: members.join('\n\n'),
       }),
@@ -367,7 +348,7 @@ export class Frame {
         : childChecks),
       ...(hasPostModifierChecks
         ? [
-            Frame.composeBlock({
+            composeBlock({
               head: `if (${emitNoNewIssuesCondition(locals.issueCount)})`,
               body: postModifierChecks.join('\n'),
             }),

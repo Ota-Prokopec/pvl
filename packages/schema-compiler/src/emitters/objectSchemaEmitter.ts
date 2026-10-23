@@ -26,13 +26,13 @@ import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import { emitConstraintIssue, emitIssue, emitMessageAroundValue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
+  composeBlock,
   emitCheck,
   emitOutputStatement,
   emitVariableDeclaration,
   js,
   readCallArguments,
 } from './emitterUtils.js';
-import { Frame } from './frame.js';
 import type { Scope } from './scope.js';
 import type {
   CheckingTarget,
@@ -261,7 +261,7 @@ const emitOutputAssignment = ({
       : js`${output}[${keyLiteral}] = ${value};`;
   return emitOutputStatement({
     statement: isOptionalField(fieldSchema)
-      ? Frame.composeBlock({
+      ? composeBlock({
           head: js`if (${value} !== undefined || Object.hasOwn(${input}, ${keyLiteral}))`,
           body: assignment,
         })
@@ -480,7 +480,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     });
     const input = spellObjectType(fields.map(({ key, input: type }) => ({ key, type })));
     const output = spellObjectType(fields.map(({ key, output: type }) => ({ key, type })));
-    const hasPassthrough = schema.postModifierCalls.some((call) => call.name === 'passthrough');
+    const hasPassthrough = schema.postModifierCalls.some(
+      (call) => call.name === MODIFIER_NAME.PASSTHROUGH,
+    );
     return { input, output: hasPassthrough ? `${output} & Record<string, unknown>` : output };
   }
 }

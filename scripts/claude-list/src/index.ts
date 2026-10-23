@@ -8,8 +8,8 @@
  * for deletion. `git worktree prune` and a summary end the run; the exit code
  * is 1 if any removal or deletion failed.
  */
-import { basename } from 'node:path';
-import { styleText } from 'node:util';
+import * as path from 'node:path';
+import * as util from 'node:util';
 import { cancel, confirm, intro, isCancel, log, multiselect, outro } from '@clack/prompts';
 import {
   countPrunableWorktrees,
@@ -53,8 +53,8 @@ const mergedBranches = new Set(
   git(['branch', '--merged', MAIN_BRANCH, '--format=%(refname:short)']).split('\n'),
 );
 
-const countChangedFiles = (path: string): number => {
-  return git(['-C', path, 'status', '--porcelain'])
+const countChangedFiles = (worktreePath: string): number => {
+  return git(['-C', worktreePath, 'status', '--porcelain'])
     .split('\n')
     .filter((line) => line !== '').length;
 };
@@ -73,9 +73,9 @@ const labelEntry = (entry: Entry): string => {
     entry.path === mainCheckoutPath && 'main checkout',
     entry.path === currentPath && 'current',
   ];
-  const label = [basename(entry.path), ...tags.filter((tag) => tag !== false)].join(' · ');
-  if (entry.isProtected) return styleText('gray', label);
-  if (entry.changedFiles > 0) return styleText('yellow', label);
+  const label = [path.basename(entry.path), ...tags.filter((tag) => tag !== false)].join(' · ');
+  if (entry.isProtected) return util.styleText('gray', label);
+  if (entry.changedFiles > 0) return util.styleText('yellow', label);
   return label;
 };
 
@@ -139,7 +139,9 @@ if (isCancel(pickedPaths) || pickedPaths.length === 0) {
 const picked = entries.filter((entry) => pickedPaths.includes(entry.path));
 
 log.message(
-  picked.map((entry) => `${labelEntry(entry)}  ${styleText('dim', hintEntry(entry))}`).join('\n'),
+  picked
+    .map((entry) => `${labelEntry(entry)}  ${util.styleText('dim', hintEntry(entry))}`)
+    .join('\n'),
 );
 const isConfirmed = await confirm({
   message: `Remove ${countNoun({ count: picked.length, singular: 'worktree', plural: 'worktrees' })}?`,
@@ -220,7 +222,7 @@ for (const failure of failures) log.error(`Could not ${failure.subject}:\n${fail
 
 if (failures.length > 0) {
   outro(
-    styleText(
+    util.styleText(
       'red',
       `${countNoun({ count: failures.length, singular: 'step', plural: 'steps' })} failed.`,
     ),

@@ -1,5 +1,5 @@
 /** The rules a file edit can break, checked before Claude Code's Edit, Write or NotebookEdit runs. */
-import { resolve, sep } from 'node:path';
+import * as path from 'node:path';
 
 const SKILLS =
   'Skills listed in `skills-lock.json` (under `.agents/skills/` and their `.claude/skills` symlinks) are installed from an external source, so a hand edit is lost on the next install. Raise the change with the user, or layer it in `docs/specification/skill-extensions.md`.' as const;
@@ -27,14 +27,14 @@ const isInstalledSkill = ({ root, name, readFile }: IsInstalledSkillArgs): boole
 };
 
 export type CheckEditedPathArgs = {
-  path: string;
+  editedPath: string;
   cwd: string;
   readFile: (path: string) => string | undefined;
 };
 
-/** Every rule editing `path` (resolved against `cwd`) breaks; empty when the edit may run. */
-export const checkEditedPath = ({ path, cwd, readFile }: CheckEditedPathArgs): string[] => {
-  const absolute = resolve(cwd, path).split(sep).join('/');
+/** Every rule editing `editedPath` (resolved against `cwd`) breaks; empty when the edit may run. */
+export const checkEditedPath = ({ editedPath, cwd, readFile }: CheckEditedPathArgs): string[] => {
+  const absolute = path.resolve(cwd, editedPath).split(path.sep).join('/');
   const reasons: string[] = [];
   const skill = SKILL_PATH.exec(absolute)?.groups;
   if (

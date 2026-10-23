@@ -4,6 +4,7 @@
 // value it accepts skips every later check. Every schema's emitter extends
 // it, as every schema extends `ChainableInterpretedSchema`.
 import type { ChainableInterpretedSchema } from '@pvl/schema';
+import { MODIFIER_NAME } from '../enums.js';
 import type { SchemaModifierCall } from '../schemas/schemaTypes.js';
 import { Emitter, type SpellTypesArgs } from './emitter.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
@@ -26,9 +27,9 @@ import { emitShortCircuitCondition, js } from './emitterUtils.js';
 const widenType = (type: string, calls: ReadonlyArray<SchemaModifierCall>): string => {
   return calls.reduce(
     (widened, call) =>
-      call.name === 'optional'
+      call.name === MODIFIER_NAME.OPTIONAL
         ? `${widened} | undefined`
-        : call.name === 'nullable'
+        : call.name === MODIFIER_NAME.NULLABLE
           ? `${widened} | null`
           : widened,
     type,
