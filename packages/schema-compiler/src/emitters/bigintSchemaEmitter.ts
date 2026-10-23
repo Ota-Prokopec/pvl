@@ -3,7 +3,7 @@
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type BigintInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
-import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
   EmittedCheck,
@@ -63,13 +63,10 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
 
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: js`typeof ${value} !== "bigint"`,
-      issue: emitIssue({
-        code: ISSUE_CODE.INVALID_TYPE,
-        message: BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
-        path: issuePath,
-      }),
+      message: BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
+      issuePath,
     });
   }
 }

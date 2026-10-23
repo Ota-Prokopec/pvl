@@ -3,7 +3,7 @@
 import yargs from 'yargs';
 import { runCompilation, type RunCompilationPayload } from '../compilation/runCompilation.js';
 import type { PvlConfigOverrides } from '../config/config.js';
-import { DIAGNOSTIC_CODE } from '../enums.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { Diagnostics } from '../diagnostics/diagnostics.js';
 

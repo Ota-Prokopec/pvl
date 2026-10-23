@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Project, ts } from 'ts-morph';
 import { Diagnostic } from './diagnostics/diagnostic.js';
-import { DIAGNOSTIC_CODE } from './enums.js';
+import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import type { AbsolutePath } from './path.js';
 import { Specifier } from './specifier.js';
 

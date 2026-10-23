@@ -11,7 +11,7 @@ import { Diagnostics } from '../diagnostics/diagnostics.js';
 import { compileAll } from './compileAll.js';
 import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
-import { DIAGNOSTIC_CODE } from '../enums.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject.js';
 import { Precheck } from '../precheck.js';

@@ -3,7 +3,7 @@
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import type { Project } from 'ts-morph';
-import { DIAGNOSTIC_CODE } from './enums.js';
+import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import type { Destination } from './destination/destination.js';
 import { Module } from './module.js';

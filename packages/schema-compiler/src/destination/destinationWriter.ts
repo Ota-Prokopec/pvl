@@ -2,7 +2,7 @@
 // writing it in one move.
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
-import { DIAGNOSTIC_CODE } from '../enums.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { errorMessage, statOrUndefined } from '../utils.js';
 import {

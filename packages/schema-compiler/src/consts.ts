@@ -1,64 +1,9 @@
-// Every constant the compiler shares: the config file and setting defaults,
-// each diagnostic code's severity, the Destination Directory's layout, the
-// text every generated module shares, and which chained methods are
-// pre-modifiers.
-import {
-  MODIFIER_NAME,
-  SEVERITY,
-  type DiagnosticCode,
-  type ModifierName,
-  type Severity,
-} from './enums.js';
-
-/** The file name the compiler looks for in the working directory. */
-export const CONFIG_FILE_NAME = 'pvlconfig.json' as const;
-
-/** The `include` setting's default. */
-export const DEFAULT_INCLUDE = ['src/schemas/**/*.ts'] as const;
-
-/** The `rootDir` setting's default. */
-export const DEFAULT_ROOT_DIR = 'src' as const;
-
-/** The `withTypes` setting's default. */
-export const DEFAULT_WITH_TYPES = true as const;
-
-/** The `watch` setting's default. */
-export const DEFAULT_WATCH = false as const;
-
-/**
- * The severity each code is raised with, before `strict` promotes warnings.
- *
- * @example
- * ```ts
- * import { DIAGNOSTIC_SEVERITY } from '@pvl/schema-compiler';
- *
- * DIAGNOSTIC_SEVERITY.FILE_EXPORTS_NOTHING; // 'WARNING'
- * ```
- */
-export const DIAGNOSTIC_SEVERITY = {
-  NO_CONFIG: SEVERITY.ERROR,
-  CONFIG_UNREADABLE: SEVERITY.ERROR,
-  INVALID_CONFIG: SEVERITY.ERROR,
-  NO_INPUT_FILES: SEVERITY.ERROR,
-  DESTINATION_UNWRITABLE: SEVERITY.ERROR,
-  DESTINATION_NOT_EMPTY: SEVERITY.ERROR,
-  DESTINATION_INSIDE_INCLUDE: SEVERITY.ERROR,
-  DUPLICATE_EXPORT: SEVERITY.ERROR,
-  TSCONFIG_UNREADABLE: SEVERITY.ERROR,
-  PARSE_FAILED: SEVERITY.ERROR,
-  FILE_OUTSIDE_ROOT_DIR: SEVERITY.ERROR,
-  DEFAULT_EXPORT: SEVERITY.ERROR,
-  FILE_EXPORTS_NOTHING: SEVERITY.WARNING,
-  SIDE_EFFECT_COPIED: SEVERITY.WARNING,
-  COMPILE_ARGUMENT_UNRESOLVABLE: SEVERITY.ERROR,
-  COMPILE_ARGUMENT_CYCLE: SEVERITY.ERROR,
-  COMPILE_RESULT_MODIFIED: SEVERITY.ERROR,
-  UNSUPPORTED_SCHEMA: SEVERITY.ERROR,
-  INVALID_ARGUMENTS: SEVERITY.ERROR,
-} as const satisfies Record<DiagnosticCode, Severity>;
-
-/** Where the Destination Directory goes, relative to the base directory, when `destination` is unset. */
-export const DEFAULT_DESTINATION_DIRECTORY = '.pvl' as const;
+// The constants the compiler uses internally: the Destination Directory's
+// layout, the text every generated module shares, and
+// which chained methods are pre-modifiers. The public ones are in
+// `config/consts.ts` and `diagnostics/consts.ts`, the setting defaults in
+// `config/defaults/consts.ts`.
+import { MODIFIER_NAME, type ModifierName } from './enums.js';
 
 /** The file that marks a Destination Directory as written by the compiler, so a later run may replace it. */
 export const GENERATED_MARKER_FILE_NAME = '.pvl-generated' as const;

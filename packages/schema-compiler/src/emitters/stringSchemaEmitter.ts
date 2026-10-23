@@ -3,7 +3,7 @@
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs } from './emitter.js';
-import { emitConstraintIssue, emitDefaultMessage, emitIssue } from '../issue.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
   EmittedCheck,
@@ -86,13 +86,10 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return emitCheck({
+    return this.emitTypeCheck({
       failsWhen: js`typeof ${value} !== "string"`,
-      issue: emitIssue({
-        code: ISSUE_CODE.INVALID_TYPE,
-        message: STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
-        path: issuePath,
-      }),
+      message: STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
+      issuePath,
     });
   }
 }
