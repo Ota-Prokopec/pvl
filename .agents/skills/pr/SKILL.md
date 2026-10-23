@@ -12,6 +12,8 @@ metadata:
 Use this template for writing the PR body:
 
 ```markdown
+<the issue(s) this PR addresses, e.g. `Closes #4.`>
+
 ## Summary
 
 <diagram, diff-sketch, or tree>
@@ -35,6 +37,12 @@ Use this template for writing the PR body:
 ## Sections
 
 Skip all preambles and keep prose brief. Use the user's domain language from `GLOSSARY.md`.
+
+The body reads as the user's own work, with no mention of Claude ([git-workflow.md](../../../docs/agents/git-workflow.md#pull-requests)).
+
+### Issues
+
+State the issue(s) the PR addresses. A PR into `main` uses a closing keyword (`Closes #4.`); a PR into an intermediate branch states the relationship in prose (`Part of #14, resolves #16.`).
 
 ### Summary
 

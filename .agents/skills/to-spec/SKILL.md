@@ -16,7 +16,7 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the spec using the template below, then publish it to the project issue tracker. A spec is a parent issue, too large to land as one change, so `/to-tickets` breaks it down before anything is implemented. Label it `spec` and keep `ready-for-agent` off it: that label means implementable as-is.
 
 <spec-template>
 
@@ -73,3 +73,5 @@ A description of the things that are out of scope for this spec.
 Any further notes about the feature.
 
 </spec-template>
+
+Next in the pipeline: `/to-tickets`.

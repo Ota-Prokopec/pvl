@@ -24,6 +24,8 @@ The user has asked for a **retrospective**. You are suggesting improvements to t
 
 4. Present these candidates to the user, in order of severity.
 
+5. Land each suggestion the user accepts in the repo: a doc (`AGENTS.md`, `docs/agents/`, a skill under `.agents/skills/`) or a lint rule or hook in [`@repo/conventions`](../../../packages/conventions/AGENTS.md). Never in agent memory.
+
 ## Reference
 
 ### Implementation vs Review

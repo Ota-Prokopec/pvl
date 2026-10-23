@@ -129,41 +129,19 @@ describe('checkBashCommand', () => {
 });
 
 describe('checkEditedPath', () => {
-  const LOCK = JSON.stringify({ version: 1, skills: { tdd: {}, zod: {} } });
-
-  /** The reasons editing `path` is denied, run from `/repo` whose `skills-lock.json` is `lock` (`null`: missing). */
-  const checkEdit = (path: string, lock: string | null = LOCK): string[] => {
-    return checkEditedPath({
-      path,
-      cwd: REPO,
-      readFile: (file): string | undefined =>
-        file === `${REPO}/skills-lock.json` ? (lock ?? undefined) : undefined,
-    });
+  /** The reasons editing `path` is denied, run from `/repo`. */
+  const checkEdit = (path: string): string[] => {
+    return checkEditedPath({ path, cwd: REPO });
   };
 
   it.each([
     'packages/schema/src/pvl.ts',
     '/repo/AGENTS.md',
     '/repo/.claude/settings.json',
-    '.agents/skills/repo-owned/SKILL.md',
-    '/repo/.claude/skills/repo-owned/SKILL.md',
+    '.agents/skills/tdd/SKILL.md',
+    '/repo/.claude/skills/zod/SKILL.md',
   ])('allows editing %s', (path) => {
     expect(checkEdit(path)).toEqual([]);
-  });
-
-  it.each(['.agents/skills/tdd/SKILL.md', '/repo/.claude/skills/zod/SKILL.md'])(
-    'denies editing the installed skill file %s',
-    (path) => {
-      expect(checkEdit(path)).toEqual([
-        expect.stringContaining('installed from an external source'),
-      ]);
-    },
-  );
-
-  it.each([null, 'not json'])('denies editing any skill when the lock file is %j', (lock) => {
-    expect(checkEdit('.agents/skills/repo-owned/SKILL.md', lock)).toEqual([
-      expect.stringContaining('installed from an external source'),
-    ]);
   });
 
   it('denies writing to the agent memory', () => {
