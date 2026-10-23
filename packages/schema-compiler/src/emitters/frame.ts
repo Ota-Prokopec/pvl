@@ -14,6 +14,7 @@
 // (`../issue.ts`), the pre-modifiers' guards, the transform's gate, and the
 // handoff of its output.
 import { VENDOR } from '@pvl/schema';
+import { STANDALONE_MARKER_TYPE_NAME } from '../consts.js';
 import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
@@ -39,6 +40,40 @@ export type RuntimeArgumentParameter = {
   messageField: { fieldName: string; expression: string } | undefined;
 };
 
+/**
+ * An unmarked array element a Compiled Schema exposes as the interpreted
+ * Schema it is, as its class's constructor takes it: typed by a type
+ * parameter TypeScript infers from the element's source, which is passed
+ * where the root's `pvl.compile(...)` call was (ADR-0036).
+ */
+export type ElementParameter = {
+  /** The constructor's parameter: `element`, a field, for the class's own element, or `pvlElement1`, handed on to the class exposing it. */
+  name: string;
+  /** Whether it is the class's own `element`, so a `readonly` field. */
+  isField: boolean;
+  /** Its type parameter: `TElement1`. */
+  type: string;
+  /** What is passed for it: the element's source at the root, or the parameter holding it in the class building this one. */
+  passedExpression: string;
+};
+
+/** How a Compiled Schema's class holds its `shape` or `element`, when its constructor builds it. */
+export type ComposedStructure = {
+  /** The field declaring it: `readonly shape: { … };`. */
+  declaration: string;
+  /** The constructor's statement building it, `undefined` when the declaration initializes it. */
+  statement: string | undefined;
+};
+
+/** What {@link Frame.spellCompiledSchemaType} spells a Compiled Schema's type from. */
+export type SpellCompiledSchemaTypeArgs = {
+  types: SchemaTypes;
+  /** Whether it is marked `.standalone()`. */
+  isStandalone: boolean;
+  /** The type of its `shape` or `element`, as it exposes it: `{ readonly element: TElement0 }`. */
+  structureType: string | undefined;
+};
+
 /** What {@link Frame.composeChecks} composes: one Schema's parts, emitted at its target. */
 export type ComposeChecksArgs = {
   /** The Schema's value and its paths, as its parent hands them on, or `Frame.rootCheckingTarget` at the root. */
@@ -51,13 +86,21 @@ export type ComposeSchemaArgs = {
   className: string;
   /** The Schema's `Input` and `Output` types, the `PvlSchema` type arguments the class implements. */
   types: SchemaTypes;
-  /** The type parameters it is generic in, which its `types` and its Runtime Arguments' may name: `.transform()`'s output, `TArg0Output`. */
+  /** The type it is cast up to, `PvlSchema<…>` with its marker and structure (`Frame.spellCompiledSchemaType`). */
+  compiledSchemaType: string;
+  /** Whether it is marked `.standalone()`, which its `_standalone` reports. */
+  isStandalone: boolean;
+  /** The type parameters it is generic in, which its `types` and its Runtime Arguments' may name: `.transform()`'s output, `TArg0Output`, and an unmarked element's, `TElement0`. Only a root's: a nested class is written inside the root, where they are in scope. */
   typeParameters: ReadonlyArray<string>;
   /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
   indentation: string;
   /** Its Runtime Arguments, in the order its constructor takes them. */
   runtimeArguments: ReadonlyArray<RuntimeArgumentParameter>;
-  /** The root Schema's parts, emitted at `Frame.rootCheckingTarget`. */
+  /** The unmarked elements it exposes, at any depth, which its constructor takes after its Runtime Arguments. */
+  elementParameters: ReadonlyArray<ElementParameter>;
+  /** How it holds its `shape` or `element`, `undefined` when it has neither or its constructor takes its `element`. */
+  structure: ComposedStructure | undefined;
+  /** The Schema's parts, emitted at `Frame.rootCheckingTarget`. */
   parts: SchemaParts;
 };
 
@@ -262,23 +305,53 @@ export class Frame {
   }
 
   /**
+   * The type a Compiled Schema is cast up to, as `pvl.compile()` types it:
+   * `PvlSchema` of its types, with the Standalone marker when it is marked,
+   * and its `shape` or `element` when it has one.
+   *
+   * ```ts
+   * Frame.spellCompiledSchemaType({ types: <string, string>, isStandalone: true, structureType: undefined })
+   * // 'PvlSchema<string, string> & PvlStandaloneMarker'
+   * Frame.spellCompiledSchemaType({ types: <string[], string[]>, isStandalone: false, structureType: '{ readonly element: TElement0 }' })
+   * // 'PvlSchema<string[], string[]> & { readonly element: TElement0 }'
+   * ```
+   */
+  public static spellCompiledSchemaType({
+    types: {
+      input: { text: input },
+      output: { text: output },
+    },
+    isStandalone,
+    structureType,
+  }: SpellCompiledSchemaTypeArgs): string {
+    return [
+      `PvlSchema<${input}, ${output}>`,
+      ...(isStandalone ? [STANDALONE_MARKER_TYPE_NAME] : []),
+      ...(structureType === undefined ? [] : [structureType]),
+    ].join(' & ');
+  }
+
+  /**
    * The Compiled Schema, as the expression its `pvl.compile(...)` call is
    * replaced by: an instance of a class expression implementing `PvlSchema`
-   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to that type so it
+   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to `compiledSchemaType`, so it
    * types as `pvl.compile()` does. Its constructor, when it has Runtime
    * Arguments, takes each one's value, which is passed where the call was,
    * evaluated there once (ADR-0030), and builds each default message naming
-   * one into a field of its own, once. Its `_validate` collects its Issues,
-   * runs the checks `composeChecks` composes from `parts` at
-   * `Frame.rootCheckingTarget`, and then returns its Result, and its
-   * `validate` and `"~standard"` call it. Every line of the class after its
-   * first is indented by `indentation`, and a passed argument is written as
-   * it is.
+   * one into a field of its own, once. It then takes each unmarked element
+   * it exposes, and builds its `shape` or marked `element` (ADR-0036). Its
+   * `_validate` collects its Issues, runs the checks `composeChecks`
+   * composes from `parts` at `Frame.rootCheckingTarget`, and then returns
+   * its Result, and its `validate` and `"~standard"` call it. Its
+   * `standalone()` hands back a copy reporting `_standalone`. Every line of
+   * the class after its first is indented by `indentation`, and a passed
+   * argument is written as it is.
    *
    * ```ts
-   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' } }], parts: <the parts of pvl.string().max(max) at the root> })
+   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, compiledSchemaType: 'PvlSchema<string, string>', isStandalone: false, typeParameters: [], indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' } }], elementParameters: [], structure: undefined, parts: <the parts of pvl.string().max(max) at the root> })
    * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
+   * //   readonly _standalone: boolean = false;
    * //
    * //   readonly arg0Message: string;
    * //
@@ -299,15 +372,20 @@ export class Frame {
    * //     …
    * //     return issues.length > 0 ? { issues } : { value };
    * //   }
+   * //
+   * //   standalone(): PvlStandaloneSchema<this> {
+   * //     return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as PvlStandaloneSchema<this>;
+   * //   }
    * // })(max) as PvlSchema<string, string>)
    * ```
    */
   // The cast is an upcast, as the class implements `PvlSchema`: it keeps the
   // Compiled Schema's type what `pvl.compile()` returns, and no anonymous
   // class type reaches a declaration file. A Compiled Schema generic in a
-  // `.transform()`'s output is built by a generic arrow function instead,
-  // whose return type is the upcast, so that output can be inferred. The parentheses let a
-  // `.validate(…)` read off the call site still apply to the whole of it.
+  // `.transform()`'s output or an unmarked element's type is built by a
+  // generic arrow function instead, whose return type is the upcast, so that
+  // type can be inferred. The parentheses let a `.validate(…)` read off the
+  // call site still apply to the whole of it.
   // Each field is `readonly` but not `private`, so one a method that doesn't
   // compile to a check takes (`.strict()` before `.passthrough()`), or a
   // default message a custom one replaces (`.max(max, { message: 'long' })`),
@@ -318,35 +396,52 @@ export class Frame {
       input: { text: input },
       output: { text: output },
     },
+    compiledSchemaType,
+    isStandalone,
     typeParameters,
     indentation,
     runtimeArguments,
+    elementParameters,
+    structure,
     parts,
   }: ComposeSchemaArgs): string {
-    const schemaType = `PvlSchema<${input}, ${output}>`;
-
     const messageFields = runtimeArguments.flatMap(({ messageField }) =>
       messageField === undefined ? [] : [messageField],
     );
-    const constructorHead = `constructor(${runtimeArguments.map(({ fieldName, type }) => `readonly ${fieldName}: ${type}`).join(', ')})`;
+    // Every parameter its constructor takes, in order: each Runtime
+    // Argument, a field, then each unmarked element.
+    const parameters = [
+      ...runtimeArguments.map(({ fieldName, type, passedExpression }) => ({
+        name: fieldName,
+        isField: true,
+        type,
+        passedExpression,
+      })),
+      ...elementParameters,
+    ];
+    const constructorHead = `constructor(${parameters.map(({ name, isField, type }) => `${isField ? 'readonly ' : ''}${name}: ${type}`).join(', ')})`;
+    const constructorStatements = [
+      ...messageFields.map(({ fieldName, expression }) => `this.${fieldName} = ${expression};`),
+      ...(structure?.statement === undefined ? [] : [structure.statement]),
+    ];
 
     const members = [
-      'declare readonly [PVL_SCHEMA_BRAND]: true;',
+      [
+        'declare readonly [PVL_SCHEMA_BRAND]: true;',
+        // The marker `pvl.compile()` types a marked Schema with, as the
+        // brand the Schema type requires, type-only.
+        ...(isStandalone ? ['declare readonly [PVL_STANDALONE_BRAND]: true;'] : []),
+        `readonly _standalone: boolean = ${String(isStandalone)};`,
+      ].join('\n'),
+      ...(structure === undefined ? [] : [structure.declaration]),
       ...(messageFields.length > 0
         ? [messageFields.map(({ fieldName }) => `readonly ${fieldName}: string;`).join('\n')]
         : []),
-      ...(runtimeArguments.length === 0
+      ...(parameters.length === 0 && constructorStatements.length === 0
         ? []
-        : messageFields.length === 0
+        : constructorStatements.length === 0
           ? [`${constructorHead} {}`]
-          : [
-              composeBlock({
-                head: constructorHead,
-                body: messageFields
-                  .map(({ fieldName, expression }) => `this.${fieldName} = ${expression};`)
-                  .join('\n'),
-              }),
-            ]),
+          : [composeBlock({ head: constructorHead, body: constructorStatements.join('\n') })]),
       composeBlock({
         head: `get "~standard"(): PvlStandardSchemaProps<${input}, ${output}>`,
         // `types` as the interpreted path writes it: a phantom, `undefined` at runtime.
@@ -364,30 +459,32 @@ export class Frame {
           VALIDATE_RETURN_STATEMENT,
         ].join('\n'),
       }),
+      // A copy, as `@pvl/schema`'s own `.standalone()` hands back, with its
+      // own fields, the shape or element among them, and the flag set.
+      composeBlock({
+        head: 'standalone(): PvlStandaloneSchema<this>',
+        body: 'return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as PvlStandaloneSchema<this>;',
+      }),
     ];
     const classExpression = Frame.indentContinuationLines(
       composeBlock({
-        head: `class ${className} implements ${schemaType}`,
+        head: `class ${className} implements PvlSchema<${input}, ${output}>`,
         body: members.join('\n\n'),
       }),
       indentation,
     );
-    const passedExpressions = runtimeArguments
-      .map(({ passedExpression }) => passedExpression)
-      .join(', ');
+    const passedExpressions = parameters.map(({ passedExpression }) => passedExpression).join(', ');
 
     if (typeParameters.length === 0) {
-      return `(new (${classExpression})(${passedExpressions}) as ${schemaType})`;
+      return `(new (${classExpression})(${passedExpressions}) as ${compiledSchemaType})`;
     }
     // A generic arrow function, whose type parameters TypeScript infers from
     // the arguments it is passed, as it infers a `.transform()`'s `NewOutput`;
     // its return type is the upcast. The trailing comma keeps `<T,>` a type
     // parameter list in a `.tsx` module too.
-    const parameters = runtimeArguments
-      .map(({ fieldName, type }) => `${fieldName}: ${type}`)
-      .join(', ');
-    const fieldNames = runtimeArguments.map(({ fieldName }) => fieldName).join(', ');
-    return `(<${typeParameters.join(', ')},>(${parameters}): ${schemaType} => new (${classExpression})(${fieldNames}))(${passedExpressions})`;
+    const arrowParameters = parameters.map(({ name, type }) => `${name}: ${type}`).join(', ');
+    const parameterNames = parameters.map(({ name }) => name).join(', ');
+    return `(<${typeParameters.join(', ')},>(${arrowParameters}): ${compiledSchemaType} => new (${classExpression})(${parameterNames}))(${passedExpressions})`;
   }
 
   /**

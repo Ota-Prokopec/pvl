@@ -1,5 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import { pvl, type Schema } from '../src/index.js';
+import {
+  pvl,
+  type Schema,
+  type StandaloneMarker,
+  type StringInterpretedSchema,
+} from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
@@ -119,37 +124,62 @@ describe('pvl.compile()', () => {
     });
   });
 
-  // ADR-0020: a Compiled Schema is a plain Schema, with no `shape`/`element`.
+  it('returns a schema carrying Standalone Keys unchanged pre-compilation', () => {
+    const schema = pvl.object({ email: pvl.string().standalone(), age: pvl.number() });
+    expect(pvl.compile(schema)).toBe(schema);
+
+    const marked = pvl.string().standalone();
+    expect(pvl.compile(marked)).toBe(marked);
+  });
+
+  // ADR-0020 and ADR-0036: a Compiled Schema is a plain Schema, keeping its
+  // `shape`/`element` and its Standalone marker.
   describe('the type it hands back', () => {
-    it('chains no modifier onto a compiled schema', () => {
+    it('chains no modifier or structural method onto a compiled schema', () => {
       const compiled = pvl.compile(pvl.object({ name: pvl.string() }));
       // @ts-expect-error a Compiled Schema takes no modifier
       compiled.optional();
       // @ts-expect-error a Compiled Schema takes no modifier
       compiled.strict();
       // @ts-expect-error a Compiled Schema takes no modifier
-      pvl.compile(pvl.array(pvl.string())).min(1);
+      compiled.passthrough();
+      const array = pvl.compile(pvl.array(pvl.string()));
+      // @ts-expect-error a Compiled Schema takes no modifier
+      array.min(1);
+      // @ts-expect-error a Compiled Schema takes no modifier
+      array.max(1);
+      // @ts-expect-error a Compiled Schema takes no modifier
+      array.length(1);
     });
 
-    it("hands back a plain Schema with an object schema's input/output and no shape", () => {
-      const compiled = pvl.compile(pvl.object({ name: pvl.string() }).optional());
-      expectTypeOf(compiled).not.toHaveProperty('shape');
+    it("hands back a plain Schema with an object schema's input/output and its shape", () => {
+      const compiled = pvl.compile(
+        pvl.object({ name: pvl.string().standalone(), age: pvl.number() }).optional(),
+      );
       expectTypeOf(compiled).toEqualTypeOf<
-        Schema<{ name: string } | undefined, { name: string } | undefined>
+        Schema<
+          { name: string; age: number } | undefined,
+          { name: string; age: number } | undefined
+        > & {
+          readonly shape: { readonly name: Schema<string, string> & StandaloneMarker };
+        }
       >();
     });
 
-    it('hands back a plain Schema with no element for an array schema', () => {
+    it('hands back a plain Schema with its element for an array schema', () => {
       const compiled = pvl.compile(pvl.array(pvl.string()).min(1));
-      expectTypeOf(compiled).not.toHaveProperty('element');
-      expectTypeOf(compiled).toEqualTypeOf<Schema<string[], string[]>>();
+      expectTypeOf(compiled).toEqualTypeOf<
+        Schema<string[], string[]> & { readonly element: StringInterpretedSchema }
+      >();
     });
 
-    it("carries a transformed composite's output type", () => {
+    it("carries a transformed composite's output type and shape", () => {
       const object = pvl.compile(
         pvl.object({ name: pvl.string() }).transform((value) => value.name),
       );
-      expectTypeOf(object).toEqualTypeOf<Schema<{ name: string }, string>>();
+      expectTypeOf(object).toEqualTypeOf<
+        Schema<{ name: string }, string> & { readonly shape: {} }
+      >();
     });
 
     it('hands back a plain Schema for a primitive, transformed or not', () => {
@@ -159,6 +189,19 @@ describe('pvl.compile()', () => {
       plain.max(5);
       expectTypeOf(plain).toEqualTypeOf<Schema<string, string>>();
       expectTypeOf(transformed).toEqualTypeOf<Schema<string, number>>();
+    });
+
+    it('types pvl.compile(x.standalone()) as pvl.compile(x).standalone()', () => {
+      const object = pvl.object({ name: pvl.string().standalone() });
+      expectTypeOf(pvl.compile(object.standalone())).toEqualTypeOf(
+        pvl.compile(object).standalone(),
+      );
+      expectTypeOf(pvl.compile(pvl.string().standalone())).toEqualTypeOf<
+        Schema<string, string> & StandaloneMarker
+      >();
+      expectTypeOf(pvl.compile(pvl.string()).standalone()).toEqualTypeOf<
+        Schema<string, string> & StandaloneMarker
+      >();
     });
   });
 });

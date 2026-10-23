@@ -12,8 +12,12 @@ A call is recognised when `pvl` is imported from `@pvl/schema` under any name. I
 
 - `COMPILE_ARGUMENT_UNRESOLVABLE`: the argument, or a factory's argument, is imported, built by a function call, spread, held in a `let`, a parameter or a local that shadows a top-level `const`, or an assignment such as `++count`; or a method argument is spread.
 - `COMPILE_ARGUMENT_CYCLE`: the argument, or a factory's argument, follows a `const` that refers back to itself (`const user = pvl.object({ friend: user })`), so reading it would never end. TypeScript reports such a `const` as used before its declaration, but the compiler doesn't type-check ([ADR-0024](../../adr/0024-the-compiler-checks-syntax-not-types.md)).
-- `COMPILE_RESULT_MODIFIED`: something other than `.validate()` is read off the result (`pvl.compile(x).optional()`).
+- `COMPILE_RESULT_MODIFIED`: something other than `.validate()`, `.standalone()`, `shape` or `element` is read off the result (`pvl.compile(x).optional()`).
 - `UNSUPPORTED_SCHEMA`: the Schema uses what isn't compiled yet. Today that is a union, at any depth, the wrapped Schema included: primitives, literals, enums and objects and arrays of them compile, with their Constraints, `.strict()`/`.passthrough()` and every Shared Modifier.
+
+## `.standalone()` is a marker, not a Modifier
+
+`.standalone()` changes no check, so reading a Schema takes it off the chain wherever it is written, and records only that the Schema is a Standalone Key: `pvl.compile(x.standalone())` and `pvl.compile(x).standalone()` read the same. It never produces a diagnostic, compiled or not, as a marked Schema may be defined in one file and used as a field in another. What it changes is what a Compiled Schema exposes: a compiled object's `shape` holds the Compiled Schema of each Standalone Key, and a compiled array's `element` is a Compiled Schema when its element is marked ([code-generation.md](./code-generation.md#a-compiled-schema-exposes-its-standalone-keys), [ADR-0036](../../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-that-hands-back-a-schema.md)).
 
 ## Runtime Arguments
 

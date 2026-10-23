@@ -1,5 +1,5 @@
 import { ArrayInterpretedSchema } from './schemas/arrayInterpretedSchema.js';
-import type { Schema } from './schemas/schema.js';
+import type { Schema, SchemaStructure, StandaloneMarker } from './schemas/schema.js';
 import { BigintInterpretedSchema } from './schemas/bigintInterpretedSchema.js';
 import { BooleanInterpretedSchema } from './schemas/booleanInterpretedSchema.js';
 import { EnumInterpretedSchema, type EnumSource } from './schemas/enumInterpretedSchema.js';
@@ -12,6 +12,15 @@ import { ObjectInterpretedSchema, type ObjectShape } from './schemas/objectInter
 import { StringInterpretedSchema } from './schemas/stringInterpretedSchema.js';
 import { UnionInterpretedSchema, type UnionMembers } from './schemas/unionInterpretedSchema.js';
 import type { InferInput, InferOutput } from './types.js';
+
+// What `pvl.compile()` hands back for `TSchema`: a plain Schema of its input
+// and output, keeping its `shape` or `element` and its Standalone marker.
+type CompiledSchemaOf<TSchema extends Schema<unknown, unknown>> = Schema<
+  InferInput<TSchema>,
+  InferOutput<TSchema>
+> &
+  SchemaStructure<TSchema> &
+  (TSchema extends StandaloneMarker ? StandaloneMarker : unknown);
 
 /**
  * The single entry point of `@pvl/schema`. Every schema factory hangs off
@@ -186,30 +195,31 @@ export const pvl = {
    * identity function, so a schema that uses it still validates normally
    * before the compiler has seen the call site.
    *
-   * It hands back a plain {@link Schema}: no modifier can be chained onto it
-   * and no `shape` or `element` can be read from it, so chain every modifier
-   * before compiling — `pvl.compile(x.optional())`, not
-   * `pvl.compile(x).optional()` — and keep a reference to any field schema
-   * you want to validate on its own. It can still be a field or element of
-   * another schema.
+   * It hands back a plain {@link Schema}: no modifier can be chained onto it,
+   * so chain every modifier before compiling — `pvl.compile(x.optional())`,
+   * not `pvl.compile(x).optional()`. It keeps an object's `shape`, an array's
+   * `element` and the `.standalone()` marker, and `.standalone()` can still
+   * be called on it, so `pvl.compile(x.standalone())` and
+   * `pvl.compile(x).standalone()` are the same. It can still be a field or
+   * element of another schema.
    *
    * @example
    * ```ts
    * import { pvl } from '@pvl/schema';
    *
    * const payload = pvl.compile(
-   *   pvl.object({ id: pvl.string(), tags: pvl.array(pvl.string()) }),
+   *   pvl.object({ id: pvl.string().standalone(), tags: pvl.array(pvl.string()) }),
    * );
    *
    * payload.validate({ id: 'a1', tags: [] }); // works today, compiled later
+   * payload.shape.id.validate('a1'); // a compiled validator of `id` alone, once compiled
    * ```
    */
   // Identity function pre-compilation (see @pvl/schema-compiler's AGENTS.md
-  // for what happens once a call site has been through the compiler, and
-  // ADR-0020 for why it hands back a plain Schema). The assertion only
-  // narrows the surface, which a deferred conditional type can't show.
-  compile: <TSchema extends Schema<unknown, unknown>>(
-    schema: TSchema,
-  ): Schema<InferInput<TSchema>, InferOutput<TSchema>> =>
-    schema as unknown as Schema<InferInput<TSchema>, InferOutput<TSchema>>,
+  // for what happens once a call site has been through the compiler, ADR-0020
+  // for why it hands back a plain Schema, and ADR-0036 for what it keeps).
+  // The assertion only narrows the surface, which a deferred conditional
+  // type can't show.
+  compile: <TSchema extends Schema<unknown, unknown>>(schema: TSchema): CompiledSchemaOf<TSchema> =>
+    schema as unknown as CompiledSchemaOf<TSchema>,
 };

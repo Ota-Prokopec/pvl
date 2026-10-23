@@ -168,12 +168,30 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   ].join('\n'),
   refinedArray:
     "pvl.array(pvl.object({ name: pvl.string() })).min(1).refine((value) => value.length !== 2, { message: '' })",
+  standaloneKeys: [
+    'pvl.object({',
+    '  name: pvl.string().min(LIMIT - 3).max(LIMIT).standalone(),',
+    '  age: pvl.number().int(),',
+    '  inner: pvl.object({ name: pvl.string().min(2).standalone(), code: pvl.string() }).strict().optional().standalone(),',
+    '  list: pvl.array(pvl.number().max(LIMIT)).min(1).standalone(),',
+    '  tags: pvl.array(pvl.object({ kind: pvl.literal(1).standalone() }).standalone()).standalone(),',
+    '  count: pvl.string().transform((value) => value.length).standalone(),',
+    "  'e-mail': pvl.compile(pvl.string().refine(isNotUser)).standalone(),",
+    "  ['__proto__']: pvl.compile(pvl.boolean().standalone()),",
+    '})',
+  ].join('\n'),
+  standaloneTransformedObject:
+    'pvl.object({ name: pvl.string().max(LIMIT).standalone() }).transform((value) => value.name)',
+  standaloneElement:
+    'pvl.array(pvl.object({ name: pvl.string().min(1).standalone() }).standalone()).max(3)',
+  standaloneRoot: 'pvl.string().min(1).standalone()',
 };
 
 // An interpreted object whose fields are Compiled Schemas, so their Issues
-// are reported under the parent's path.
+// are reported under the parent's path, one of them marked `.standalone()`
+// once compiled, so the parent's `shape` holds it.
 const INTERPRETED_PARENT =
-  'pvl.object({ inner: pvl.compile(pvl.object({ name: pvl.string() }).strict()), list: pvl.compile(pvl.array(pvl.number()).min(1)) })' as const;
+  'pvl.object({ inner: pvl.compile(pvl.object({ name: pvl.string().standalone() }).strict()).standalone(), list: pvl.compile(pvl.array(pvl.number()).min(1)) })' as const;
 
 // The scanned file the differential test compiles: every case, exported
 // compiled, the interpreted parent, the constants one case reads, and the
@@ -204,6 +222,7 @@ const KEYS = [
   '1',
   'inner',
   'list',
+  'tags',
   'name',
   'code',
   'age',
@@ -260,6 +279,31 @@ const parentValue: fc.Arbitrary<unknown> = fc.record(
 );
 
 /**
+ * Every Schema reachable from `schema` through `shape` and `element`, at
+ * any depth, by the path it is read at (`shape.inner.shape.name`), itself
+ * at `''`: what the compiled and the interpreted export must both expose,
+ * and validate alike.
+ */
+const findExposedSchemas = (
+  schema: SchemasModule[string],
+  at = '',
+): Array<[string, SchemasModule[string]]> => {
+  const { shape, element } = schema as {
+    shape?: Readonly<Record<string, SchemasModule[string]>>;
+    element?: SchemasModule[string];
+  };
+  return [
+    [at, schema],
+    // `shape` itself, owned by `schema`, so an object with no Standalone Key must have `{}` on both sides.
+    ...(shape === undefined ? [] : [[`${at}.shape`, schema] as [string, SchemasModule[string]]]),
+    ...Object.keys(shape ?? {}).flatMap((key) =>
+      findExposedSchemas(shape![key]!, `${at}.shape.${key}`),
+    ),
+    ...(element === undefined ? [] : findExposedSchemas(element, `${at}.element`)),
+  ];
+};
+
+/**
  * What validating `value` with `schema` does, as plain data: its Result
  * (`describeResult`), or the error it throws, as `.coerce()` does where
  * `String()` throws, on an object with no prototype.
@@ -283,7 +327,8 @@ const compileDifferentialFixture = async (): Promise<CompiledFixture> => {
 };
 
 // A file asserting, for every case, that the compiled export's inferred
-// Input and Output are identical to the interpreted one's.
+// Input and Output, and its whole type, `shape` and `element` included, are
+// identical to the interpreted one's.
 const TYPE_CHECK_FILE = [
   "import type { InferInput, InferOutput } from '@pvl/schema';",
   "import type * as compiled from './.pvl/schemas/cases.ts';",
@@ -291,9 +336,10 @@ const TYPE_CHECK_FILE = [
   '',
   'type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;',
   '',
-  ...Object.keys(DIFFERENTIAL_CASES).flatMap((exportName) => [
+  ...[...Object.keys(DIFFERENTIAL_CASES), 'interpretedParent'].flatMap((exportName) => [
     `export const ${exportName}Input: Equal<InferInput<typeof compiled.${exportName}>, InferInput<typeof interpreted.${exportName}>> = true;`,
     `export const ${exportName}Output: Equal<InferOutput<typeof compiled.${exportName}>, InferOutput<typeof interpreted.${exportName}>> = true;`,
+    `export const ${exportName}Type: Equal<typeof compiled.${exportName}, typeof interpreted.${exportName}> = true;`,
   ]),
   '',
 ].join('\n');
@@ -309,14 +355,24 @@ describe('runCompilation(): Compiled Schemas validate as the interpreted path do
       /pvl\.compile\((?!\))/,
     );
     for (const exportName of [...Object.keys(DIFFERENTIAL_CASES), 'interpretedParent']) {
-      fc.assert(
-        fc.property(fc.oneof(validatedValue, parentValue, primitiveValue), (value) => {
-          expect(describeValidation(compiled[exportName]!, value)).toStrictEqual(
-            describeValidation(interpreted[exportName]!, value),
-          );
-        }),
-        { numRuns: 300 },
-      );
+      const compiledSchemas = findExposedSchemas(compiled[exportName]!);
+      const interpretedSchemas = findExposedSchemas(interpreted[exportName]!);
+      expect(compiledSchemas.map(([at]) => at)).toStrictEqual(interpretedSchemas.map(([at]) => at));
+      for (const [index, [at, compiledSchema]] of compiledSchemas.entries()) {
+        const [, interpretedSchema] = interpretedSchemas[index]!;
+        // `shape` itself only has to be there, on both sides; its owner is diffed already.
+        if (at.endsWith('.shape')) {
+          continue;
+        }
+        fc.assert(
+          fc.property(fc.oneof(validatedValue, parentValue, primitiveValue), (value) => {
+            expect(describeValidation(compiledSchema, value)).toStrictEqual(
+              describeValidation(interpretedSchema, value),
+            );
+          }),
+          { numRuns: 300 },
+        );
+      }
     }
   });
 });

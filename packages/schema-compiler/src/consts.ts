@@ -38,7 +38,18 @@ export const GENERATED_HEADER =
  * class, so it needs nothing from `@pvl/schema` at runtime.
  */
 export const COMPILED_SCHEMA_IMPORT =
-  "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
+  "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandaloneSchema as PvlStandaloneSchema, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
+
+/** The name `STANDALONE_MARKER_IMPORT` aliases `@pvl/schema`'s `StandaloneMarker` as, which a marked Compiled Schema's type intersects. */
+export const STANDALONE_MARKER_TYPE_NAME = 'PvlStandaloneMarker' as const;
+
+/**
+ * The import a module holding a Compiled Schema marked `.standalone()` gets
+ * besides `COMPILED_SCHEMA_IMPORT`, for the marker it declares and is typed
+ * by, so a module with none imports nothing unused.
+ */
+export const STANDALONE_MARKER_IMPORT =
+  "import type { STANDALONE_BRAND as PVL_STANDALONE_BRAND, StandaloneMarker as PvlStandaloneMarker } from '@pvl/schema';" as const;
 
 /**
  * The type a Compiled Schema's constructor declares a Runtime Argument with
@@ -46,6 +57,13 @@ export const COMPILED_SCHEMA_IMPORT =
  * `IssueEditableProps` spells it.
  */
 export const ISSUE_OPTIONS_TYPE = '{ message?: string } | undefined' as const;
+
+/**
+ * The method marking a Schema as a Standalone Key. It is no Modifier: it
+ * changes no check, only what a Compiled Schema exposes, so reading a Schema
+ * takes it off the chain (ADR-0036).
+ */
+export const STANDALONE_METHOD_NAME = 'standalone' as const;
 
 /**
  * The methods `@pvl/schema` adds as pre-modifiers, through

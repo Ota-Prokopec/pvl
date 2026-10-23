@@ -6,7 +6,7 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { Modifier, ModifierShape } from '../modifiers/modifiers.js';
 import type { PreModifiersResult } from '../types.js';
-import type { Schema } from './schema.js';
+import type { Schema, StandaloneSchema } from './schema.js';
 
 // Whether `modifier` was built by one of the modifier factories in
 // `shapes`. Matched by the factory rather than the instance, so a caller
@@ -52,6 +52,9 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
 > {
   /** @internal */
   declare readonly [SCHEMA_BRAND]: true;
+
+  /** @internal */
+  readonly _standalone: boolean = false;
 
   // Each runs in chain order, the pre-modifiers before `_checkType` and the
   // post-modifiers after it — see `_validate` and ADR-0010.
@@ -111,6 +114,35 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
    */
   validate(value: unknown): Result<Output> {
     return this._validate(value, []);
+  }
+
+  /**
+   * Marks this schema as a Standalone Key: as a field of `pvl.object()`, it
+   * is kept in that object's `shape`, so it can be validated on its own, and
+   * once the object is compiled, `@pvl/schema-compiler` gives it a compiled
+   * validator of its own. Validation is unchanged.
+   *
+   * It ends the chain, so chain every modifier first, but it keeps an
+   * object's `shape` and an array's `element`. It is valid on any schema, a
+   * field or not, and calling it again changes nothing.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({
+   *   email: pvl.string().min(3).standalone(),
+   *   age: pvl.number().int(),
+   * });
+   *
+   * user.shape.email.validate('a@b.c'); // { value: 'a@b.c' }
+   * // user.shape.age — a compile error: `age` isn't a Standalone Key
+   * ```
+   */
+  // A clone carrying the flag, which every later clone copies; the return
+  // type only narrows the surface, as `.transform()`'s does (ADR-0036).
+  standalone(): StandaloneSchema<this> {
+    return Object.assign(this._clone(), { _standalone: true }) as unknown as StandaloneSchema<this>;
   }
 
   /**

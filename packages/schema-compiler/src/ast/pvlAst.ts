@@ -4,12 +4,18 @@
 import { Node, type CallExpression, type SourceFile } from 'ts-morph';
 import { GenericAst, type FollowedConsts, type PropertyAccessCall } from './genericAst.js';
 import { UnresolvedNodeError } from './unresolvedNodeError.js';
+import { STANDALONE_METHOD_NAME } from '../consts.js';
 
 /** The package `pvl` is imported from. */
 const PVL_PACKAGE = '@pvl/schema' as const;
 
-/** The methods that may still be read off the result of `pvl.compile(...)`. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
-const COMPILE_MARKER_ALLOWED_METHODS: ReadonlySet<string> = new Set(['validate']);
+/** The members that may still be read off the result of `pvl.compile(...)`: `.validate()`, `.standalone()`, and an object's `shape` and an array's `element`, which a Compiled Schema keeps (ADR-0036). Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
+const COMPILE_MARKER_ALLOWED_MEMBERS: ReadonlySet<string> = new Set([
+  'validate',
+  STANDALONE_METHOD_NAME,
+  'shape',
+  'element',
+]);
 
 /** A method chained in a call chain, `.min(3)`. Its arguments never follow a `const` (ADR-0030), so it carries none of the ones followed to reach it. */
 export type ChainedMethodCall = Omit<PropertyAccessCall, 'receiver'>;
@@ -141,8 +147,10 @@ export class PvlAst {
    * ```ts
    * pvl.compile(user).optional()      // 'optional'
    * pvl.compile(tags).min(1)          // 'min'
-   * pvl.compile(user).shape           // 'shape': read, even when not called
+   * pvl.compile(user).strict          // 'strict': read, even when not called
    * pvl.compile(user).validate(input) // undefined: a Compiled Schema has it
+   * pvl.compile(user).standalone()    // undefined: a Compiled Schema has it
+   * pvl.compile(user).shape           // undefined: a compiled object has it
    * pvl.compile(user)                 // undefined: nothing read off it
    * pvl.compile(user)['optional']()   // undefined: an element access isn't checked
    * ```
@@ -152,7 +160,7 @@ export class PvlAst {
 
     return Node.isPropertyAccessExpression(parent) &&
       parent.getExpression() === call &&
-      !COMPILE_MARKER_ALLOWED_METHODS.has(parent.getName())
+      !COMPILE_MARKER_ALLOWED_MEMBERS.has(parent.getName())
       ? parent.getName()
       : undefined;
   }

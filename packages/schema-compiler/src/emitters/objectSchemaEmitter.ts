@@ -17,8 +17,10 @@ import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
+  CompiledStructure,
   CompilesMethodArgs,
   EmitBaseCheckArgs,
+  EmitCompiledStructureArgs,
   EmitPostModifierChecksArgs,
   EmitSchemaPartsArgs,
   SpellTypesArgs,
@@ -561,6 +563,67 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
         text: hasPassthrough ? `${output} & Record<string, unknown>` : output,
         undefinedness: UNDEFINEDNESS.NEVER,
       },
+    };
+  }
+
+  /**
+   * A compiled object's `shape`: the Compiled Schema of each Standalone Key,
+   * the fields marked `.standalone()`, built by the constructor, and no
+   * other key, as `ObjectInterpretedSchema`'s own `shape` holds (ADR-0036).
+   * With none, it is `{}`, which its declaration initializes. `__proto__`
+   * is a computed key, which an object literal defines rather than
+   * reparenting the object with.
+   *
+   * ```ts
+   * ObjectSchemaEmitter._emitCompiledStructure({ schema: <pvl.object({ name: pvl.string().standalone(), age: pvl.number() })>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', composed: { declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' }, elements: [] }
+   * ObjectSchemaEmitter._emitCompiledStructure({ schema: <pvl.object({ age: pvl.number() })>, … })
+   * // { type: '{ readonly shape: {} }', composed: { declaration: 'readonly shape: {} = {};', statement: undefined }, elements: [] }
+   * ```
+   */
+  protected static override _emitCompiledStructure({
+    schema,
+    className,
+    nextElementIndex,
+  }: EmitCompiledStructureArgs<ObjectSchema>): CompiledStructure {
+    const standaloneKeys = schema.shape.flatMap(({ key, schema: fieldSchema }, index) =>
+      fieldSchema.isStandalone
+        ? [
+            {
+              key,
+              ...fieldSchema.emitter.emitStandaloneCompiledSchema({
+                schema: fieldSchema,
+                className: js`${className}_${String(index)}`,
+                nextElementIndex,
+              }),
+            },
+          ]
+        : [],
+    );
+    if (standaloneKeys.length === 0) {
+      return {
+        type: '{ readonly shape: {} }',
+        composed: { declaration: 'readonly shape: {} = {};', statement: undefined },
+        elements: [],
+      };
+    }
+    const shapeType = js`{ ${standaloneKeys.map(({ key, type }) => js`readonly ${formatKey(key)}: ${type}`).join('; ')} }`;
+    return {
+      type: js`{ readonly shape: ${shapeType} }`,
+      composed: {
+        declaration: js`readonly shape: ${shapeType};`,
+        statement: `${composeBlock({
+          head: 'this.shape =',
+          body: standaloneKeys
+            .map(({ key, expression }) => {
+              const keyLiteral = JSON.stringify(key);
+              // A plain template: `js` would strip the multi-line class's indentation.
+              return `${key === '__proto__' ? `[${keyLiteral}]` : keyLiteral}: ${expression},`;
+            })
+            .join('\n'),
+        })};`,
+      },
+      elements: standaloneKeys.flatMap(({ elements }) => elements),
     };
   }
 }

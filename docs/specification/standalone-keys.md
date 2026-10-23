@@ -61,7 +61,7 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 27. As a `pvl` user, I want an object element's `shape` to follow the Standalone Key rule, so that `list.element.shape` is opt-in like every other `shape`.
 28. As a `pvl` user, I want a union to expose no member Schemas, so that the surface stays as it is today.
 29. As a `pvl` user, I want a primitive Standalone Key to get its own small compiled validator, so that I can validate it alone even though the parent inlines its check.
-30. As a `pvl` user, I want a composite Standalone Key's compiled validator to reuse the function its parent already calls, so that marking it adds almost no output.
+30. As a `pvl` user, I want a composite Standalone Key to get a compiled validator of its own, inlined as fully as its parent's, so that validating it alone is as fast. (Amended by ADR-0023 and ADR-0036: it no longer reuses a function the parent calls, since the parent calls none, so marking it duplicates its checks in the output.)
 31. As a `pvl` user, I want unmarked nested composites still compiled inside their parent, so that marking keys only changes what is exposed, never how fast the parent validates.
 32. As a `pvl` user, I want `pvl.compile()` to stay a runtime identity function on Schemas carrying Standalone Keys, so that an uncompiled source file still validates through the interpreted path.
 33. As a `pvl` maintainer, I want the compiled `shape.<key>` and `element` diffed against their interpreted counterparts, so that a divergence is caught by the test suite rather than in production.
@@ -109,6 +109,8 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 - A compiled array's `element` is a public Compiled Schema when the element is marked, built the same way; otherwise it is the interpreted element Schema, which the Destination File already contains as copied-through source.
 - A compiled object Schema class defines `shape` itself, holding exactly those emitted Compiled Schemas, so its runtime surface matches the interpreted one.
 
+> Amended by [ADR-0023](../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md) and [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-that-hands-back-a-schema.md): a parent inlines every check, a composite's included, so a composite Standalone Key gets a fully inlined class of its own rather than wrapping a function the parent calls. An unmarked `element` is passed in as its source where the root's `pvl.compile(...)` call was, and typed by a type parameter inferred from it. The `pvl.compile(...)` call it was written in is replaced, so the Destination Directory doesn't otherwise contain it.
+
 ### Domain and decision records
 
 - A new ADR reinstates `.standalone()` and the Standalone Key, records that `shape`/`element` survive `.transform()`, `.standalone()` and `pvl.compile()`, and states the size argument for opt-in exposure. It supersedes the matching parts of ADR-0016 and ADR-0020, and both get a pointer to it, as ADR-0020 did to ADR-0016.
@@ -144,6 +146,6 @@ A good test exercises external behaviour only: what a Schema's `validate()`, `sh
 ## Further Notes
 
 - Part of #41. This replaces #47, whose terminal-type half is already on `main` (ADR-0020) and whose `.standalone()` half contradicted ADR-0020, and it reshapes #53, whose compiler side now follows this spec.
-- The size argument: a compiled object holding a public compiled validator for every key, recursively, grows with the whole tree, while most keys are never validated alone. Opt-in exposure keeps the Destination File proportional to what is used, and the private per-composite functions of ADR-0017 mean exposing a composite key costs almost nothing.
+- The size argument: a compiled object holding a public compiled validator for every key, recursively, grows with the whole tree, while most keys are never validated alone. Opt-in exposure keeps the Destination File proportional to what is used. Since ADR-0023 inlines every check, exposing a composite key duplicates its checks, which is the cost of the opt-in.
 - A quick microbenchmark during the design (Node 24, a 12-field object with one nested object) measured full inlining at roughly 10% faster than a call per field on valid input and 25% faster on invalid input, with calls about 3× slower when V8's own inlining was disabled. This is why the parent keeps inlining primitives and why a primitive Standalone Key gets its own small function rather than the parent calling it.
 - Arrays and objects differ on purpose: an object may have many keys, so `shape` is opt-in; an array has exactly one element, so `element` is always present and the marker decides only whether it is compiled.

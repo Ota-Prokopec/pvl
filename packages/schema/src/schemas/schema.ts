@@ -1,6 +1,7 @@
-import type { SCHEMA_BRAND } from '../consts.js';
+import type { SCHEMA_BRAND, STANDALONE_BRAND } from '../consts.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
+import type { InferInput, InferOutput } from '../types.js';
 
 /**
  * What every schema in this library is: something that validates a value.
@@ -29,8 +30,10 @@ import type { StandardSchemaProps } from '../standardSchema.js';
 // implements it for every schema a factory builds. `"~standard"` is the
 // spec's `StandardSchemaV1.Props` narrowed, so every Schema is a
 // `StandardSchemaV1`. The brand keeps it nominal, which is what keeps a
-// Standard Schema from another library from being a field (ADR-0018).
-export type Schema<Input = unknown, Output = Input> = {
+// Standard Schema from another library from being a field (ADR-0018). An
+// interface rather than a `type`, as `.standalone()`'s return type reads the
+// polymorphic `this`, which only an interface or a class has (ADR-0036).
+export interface Schema<Input = unknown, Output = Input> {
   /** @internal */
   readonly [SCHEMA_BRAND]: true;
 
@@ -75,4 +78,93 @@ export type Schema<Input = unknown, Output = Input> = {
   // its `validate` is the one place that casts. Its signature is part of the
   // compiler's contract (compile.md).
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<unknown>;
+
+  /**
+   * Whether `.standalone()` marked this schema, which is what an object
+   * reads to keep it in its `shape`.
+   *
+   * @internal
+   */
+  readonly _standalone: boolean;
+
+  /**
+   * Marks this schema as a Standalone Key: as a field of `pvl.object()`, it
+   * is kept in that object's `shape`, so it can be validated on its own, and
+   * once the object is compiled, `@pvl/schema-compiler` gives it a compiled
+   * validator of its own. Validation is unchanged.
+   *
+   * It ends the chain, so chain every modifier first, but it keeps an
+   * object's `shape` and an array's `element`. It is valid on any schema, a
+   * field or not, and calling it again changes nothing.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({
+   *   email: pvl.string().min(3).standalone(),
+   *   age: pvl.number().int(),
+   * });
+   *
+   * user.shape.email.validate('a@b.c'); // { value: 'a@b.c' }
+   * // user.shape.age — a compile error: `age` isn't a Standalone Key
+   * ```
+   */
+  standalone(): StandaloneSchema<this>;
+}
+
+/**
+ * The type-only marker `.standalone()` adds to a schema's type: an object
+ * keeps a field carrying it in its `shape`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneMarker } from '@pvl/schema';
+ *
+ * const email = pvl.string().standalone();
+ * const isMarked: typeof email extends StandaloneMarker ? true : false = true;
+ * ```
+ */
+export type StandaloneMarker = {
+  /** @internal */
+  readonly [STANDALONE_BRAND]: true;
 };
+
+/**
+ * The `shape` of an object schema and the `element` of an array schema, as
+ * `TSchema` exposes them, and nothing for any other schema: what
+ * `.transform()`, `.standalone()` and `pvl.compile()` keep of the schema
+ * they are called on.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type SchemaStructure } from '@pvl/schema';
+ *
+ * const tags = pvl.array(pvl.string());
+ * type Tags = SchemaStructure<typeof tags>; // { readonly element: StringInterpretedSchema }
+ * ```
+ */
+export type SchemaStructure<TSchema> = (TSchema extends { readonly shape: infer Shape }
+  ? { readonly shape: Shape }
+  : unknown) &
+  (TSchema extends { readonly element: infer Element } ? { readonly element: Element } : unknown);
+
+/**
+ * What `.standalone()` hands back for `TSchema`: a plain {@link Schema} of
+ * the same input and output, carrying {@link StandaloneMarker} and keeping
+ * `TSchema`'s `shape` or `element`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneSchema } from '@pvl/schema';
+ *
+ * const name = pvl.string().min(1);
+ * const marked: StandaloneSchema<typeof name> = name.standalone();
+ * ```
+ */
+export type StandaloneSchema<TSchema extends Schema<unknown, unknown>> = Schema<
+  InferInput<TSchema>,
+  InferOutput<TSchema>
+> &
+  SchemaStructure<TSchema> &
+  StandaloneMarker;
