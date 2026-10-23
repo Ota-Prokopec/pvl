@@ -13,6 +13,8 @@ export type CompileAllArgs = {
   compilations: ReadonlyArray<ModuleCompilation>;
   /** Whether the barrel is generated, rather than a scanned `<rootDir>/index.ts` mirrored in its place. */
   generatesBarrel: boolean;
+  /** Whether each mirrored module ends with its exported Schemas' type aliases (the `withTypes` setting). */
+  withTypes: boolean;
 };
 
 /**
@@ -23,7 +25,7 @@ export type CompileAllArgs = {
  *
  * ```ts
  * // /repo/src/schemas/user.ts, /repo/src/schemas/order.ts scanned; rootDir /repo/src
- * compileAll({ tsMorphProject, compilations: [<user.ts>, <order.ts>], generatesBarrel: true })
+ * compileAll({ tsMorphProject, compilations: [<user.ts>, <order.ts>], generatesBarrel: true, withTypes: true })
  * // [{ relativePath: 'index.ts', … },
  * //  { relativePath: 'schemas/order.ts', … },
  * //  { relativePath: 'schemas/user.ts', … }]
@@ -33,6 +35,7 @@ export const compileAll = ({
   tsMorphProject,
   compilations,
   generatesBarrel,
+  withTypes,
 }: CompileAllArgs): MirroredFile[] => {
   const modules = compilations.map(({ module }) => module);
 
@@ -47,6 +50,7 @@ export const compileAll = ({
       tsMorphProject,
       schemas,
       mirroredPathByScannedPath,
+      withTypes,
     }),
   );
 

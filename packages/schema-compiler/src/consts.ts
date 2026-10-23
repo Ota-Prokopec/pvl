@@ -41,6 +41,14 @@ export const COMPILED_SCHEMA_IMPORT =
   "import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';" as const;
 
 /**
+ * The import a module with type aliases gets (`withTypes`), aliasing the
+ * two inference types they are written with, as `COMPILED_SCHEMA_IMPORT`
+ * aliases its own.
+ */
+export const TYPE_ALIAS_IMPORT =
+  "import type { InferInput as PvlInferInput, InferOutput as PvlInferOutput } from '@pvl/schema';" as const;
+
+/**
  * The type a Compiled Schema's constructor declares a Runtime Argument with
  * when it is passed as a method's Issue options, as `@pvl/schema`'s
  * `IssueEditableProps` spells it.

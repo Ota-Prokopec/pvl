@@ -46,7 +46,7 @@ describe('json-schema.json', () => {
           },
           "withTypes": {
             "default": true,
-            "description": "Whether to generate each compiled Schema's Data and Input type aliases.",
+            "description": "Whether to generate each exported Schema's Input and Output type aliases.",
             "type": "boolean",
           },
         },

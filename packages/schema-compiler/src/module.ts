@@ -6,12 +6,16 @@ import * as path from 'node:path';
 import {
   Node,
   SyntaxKind,
+  VariableDeclarationKind,
   type Project,
   type SourceFile,
   type StringLiteral,
   type VariableDeclaration,
 } from 'ts-morph';
-import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER } from './consts.js';
+import { ConstCycleError } from './ast/constCycleError.js';
+import { PvlAst } from './ast/pvlAst.js';
+import { UnresolvedNodeError } from './ast/unresolvedNodeError.js';
+import { COMPILED_SCHEMA_IMPORT, GENERATED_HEADER, TYPE_ALIAS_IMPORT } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
 import {
@@ -55,6 +59,8 @@ export type CompileModuleArgs = {
   schemas: ReadonlyArray<Schema>;
   /** Lets an import of another scanned file point at that file's mirror instead. */
   mirroredPathByScannedPath: ReadonlyMap<ScannedPath, MirroredPath>;
+  /** Whether the module ends with its exported Schemas' type aliases (the `withTypes` setting). */
+  withTypes: boolean;
 };
 
 export type RewriteSpecifiersArgs = {
@@ -124,32 +130,126 @@ export class Module {
    * Turns the module into its mirrored file by editing its source file in
    * place: replaces its `pvl.compile(...)` calls with straight-line code,
    * points its module specifiers at the right files from the mirrored
-   * location, then prepends the `@generated` header.
+   * location, appends its exported Schemas' type aliases under `withTypes`,
+   * then prepends the `@generated` header.
    *
    * ```ts
    * // /repo/src/schemas/user.ts, mirrored to /repo/.pvl/schemas/user.ts
    * import { pvl } from '@pvl/schema';
    * import { tags } from '../lib/tags.js';
    * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
-   * // module.compile({ … })
+   * // module.compile({ …, withTypes: true })
    * // → { relativePath: 'schemas/user.ts', text: '<@generated header>\n…' }, where
-   * //   '../lib/tags.js' becomes '../../src/lib/tags.js' and `pvl.compile(...)`
-   * //   becomes an instance of its emitted Compiled Schema class
+   * //   '../lib/tags.js' becomes '../../src/lib/tags.js', `pvl.compile(...)`
+   * //   becomes an instance of its emitted Compiled Schema class, and the
+   * //   module ends with `export type UserInput = …;` and `export type UserOutput = …;`
    * ```
    */
   public compile({
     tsMorphProject,
     schemas,
     mirroredPathByScannedPath,
+    withTypes,
   }: CompileModuleArgs): MirroredFile {
+    // Read before compiling, which replaces each `pvl.compile(...)` call.
+    const schemaNames = withTypes ? this.findExportedSchemaNames() : [];
+
     this.compileSchemas(schemas);
 
     this.rewriteSpecifiers({ tsMorphProject, mirroredPathByScannedPath });
 
+    if (schemaNames.length > 0) {
+      this.insertAfterImports(TYPE_ALIAS_IMPORT);
+    }
+
     return {
       relativePath: this.path.relativePath.pathFromBase,
-      text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
+      text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}${Module.renderTypeAliases(schemaNames)}`,
     };
+  }
+
+  /**
+   * The names of the module's exported Schemas, in declaration order: each
+   * `export const` whose value is a `pvl.*` call chain, read statically,
+   * following `const`s, marked to compile or not. A function, an import or a
+   * `.validate()` result is no Schema here.
+   *
+   * ```ts
+   * const name = pvl.string();
+   * export const user = pvl.object({ name });
+   * export const optionalName = name.optional();
+   * export const getUser = () => pvl.object({ name });
+   * module.findExportedSchemaNames() // ['user', 'optionalName']
+   * ```
+   */
+  private findExportedSchemaNames(): string[] {
+    const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(this.moduleFile);
+
+    return this.moduleFile
+      .getVariableStatements()
+      .filter(
+        (statement) =>
+          statement.isExported() &&
+          statement.getDeclarationKind() === VariableDeclarationKind.Const,
+      )
+      .flatMap((statement) => statement.getDeclarations())
+      .filter((declaration) => Module.holdsSchema(declaration, pvlImportLocalNames))
+      .map((declaration) => declaration.getName());
+  }
+
+  /**
+   * Whether `declaration` binds one name to a Schema: every `pvl.*` method
+   * returns one, so any chain that ends in no `.validate()` does.
+   *
+   * ```ts
+   * const user = pvl.object({ … });      // true
+   * const user = base.optional();        // true, with `const base = pvl.string()`
+   * const result = user.validate(input); // false: a Result
+   * const getUser = () => pvl.string();  // false: a function
+   * const { shape } = user;              // false: destructuring
+   * ```
+   */
+  private static holdsSchema(
+    declaration: VariableDeclaration,
+    pvlImportLocalNames: ReadonlySet<string>,
+  ): boolean {
+    const initializer = declaration.getInitializer();
+    if (initializer === undefined || !Node.isIdentifier(declaration.getNameNode())) {
+      return false;
+    }
+    try {
+      return PvlAst.readCallChain(initializer, pvlImportLocalNames).methods.every(
+        ({ methodName }) => methodName !== 'validate',
+      );
+    } catch (error) {
+      if (error instanceof UnresolvedNodeError || error instanceof ConstCycleError) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * The `Input` and `Output` type aliases the module ends with, one pair per
+   * Schema name, typed from its binding through `typeof` (ADR-0036).
+   *
+   * ```ts
+   * Module.renderTypeAliases(['user'])
+   * // '\nexport type UserInput = PvlInferInput<typeof user>;\nexport type UserOutput = PvlInferOutput<typeof user>;\n'
+   * ```
+   */
+  private static renderTypeAliases(schemaNames: ReadonlyArray<string>): string {
+    if (schemaNames.length === 0) {
+      return '';
+    }
+    const aliasLines = schemaNames.flatMap((name) => {
+      const capitalisedName = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+      return [
+        `export type ${capitalisedName}Input = PvlInferInput<typeof ${name}>;`,
+        `export type ${capitalisedName}Output = PvlInferOutput<typeof ${name}>;`,
+      ];
+    });
+    return `\n${aliasLines.join('\n')}\n`;
   }
 
   /**
@@ -238,14 +338,31 @@ export class Module {
       this.moduleFile.replaceText([start, end], text);
     }
 
+    this.insertAfterImports(COMPILED_SCHEMA_IMPORT);
+  }
+
+  /**
+   * Inserts `statement` into the module right after its last import.
+   *
+   * ```ts
+   * // import { pvl } from '@pvl/schema';
+   * // export const user = pvl.string();
+   * module.insertAfterImports(TYPE_ALIAS_IMPORT)
+   * // import { pvl } from '@pvl/schema';
+   * // import type { InferInput as PvlInferInput, … } from '@pvl/schema';
+   * // export const user = pvl.string();
+   * ```
+   */
+  private insertAfterImports(statement: string): void {
     const importCount = this.moduleFile
       .getStatements()
       .reduce(
-        (count, statement, index) => (Node.isImportDeclaration(statement) ? index + 1 : count),
+        (count, moduleStatement, index) =>
+          Node.isImportDeclaration(moduleStatement) ? index + 1 : count,
         0,
       );
 
-    this.moduleFile.insertStatements(importCount, COMPILED_SCHEMA_IMPORT);
+    this.moduleFile.insertStatements(importCount, statement);
   }
 
   /**

@@ -92,8 +92,12 @@ The directory `@pvl/schema-compiler` writes: a mirror of the Root Directory hold
 _Avoid_: Destination File (the rejected single aggregate module), generated file, output bundle.
 
 **Module**:
-One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module` places the file in the mirror and rewrites it there: `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression, and its module specifiers are rewritten to reach the right files from the mirror. Every check of it, and the DUPLICATE_EXPORT check across Modules, is `Precheck`'s (`src/precheck.ts`).
+One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module` places the file in the mirror and rewrites it there: `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression, and its module specifiers are rewritten to reach the right files from the mirror. Under `withTypes`, `compile` also appends each exported Schema's Type Aliases. Every check of it, and the DUPLICATE_EXPORT check across Modules, is `Precheck`'s (`src/precheck.ts`).
 _Avoid_: Scanned Module.
+
+**Type Alias**:
+One of the two exported types `withTypes` appends to a mirrored module for each Schema it exports: `<Name>Input`, its Input, and `<Name>Output`, its Output, read from the mirror's own binding through `typeof`, never spelled out. In code, `Module.compile` (`src/module.ts`). See [ADR-0036](./docs/adr/0036-type-aliases-read-the-mirrored-binding-through-typeof.md) and [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md#type-aliases).
+_Avoid_: Generated types, Data type.
 
 **Root Directory**:
 The application's source root, set by `rootDir` (default `src`), that the Destination Directory mirrors: a scanned file at `<rootDir>/schemas/user.ts` is mirrored to `<destination>/schemas/user.ts`. Every scanned file must sit under it. See [destination-directory.md](./docs/specification/schema-compiler/destination-directory.md#a-complete-mirror-of-the-source-root).

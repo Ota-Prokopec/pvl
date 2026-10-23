@@ -208,7 +208,12 @@ const runCompilationWithoutPromoting = async ({
     return { diagnostics, settings, destination: destination.absolutePath, written: false };
   }
 
-  const mirroredFiles = compileAll({ tsMorphProject, compilations, generatesBarrel });
+  const mirroredFiles = compileAll({
+    tsMorphProject,
+    compilations,
+    generatesBarrel,
+    withTypes: settings.withTypes,
+  });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });
