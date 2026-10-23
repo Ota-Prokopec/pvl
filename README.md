@@ -6,6 +6,8 @@
 
 Requires Node 24 or newer and pnpm (the version is pinned in `package.json`'s `packageManager`). `pnpm install` also installs the lefthook git hooks.
 
+Every checkout, the main one and each git worktree, links its external packages from pnpm's global virtual store, one shared folder on the machine ([ADR-0025](./docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md)). After deleting worktrees, `pnpm store prune` removes the store entries no project uses any more; nothing runs it automatically.
+
 ## Commands
 
 Run these from the repo root. Turborepo runs each one across the whole workspace.
