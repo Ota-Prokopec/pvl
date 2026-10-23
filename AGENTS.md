@@ -44,9 +44,7 @@ Read [`GLOSSARY.md`](./GLOSSARY.md) and the ADRs in [`docs/adr/`](./docs/adr/) t
 
 ## Skills
 
-Read [`docs/specification/skill-extensions.md`](./docs/specification/skill-extensions.md) before you run any skill. It holds each skill's repo-specific rules.
-
-- **Never edit a skill listed in [`skills-lock.json`](./skills-lock.json)** (under `.agents/skills/`, symlinked into `.claude/skills/`). Those skills are installed from an external source, so a hand edit is lost on the next install. Raise a needed behaviour change with the user. A skill under `.agents/skills/` that the lock file doesn't list is owned by this repo and edited like any other file. Repo-specific layers on top of a skill go in [`skill-extensions.md`](./docs/specification/skill-extensions.md).
+Read [`docs/agents/skills.md`](./docs/agents/skills.md) before you edit or update a skill, or start a feature through the skill pipeline.
 
 ## Agent docs
 
