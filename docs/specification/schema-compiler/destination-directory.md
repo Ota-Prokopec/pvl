@@ -36,6 +36,23 @@ A default export would have no name in the barrel and a different import shape f
 
 `<destination>/index.ts` re-exports every mirrored module that exports something (`export * from './schemas/user.js';`, sorted by path; a declaration file gets `export type * from './schemas/types.js';`, naming the module it describes), so `from '<destination>'` imports everything at once. Two scanned files exporting the same name bound to different things would make the barrel's export ambiguous, so that is the `DUPLICATE_EXPORT` error. A re-export of the same binding under the same name isn't a clash. When `<rootDir>/index.ts` is itself scanned, it already sits where the barrel goes, so it is mirrored as the barrel, nothing is generated, and `DUPLICATE_EXPORT` isn't checked: TypeScript reports clashes in a hand-written barrel. The barrel only exists in the mirror, so an import of it has no development counterpart unless the application wrote its own `<rootDir>/index.ts`.
 
+### Type aliases
+
+With `withTypes` on (the default), each mirrored module ends with two exported type aliases per Schema it exports. They are named after the export, its first letter capitalised: `…Input` is its Input and `…Output` its Output, so a Schema with a `.transform()` gets both sides of the conversion. Each reads the mirror's own binding through `typeof`, with `@pvl/schema`'s `InferInput` and `InferOutput` imported type-only under aliases, so it imports nothing from the source ([ADR-0036](../../adr/0036-type-aliases-read-the-mirrored-binding-through-typeof.md)):
+
+```ts
+const name = pvl.string();
+export const userSchema = pvl.object({ name });
+export const optionalName = name.optional();
+// ↓ appended, in declaration order
+export type UserSchemaInput = PvlInferInput<typeof userSchema>;
+export type UserSchemaOutput = PvlInferOutput<typeof userSchema>;
+export type OptionalNameInput = PvlInferInput<typeof optionalName>;
+export type OptionalNameOutput = PvlInferOutput<typeof optionalName>;
+```
+
+An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s), whether marked or not. A Schema built by a function, imported, or exported only through `export { … }` gets no alias. The barrel re-exports the aliases with everything else. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
+
 ### Writing it
 
 Output is byte-stable across runs with unchanged input. The compiler marks every Destination Directory it writes with a `.pvl-generated` file, and only ever replaces a directory that is absent, empty or carries that marker; anything else is the `DESTINATION_NOT_EMPTY` error, so a `destination` pointed at real source can't be wiped. The mirror is written to a temporary sibling directory (`<destination>.pvl-tmp`) first. The previous directory is then renamed aside to `<destination>.pvl-old`, the new one renamed into place, and only then is the old one removed; a failure at any step puts the old one back. So a run either replaces the whole directory or leaves it as it was. Both sibling directories are never scanned, and a later run replaces any a crashed run left behind.

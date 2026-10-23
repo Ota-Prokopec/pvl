@@ -109,7 +109,7 @@ export const runCli = async (
           },
           'with-types': {
             type: 'boolean',
-            description: "Generate each compiled Schema's Data and Input type aliases",
+            description: "Generate each exported Schema's Input and Output type aliases",
           },
           watch: {
             type: 'boolean',
