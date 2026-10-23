@@ -1,12 +1,16 @@
 // The code a `StringSchema` compiles to, one method per method of
-// `StringInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
+// `StringInterpretedSchema` it mirrors: its Constraints, held in its
+// `postModifierChecks` table, and `.coerce()`, written by its `_emitCoercion`
+// hook.
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs } from './emitter.js';
+import { emitCoerceToString } from './coercions.js';
+import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
   EmittedCheck,
+  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -60,6 +64,11 @@ const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
   });
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
+  /** `.coerce()` → `field0 = String(field0);`, as `coerceToString` converts. */
+  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
+    return emitCoerceToString(value);
+  }
+
   public static override readonly postModifierChecks = {
     ...ChainableSchemaEmitter.postModifierChecks,
     min,

@@ -5,6 +5,8 @@
 // composite's locals among them, what an emitter method reads (its target,
 // and the arguments of the method it mirrors, each read as written or a
 // Runtime Argument), and the tables an Emitter dispatches its methods from.
+// `.coerce()`'s conversion and `.transform()`'s call are written by hooks of
+// their own, not dispatched from a table (ADR-0035).
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 
 /** A local a composite declares, which its frame places after its own and before its children: `const output2: unknown[] = [];`. */
@@ -18,6 +20,20 @@ export type EmittedCheck = string & { readonly __brand: 'check' };
 
 /** A pre-modifier's condition, as an expression: a value it holds for skips every other check, as `.optional()`'s `field0 === undefined`. */
 export type EmittedShortCircuitCondition = string & { readonly __brand: 'shortCircuitCondition' };
+
+/** `.coerce()`'s conversion, as statements replacing the value before its type check: `field0 = String(field0);`. */
+export type EmittedCoercion = string & { readonly __brand: 'coercion' };
+
+/** `.transform()`'s call, as a statement replacing the value with what the user's function returns: `field0 = this.arg0.call(undefined, field0 as never);`. */
+export type EmittedTransform = string & { readonly __brand: 'transform' };
+
+/**
+ * One pre-modifier's part, in chain order: the condition a value
+ * short-circuits under (`.optional()`, `.nullable()`), or the conversion
+ * replacing it (`.coerce()`).
+ */
+export type PreModifierStep =
+  { shortCircuitCondition: EmittedShortCircuitCondition } | { coercion: EmittedCoercion };
 
 /** A statement building a composite's output: `output1["name"] = field1;`, `.passthrough()`'s loop. */
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
@@ -69,18 +85,36 @@ export type CompositeParts = {
  *
  * ```ts
  * <the parts of pvl.string().optional().min(3) at field0>
- * // { baseCheck: 'if (typeof field0 !== "string") { … }', shortCircuitConditions: ['field0 === undefined'], postModifierChecks: ['if (field0.length < 3) { … }'] }
+ * // { baseCheck: 'if (typeof field0 !== "string") { … }', preModifierSteps: [{ shortCircuitCondition: 'field0 === undefined' }], postModifierChecks: ['if (field0.length < 3) { … }'] }
  * ```
  */
 export type SchemaParts = {
-  /** Its type check, whose `else` everything but its short-circuit conditions runs in. */
+  /** Its type check, whose `else` everything but its pre-modifiers' parts and its transform runs in. */
   baseCheck: EmittedCheck;
-  /** Its pre-modifiers' conditions, any one of which skips every check. */
-  shortCircuitConditions: EmittedShortCircuitCondition[];
+  /** Its pre-modifiers' parts, in chain order: a condition skips every check after it, and a conversion replaces the value. */
+  preModifierSteps: PreModifierStep[];
   /** Its post-modifiers' checks, which run once its base check has passed, and every child has. */
   postModifierChecks: EmittedCheck[];
   /** What a composite adds; `undefined` for any other Schema. */
   composite?: CompositeParts;
+  /** Its `.transform()`, which runs once every other check has, unless one of them reported an Issue, and after a short-circuit too; `undefined` when it has none. */
+  transform?: TransformParts;
+};
+
+/**
+ * A Schema's `.transform()`, which replaces its value once its checks have
+ * run, and the local holding the count of Issues taken before them, which
+ * it is gated behind. A chain holds at most one, always last.
+ *
+ * ```ts
+ * <the transform of pvl.string().transform(trim) at field0>
+ * // { issueCount: 'field0IssueCount', statement: 'field0 = this.arg0.call(undefined, field0 as never);' }
+ * ```
+ */
+export type TransformParts = {
+  /** The count of Issues taken before its checks: `field0IssueCount`. */
+  issueCount: string;
+  statement: EmittedTransform;
 };
 
 /** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. */

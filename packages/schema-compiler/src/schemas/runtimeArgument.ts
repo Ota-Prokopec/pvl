@@ -48,6 +48,15 @@ export class RuntimeArgument {
     return `this.${this.fieldName}`;
   }
 
+  /**
+   * The type parameter a Compiled Schema is generic in for what it returns,
+   * when it is a function whose return type decides the Schema's `Output`,
+   * as `.transform()`'s does: `TArg0Output`, …
+   */
+  public get outputTypeParameterName(): string {
+    return `TArg${String(this.index)}Output`;
+  }
+
   /** The Compiled Schema's field holding the default message naming its value, which its constructor builds: `arg0Message`, … */
   public get messageFieldName(): string {
     return `${this.fieldName}Message`;

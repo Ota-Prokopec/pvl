@@ -14,6 +14,7 @@ import type { CallChainLink } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
+import { PRE_MODIFIER_NAMES } from '../consts.js';
 import type { SchemaFactory } from '../enums.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
@@ -31,10 +32,10 @@ export type SchemaOptions = {
   expression: Node;
   /** The 1-based line its factory call is written on. */
   line: number;
-  /** The pre-modifiers chained onto its factory call, in chain order. */
-  preModifierCalls: ReadonlyArray<SchemaModifierCall>;
-  /** The post-modifiers chained onto its factory call, in chain order. */
-  postModifierCalls: ReadonlyArray<SchemaModifierCall>;
+  /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` left out. */
+  calls: ReadonlyArray<SchemaModifierCall>;
+  /** The `.transform()` that ends its chain, if any. */
+  transformCall: SchemaModifierCall | undefined;
 };
 
 /** What a subclass's `readFactoryArgument` reads its factory's argument with. */
@@ -75,10 +76,19 @@ export abstract class Schema {
   public readonly expression: Node;
   /** The 1-based line its factory call is written on. */
   public readonly line: number;
-  /** The pre-modifiers chained onto its factory call, in chain order: they run before the type check (ADR-0010). */
-  public readonly preModifierCalls: ReadonlyArray<SchemaModifierCall>;
-  /** The post-modifiers chained onto its factory call, in chain order: they run after the type check (ADR-0010). */
-  public readonly postModifierCalls: ReadonlyArray<SchemaModifierCall>;
+  /**
+   * The Modifiers chained onto its factory call, pre- and post-modifiers
+   * together, in chain order, its `.transform()` left out: the types a
+   * Modifier sees are those the ones before it left.
+   */
+  public readonly calls: ReadonlyArray<SchemaModifierCall>;
+  /**
+   * The `.transform()` that ends its chain, if any: one returns a plain
+   * Schema, which no Modifier can be chained onto, so a chain holds at most
+   * one, always last. The compiler checks syntax, not types (ADR-0024), so
+   * it trusts that.
+   */
+  public readonly transformCall: SchemaModifierCall | undefined;
 
   /** Its subclass's Emitter, `undefined` while it can't be compiled yet. */
   private readonly subclassEmitter: SchemaEmitter | undefined;
@@ -87,20 +97,63 @@ export abstract class Schema {
    * A Schema holding `options`, with the factory and Emitter of the
    * subclass being constructed (`new.target`).
    */
-  protected constructor({
-    module,
-    expression,
-    line,
-    preModifierCalls,
-    postModifierCalls,
-  }: SchemaOptions) {
+  protected constructor({ module, expression, line, calls, transformCall }: SchemaOptions) {
     this.factory = new.target.factory;
     this.subclassEmitter = new.target.emitter;
     this.module = module;
     this.expression = expression;
     this.line = line;
-    this.preModifierCalls = preModifierCalls;
-    this.postModifierCalls = postModifierCalls;
+    this.calls = calls;
+    this.transformCall = transformCall;
+  }
+
+  /** Its pre-modifiers, in chain order: they run before the type check (ADR-0010). */
+  public get preModifierCalls(): ReadonlyArray<SchemaModifierCall> {
+    return this.calls.filter((call) => PRE_MODIFIER_NAMES.has(call.name));
+  }
+
+  /** Its post-modifiers, in chain order, its `.transform()` left out: they run after the type check (ADR-0010). */
+  public get postModifierCalls(): ReadonlyArray<SchemaModifierCall> {
+    return this.calls.filter((call) => !PRE_MODIFIER_NAMES.has(call.name));
+  }
+
+  /**
+   * Every method chained onto its factory call, in chain order, its
+   * `.transform()` included, last: those whose arguments are read.
+   *
+   * ```ts
+   * <pvl.string().min(3).transform(trim)>.chainedCalls // [min(3), transform(<Runtime Argument trim>)]
+   * ```
+   */
+  public get chainedCalls(): ReadonlyArray<SchemaModifierCall> {
+    const { calls, transformCall } = this;
+    return transformCall === undefined ? calls : [...calls, transformCall];
+  }
+
+  /**
+   * The Modifiers chained before `call`, in chain order, which left the
+   * types it sees; every one of them when `call` is omitted, or is the
+   * `.transform()`, which is chained after them all. Throws for a call
+   * chained onto another Schema, which is a bug in the compiler, never a
+   * user error.
+   *
+   * ```ts
+   * <pvl.string().refine(isOk).optional()>.findCallsBefore(<.refine(isOk)>) // []
+   * <pvl.string().refine(isOk).optional()>.findCallsBefore(undefined)       // [refine(<Runtime Argument isOk>), optional()]
+   * ```
+   */
+  public findCallsBefore(call: SchemaModifierCall | undefined): ReadonlyArray<SchemaModifierCall> {
+    const { calls } = this;
+    if (call === undefined || call === this.transformCall) {
+      return calls;
+    }
+    const callIndex = calls.indexOf(call);
+    if (callIndex === -1) {
+      throw new Error(
+        `.${call.name}() on line ${String(call.line)} isn't chained onto this Schema.`,
+      );
+    }
+    return calls.slice(0, callIndex);
   }
 
   /**
@@ -128,8 +181,8 @@ export abstract class Schema {
    * Compilable Schema, at the root or nested alike:
    *
    * - UNSUPPORTED_SCHEMA: a Schema with no Emitter (a union), or a method
-   *   its Emitter can't compile yet (`.coerce()`, `.refine()`,
-   *   `.transform()`).
+   *   its Emitter can't compile, as when the source calls one `@pvl/schema`
+   *   doesn't have.
    * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's argument is spread,
    *   so it has no fixed position; any other argument it can't read is a
    *   Runtime Argument.
@@ -138,7 +191,7 @@ export abstract class Schema {
    * <pvl.compile(pvl.object({ name: pvl.string().min(3) }))>.findUncompilableDiagnostics() // []
    * <pvl.compile(pvl.string().max(2).optional())>.findUncompilableDiagnostics()            // []
    * <pvl.compile(pvl.object({ ids: pvl.array(pvl.union([…])) }))>.findUncompilableDiagnostics() // [UNSUPPORTED_SCHEMA]
-   * <pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)))>.findUncompilableDiagnostics()  // [UNSUPPORTED_SCHEMA]
+   * <pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)))>.findUncompilableDiagnostics()  // []
    * ```
    */
   public findUncompilableDiagnostics(): Diagnostic[] {
@@ -153,7 +206,7 @@ export abstract class Schema {
       ];
     }
     return [
-      ...[...this.preModifierCalls, ...this.postModifierCalls].flatMap(
+      ...this.chainedCalls.flatMap(
         (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call) ?? [],
       ),
       ...this.findChildren().flatMap((child) => child.findUncompilableDiagnostics()),
@@ -200,7 +253,7 @@ export abstract class Schema {
    */
   public findRuntimeArguments(): ReadonlyArray<RuntimeArgument> {
     return [
-      ...[...this.preModifierCalls, ...this.postModifierCalls].flatMap((call) =>
+      ...this.chainedCalls.flatMap((call) =>
         (call.args ?? []).filter((argument) => argument instanceof RuntimeArgument),
       ),
       ...this.findChildren().flatMap((child) => child.findRuntimeArguments()),
@@ -233,7 +286,8 @@ export abstract class Schema {
    * .min(3) on a string                  // undefined
    * .min(MIN_FROM_IMPORT) on a string    // undefined: a Runtime Argument
    * .optional() on the root object       // undefined
-   * .refine(isOk) on a string            // UNSUPPORTED_SCHEMA
+   * .refine(isOk) on a string            // undefined: a Runtime Argument
+   * .trim() on a string                  // UNSUPPORTED_SCHEMA: no such method
    * .min(...limits) on a string          // COMPILE_ARGUMENT_UNRESOLVABLE
    * ```
    */

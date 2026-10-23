@@ -10,9 +10,8 @@ import { ConstCycleError } from '../ast/constCycleError.js';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
-import { PRE_MODIFIER_NAMES } from '../consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import { MODIFIER_NAME, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { ArraySchema } from './arraySchema.js';
@@ -154,10 +153,10 @@ export type ReadSchemaArgs = {
  * // const name = pvl.string().min(3);
  * // export const user = pvl.compile(pvl.object({ name }));
  * readSchema({ expression: <pvl.compile(…)>, … })
- * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with postModifierCalls [min(3)]> }]> }
+ * // { schema: <ObjectSchema whose shape is [{ key: 'name', schema: <StringSchema with calls [min(3)]> }]> }
  * readSchema({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <ObjectSchema> }: not marked, still read
  * // export const getName = (max: number) => pvl.compile(pvl.string().max(max));
- * readSchema({ expression: <pvl.compile(…)>, … }) // { schema: <StringSchema with postModifierCalls [max(<Runtime Argument max>)]> }
+ * readSchema({ expression: <pvl.compile(…)>, … }) // { schema: <StringSchema with calls [max(<Runtime Argument max>)]> }
  * // export const home = pvl.compile(importedAddress);
  * readSchema({ expression: <pvl.compile(importedAddress)>, … })    // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
  * // export const tags = pvl.compile(pvl.array('a').max(...limits));
@@ -214,12 +213,13 @@ type ReadingArgs = ReadSchemaArgs & {
  * ConstCycleError at a `const` that reaches itself.
  *
  * ```ts
- * readExpression(args, <pvl.string().min(3)>)       // <StringSchema with postModifierCalls [min(3)]>
- * readExpression(args, <pvl.string().refine(isOk)>) // <StringSchema with postModifierCalls [refine(<Runtime Argument isOk>)]>
+ * readExpression(args, <pvl.string().min(3)>)       // <StringSchema with calls [min(3)]>
+ * readExpression(args, <pvl.string().refine(isOk)>) // <StringSchema with calls [refine(<Runtime Argument isOk>)]>
+ * readExpression(args, <pvl.string().transform(trim)>) // <StringSchema with calls [] and transformCall transform(<Runtime Argument trim>)>
  * readExpression(args, <user>)                      // what `const user = …` holds
  * readExpression(args, <pvl.compile(pvl.string())>) // <StringSchema> read from <pvl.compile(…)>
  * readExpression(args, <pvl.object({ name: pvl.string().max(max) }).strict(options)>)
- * // <ObjectSchema with postModifierCalls [strict(<Runtime Argument options, the 2nd>)]>, whose field reads <Runtime Argument max, the 1st>
+ * // <ObjectSchema with calls [strict(<Runtime Argument options, the 2nd>)]>, whose field reads <Runtime Argument max, the 1st>
  * readExpression(args, <makeSchema()>)              // throws
  * ```
  */
@@ -250,8 +250,8 @@ const readExpression = (
     module: args.module,
     expression: args.expression,
     line: factory.call.getStartLineNumber(),
-    preModifierCalls: calls.filter((call) => PRE_MODIFIER_NAMES.has(call.name)),
-    postModifierCalls: calls.filter((call) => !PRE_MODIFIER_NAMES.has(call.name)),
+    calls: calls.filter((call) => call.name !== MODIFIER_NAME.TRANSFORM),
+    transformCall: calls.find((call) => call.name === MODIFIER_NAME.TRANSFORM),
   });
 };
 
@@ -270,7 +270,8 @@ const isSchemaFactory = (methodName: string): methodName is SchemaFactory =>
 
 /**
  * `method`, a method chained onto a Schema, with its arguments read (see
- * `readMethodArguments`), each Runtime Argument added to `runtimeArguments`.
+ * `readMethodArguments`), each Runtime Argument added to
+ * `runtimeArguments`.
  *
  * ```ts
  * readMethodCall(<.min(3)>, [])   // { name: 'min', args: [3], line: 1 }

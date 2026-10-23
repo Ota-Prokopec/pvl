@@ -614,12 +614,9 @@ describe('runCompilation(): diagnostics', () => {
         "import { pvl } from '@pvl/schema';",
         '',
         'export const deepUnion = pvl.compile(pvl.object({ tags: pvl.array(pvl.object({ id: pvl.union([pvl.string()]), age: pvl.number().coerce() })) }));',
-        'export const refined = pvl.compile(pvl.array(pvl.number().refine((n) => n > 0)));',
-        'export const coerced = pvl.compile(pvl.object({ age: pvl.number().coerce() }));',
-        'export const transformed = pvl.compile(pvl.array(pvl.string()).transform((v) => v.length));',
         'export const union = pvl.compile(pvl.union([pvl.string(), pvl.number()]));',
-        "export const twice = pvl.compile(pvl.object({ age: pvl.number().coerce(), name: pvl.string().refine((v) => v !== '') }));",
-        'export const deepRefined = pvl.compile(pvl.array(pvl.array(pvl.number().refine((n) => n > 0))));',
+        'export const twice = pvl.compile(pvl.object({ id: pvl.union([pvl.string()]), name: pvl.union([pvl.number()]).optional() }));',
+        'export const refined = pvl.compile(pvl.array(pvl.union([pvl.string()])).refine((v) => v.length > 0).transform((v) => v.length));',
         '',
       ].join('\n'),
     });
@@ -628,7 +625,7 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 9 }, () => ({
+      Array.from({ length: 5 }, () => ({
         code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
         file: path.join(root, schemaFilePath),
       })),

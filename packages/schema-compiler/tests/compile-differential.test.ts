@@ -107,6 +107,67 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
     '}).strict(OPTIONS)',
   ].join('\n'),
   hoistedRuntimeArgument: 'hoistedBase.min(LIMIT - 2)',
+  refinedString:
+    "pvl.string().refine((value) => value.length !== 1, { message: 'one' }).max(4).refine(isNotUser).optional()",
+  refinedStrippedObject:
+    'pvl.object({ name: pvl.string().refine(isNotUser) }).refine((value) => Object.keys(value).length === 1)',
+  refinedStrictObject: [
+    'pvl.object({ name: pvl.string() })',
+    "  .refine((value) => Object.keys(value).length < 2, { message: 'keys' })",
+    '  .strict()',
+    "  .refine((value) => value.name !== 'a', OPTIONS)",
+    '  .nullable()',
+  ].join('\n'),
+  refinedPassthroughObject:
+    'pvl.object({ name: pvl.string().optional() }).passthrough().refine((value) => value.extra !== 1)',
+  coercedFields: [
+    'pvl.object({',
+    '  name: pvl.string().optional().coerce(),',
+    '  code: pvl.string().coerce().optional(),',
+    '  age: pvl.number().coerce().int().max(MAX),',
+    '  admin: pvl.boolean().coerce().nullable(),',
+    '  id: pvl.bigint().coerce().min(1n),',
+    '  one: pvl.literal(1).coerce(),',
+    "  kind: pvl.literal('user').coerce().optional(),",
+    '  yes: pvl.literal(true).coerce().optional(),',
+    '  big: pvl.literal(1n).nullable().coerce().optional(),',
+    "  role: pvl.enum(['ADMIN', 'USER']).coerce().optional(),",
+    '}).coerce()',
+  ].join('\n'),
+  coercedArray: 'pvl.array(pvl.number().coerce().nullable()).coerce().optional()',
+  rootCoercedNumber: 'pvl.number().coerce().min(0)',
+  rootCoercedBigint: 'pvl.bigint().optional().coerce()',
+  rootTransform: 'pvl.string().min(1).refine(isNotUser).transform((value) => value.length)',
+  transformedFields: [
+    'pvl.object({',
+    "  name: pvl.string().optional().transform((value) => value ?? 'none'),",
+    '  age: pvl.number().transform((value) => (value > 3 ? value : undefined)),',
+    "  code: pvl.string().coerce().transform((value) => (value === 'undefined' ? undefined : value)),",
+    '  kind: pvl.string().optional().transform((value) => value),',
+    '  list: pvl.array(pvl.string().coerce().transform((value) => value.length)).optional(),',
+    '})',
+  ].join('\n'),
+  transformedObject: [
+    'pvl.object({ name: pvl.string().transform((value) => value.length) })',
+    '  .strict()',
+    '  .refine((value) => value.name !== 1)',
+    '  .nullable()',
+    "  .transform((value) => (value === null ? 'none' : [value.name]))",
+  ].join('\n'),
+  transformedArray:
+    "pvl.array(pvl.number()).max(2).optional().transform((value) => value?.join(','))",
+  unboundFunctions: [
+    'pvl',
+    '  .string()',
+    '  .refine(function (this: unknown) {',
+    '    return this === undefined;',
+    '  })',
+    '  .transform(function (this: unknown, value) {',
+    '    return [value, typeof this];',
+    '  })',
+  ].join('\n'),
+  refinedArray:
+    "pvl.array(pvl.object({ name: pvl.string() })).min(1).refine((value) => value.length !== 2, { message: '' })",
 };
 
 // An interpreted object whose fields are Compiled Schemas, so their Issues
@@ -127,6 +188,7 @@ const DIFFERENTIAL_FILE = schemaFile(
     "const emptyMessage = (): string => '';",
     'const OPTIONS = { message: getMessage() };',
     'const hoistedBase = pvl.string().max(LIMIT + 1);',
+    "const isNotUser = (value: string): boolean => value !== 'user';",
     ...Object.entries(DIFFERENTIAL_CASES).map(
       ([exportName, source]) => `export const ${exportName} = pvl.compile(${source});`,
     ),
@@ -197,6 +259,19 @@ const parentValue: fc.Arbitrary<unknown> = fc.record(
   { requiredKeys: [] },
 );
 
+/**
+ * What validating `value` with `schema` does, as plain data: its Result
+ * (`describeResult`), or the error it throws, as `.coerce()` does where
+ * `String()` throws, on an object with no prototype.
+ */
+const describeValidation = (schema: SchemasModule[string], value: unknown): unknown => {
+  try {
+    return describeResult(schema.validate(value));
+  } catch (error) {
+    return { throws: String(error) };
+  }
+};
+
 /** A fixture holding DIFFERENTIAL_FILE, with `@pvl/schema` linked so both it and its mirror run, compiled. */
 const compileDifferentialFixture = async (): Promise<CompiledFixture> => {
   const root = await createFixture({
@@ -236,8 +311,8 @@ describe('runCompilation(): Compiled Schemas validate as the interpreted path do
     for (const exportName of [...Object.keys(DIFFERENTIAL_CASES), 'interpretedParent']) {
       fc.assert(
         fc.property(fc.oneof(validatedValue, parentValue, primitiveValue), (value) => {
-          expect(describeResult(compiled[exportName]!.validate(value))).toStrictEqual(
-            describeResult(interpreted[exportName]!.validate(value)),
+          expect(describeValidation(compiled[exportName]!, value)).toStrictEqual(
+            describeValidation(interpreted[exportName]!, value),
           );
         }),
         { numRuns: 300 },

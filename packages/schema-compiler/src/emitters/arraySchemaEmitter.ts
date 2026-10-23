@@ -1,11 +1,12 @@
 // The code an `ArraySchema` compiles to, one method per method of
-// `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks` table, and the checks of a compiled array, at the root
-// or nested in another Schema: one loop with the element's checks inlined
-// into it, a nested object's or array's included.
+// `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks`
+// table, and the composite parts of a compiled array, at the root or nested
+// in another Schema: one loop with the element's checks inlined into it, a
+// nested object's or array's included.
 import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellFactoryTypesArgs } from './emitter.js';
+import type { EmitBaseCheckArgs, EmitSchemaPartsArgs, SpellTypesArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
@@ -17,28 +18,33 @@ import {
 } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import { UNDEFINEDNESS } from '../enums.js';
 import type {
   ArgumentMessagesOf,
   CheckingTarget,
   CompositeLocals,
+  CompositeParts,
   EmittedCheck,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-  SchemaParts,
 } from './emittersTypes.js';
 
 /**
- * An array type of `elementType`, parenthesised when it is a union.
+ * An array type of `elementType`, parenthesised when it is a union, which
+ * never admits `undefined`, whatever its elements do.
  *
  * ```ts
- * spellArrayType('string')        // 'string[]'
- * spellArrayType('string | null') // '(string | null)[]'
+ * spellArrayType({ text: 'string', undefinedness: 'NEVER' })                  // { text: 'string[]', undefinedness: 'NEVER' }
+ * spellArrayType({ text: 'string | undefined', undefinedness: 'ALWAYS' })     // { text: '(string | undefined)[]', undefinedness: 'NEVER' }
  * ```
  */
-const spellArrayType = (elementType: string): string => {
-  return elementType.includes(' ') ? `(${elementType})[]` : `${elementType}[]`;
+const spellArrayType = ({ text }: SpelledType): SpelledType => {
+  return {
+    text: text.includes(' ') ? `(${text})[]` : `${text}[]`,
+    undefinedness: UNDEFINEDNESS.NEVER,
+  };
 };
 
 /** What {@link emitLoop} loops over an array for: its element's Schema, the array at its target, and the array's locals. */
@@ -159,35 +165,33 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /**
-   * An array's parts, at the root or nested in another Schema: its base
-   * check, short-circuit conditions and post-modifiers' checks, which are
-   * its own Constraints, and its composite parts: its locals, the output it
-   * builds, declared among them, and one loop with the element's checks
-   * inlined as its one child. The frame runs its Constraints only once every
+   * An array's composite parts, at the root or nested in another Schema:
+   * its locals, the output it builds, declared among them, and one loop
+   * with the element's checks inlined as its one child. The frame runs its
+   * Constraints and `.refine()`s, which read that output, only once every
    * element has passed, and hands the output on.
    *
    * ```ts
-   * ArraySchemaEmitter._emitSchemaParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
-   * // { baseCheck: 'if (!Array.isArray(field0)) { … }', shortCircuitConditions: [], postModifierChecks: ['if (field0.length < 1) { … }'],
-   * //   composite: { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
-   * //                childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] } }
+   * ArraySchemaEmitter._emitCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
+   * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
+   * //   childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] }
    * ```
    */
-  public static override _emitSchemaParts(args: EmitSchemaPartsArgs<ArraySchema>): SchemaParts {
-    const { schema, target, scope } = args;
+  protected static override _emitCompositeParts({
+    schema,
+    target,
+    scope,
+  }: EmitSchemaPartsArgs<ArraySchema>): CompositeParts {
     // Numbered first, so before the element's own locals.
     const locals: CompositeLocals = scope.nextCompositeLocals();
     return {
-      ...super._emitSchemaParts(args),
-      composite: {
-        locals,
-        declarations: [
-          emitVariableDeclaration({ name: locals.output, type: 'unknown[]', initializer: '[]' }),
-        ],
-        childChecks: [emitLoop({ elementSchema: schema.element, target, locals, scope })],
-        setsChildrenApart: false,
-        outputStatements: [],
-      },
+      locals,
+      declarations: [
+        emitVariableDeclaration({ name: locals.output, type: 'unknown[]', initializer: '[]' }),
+      ],
+      childChecks: [emitLoop({ elementSchema: schema.element, target, locals, scope })],
+      setsChildrenApart: false,
+      outputStatements: [],
     };
   }
 
@@ -196,12 +200,12 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    *
    * ```ts
    * ArraySchemaEmitter._spellFactoryTypes({ schema: <pvl.array(pvl.enum(['A', 'B']).nullable())> })
-   * // { input: '("A" | "B" | null)[]', output: <the same> }
+   * // { input: { text: '("A" | "B" | null)[]', undefinedness: 'NEVER' }, output: <the same> }
    * ```
    */
   public static override _spellFactoryTypes({
     schema: { element },
-  }: SpellFactoryTypesArgs<ArraySchema>): SchemaTypes {
+  }: SpellTypesArgs<ArraySchema>): SchemaTypes {
     const { input, output } = element.emitter._spellTypes({ schema: element });
     return { input: spellArrayType(input), output: spellArrayType(output) };
   }

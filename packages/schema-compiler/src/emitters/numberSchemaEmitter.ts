@@ -1,12 +1,16 @@
 // The code a `NumberSchema` compiles to, one method per method of
-// `NumberInterpretedSchema` it mirrors, held in its `postModifierChecks` table.
+// `NumberInterpretedSchema` it mirrors: its Constraints, held in its
+// `postModifierChecks` table, and `.coerce()`, written by its `_emitCoercion`
+// hook.
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs } from './emitter.js';
+import { emitCoerceToNumber } from './coercions.js';
+import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
   EmittedCheck,
+  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -60,6 +64,11 @@ const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
   });
 
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
+  /** `.coerce()` → `field0 = Number(field0)` for a string or a boolean, as `coerceToNumber` converts. */
+  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
+    return emitCoerceToNumber(value);
+  }
+
   public static override readonly postModifierChecks = {
     ...ChainableSchemaEmitter.postModifierChecks,
     min,
