@@ -13,6 +13,10 @@ node_modules
 # not committed, so Prettier must not fight it in `pnpm format:check`.
 apps/docs/content/api
 
+# Compiled Schemas — `pvl compile` writes each app's `.pvl/` on every run and it
+# is not committed, so Prettier must not fight it in `pnpm format:check`.
+.pvl
+
 # Build output
 dist
 build
