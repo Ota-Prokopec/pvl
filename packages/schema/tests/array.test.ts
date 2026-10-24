@@ -251,13 +251,13 @@ describe('pvl.array()', () => {
       expect(schema.element.element).toBe(inner);
     });
 
-    it('reaches an object item through its shape', () => {
-      const name = pvl.string();
+    it("reaches an object item's Standalone Keys through its shape", () => {
+      const name = pvl.string().standalone();
       const schema = pvl.array(pvl.object({ name }));
       expect(schema.element.shape.name).toBe(name);
     });
 
-    it('survives the length constraints and the base modifiers', () => {
+    it('survives the length constraints, the base modifiers, .standalone() and pvl.compile()', () => {
       const item = pvl.string();
       const base = pvl.array(item);
 
@@ -267,6 +267,13 @@ describe('pvl.array()', () => {
       expect(base.optional().element).toBe(item);
       expect(base.nullable().element).toBe(item);
       expect(base.refine(() => true).element).toBe(item);
+      expect(base.standalone().element).toBe(item);
+      expect(pvl.compile(base).element).toBe(item);
+    });
+
+    it('is there whether or not the item is marked .standalone()', () => {
+      const item = pvl.string().standalone();
+      expect(pvl.array(item).element).toBe(item);
     });
 
     it('leaves validation behaviour untouched', () => {
@@ -280,12 +287,10 @@ describe('pvl.array()', () => {
 
     it('rejects a replacement element, at the type level and at runtime', () => {
       const schema = pvl.array(pvl.string());
-      const replaceElement = (): void => {
+      expect((): void => {
         // @ts-expect-error `element` is read-only
         schema.element = pvl.number();
-      };
-
-      expect(replaceElement).toThrow(TypeError);
+      }).toThrow(TypeError);
       expect(schema.validate(['a']).issues).toBeUndefined();
     });
   });

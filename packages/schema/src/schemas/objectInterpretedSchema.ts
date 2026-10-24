@@ -1,0 +1,388 @@
+import { ISSUE_CODE } from '../enums.js';
+import { Issue, type IssueEditableProps } from '../issue.js';
+import type { Modifier } from '../modifiers/modifiers.js';
+import type { Result } from '../result.js';
+import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
+import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
+import type { Schema, StandaloneMarker } from './schema.js';
+
+/**
+ * The field schemas an object schema composes, one per declared key. A field
+ * is any `@pvl/schema` Schema — including a transformed or compiled one — but
+ * never a schema from another library.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ObjectShape } from '@pvl/schema';
+ *
+ * const shape = {
+ *   name: pvl.string(),
+ *   age: pvl.number().int(),
+ * } satisfies ObjectShape;
+ *
+ * const user = pvl.object(shape);
+ * ```
+ */
+export type ObjectShape = Readonly<Record<string, Schema<unknown, unknown>>>;
+
+// The per-field types composed into a single object type. A field whose type
+// admits `undefined` (its schema is `.optional()`) becomes a `?` key — the
+// only signal the composed type has that the key itself may be left out.
+// `Composed` is a local, not a parameter: re-mapping it flattens the
+// intersection into one object type while keeping each `?`.
+type ComposeObject<
+  Fields,
+  Composed = {
+    [Key in keyof Fields as undefined extends Fields[Key] ? never : Key]: Fields[Key];
+  } & {
+    [Key in keyof Fields as undefined extends Fields[Key] ? Key : never]?: Fields[Key];
+  },
+> = { [Key in keyof Composed]: Composed[Key] };
+
+/**
+ * The object type a value must match going in, composed from each field
+ * schema's own input type. A field whose schema is `.optional()` becomes an
+ * optional key.
+ *
+ * It is the same in every unknown-key mode: extra keys are a property of the
+ * value handed in, not of what the schema asks for, and `.strict()` rejects
+ * them at runtime rather than at the type level.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ObjectInput } from '@pvl/schema';
+ *
+ * const shape = { name: pvl.string(), nickname: pvl.string().optional() };
+ *
+ * const input: ObjectInput<typeof shape> = { name: 'Ada' }; // nickname is optional
+ * pvl.object(shape).validate(input);
+ * ```
+ */
+export type ObjectInput<Shape extends ObjectShape> = ComposeObject<{
+  [Key in keyof Shape]: InferInput<Shape[Key]>;
+}>;
+
+/**
+ * The object type a successful validation hands back, composed from each
+ * field schema's own output type. It lists the declared keys only;
+ * `.passthrough()` adds an `unknown`-valued index signature alongside them.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type ObjectOutput } from '@pvl/schema';
+ *
+ * const shape = { name: pvl.string(), age: pvl.string().transform(Number) };
+ *
+ * type User = ObjectOutput<typeof shape>; // { name: string; age: number }
+ * ```
+ */
+export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
+  [Key in keyof Shape]: InferOutput<Shape[Key]>;
+}>;
+
+/**
+ * The Standalone Keys of `Shape`, the fields `.standalone()` marked, with
+ * each one's own schema: what an object schema's `shape` holds. With no
+ * marked field, it is `{}`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneShape } from '@pvl/schema';
+ *
+ * const shape = { email: pvl.string().standalone(), age: pvl.number() };
+ *
+ * type Exposed = StandaloneShape<typeof shape>; // { readonly email: StringInterpretedSchema & StandaloneMarker }
+ * ```
+ */
+export type StandaloneShape<Shape extends ObjectShape> = {
+  readonly [Key in keyof Shape as Shape[Key] extends StandaloneMarker ? Key : never]: Shape[Key];
+};
+
+/**
+ * The default message of every Issue `ObjectInterpretedSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const OBJECT_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected object',
+  strict: (key: string): string => `Unrecognized key "${key}"`,
+} as const;
+
+// What `.passthrough()` does to an output type that a modifier may already
+// have widened. Distributive, so `{ … } | undefined` gains the index
+// signature on the object branch and leaves the `undefined` branch alone.
+type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
+
+// The unknown-key modifiers run as post-modifiers, once `_checkType` has
+// accepted the value. `_checkType` keeps every key, so the undeclared ones are
+// still on the value; no post-modifier replaces it before them (`.refine()`
+// and `.strict()` only report). Not exported: this module is in the barrel,
+// and they are internal-only.
+
+// The default: every object schema starts with it as its first post-modifier,
+// and `.strict()`/`.passthrough()` remove it.
+const unknownKeysStripModifier = (
+  declaredKeys: ReadonlySet<string>,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStripModifier,
+  fn: (value): Result<unknown> | null => {
+    if (unknownKeysOfObject(value, declaredKeys).length === 0) {
+      return null;
+    }
+    const input = value as Record<string, unknown>;
+    // Copied rather than deleted in place, so a value an earlier step handed
+    // on is never mutated.
+    const output: Record<string, unknown> = {};
+    for (const key of Object.keys(input)) {
+      if (declaredKeys.has(key)) {
+        assignObjectProperty(output, key, input[key]);
+      }
+    }
+    return { value: output };
+  },
+});
+
+const unknownKeysStrictModifier = (
+  declaredKeys: ReadonlySet<string>,
+  options?: IssueEditableProps,
+): Modifier<unknown, unknown> => ({
+  shape: unknownKeysStrictModifier,
+  fn: (value, path): Result<unknown> | null => {
+    const issues = unknownKeysOfObject(value, declaredKeys).map(
+      (key) =>
+        new Issue(
+          ISSUE_CODE.UNRECOGNIZED_KEY,
+          [...path, key],
+          options?.message ?? OBJECT_SCHEMA_ISSUE_MESSAGE.strict(key),
+        ),
+    );
+    return issues.length > 0 ? { issues } : null;
+  },
+});
+
+// Every unknown-key modifier, removed by `.strict()` and `.passthrough()` so
+// the last one chained wins. `.passthrough()` adds none of its own: without
+// the strip modifier, `_checkType`'s output already keeps every key.
+const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
+
+interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends InterpretedSchemaKind<
+  ObjectInterpretedSchema<Shape, unknown, unknown>
+> {
+  readonly type: ObjectInterpretedSchema<Shape, this['Input'], this['Output']>;
+}
+
+/**
+ * Validates each declared key against its own field schema, composing those
+ * schemas into one object type. Build one with `pvl.object(shape)`.
+ *
+ * Every field is checked even after an earlier one fails, so a single
+ * `Result` carries one `Issue` per failing field rather than one per
+ * round-trip. Each field runs through its own full pipeline — its
+ * `.optional()`, `.nullable()`, `.coerce()`, `.refine()`, `.transform()` —
+ * with the field's key appended to the path.
+ *
+ * Unknown keys are stripped by default, so the output holds the declared keys
+ * only; `.strict()` reports them as issues instead and `.passthrough()` keeps
+ * them. `.coerce()` is inherited but does nothing here — there is no
+ * unambiguous way to read an object out of a non-object. A field that needs
+ * coercion opts into it on its own schema.
+ *
+ * Every modifier hands back an object schema rather than the base `ChainableInterpretedSchema`,
+ * so a modified object schema is still something `pvl.compile()` accepts,
+ * and `.strict()`/`.passthrough()` carry an earlier modifier's types through.
+ * `.transform()` ends the chain.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const user = pvl.object({
+ *   name: pvl.string().min(1),
+ *   age: pvl.number().int().min(0),
+ *   nickname: pvl.string().optional(),
+ * });
+ *
+ * user.validate({ name: 'Ada', age: 36, extra: true });
+ * // { value: { name: 'Ada', age: 36 } } — `extra` is stripped
+ *
+ * user.validate({ name: '', age: 1.5 });
+ * // { issues: [{ path: ['name'], ... }, { path: ['age'], ... }] } — both fields reported
+ * ```
+ */
+export class ObjectInterpretedSchema<
+  Shape extends ObjectShape = ObjectShape,
+  Input = ObjectInput<Shape>,
+  Output = ObjectOutput<Shape>,
+> extends ChainableInterpretedSchema<Input, Output> {
+  /** @internal */
+  declare readonly '~kind': ObjectInterpretedSchemaKind<Shape>;
+  // Derived from the shape once at construction rather than per `.validate()`
+  private readonly _shapeKeys: ReadonlySet<string>;
+
+  private readonly _shape: Shape;
+
+  // The Standalone Keys only, read off each field's flag once, at
+  // construction, as a field is never replaced.
+  private readonly _standaloneShape: StandaloneShape<Shape>;
+
+  /** @internal */
+  constructor(shape: Shape) {
+    const shapeKeys = new Set(Object.keys(shape));
+    super({ postModifiers: [unknownKeysStripModifier(shapeKeys)] });
+    // Spreading a generic widens to its constraint, which is what the
+    // assertion restores; the copy is per-construction, not per-`.validate()`.
+    this._shape = { ...shape } as Shape;
+    this._shapeKeys = shapeKeys;
+    const standaloneShape: Record<string, Schema<unknown, unknown>> = {};
+    for (const [key, field] of Object.entries(shape)) {
+      if (field._standalone) {
+        assignObjectProperty(standaloneShape, key, field);
+      }
+    }
+    // Built key by key from the fields' runtime flags, which the type system
+    // can't follow back to the marker types `StandaloneShape` reads.
+    this._standaloneShape = standaloneShape as StandaloneShape<Shape>;
+  }
+
+  // An accessor with no setter, so neither the shape nor any one key can be
+  // written. Per the parent spec nothing is frozen at runtime: immutability
+  // below the accessor is the type system's job. The schemas handed back are
+  // the very instances the caller declared, so their own modifiers come with
+  // them. Only Standalone Keys are in it, at both the type level and runtime,
+  // as in a Compiled Schema's (standalone-keys.md, ADR-0036).
+  /**
+   * The schema of each Standalone Key of this object schema, the fields
+   * marked `.standalone()`, so a single field can be reached and validated
+   * on its own without validating the whole object. Any other key is absent,
+   * and reading it is a compile error; an object with none has `{}`. A
+   * nested object's own `shape` follows the same rule.
+   *
+   * Read-only: neither the shape nor any one field can be replaced, and
+   * reading a field never affects how this schema validates. It survives
+   * every modifier, `.standalone()` and `pvl.compile()`, but not
+   * `.transform()`, whose value needn't be an object.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const user = pvl.object({
+   *   name: pvl.string().min(1).standalone(),
+   *   address: pvl.object({ city: pvl.string().standalone() }).standalone(),
+   *   age: pvl.number(),
+   * });
+   *
+   * user.shape.name.validate('Ada'); // { value: 'Ada' }
+   * user.shape.name.validate(''); // { issues: [{ code: 'TOO_SMALL', ... }] }
+   * user.shape.address.shape.city.validate('London'); // { value: 'London' }
+   * // user.shape.age — a compile error: `age` isn't a Standalone Key
+   * ```
+   */
+  get shape(): StandaloneShape<Shape> {
+    return this._standaloneShape;
+  }
+
+  /**
+   * Reports keys the shape does not declare as `Issue`s instead of stripping
+   * them — one `UNRECOGNIZED_KEY` issue per extra key, pathed to that key.
+   * Use it where an unexpected key means a typo or a stale caller rather than
+   * harmless extra data.
+   *
+   * An object with a failing field reports only the field issues; its
+   * unknown keys are reported once every field passes. `.strict()` and
+   * `.passthrough()` are mutually exclusive; the last one chained wins.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const config = pvl.object({ port: pvl.number() }).strict();
+   *
+   * config.validate({ port: 80, prot: 443 });
+   * // { issues: [{ code: 'UNRECOGNIZED_KEY', path: ['prot'], ... }] }
+   * ```
+   */
+  strict(options?: IssueEditableProps): this {
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS)._withPostModifier(
+      unknownKeysStrictModifier(this._shapeKeys, options),
+    );
+  }
+
+  /**
+   * Keeps the keys the shape does not declare instead of stripping them, and
+   * adds them to the output type as an `unknown`-valued index signature, so
+   * reading one still forces a narrowing step. It undoes an earlier
+   * `.strict()`.
+   *
+   * It sets the mode for the whole schema rather than at its place in the
+   * chain: every `.refine()` sees the undeclared keys, whether chained before
+   * or after it.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const envelope = pvl.object({ id: pvl.string() }).passthrough();
+   *
+   * envelope.validate({ id: 'a1', meta: { source: 'api' } });
+   * // { value: { id: 'a1', meta: { source: 'api' } } }
+   * ```
+   */
+  passthrough(): ObjectInterpretedSchema<Shape, Input, WithUnknownKeys<Output>> {
+    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS) as unknown as ObjectInterpretedSchema<
+      Shape,
+      Input,
+      WithUnknownKeys<Output>
+    >;
+  }
+
+  /** @internal */
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<Output> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return {
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, OBJECT_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
+      };
+    }
+
+    const input = value as Record<string, unknown>;
+    // Every key is kept, the undeclared ones as they came in: stripping them
+    // is the default post-modifier's job, which `.strict()` and
+    // `.passthrough()` remove.
+    const output: Record<string, unknown> = {};
+    const issues: Issue[] = [];
+
+    for (const [childKey, childSchema] of Object.entries(this._shape)) {
+      const result = childSchema._validate(input[childKey], [...path, childKey]);
+      if (result.issues) {
+        issues.push(...result.issues);
+        continue;
+      }
+      // An omitted optional field stays omitted rather than becoming an
+      // explicit `undefined` property of the output.
+      if (result.value === undefined && !Object.hasOwn(input, childKey)) {
+        continue;
+      }
+
+      assignObjectProperty(output, childKey, result.value);
+    }
+
+    if (issues.length > 0) {
+      return { issues };
+    }
+
+    for (const key of unknownKeysOfObject(input, this._shapeKeys)) {
+      assignObjectProperty(output, key, input[key]);
+    }
+
+    // The loops above wrote each field's own result, which the type system
+    // can't follow back to the composed object type.
+    // `Output` is a free type parameter — a modifier may have widened it past
+    // the composed type — so the assertion goes through `unknown`.
+    return { value: output as unknown as Output };
+  }
+}

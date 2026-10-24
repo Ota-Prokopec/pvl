@@ -1,46 +1,23 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { ValueOfEnum } from '@repo/types';
+import type { IssueCode } from './enums.js';
 
 /**
- * Every `code` an {@link Issue} can carry. Match on these rather than on
- * `message`, which is prose and can be replaced per call site with a custom
- * `{ message }` option.
+ * The message an {@link Issue} reported with `message` carries: `message`
+ * itself, or `'Invalid type'` when it is missing or empty.
+ * `@pvl/schema-compiler` calls it to write a message into a Compiled Schema
+ * as the interpreted path reports it.
  *
- * @example
  * ```ts
- * import { ISSUE_CODE, pvl } from '@pvl/schema';
- *
- * const result = pvl.string().min(3).validate('hi');
- * if (result.issues) {
- *   result.issues[0]?.code === ISSUE_CODE.TOO_SMALL; // true
- * }
+ * replaceEmptyIssueMessage('too short') // 'too short'
+ * replaceEmptyIssueMessage('')          // 'Invalid type'
+ * replaceEmptyIssueMessage(undefined)   // 'Invalid type'
  * ```
- */
-export const ISSUE_CODE = {
-  INVALID_TYPE: 'INVALID_TYPE',
-  INVALID_VALUE: 'INVALID_VALUE',
-  TOO_SMALL: 'TOO_SMALL',
-  TOO_BIG: 'TOO_BIG',
-  INVALID_LENGTH: 'INVALID_LENGTH',
-  NOT_INTEGER: 'NOT_INTEGER',
-  UNRECOGNIZED_KEY: 'UNRECOGNIZED_KEY',
-  INVALID_UNION: 'INVALID_UNION',
-  CUSTOM: 'CUSTOM',
-} as const;
-
-/**
- * The union of {@link ISSUE_CODE}'s values — the type of {@link Issue}'s
- * `code` field.
  *
- * @example
- * ```ts
- * import { ISSUE_CODE, type IssueCode } from '@pvl/schema';
- *
- * const isSizeProblem = (code: IssueCode): boolean =>
- *   code === ISSUE_CODE.TOO_SMALL || code === ISSUE_CODE.TOO_BIG;
- * ```
+ * @internal
  */
-export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
+export const replaceEmptyIssueMessage = (message: string | undefined): string => {
+  return message ? message : 'Invalid type';
+};
 
 // Extra fields stay structurally compatible with `StandardSchemaV1.Issue`, so
 // this is the single representation returned by both `.validate()` and
@@ -65,7 +42,7 @@ export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
  */
 export class Issue implements StandardSchemaV1.Issue {
   /**
-   * Which check failed, as one of the {@link ISSUE_CODE} values.
+   * Which check failed, as one of the `ISSUE_CODE` values.
    *
    * @example
    * ```ts
@@ -88,7 +65,7 @@ export class Issue implements StandardSchemaV1.Issue {
    * result.issues?.[0]?.message; // 'too short'
    * ```
    */
-  public message: string = 'Invalid type';
+  public message: string;
   /**
    * Where in the validated value the failure is: object keys and array
    * indices from the root. `undefined` for a failure at the root itself.
@@ -106,7 +83,7 @@ export class Issue implements StandardSchemaV1.Issue {
   /** @internal */
   constructor(code: IssueCode, path: ReadonlyArray<PropertyKey>, message?: string) {
     this.code = code;
-    this.message = message ? message : this.message;
+    this.message = replaceEmptyIssueMessage(message);
     this.path = path.length > 0 ? path : undefined;
   }
 

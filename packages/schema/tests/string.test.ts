@@ -3,6 +3,15 @@ import fc from 'fast-check';
 import { pvl } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
 
+// A `.refine()` predicate that throws if it is ever called, for the cases
+// asserting a refinement is skipped: an absent optional or a `null`
+// nullable value short-circuits before it.
+//
+//   pvl.string().optional().refine(throwing).validate(undefined) // passes, never calls it
+const throwing = (): boolean => {
+  throw new Error('refine should not run');
+};
+
 describe('pvl.string()', () => {
   it('accepts a string', () => {
     const result = pvl.string().validate('hello');
@@ -35,6 +44,11 @@ describe('pvl.string()', () => {
     it('uses a custom message', () => {
       const result = pvl.string().min(3, { message: 'too short' }).validate('ab');
       expect(result.issues?.[0]?.message).toBe('too short');
+    });
+
+    it('falls back to "Invalid type" for an empty custom message', () => {
+      const result = pvl.string().min(3, { message: '' }).validate('ab');
+      expect(result.issues?.[0]?.message).toBe('Invalid type');
     });
   });
 
@@ -219,9 +233,6 @@ describe('pvl.string()', () => {
     });
 
     it('skips a .refine() for undefined, wherever .optional() is chained', () => {
-      const throwing = (): boolean => {
-        throw new Error('refine should not run for undefined');
-      };
       for (const schema of [
         pvl.string().optional().refine(throwing),
         pvl.string().refine(throwing).optional(),
@@ -240,9 +251,6 @@ describe('pvl.string()', () => {
     });
 
     it('skips a .refine() for null, wherever .nullable() is chained', () => {
-      const throwing = (): boolean => {
-        throw new Error('refine should not run for null');
-      };
       for (const schema of [
         pvl.string().nullable().refine(throwing),
         pvl.string().refine(throwing).nullable(),

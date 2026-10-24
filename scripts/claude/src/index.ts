@@ -11,10 +11,10 @@
  * Arguments given to the script are forwarded to `claude`, so
  * `pnpm claude --continue` works.
  */
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
-import { styleText } from 'node:util';
+import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as util from 'node:util';
 import { cancel, intro, isCancel, log, outro, select, text } from '@clack/prompts';
 import { BRANCH_NAME } from '@repo/conventions/naming';
 import {
@@ -41,7 +41,7 @@ type RunArgs = {
 
 /** Hands the terminal to `command` and exits with its status. */
 const run = ({ command, args, cwd }: RunArgs): never => {
-  const { error, status } = spawnSync(command, args, { cwd, stdio: 'inherit' });
+  const { error, status } = childProcess.spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (error !== undefined) {
     log.error(`Could not start ${command}: ${error.message}`);
     process.exit(1);
@@ -59,7 +59,11 @@ const describeError = (error: unknown): string => {
  * run's arguments in the window's terminal every time the workspace opens.
  */
 const writeWorkspaceFile = (worktreePath: string): string => {
-  const workspaceFile = join(worktreePath, '.vscode', `${basename(worktreePath)}.code-workspace`);
+  const workspaceFile = path.join(
+    worktreePath,
+    '.vscode',
+    `${path.basename(worktreePath)}.code-workspace`,
+  );
   const workspace = {
     folders: [{ path: worktreePath }],
     tasks: {
@@ -78,27 +82,29 @@ const writeWorkspaceFile = (worktreePath: string): string => {
       ],
     },
   };
-  mkdirSync(dirname(workspaceFile), { recursive: true });
-  writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
+  fs.mkdirSync(path.dirname(workspaceFile), { recursive: true });
+  fs.writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
   return workspaceFile;
 };
 
 const openInVSCode = (worktreePath: string): never => {
   const workspaceFile = writeWorkspaceFile(worktreePath);
-  outro(`Opening ${basename(worktreePath)} in VS Code, where Claude Code starts in the terminal`);
+  outro(
+    `Opening ${path.basename(worktreePath)} in VS Code, where Claude Code starts in the terminal`,
+  );
   return run({ command: 'code', args: ['--new-window', workspaceFile] });
 };
 
 const currentPath = getCurrentWorktreePath();
 const mainCheckoutPath = getMainCheckoutPath();
-const worktreesDirectory = join(mainCheckoutPath, '.claude', 'worktrees');
+const worktreesDirectory = path.join(mainCheckoutPath, '.claude', 'worktrees');
 
 const labelWorktree = (worktree: Worktree): string => {
   const tags = [
     worktree.path === mainCheckoutPath && 'main checkout',
     worktree.path === currentPath && 'current',
   ];
-  return [basename(worktree.path), ...tags.filter((tag) => tag !== false)].join(' · ');
+  return [path.basename(worktree.path), ...tags.filter((tag) => tag !== false)].join(' · ');
 };
 
 const hintWorktree = (worktree: Worktree): string => {
@@ -124,7 +130,7 @@ const choice = await select<string | typeof CREATE_WORKTREE>({
     })),
     {
       value: CREATE_WORKTREE,
-      label: styleText('green', '+ Create a new worktree'),
+      label: util.styleText('green', '+ Create a new worktree'),
       hint: 'under .claude/worktrees/ · in a new VS Code window',
     },
   ],
@@ -155,7 +161,7 @@ const branchInput = await text({
     if (!BRANCH_NAME.test(trimmed)) return 'Use <type>/<slug>, e.g. feat/enum-factory.';
     if (git(['branch', '--list', trimmed]) !== '') return `The branch ${trimmed} already exists.`;
     const name = nameWorktree(trimmed);
-    if (existsSync(join(worktreesDirectory, name))) return `${name} already exists.`;
+    if (fs.existsSync(path.join(worktreesDirectory, name))) return `${name} already exists.`;
     return undefined;
   },
 });
@@ -167,7 +173,7 @@ if (isCancel(branchInput)) {
 
 const branch = branchInput.trim();
 const worktreeName = nameWorktree(branch);
-const worktreePath = join(worktreesDirectory, worktreeName);
+const worktreePath = path.join(worktreesDirectory, worktreeName);
 const base = `origin/${MAIN_BRANCH}`;
 
 log.step(`Creating ${worktreePath} from ${base}`);
@@ -187,7 +193,10 @@ try {
 }
 
 log.step(`Installing dependencies in ${worktreeName}`);
-const install = spawnSync('pnpm', ['install'], { cwd: worktreePath, stdio: 'inherit' });
+const install = childProcess.spawnSync('pnpm', ['install'], {
+  cwd: worktreePath,
+  stdio: 'inherit',
+});
 // The worktree exists either way, so a failed install still opens it, where `pnpm install` can be rerun.
 if (install.error !== undefined || install.status !== 0) {
   log.warn(`pnpm install failed in ${worktreePath}; run it there again.`);

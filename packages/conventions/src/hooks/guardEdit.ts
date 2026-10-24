@@ -3,7 +3,7 @@ import { checkEditedPath } from './checkEditedPath.ts';
 import { denyToolUse, readHookInput } from './hookIo.ts';
 
 const input = readHookInput();
-const path = input.toolInput.file_path ?? input.toolInput.notebook_path;
-if (typeof path === 'string') {
-  denyToolUse(checkEditedPath({ path, cwd: input.cwd }));
+const editedPath = input.toolInput.file_path ?? input.toolInput.notebook_path;
+if (typeof editedPath === 'string') {
+  denyToolUse(checkEditedPath({ editedPath, cwd: input.cwd }));
 }

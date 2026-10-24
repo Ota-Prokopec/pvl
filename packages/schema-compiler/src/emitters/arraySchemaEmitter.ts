@@ -1,0 +1,263 @@
+// The code an `ArraySchema` compiles to, one method per method of
+// `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks`
+// table, and the composite parts of a compiled array, at the root or nested
+// in another Schema: one loop with the element's checks inlined into it, a
+// nested object's or array's included.
+import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
+import type { Schema } from '../schemas/schema.js';
+import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import type {
+  CompiledStructure,
+  EmitBaseCheckArgs,
+  EmitCompiledStructureArgs,
+  EmitSchemaPartsArgs,
+  SpellTypesArgs,
+} from './emitter.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
+import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import {
+  composeBlock,
+  emitArgument,
+  emitCheck,
+  emitVariableDeclaration,
+  js,
+} from './emitterUtils.js';
+import type { Scope } from './scope.js';
+import type { ArraySchema } from '../schemas/arraySchema.js';
+import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import { UNDEFINEDNESS } from '../enums.js';
+import type {
+  ArgumentMessagesOf,
+  CheckingTarget,
+  CompositeLocals,
+  CompositeParts,
+  EmittedCheck,
+  EmitterMethodOf,
+  ParameterTypesOf,
+  PostModifierCheckTable,
+} from './emittersTypes.js';
+
+/**
+ * An array type of `elementType`, parenthesised when it is a union, which
+ * never admits `undefined`, whatever its elements do.
+ *
+ * ```ts
+ * spellArrayType({ text: 'string', undefinedness: 'NEVER' })                  // { text: 'string[]', undefinedness: 'NEVER' }
+ * spellArrayType({ text: 'string | undefined', undefinedness: 'ALWAYS' })     // { text: '(string | undefined)[]', undefinedness: 'NEVER' }
+ * ```
+ */
+const spellArrayType = ({ text }: SpelledType): SpelledType => {
+  return {
+    text: text.includes(' ') ? `(${text})[]` : `${text}[]`,
+    undefinedness: UNDEFINEDNESS.NEVER,
+  };
+};
+
+/** What {@link emitLoop} loops over an array for: its element's Schema, the array at its target, and the array's locals. */
+export type EmitLoopArgs = {
+  elementSchema: Schema;
+  /** The array's target, whose value is looped over. */
+  target: CheckingTarget;
+  locals: CompositeLocals;
+  scope: Scope;
+};
+
+/**
+ * The loop over the array at `target`, checking every element at its
+ * index, each pushed onto the output as it was read, or as its own checks
+ * rebuilt it.
+ *
+ * ```ts
+ * emitLoop({ elementSchema: <pvl.string()>, target: Frame.rootCheckingTarget, locals: <locals ending in 1>, scope })
+ * // for (let index1 = 0; index1 < value.length; index1++) {
+ * //   const element1: unknown = value[index1];
+ * //   if (typeof element1 !== "string") { … path: [...path1, index1] … }
+ * //   output1.push(element1);
+ * // }
+ * ```
+ */
+const emitLoop = ({ elementSchema, target, locals, scope }: EmitLoopArgs): string => {
+  const { index, element, output, path } = locals;
+  const array = target.value;
+
+  return composeBlock({
+    head: js`for (let ${index} = 0; ${index} < ${array}.length; ${index}++)`,
+    body: [
+      elementSchema.emitter.emitNestedSchemaChecks({
+        schema: elementSchema,
+        value: element,
+        valueType: 'unknown',
+        read: js`${array}[${index}]`,
+        path: js`[...${path}, ${index}]`,
+        scope,
+      }),
+      js`${output}.push(${element});`,
+    ].join('\n'),
+  });
+};
+
+/** `.min(1)` → `value.length < 1`, reporting `TOO_SMALL`. */
+const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
+  target: { value, issuePath },
+  args: [minLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_SMALL,
+      path: issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
+    }),
+  });
+
+/** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
+const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
+  target: { value, issuePath },
+  args: [maxLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.TOO_BIG,
+      path: issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
+    }),
+  });
+
+/** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
+const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
+  target: { value, issuePath },
+  args: [exactLength, options],
+}) =>
+  emitCheck({
+    failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
+    issue: emitConstraintIssue({
+      code: ISSUE_CODE.INVALID_LENGTH,
+      path: issuePath,
+      options,
+      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
+    }),
+  });
+
+export class ArraySchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly postModifierChecks = {
+    ...ChainableSchemaEmitter.postModifierChecks,
+    min,
+    max,
+    length,
+  } satisfies PostModifierCheckTable;
+
+  public static override readonly parameterTypes: ParameterTypesOf<ArrayInterpretedSchema> = {
+    min: ['number', ISSUE_OPTIONS_TYPE],
+    max: ['number', ISSUE_OPTIONS_TYPE],
+    length: ['number', ISSUE_OPTIONS_TYPE],
+  };
+
+  public static override readonly argumentMessages = {
+    min: ARRAY_SCHEMA_ISSUE_MESSAGE.min,
+    max: ARRAY_SCHEMA_ISSUE_MESSAGE.max,
+    length: ARRAY_SCHEMA_ISSUE_MESSAGE.length,
+  } satisfies ArgumentMessagesOf<ArrayInterpretedSchema>;
+
+  /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
+  public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
+    return this.emitTypeCheck({
+      failsWhen: js`!Array.isArray(${value})`,
+      message: ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(),
+      issuePath,
+    });
+  }
+
+  /**
+   * An array's composite parts, at the root or nested in another Schema:
+   * its locals, the output it builds, declared among them, and one loop
+   * with the element's checks inlined as its one child. The frame runs its
+   * Constraints and `.refine()`s, which read that output, only once every
+   * element has passed, and hands the output on.
+   *
+   * ```ts
+   * ArraySchemaEmitter._emitCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
+   * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
+   * //   childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] }
+   * ```
+   */
+  protected static override _emitCompositeParts({
+    schema,
+    target,
+    scope,
+  }: EmitSchemaPartsArgs<ArraySchema>): CompositeParts {
+    // Numbered first, so before the element's own locals.
+    const locals: CompositeLocals = scope.nextCompositeLocals();
+    return {
+      locals,
+      declarations: [
+        emitVariableDeclaration({ name: locals.output, type: 'unknown[]', initializer: '[]' }),
+      ],
+      childChecks: [emitLoop({ elementSchema: schema.element, target, locals, scope })],
+      setsChildrenApart: false,
+      outputStatements: [],
+    };
+  }
+
+  /**
+   * An array of the element's types.
+   *
+   * ```ts
+   * ArraySchemaEmitter._spellFactoryTypes({ schema: <pvl.array(pvl.enum(['A', 'B']).nullable())> })
+   * // { input: { text: '("A" | "B" | null)[]', undefinedness: 'NEVER' }, output: <the same> }
+   * ```
+   */
+  public static override _spellFactoryTypes({
+    schema: { element },
+  }: SpellTypesArgs<ArraySchema>): SchemaTypes {
+    const { input, output } = element.emitter._spellTypes({ schema: element });
+    return { input: spellArrayType(input), output: spellArrayType(output) };
+  }
+
+  /**
+   * A compiled array's `element`: the element's own Compiled Schema, built
+   * by the constructor, when it is marked `.standalone()`, and else the
+   * interpreted Schema it is, which its source, passed where the root's
+   * `pvl.compile(...)` call was, builds, typed by a type parameter inferred
+   * from it, so no code is emitted for an element nobody validates alone
+   * (ADR-0036).
+   *
+   * ```ts
+   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly element: TElement0 }', composed: undefined, elements: [{ index: 0, array: <pvl.array(…)>, expression: 'pvl.string()' }] }
+   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0', nextElementIndex })
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }, elements: [] }
+   * ```
+   */
+  protected static override _emitCompiledStructure({
+    schema,
+    className,
+    nextElementIndex,
+  }: EmitCompiledStructureArgs<ArraySchema>): CompiledStructure {
+    const { element } = schema;
+    if (!element.isStandalone) {
+      const index = nextElementIndex();
+      return {
+        type: js`{ readonly element: TElement${String(index)} }`,
+        composed: undefined,
+        elements: [{ index, array: schema, expression: element.expression.getText() }],
+      };
+    }
+    const elementSchema = element.emitter.emitStandaloneCompiledSchema({
+      schema: element,
+      className: js`${className}_element`,
+      nextElementIndex,
+    });
+    return {
+      type: js`{ readonly element: ${elementSchema.type} }`,
+      composed: {
+        declaration: js`readonly element: ${elementSchema.type};`,
+        // A plain template: `js` would strip the multi-line class's indentation.
+        statement: `this.element = ${elementSchema.expression};`,
+      },
+      elements: elementSchema.elements,
+    };
+  }
+}

@@ -128,12 +128,12 @@ describe('checkBashCommand', () => {
   });
 });
 
-describe('checkEditedPath', () => {
-  /** The reasons editing `path` is denied, run from `/repo`. */
-  const checkEdit = (path: string): string[] => {
-    return checkEditedPath({ path, cwd: REPO });
-  };
+/** The reasons editing `editedPath` is denied, run from `/repo`. */
+const checkEdit = (editedPath: string): string[] => {
+  return checkEditedPath({ editedPath, cwd: REPO });
+};
 
+describe('checkEditedPath', () => {
   it.each([
     'packages/schema/src/pvl.ts',
     '/repo/AGENTS.md',

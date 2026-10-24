@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { ObjectSchema, pvl, type Schema } from '../src/index.js';
-import { assertSuccess } from './helpers.js';
+import { ObjectInterpretedSchema, pvl, type Schema, type StandaloneMarker } from '../src/index.js';
+import { assertSuccess, issueCodes } from './helpers.js';
 
 describe('pvl.object()', () => {
   it('accepts an object whose every field matches its schema', () => {
@@ -226,8 +226,8 @@ describe('pvl.object()', () => {
       const schema = pvl.object({ name: pvl.string() });
       const refined = schema.refine(() => true);
       expect(refined).not.toBe(schema);
-      expect(refined).toBeInstanceOf(ObjectSchema);
-      expect(schema.optional().nullable()).toBeInstanceOf(ObjectSchema);
+      expect(refined).toBeInstanceOf(ObjectInterpretedSchema);
+      expect(schema.optional().nullable()).toBeInstanceOf(ObjectInterpretedSchema);
       // The original is untouched — a modifier never mutates in place.
       expect(schema.validate(undefined).issues).toBeDefined();
     });
@@ -252,30 +252,33 @@ describe('pvl.object()', () => {
     });
   });
 
+  // standalone-keys.md: `shape` holds the Standalone Keys only.
   describe('shape', () => {
-    it("exposes each declared key's own schema instance", () => {
-      const name = pvl.string();
-      const age = pvl.number();
-      const schema = pvl.object({ name, age });
+    it("holds each Standalone Key's own schema, and no other key", () => {
+      const name = pvl.string().standalone();
+      const age = pvl.number().standalone();
+      const schema = pvl.object({ name, nickname: pvl.string(), age });
 
       expect(Object.keys(schema.shape)).toEqual(['name', 'age']);
       expect(schema.shape.name).toBe(name);
       expect(schema.shape.age).toBe(age);
+      expect('nickname' in schema.shape).toBe(false);
     });
 
-    it('exposes no keys for an empty shape', () => {
+    it('holds no key for an object without a Standalone Key', () => {
       expect(Object.keys(pvl.object({}).shape)).toEqual([]);
+      expect(Object.keys(pvl.object({ name: pvl.string() }).shape)).toEqual([]);
     });
 
     it('validates one field on its own, accepting a valid value', () => {
-      const schema = pvl.object({ name: pvl.string().min(2), age: pvl.number() });
+      const schema = pvl.object({ name: pvl.string().min(2).standalone(), age: pvl.number() });
       const result = schema.shape.name.validate('ada');
       assertSuccess(result);
       expect(result.value).toBe('ada');
     });
 
-    it('validates one field on its own, rejecting an invalid value', () => {
-      const schema = pvl.object({ name: pvl.string().min(2), age: pvl.number() });
+    it('validates one field on its own, rejecting an invalid value with no key on its path', () => {
+      const schema = pvl.object({ name: pvl.string().min(2).standalone(), age: pvl.number() });
       const result = schema.shape.name.validate('a');
       expect(result.issues).toEqual([
         { code: 'TOO_SMALL', message: 'String must contain at least 2 character(s)' },
@@ -283,26 +286,38 @@ describe('pvl.object()', () => {
     });
 
     it("carries the field's own modifiers when validated on its own", () => {
-      const schema = pvl.object({ nickname: pvl.string().optional() });
+      const schema = pvl.object({ nickname: pvl.string().optional().standalone() });
       expect(schema.shape.nickname.validate(undefined).issues).toBeUndefined();
       expect(schema.shape.nickname.validate(42).issues).toBeDefined();
     });
 
-    it('reaches a nested object field through its own shape', () => {
-      const city = pvl.string();
-      const schema = pvl.object({ user: pvl.object({ city }) });
+    it('holds a key marked anywhere in its chain, with the modifiers after the marker', () => {
+      const schema = pvl.object({ nickname: pvl.string().standalone().min(2).optional() });
+      expect(Object.keys(schema.shape)).toEqual(['nickname']);
+      expect(schema.shape.nickname.validate(undefined).issues).toBeUndefined();
+      expect(issueCodes(schema.shape.nickname.validate('a'))).toStrictEqual(['TOO_SMALL']);
+    });
+
+    it("reaches a nested object's shape only through a Standalone Key", () => {
+      const city = pvl.string().standalone();
+      const schema = pvl.object({
+        user: pvl.object({ city, zip: pvl.string() }).standalone(),
+        hidden: pvl.object({ city }),
+      });
+      expect(Object.keys(schema.shape)).toEqual(['user']);
+      expect(Object.keys(schema.shape.user.shape)).toEqual(['city']);
       expect(schema.shape.user.shape.city).toBe(city);
       expect(schema.shape.user.shape.city.validate(42).issues).toBeDefined();
     });
 
     it('reaches a nested array field through its element', () => {
       const tag = pvl.string();
-      const schema = pvl.object({ tags: pvl.array(tag) });
+      const schema = pvl.object({ tags: pvl.array(tag).standalone() });
       expect(schema.shape.tags.element).toBe(tag);
     });
 
-    it('survives .strict(), .passthrough() and the base modifiers', () => {
-      const name = pvl.string();
+    it('survives .strict(), .passthrough(), the base modifiers, .standalone() and pvl.compile()', () => {
+      const name = pvl.string().standalone();
       const base = pvl.object({ name });
 
       expect(base.strict().shape.name).toBe(name);
@@ -310,10 +325,23 @@ describe('pvl.object()', () => {
       expect(base.optional().shape.name).toBe(name);
       expect(base.nullable().shape.name).toBe(name);
       expect(base.refine(() => true).shape.name).toBe(name);
+      expect(base.standalone().shape.name).toBe(name);
+      expect(pvl.compile(base).shape.name).toBe(name);
+      expect(pvl.compile(base).standalone().shape.name).toBe(name);
+    });
+
+    it('marks a compiled Schema as a Standalone Key, in either order', () => {
+      const address = pvl.object({ city: pvl.string() });
+      const schema = pvl.object({
+        before: pvl.compile(address.standalone()),
+        after: pvl.compile(address).standalone(),
+        unmarked: pvl.compile(address),
+      });
+      expect(Object.keys(schema.shape)).toEqual(['before', 'after']);
     });
 
     it('leaves validation behaviour untouched', () => {
-      const schema = pvl.object({ name: pvl.string() });
+      const schema = pvl.object({ name: pvl.string().standalone() });
       const before = schema.validate({ name: 'ada', extra: true });
 
       schema.shape.name.validate(42);
@@ -323,12 +351,10 @@ describe('pvl.object()', () => {
 
     it('rejects a replacement shape, at the type level and at runtime', () => {
       const schema = pvl.object({ name: pvl.string() });
-      const replaceShape = (): void => {
+      expect((): void => {
         // @ts-expect-error `shape` is read-only
         schema.shape = { name: pvl.number() };
-      };
-
-      expect(replaceShape).toThrow(TypeError);
+      }).toThrow(TypeError);
       expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();
     });
 
@@ -338,17 +364,19 @@ describe('pvl.object()', () => {
     // failure — the constructor snapshots the fields, so a per-key write would
     // make `shape` disagree with `validate()`.
     it('rejects a replacement field at the type level', () => {
-      const schema = pvl.object({ name: pvl.string() });
+      const schema = pvl.object({ name: pvl.string().standalone() });
       // @ts-expect-error each key of `shape` is read-only
-      schema.shape.name = pvl.string().min(5);
+      schema.shape.name = pvl.string().min(5).standalone();
     });
 
     it('ignores a later mutation of the object literal it was built with', () => {
-      const original = pvl.string();
-      const declared: Record<string, Schema<unknown, unknown>> = { name: original };
+      const original = pvl.string().standalone();
+      const declared: Record<string, Schema<unknown, unknown> & StandaloneMarker> = {
+        name: original,
+      };
       const schema = pvl.object(declared);
 
-      declared.name = pvl.number();
+      declared.name = pvl.number().standalone();
 
       expect(schema.shape.name).toBe(original);
       expect(schema.validate({ name: 'ada' }).issues).toBeUndefined();

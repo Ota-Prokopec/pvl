@@ -5,6 +5,7 @@
 import type { CompatiblePlugin } from 'typescript-eslint';
 import { argsTypeAboveFunction } from './rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from './rules/barrelExportsOnly.ts';
+import { classFileName } from './rules/classFileName.ts';
 import { constantShape } from './rules/constantShape.ts';
 import { entryHasAgentsMd } from './rules/entryHasAgentsMd.ts';
 import { enumShape } from './rules/enumShape.ts';
@@ -13,17 +14,21 @@ import { noImportAlias } from './rules/noImportAlias.ts';
 import { noInlineEnumValue } from './rules/noInlineEnumValue.ts';
 import { noInterface } from './rules/noInterface.ts';
 import { noJavascriptFiles } from './rules/noJavascriptFiles.ts';
+import { noLocalFunctions } from './rules/noLocalFunctions.ts';
+import { nodeBuiltinNamespaceImport } from './rules/nodeBuiltinNamespaceImport.ts';
 import { noRegex } from './rules/noRegex.ts';
 import { noSourceLayoutHeading } from './rules/noSourceLayoutHeading.ts';
 import { packageJsonModuleType } from './rules/packageJsonModuleType.ts';
 import { packageJsonScripts } from './rules/packageJsonScripts.ts';
 import { tsconfigExtends } from './rules/tsconfigExtends.ts';
+import { tsMorphThroughAst } from './rules/tsMorphThroughAst.ts';
 
 const plugin = {
   meta: { name: '@repo/conventions' },
   rules: {
     'args-type-above-function': argsTypeAboveFunction,
     'barrel-exports-only': barrelExportsOnly,
+    'class-file-name': classFileName,
     'constant-shape': constantShape,
     'entry-has-agents-md': entryHasAgentsMd,
     'enum-shape': enumShape,
@@ -32,11 +37,14 @@ const plugin = {
     'no-inline-enum-value': noInlineEnumValue,
     'no-interface': noInterface,
     'no-javascript-files': noJavascriptFiles,
+    'no-local-functions': noLocalFunctions,
+    'node-builtin-namespace-import': nodeBuiltinNamespaceImport,
     'no-regex': noRegex,
     'no-source-layout-heading': noSourceLayoutHeading,
     'package-json-module-type': packageJsonModuleType,
     'package-json-scripts': packageJsonScripts,
     'tsconfig-extends': tsconfigExtends,
+    'ts-morph-through-ast': tsMorphThroughAst,
   },
 };
 

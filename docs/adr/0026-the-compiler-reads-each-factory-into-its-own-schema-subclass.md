@@ -1,0 +1,17 @@
+# The compiler reads each factory into its own Schema subclass, which names its Emitter
+
+**`@pvl/schema-compiler`'s `Schema` is abstract, and every `pvl.*` factory reads into its own subclass in `src/schemas/`:** `StringSchema`, `NumberSchema`, `BooleanSchema`, `BigintSchema`, `LiteralSchema`, `EnumSchema`, `ObjectSchema`, `ArraySchema` and `UnionSchema`, named after their `@pvl/schema` counterparts. This gives the compiler the shape `@pvl/schema` already has, one class per Schema type, and each Emitter mirrors one class ([ADR-0023](./0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md)). Each subclass owns what only its type needs. Its static `fromFactory` reads its factory's argument (`EnumSchema` de-duplicates its members, `LiteralSchema` rejects an object). It holds what it read (`ObjectSchema.shape`, `ArraySchema.element`, `UnionSchema.members`, each nested Schema a full instance of its own). It answers `findChildren()`. Whether a Schema compiles never depends on its factory being composite: `pvl.compile()` may wrap any Schema, primitive or composite ([ADR-0016](./0016-transform-and-compile-end-the-modifier-chain.md)), and every Schema whose subclass names an Emitter compiles at the root as it does nested. It names its Emitter as `static readonly emitter`, which is `undefined` for a Schema that can't be compiled yet (`UnionSchema`), and that is what reports `UNSUPPORTED_SCHEMA`. An Emitter's hooks then take their own subclass (`ObjectSchemaEmitter._emitTypedChecks({ schema, … }: EmitTypedChecksArgs<ObjectSchema>)`), so no Emitter narrows a union of every factory or throws for the wrong one.
+
+This replaces a single `SchemaModel` discriminated union, read by one `switch` over the factory, with a factory-to-Emitter map beside it and every composite check branching on `factory`. Each new factory touched all three. Now it adds one subclass and its Emitter.
+
+## How a subclass is found
+
+`Schema.read` picks the subclass from a factory-to-class map that each subclass fills from its own static block (`Schema.registerClass(StringSchema)`), and `module.ts` loads `src/schemas/` once. `schema.ts` never imports a subclass. Each subclass extends `Schema` when its module loads, so an import back from `schema.ts` would be a cycle, and whichever module loaded first would run a subclass's `extends` before `Schema` existed. A factory with no registered subclass throws, which is a bug in the compiler, never a user error.
+
+## Considered options
+
+- **Keep the `SchemaModel` union and add per-factory helpers beside it.** Rejected: it leaves the factory `switch`, the Emitter map and the composite branching where they are, which is the scattering this removes.
+- **Hold the factory-to-class map in `schema.ts`, importing every subclass.** Rejected: that is the import cycle described above, and it breaks at load whichever module is entered first.
+- **Hold the map in the `src/schemas/` barrel.** Rejected: a barrel holds only re-exports (`@repo/conventions/barrel-exports-only`), and it would still be the same cycle.
+
+> Amended by [ADR-0034](./0034-every-factory-is-read-through-one-readschema-module-holding-the-factory-to-class-map.md): the factory-to-class map is a `const` in `src/schemas/readSchema.ts`, which imports every subclass and exports `readSchema`, the one entry point that reads a Schema. No subclass registers itself, nothing imports `src/schemas/` for a side effect, and a factory with no subclass is a type error.

@@ -1,0 +1,145 @@
+import { coerceToBigint } from '../coercions.js';
+import { ISSUE_CODE } from '../enums.js';
+import { Issue, type IssueEditableProps } from '../issue.js';
+import type { Result } from '../result.js';
+import type { InterpretedSchemaKind } from '../types.js';
+import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
+
+/**
+ * The default message of every Issue `BigintInterpretedSchema` reports, keyed by the method
+ * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * each message into a Compiled Schema as a literal.
+ *
+ * @internal
+ */
+export const BIGINT_SCHEMA_ISSUE_MESSAGE = {
+  _checkType: (): string => 'Expected bigint',
+  min: (minValue: bigint): string => `Bigint must be greater than or equal to ${minValue}`,
+  max: (maxValue: bigint): string => `Bigint must be less than or equal to ${maxValue}`,
+} as const;
+
+interface BigintInterpretedSchemaKind extends InterpretedSchemaKind<
+  BigintInterpretedSchema<unknown, unknown>
+> {
+  readonly type: BigintInterpretedSchema<this['Input'], this['Output']>;
+}
+
+/**
+ * Accepts a real JavaScript `bigint` and nothing else — a `number` is never
+ * silently accepted, so this schema never overlaps with `pvl.number()`. Build
+ * one with `pvl.bigint()`.
+ *
+ * Bounds are compared with real `bigint` operators against real `bigint`
+ * arguments; mixing in a `number` bound is a type error. There is no
+ * `.int()`, because a `bigint` has no fractional form for it to reject. The
+ * output is always a `bigint`, never downgraded to a `number` — the precision
+ * loss that would cause is exactly what `bigint` exists to avoid.
+ *
+ * Constraints are checked in the order they were chained, and every one that
+ * fails is reported. They chain in any order with the shared modifiers — a
+ * constraint keeps whatever modifiers were already applied.
+ *
+ * @example
+ * ```ts
+ * import { pvl } from '@pvl/schema';
+ *
+ * const fileSize = pvl.bigint().min(0n);
+ *
+ * fileSize.validate(9007199254740993n); // { value: 9007199254740993n }
+ * fileSize.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+ *
+ * // `.coerce()` accepts strings and whole numbers:
+ * pvl.bigint().coerce().validate('42'); // { value: 42n }
+ * ```
+ */
+export class BigintInterpretedSchema<
+  Input = bigint,
+  Output = bigint,
+> extends ChainableInterpretedSchema<Input, Output> {
+  /** @internal */
+  declare readonly '~kind': BigintInterpretedSchemaKind;
+
+  /** @internal */
+  constructor() {
+    super();
+  }
+
+  /**
+   * Requires a value greater than or equal to `minValue` — inclusive, and
+   * itself a `bigint`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const positive = pvl.bigint().min(1n);
+   *
+   * positive.validate(0n); // { issues: [{ code: 'TOO_SMALL', ... }] }
+   * ```
+   */
+  min(minValue: bigint, options?: IssueEditableProps): this {
+    return this._withPostModifier<bigint, bigint>({
+      fn: (value, path) => {
+        return value >= minValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_SMALL,
+                  path,
+                  options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.min(minValue),
+                ),
+              ],
+            };
+      },
+    });
+  }
+
+  /**
+   * Requires a value less than or equal to `maxValue` — inclusive, and itself
+   * a `bigint`.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const int64 = pvl.bigint().max(9223372036854775807n);
+   *
+   * int64.validate(9223372036854775808n); // { issues: [{ code: 'TOO_BIG', ... }] }
+   * ```
+   */
+  max(maxValue: bigint, options?: IssueEditableProps): this {
+    return this._withPostModifier<bigint, bigint>({
+      fn: (value, path) => {
+        return value <= maxValue
+          ? null
+          : {
+              issues: [
+                new Issue(
+                  ISSUE_CODE.TOO_BIG,
+                  path,
+                  options?.message ?? BIGINT_SCHEMA_ISSUE_MESSAGE.max(maxValue),
+                ),
+              ],
+            };
+      },
+    });
+  }
+
+  /** @internal */
+  override _coerceInput(value: unknown): unknown {
+    return coerceToBigint(value);
+  }
+
+  /** @internal */
+  _checkType(value: unknown, path: ReadonlyArray<PropertyKey>): Result<bigint> {
+    if (typeof value !== 'bigint') {
+      return {
+        issues: [
+          new Issue(ISSUE_CODE.INVALID_TYPE, path, BIGINT_SCHEMA_ISSUE_MESSAGE._checkType()),
+        ],
+      };
+    }
+    return { value };
+  }
+}

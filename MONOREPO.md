@@ -5,11 +5,11 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 ```
 apps/
 ├── docs/              (docs, private)        — documentation site for @pvl/schema
-├── playground/        (playground, private)  — scratch app for watching @pvl/schema work
+├── playground/        (playground, private)  — scratch app for watching @pvl/schema-compiler compile a Schema
 └── thesis-web/        (thesis-web, private)  — the bachelor's thesis PDF, shown on a page, built from thesis/
 packages/
 ├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
-├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler (not implemented yet)
+├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler and its `pvl` CLI (in progress)
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type
 ├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets

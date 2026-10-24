@@ -1,6 +1,6 @@
 /** Helpers the rules share. */
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { ESLintUtils } from '@typescript-eslint/utils';
 
 /** Builds a typescript-eslint rule; every rule here documents itself through `meta.docs.description`. */
@@ -12,11 +12,11 @@ export const isUpperSnakeCase = (name: string): boolean => {
 
 /** The `name` in the nearest `package.json` above `filename`, or `undefined` when none is found. */
 export const findPackageName = (filename: string): string | undefined => {
-  let directory = dirname(filename);
-  while (dirname(directory) !== directory) {
-    const manifest = join(directory, 'package.json');
-    if (existsSync(manifest)) {
-      const parsed: unknown = JSON.parse(readFileSync(manifest, 'utf8'));
+  let directory = path.dirname(filename);
+  while (path.dirname(directory) !== directory) {
+    const manifest = path.join(directory, 'package.json');
+    if (fs.existsSync(manifest)) {
+      const parsed: unknown = JSON.parse(fs.readFileSync(manifest, 'utf8'));
       return typeof parsed === 'object' &&
         parsed !== null &&
         'name' in parsed &&
@@ -24,7 +24,7 @@ export const findPackageName = (filename: string): string | undefined => {
         ? parsed.name
         : undefined;
     }
-    directory = dirname(directory);
+    directory = path.dirname(directory);
   }
   return undefined;
 };

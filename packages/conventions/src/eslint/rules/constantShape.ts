@@ -3,7 +3,7 @@
  * UPPER_SNAKE_CASE, ends in `as const`, and when exported lives in a
  * `consts.ts`.
  */
-import { basename } from 'node:path';
+import * as path from 'node:path';
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
 import { createRule, isUpperSnakeCase } from '../utils.ts';
 
@@ -29,6 +29,34 @@ const isAsConst = (node: TSESTree.Expression): node is TSESTree.TSAsExpression =
   );
 };
 
+// A constant `declaration` declares: an identifier initialised with one
+// literal, `as const` or not.
+type Constant = {
+  id: TSESTree.Identifier;
+  init: TSESTree.Expression;
+};
+
+// The constants a variable declaration declares: each identifier it
+// initialises with one literal, with or without `as const`.
+//
+//   const MAX = 5;                   // [MAX]
+//   const NAME = 'pvl' as const;     // [NAME]
+//   const A = 1, b = foo();          // [A]: `b` isn't a literal
+//   const { x } = point;             // []: destructured
+//   let count = 0;                   // []: not `const`
+const readConstants = (declaration: TSESTree.VariableDeclaration): Constant[] => {
+  if (declaration.kind !== 'const') {
+    return [];
+  }
+  return declaration.declarations.flatMap((declarator) => {
+    if (declarator.id.type !== AST_NODE_TYPES.Identifier || declarator.init === null) {
+      return [];
+    }
+    const value = isAsConst(declarator.init) ? declarator.init.expression : declarator.init;
+    return isSingleLiteral(value) ? [{ id: declarator.id, init: declarator.init }] : [];
+  });
+};
+
 export const constantShape = createRule({
   meta: {
     type: 'suggestion',
@@ -47,39 +75,23 @@ export const constantShape = createRule({
   create: (context) => {
     const constants = new Map<string, TSESTree.Identifier>();
     const exported = new Set<string>();
-    const check = (declaration: TSESTree.VariableDeclaration, isExported: boolean): void => {
-      if (declaration.kind !== 'const') {
-        return;
-      }
-      for (const declarator of declaration.declarations) {
-        if (declarator.id.type !== AST_NODE_TYPES.Identifier || declarator.init === null) {
-          continue;
-        }
-        const value = isAsConst(declarator.init) ? declarator.init.expression : declarator.init;
-        if (!isSingleLiteral(value)) {
-          continue;
-        }
-        const name = declarator.id.name;
-        constants.set(name, declarator.id);
-        if (isExported) {
-          exported.add(name);
-        }
-        if (!isUpperSnakeCase(name)) {
-          context.report({ node: declarator.id, messageId: 'name', data: { name } });
-        }
-        if (!isAsConst(declarator.init)) {
-          context.report({ node: declarator.init, messageId: 'asConst', data: { name } });
-        }
-      }
-    };
     return {
-      'Program > VariableDeclaration': (node: TSESTree.VariableDeclaration): void => {
-        check(node, false);
-      },
-      'Program > ExportNamedDeclaration > VariableDeclaration': (
+      'Program > VariableDeclaration, Program > ExportNamedDeclaration > VariableDeclaration': (
         node: TSESTree.VariableDeclaration,
       ): void => {
-        check(node, true);
+        const isExported = node.parent.type === AST_NODE_TYPES.ExportNamedDeclaration;
+        for (const { id, init } of readConstants(node)) {
+          constants.set(id.name, id);
+          if (isExported) {
+            exported.add(id.name);
+          }
+          if (!isUpperSnakeCase(id.name)) {
+            context.report({ node: id, messageId: 'name', data: { name: id.name } });
+          }
+          if (!isAsConst(init)) {
+            context.report({ node: init, messageId: 'asConst', data: { name: id.name } });
+          }
+        }
       },
       'Program > ExportNamedDeclaration > ExportSpecifier': (
         node: TSESTree.ExportSpecifier,
@@ -89,7 +101,7 @@ export const constantShape = createRule({
         }
       },
       'Program:exit': (): void => {
-        if (basename(context.filename) === 'consts.ts') {
+        if (path.basename(context.filename) === 'consts.ts') {
           return;
         }
         for (const name of exported) {
