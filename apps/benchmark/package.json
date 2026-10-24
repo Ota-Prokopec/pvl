@@ -1,0 +1,32 @@
+{
+  "name": "benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "pvl compile",
+    "bench": "run-s compile bench:run",
+    "bench:run": "node --expose-gc --import tsx src/index.ts",
+    "bench:isolated": "run-s compile \"bench:isolated:run {@}\" --",
+    "bench:isolated:run": "node --import tsx src/isolated.ts",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "run-s compile check-types:tsc",
+    "check-types:tsc": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@pvl/schema": "workspace:*",
+    "@pvl/schema-compiler": "workspace:*",
+    "@repo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^26.4.1",
+    "eslint": "10.9.1",
+    "jiti": "2.7.0",
+    "mitata": "^1.0.34",
+    "npm-run-all": "^4.1.5",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3"
+  }
+}

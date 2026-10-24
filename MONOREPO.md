@@ -4,6 +4,7 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 
 ```
 apps/
+├── benchmark/         (benchmark, private)   — measures compiled Schemas against hand-split variants (ADR-0023)
 ├── docs/              (docs, private)        — documentation site for @pvl/schema
 ├── playground/        (playground, private)  — scratch app for watching @pvl/schema-compiler compile a Schema
 └── thesis-web/        (thesis-web, private)  — the bachelor's thesis PDF, shown on a page, built from thesis/
