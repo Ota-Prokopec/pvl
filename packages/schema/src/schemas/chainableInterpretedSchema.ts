@@ -3,15 +3,15 @@ import { Issue, type IssueEditableProps } from '../issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';
-import type { Schema } from './schema.js';
+import type { Schema, StandaloneMarkerOf } from './schema.js';
 
 /**
  * The base class every schema a `pvl.*` factory builds extends: a {@link Schema}
  * modifiers can be chained onto. You never construct one directly —
  * `pvl.string()`, `pvl.object()` and the rest hand you a subclass — and every
  * modifier hands back that same subclass, so its own methods stay chainable
- * whatever order you chain them in. `.transform()` is the exception: it ends
- * the chain with a plain {@link Schema}.
+ * whatever order you chain them in, `.standalone()` included. `.transform()`
+ * is the exception: it ends the chain with a plain {@link Schema}.
  *
  * Modifiers run in the order you chain them, so the order can matter:
  * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
@@ -109,7 +109,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * // Still an object schema, so `shape` is still there.
    * const range = pvl
-   *   .object({ min: pvl.number(), max: pvl.number() })
+   *   .object({ min: pvl.number().standalone(), max: pvl.number() })
    *   .refine((value) => value.min <= value.max);
    * range.shape.min.validate(1); // { value: 1 }
    * ```
@@ -139,7 +139,8 @@ export abstract class ChainableInterpretedSchema<
    *
    * It ends the chain: the result is a plain {@link Schema}, which can
    * validate but takes no further modifier, so chain those before
-   * transforming.
+   * transforming. A transformed object has no `shape`, and a transformed
+   * array no `element`: they describe a value the function replaces.
    *
    * @example
    * ```ts
@@ -154,13 +155,18 @@ export abstract class ChainableInterpretedSchema<
    * label.validate(null); // { value: 'none' }
    * ```
    */
-  transform<NewOutput>(fn: (value: Output) => NewOutput): Schema<Input, NewOutput> {
+  // A plain Schema without `shape`/`element`, which the function's value
+  // needn't have (ADR-0016), still marked if `.standalone()` came before it
+  // (ADR-0036).
+  transform<NewOutput>(
+    fn: (value: Output) => NewOutput,
+  ): Schema<Input, NewOutput> & StandaloneMarkerOf<this> {
     return this._withPostModifier<Output, NewOutput>({
       tags: [MODIFIER_TAG.REQUIRES_ALL_PASSED, MODIFIER_TAG.RUNS_AFTER_SHORT_CIRCUIT],
       fn: (value) => {
         return { value: fn(value) };
       },
-    }) as unknown as Schema<Input, NewOutput>;
+    }) as unknown as Schema<Input, NewOutput> & StandaloneMarkerOf<this>;
   }
 
   /**

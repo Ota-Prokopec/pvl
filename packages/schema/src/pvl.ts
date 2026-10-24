@@ -1,5 +1,5 @@
 import { ArrayInterpretedSchema } from './schemas/arrayInterpretedSchema.js';
-import type { Schema } from './schemas/schema.js';
+import type { Schema, StandaloneMarker, StandaloneMarkerOf } from './schemas/schema.js';
 import { BigintInterpretedSchema } from './schemas/bigintInterpretedSchema.js';
 import { BooleanInterpretedSchema } from './schemas/booleanInterpretedSchema.js';
 import { EnumInterpretedSchema, type EnumSource } from './schemas/enumInterpretedSchema.js';
@@ -12,6 +12,29 @@ import { ObjectInterpretedSchema, type ObjectShape } from './schemas/objectInter
 import { StringInterpretedSchema } from './schemas/stringInterpretedSchema.js';
 import { UnionInterpretedSchema, type UnionMembers } from './schemas/unionInterpretedSchema.js';
 import type { InferInput, InferOutput } from './types.js';
+
+// What `pvl.compile()` hands back for `TSchema`: a plain Schema of its input
+// and output, keeping its Standalone marker, and its `shape` or `element` as
+// a Compiled Schema exposes them (CompiledStructureOf).
+type CompiledSchemaOf<TSchema extends Schema<unknown, unknown>> = Schema<
+  InferInput<TSchema>,
+  InferOutput<TSchema>
+> &
+  CompiledStructureOf<TSchema> &
+  StandaloneMarkerOf<TSchema>;
+
+// The `shape` and `element` of `TSchema`'s Compiled Schema, so they type alike
+// on both sides of the import swap: each Standalone Key is compiled, and so is
+// a marked element, while an unmarked one is the interpreted Schema the
+// compiler passes in (ADR-0036). A transformed schema has neither.
+type CompiledStructureOf<TSchema> = (TSchema extends {
+  readonly shape: infer Shape extends Readonly<Record<string, Schema<unknown, unknown>>>;
+}
+  ? { readonly shape: { readonly [Key in keyof Shape]: CompiledSchemaOf<Shape[Key]> } }
+  : unknown) &
+  (TSchema extends { readonly element: infer Element extends Schema<unknown, unknown> }
+    ? { readonly element: Element extends StandaloneMarker ? CompiledSchemaOf<Element> : Element }
+    : unknown);
 
 /**
  * The single entry point of `@pvl/schema`. Every schema factory hangs off
@@ -186,30 +209,33 @@ export const pvl = {
    * identity function, so a schema that uses it still validates normally
    * before the compiler has seen the call site.
    *
-   * It hands back a plain {@link Schema}: no modifier can be chained onto it
-   * and no `shape` or `element` can be read from it, so chain every modifier
-   * before compiling — `pvl.compile(x.optional())`, not
-   * `pvl.compile(x).optional()` — and keep a reference to any field schema
-   * you want to validate on its own. It can still be a field or element of
-   * another schema.
+   * It hands back a plain {@link Schema}: no modifier can be chained onto it,
+   * so chain every modifier before compiling — `pvl.compile(x.optional())`,
+   * not `pvl.compile(x).optional()`. It keeps an untransformed object's
+   * `shape`, an untransformed array's `element` and the `.standalone()`
+   * marker, and `.standalone()` can still be called on it, so
+   * `pvl.compile(x.standalone())` and `pvl.compile(x).standalone()` are the
+   * same. Each Standalone Key in its `shape` is a plain {@link Schema} too,
+   * as its compiled validator is. It can still be a field or
+   * element of another schema.
    *
    * @example
    * ```ts
    * import { pvl } from '@pvl/schema';
    *
    * const payload = pvl.compile(
-   *   pvl.object({ id: pvl.string(), tags: pvl.array(pvl.string()) }),
+   *   pvl.object({ id: pvl.string().standalone(), tags: pvl.array(pvl.string()) }),
    * );
    *
    * payload.validate({ id: 'a1', tags: [] }); // works today, compiled later
+   * payload.shape.id.validate('a1'); // a compiled validator of `id` alone, once compiled
    * ```
    */
   // Identity function pre-compilation (see @pvl/schema-compiler's AGENTS.md
-  // for what happens once a call site has been through the compiler, and
-  // ADR-0020 for why it hands back a plain Schema). The assertion only
-  // narrows the surface, which a deferred conditional type can't show.
-  compile: <TSchema extends Schema<unknown, unknown>>(
-    schema: TSchema,
-  ): Schema<InferInput<TSchema>, InferOutput<TSchema>> =>
-    schema as unknown as Schema<InferInput<TSchema>, InferOutput<TSchema>>,
+  // for what happens once a call site has been through the compiler, ADR-0020
+  // for why it hands back a plain Schema, and ADR-0036 for what it keeps).
+  // The assertion only narrows the surface, which a deferred conditional
+  // type can't show.
+  compile: <TSchema extends Schema<unknown, unknown>>(schema: TSchema): CompiledSchemaOf<TSchema> =>
+    schema as unknown as CompiledSchemaOf<TSchema>,
 };

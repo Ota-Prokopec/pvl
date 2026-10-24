@@ -25,3 +25,13 @@ export const VENDOR = '@pvl/schema' as const;
 // property. It keeps the `Schema` type nominal, so a Standard Schema
 // from another library is never a field (ADR-0018, ADR-0029).
 export declare const SCHEMA_BRAND: unique symbol;
+
+/**
+ * The key of the type-only marker `.standalone()` adds to a Schema's type,
+ * which an object reads to keep a field in its `shape`.
+ *
+ * @internal
+ */
+// Type-only, like `SCHEMA_BRAND`: the marker exists at the type level alone,
+// and the runtime reads the Schema's `_standalone` flag instead.
+export declare const STANDALONE_BRAND: unique symbol;

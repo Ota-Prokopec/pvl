@@ -6,7 +6,18 @@ import {
   DEFAULT_WATCH,
   DEFAULT_WITH_TYPES,
 } from '../src/config/defaults/consts.js';
-import { configSchema } from '../src/index.js';
+import type { PvlConfigFile } from '../src/index.js';
+
+// Every key `configSchema` declares, which `satisfies` keeps in step with it:
+// adding or removing a key there fails type-checking here.
+const CONFIG_KEYS = {
+  $schema: true,
+  include: true,
+  rootDir: true,
+  destination: true,
+  withTypes: true,
+  watch: true,
+} as const satisfies Record<keyof PvlConfigFile, true>;
 
 describe('json-schema.json', () => {
   it('describes every pvlconfig.json setting, with its default', () => {
@@ -59,7 +70,7 @@ describe('json-schema.json', () => {
   // The file is written by hand, so these catch it drifting from `configSchema`.
   it('has the same keys as configSchema', () => {
     expect(Object.keys(configJsonSchema.properties).sort()).toEqual(
-      Object.keys(configSchema.shape).sort(),
+      Object.keys(CONFIG_KEYS).sort(),
     );
   });
 

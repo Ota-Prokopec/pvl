@@ -5,7 +5,7 @@ import type { Result } from '../result.js';
 import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
-import type { Schema } from './schema.js';
+import type { Schema, StandaloneMarker } from './schema.js';
 
 /**
  * The field schemas an object schema composes, one per declared key. A field
@@ -80,6 +80,24 @@ export type ObjectInput<Shape extends ObjectShape> = ComposeObject<{
 export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
   [Key in keyof Shape]: InferOutput<Shape[Key]>;
 }>;
+
+/**
+ * The Standalone Keys of `Shape`, the fields `.standalone()` marked, with
+ * each one's own schema: what an object schema's `shape` holds. With no
+ * marked field, it is `{}`.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneShape } from '@pvl/schema';
+ *
+ * const shape = { email: pvl.string().standalone(), age: pvl.number() };
+ *
+ * type Exposed = StandaloneShape<typeof shape>; // { readonly email: StringInterpretedSchema & StandaloneMarker }
+ * ```
+ */
+export type StandaloneShape<Shape extends ObjectShape> = {
+  readonly [Key in keyof Shape as Shape[Key] extends StandaloneMarker ? Key : never]: Shape[Key];
+};
 
 /**
  * The default message of every Issue `ObjectInterpretedSchema` reports, keyed by the method
@@ -206,6 +224,10 @@ export class ObjectInterpretedSchema<
 
   private readonly _shape: Shape;
 
+  // The Standalone Keys only, read off each field's flag once, at
+  // construction, as a field is never replaced.
+  private readonly _standaloneShape: StandaloneShape<Shape>;
+
   /** @internal */
   constructor(shape: Shape) {
     const shapeKeys = new Set(Object.keys(shape));
@@ -214,42 +236,53 @@ export class ObjectInterpretedSchema<
     // assertion restores; the copy is per-construction, not per-`.validate()`.
     this._shape = { ...shape } as Shape;
     this._shapeKeys = shapeKeys;
+    const standaloneShape: Record<string, Schema<unknown, unknown>> = {};
+    for (const [key, field] of Object.entries(shape)) {
+      if (field._standalone) {
+        assignObjectProperty(standaloneShape, key, field);
+      }
+    }
+    // Built key by key from the fields' runtime flags, which the type system
+    // can't follow back to the marker types `StandaloneShape` reads.
+    this._standaloneShape = standaloneShape as StandaloneShape<Shape>;
   }
 
-  // An accessor with no setter, returning `Readonly<Shape>`, so neither the
-  // shape nor any one key can be written — a per-key write would otherwise
-  // typecheck, then change what `_checkType` reads for that key while
-  // `_shapeKeys`, fixed at construction, stays as it was.
-  // Per the parent spec nothing is frozen at runtime: immutability below the
-  // accessor is the type system's job. The schemas handed back are the very
-  // instances the caller declared, so their own modifiers come with them. A
-  // Compiled Schema has no `shape` (ADR-0020): a caller who validates one
-  // field on its own keeps a reference to that field's schema.
+  // An accessor with no setter, so neither the shape nor any one key can be
+  // written. Per the parent spec nothing is frozen at runtime: immutability
+  // below the accessor is the type system's job. The schemas handed back are
+  // the very instances the caller declared, so their own modifiers come with
+  // them. Only Standalone Keys are in it, at both the type level and runtime,
+  // as in a Compiled Schema's (standalone-keys.md, ADR-0036).
   /**
-   * The schema declared for each key of this object schema, so a single field
-   * can be reached and validated on its own without validating the whole
-   * object. A composite field carries its own `shape` or `element`, so nested
-   * structure is reachable all the way down.
+   * The schema of each Standalone Key of this object schema, the fields
+   * marked `.standalone()`, so a single field can be reached and validated
+   * on its own without validating the whole object. Any other key is absent,
+   * and reading it is a compile error; an object with none has `{}`. A
+   * nested object's own `shape` follows the same rule.
    *
    * Read-only: neither the shape nor any one field can be replaced, and
-   * reading a field never affects how this schema validates.
+   * reading a field never affects how this schema validates. It survives
+   * every modifier, `.standalone()` and `pvl.compile()`, but not
+   * `.transform()`, whose value needn't be an object.
    *
    * @example
    * ```ts
    * import { pvl } from '@pvl/schema';
    *
    * const user = pvl.object({
-   *   name: pvl.string().min(1),
-   *   address: pvl.object({ city: pvl.string() }),
+   *   name: pvl.string().min(1).standalone(),
+   *   address: pvl.object({ city: pvl.string().standalone() }).standalone(),
+   *   age: pvl.number(),
    * });
    *
    * user.shape.name.validate('Ada'); // { value: 'Ada' }
    * user.shape.name.validate(''); // { issues: [{ code: 'TOO_SMALL', ... }] }
    * user.shape.address.shape.city.validate('London'); // { value: 'London' }
+   * // user.shape.age — a compile error: `age` isn't a Standalone Key
    * ```
    */
-  get shape(): Readonly<Shape> {
-    return this._shape;
+  get shape(): StandaloneShape<Shape> {
+    return this._standaloneShape;
   }
 
   /**

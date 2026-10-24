@@ -5,6 +5,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Issue } from './issue.js';
 import type { ChainableInterpretedSchema } from './schemas/chainableInterpretedSchema.js';
 import type { InterpretedSchema } from './schemas/interpretedSchema.js';
+import type { StandaloneMarkerOf } from './schemas/schema.js';
 
 /**
  * The type a schema accepts as input — what a value must look like going in.
@@ -62,12 +63,16 @@ export type InterpretedSchemaKind<TSchema extends InterpretedSchema> = {
 
 /**
  * `TSchema`'s own class re-typed with `Input` and `Output` through its
- * `'~kind'`, or the base `ChainableInterpretedSchema` for a class that declares none.
+ * `'~kind'`, or the base `ChainableInterpretedSchema` for a class that declares none,
+ * marked `.standalone()` when `TSchema` is.
  *
  * @internal
  */
-export type RetypedSchema<TSchema, Input, Output> = TSchema extends {
+// The class `'~kind'` rebuilds knows nothing of an intersection on `TSchema`,
+// so the marker is carried over on its own (ADR-0036).
+export type RetypedSchema<TSchema, Input, Output> = (TSchema extends {
   readonly '~kind': infer Kind extends InterpretedSchemaKind<ChainableInterpretedSchema>;
 }
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
-  : ChainableInterpretedSchema<Input, Output>;
+  : ChainableInterpretedSchema<Input, Output>) &
+  StandaloneMarkerOf<TSchema>;
