@@ -1,0 +1,3 @@
+interface:
+  display_name: "Prototype Code"
+  short_description: "Compare throwaway code variants side by side"

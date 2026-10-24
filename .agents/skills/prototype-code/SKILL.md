@@ -1,60 +1,61 @@
 ---
 name: prototype-code
-description: Write several throwaway variants of the same code, compare their pros and cons, then use the one the user picks.
-disable-model-invocation: true
+description: Write throwaway variants of the same code side by side, compare them, then use the one the user picks. Use when a question is about code shape, such as how a signature, type model, internal strategy or module split should look.
 ---
 
 # Prototype code
 
-A code prototype is **throwaway code that settles a question about code shape**: the same piece of code written as several **variants** that disagree along one **axis**, laid side by side so the user can pick a **winner**. The axis is whatever the user asks about: a signature, a parameter shape, a type model, an internal strategy, a module split, plain syntax. It runs most often in the middle of a `/grilling`-style session, when a question there is about how the code should look.
+A code prototype is **throwaway** code that settles one question about **code shape**: the same behaviour written as several **variants** that differ along exactly one **axis**, laid side by side so the user picks a **winner**. The axis is whatever the question is about: a signature, a parameter shape, a type model, an internal strategy, a module split, or plain syntax.
 
 ## 1. Fix the question and the axis
 
-State the question in one line ("Should `compile()` take positional args or an options object?").
+Write the question as one line: "Should `createUser()` take positional arguments or an options object?"
 
-- **The user named the axis**: follow it literally, even when it is purely syntactic.
-- **The user named only the goal**: propose 2–3 candidate axes, each a structural disagreement (signature, type model, strategy, module split), and wait for the user to pick one.
+- **The user named the axis**: take it literally, even when it is purely syntactic.
+- **The user named only the goal**: propose 2 or 3 candidate axes, each a structural disagreement, and let the user pick one.
 
-Done when the question and exactly one axis are agreed.
+Done when the user has agreed to the question and to exactly one axis.
 
 ## 2. Write the variants
 
-Write only **great** variants: each a genuinely strong answer someone would defend, never filler added to reach a count. At most 5. Each variant is a complete, believable implementation of the same behaviour; only the axis differs.
+Read [EXAMPLE.md](EXAMPLE.md) before writing the first variant: it shows a complete variant file and the comparison table.
 
-**Location.** Put the variants where the real code will live once implemented, if that directory already exists. Otherwise put them under `prototypes/<question-slug>/` at the repo root.
+Write 2 to 5 variants, each a strong answer someone would defend in review. Two strong variants beat four padded ones. Every variant implements the same behaviour; only the axis differs. Leave out error handling and edge cases unless they are the axis.
 
-**Naming.** One file per variant, named for its approach: `options-object.prototype.ts`, `args-array.prototype.ts`. A variant that needs several files (a module-split axis) gets its own subfolder, `<approach>/`, holding all its files; single-file variants stay flat.
+**Location.** The directory where the real code will live, when it exists; otherwise `prototypes/<question-slug>/` at the repo root.
 
-**Imports.** Import the project's real modules and types. When a module or type doesn't exist yet, invent the import a real implementation would use, and silence only that line, so the rest of the variant is still checked against the real code:
+**Naming.** One file per variant, named for its approach with a `.prototype` infix: `options-object.prototype.ts`, `positional-args.prototype.ts`. A variant spanning several files (a module-split axis) gets a subfolder `<approach>/` holding all its files; single-file variants stay flat.
+
+**Imports.** Import the project's real modules and types, so the type-checker judges each variant against the real code. Where a module or type does not exist yet, write the import a real implementation would use and silence that one line:
 
 ```ts
 // @ts-expect-error -- prototype: module not implemented yet
-import type { CompileOptions } from './compileOptions.ts';
+import type { UserOptions } from './userOptions.ts';
 ```
 
-Add an `eslint-disable-next-line <rule>` too when the project's linter reports that line and honours inline comments (a config with `noInlineConfig` ignores them; leave that lint error for the cleanup to remove), and use the language's equivalent outside TypeScript. Change no project config to make a variant pass.
+When the project's linter also flags that line, add its inline disable for the specific rule (`// eslint-disable-next-line <rule>`), provided the lint config honours inline comments. When it ignores them (`noInlineConfig`), leave the lint error: step 4 deletes the file. Outside TypeScript, use the language's own line-level suppression. Variants pass under the project's config exactly as it stands.
 
-**File layout.** Every variant file has the same three parts:
+**File layout.** Every variant file has three parts, in order:
 
-1. A header comment: `PROTOTYPE, delete me`, the question (identical in every variant), this variant's approach in one line, then its **pros** and **cons**.
+1. A header comment: `PROTOTYPE, delete me`, the question (identical in every variant), this variant's approach in one line, then its pros and cons.
 2. The implementation.
-3. A **call site** at the bottom: the code as a caller would write it, since a shape is judged where it is used.
+3. A **call site**: the code a caller would write. A shape is judged where it is used.
 
-Done when every variant has its header, implementation and call site, and the project's type-checker reports no error in any variant file.
+Done when every variant has all three parts and the project's type-checker reports no error in any variant file.
 
 ## 3. Compare
 
-Print a pros/cons table in the session, one row per variant, labelled by the file's approach name, with the file paths. The table is the reply; write no README.
+Reply with the comparison table: one row per variant, labelled by its approach name, with its file path, pros and cons. The table lives in the reply only.
 
-Done when the table is printed and the user has the paths.
+Done when the table is printed.
 
 ## 4. Use the winner
 
-The user picks one variant, or a mix ("A's signature with B's body"). Take a mix as the decision itself, unless the user asks to see it first; then write it as one more variant and compare again.
+The user picks one variant or a mix ("A's signature with B's body"). A mix is the decision itself; write it as one more variant and return to step 3 only when the user asks to see it.
 
-- **Inside a grilling session**: the winner is the answer to that session's question. Record it the way the session records answers and continue the session; implement nothing.
-- **Standalone**: implement the winner properly in the real location, following the project's own rules (tests, checks). Rewrite it there instead of copying the prototype: the prototype skipped error handling.
+- **Inside an interview** (a grilling session or similar): the winner answers that session's question. Record it the way the session records answers and return to the session; implementation waits for the session's own plan.
+- **Standalone**: implement the winner in the real location under the project's own rules (tests, checks). Rewrite it there rather than copying the variant, adding the error handling and edge cases the variant left out.
 
-Then delete every prototype file and folder, including an emptied `prototypes/` directory.
+Then delete every variant file and subfolder, and the `prototypes/` directory if it is now empty.
 
-Done when the winner is used and no `*.prototype.*` file from this run remains.
+Done when the winner is recorded or implemented and no `*.prototype.*` file from this run remains.

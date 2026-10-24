@@ -15,7 +15,7 @@ packages/
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 └── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
 scripts/
-├── claude/            (claude, private)         — `pnpm claude`: start Claude Code in a picked git worktree
+├── claude/            (claude, private)         — `pnpm claude`: start Claude Code in a picked or new git worktree, in its own VS Code window
 ├── claude-list/       (claude-list, private)    — `pnpm claude-list`: remove picked git worktrees and their branches
 └── git-worktrees/     (@repo/git-worktrees)     — the git worktree reader both scripts share
 ```
@@ -26,7 +26,7 @@ scripts/
 
 - `@pvl/schema-compiler` depends on `@pvl/schema`, never the other way round. Those two publish to npm; everything else is private.
 - `@pvl/schema` depends on `@repo/types` for its internal enums.
-- Both scripts read worktrees through `@repo/git-worktrees`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
+- Both scripts read worktrees through `@repo/git-worktrees`, and `claude` takes the branch-name pattern from `@repo/conventions`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
 - `@repo/eslint-config` and `@repo/typescript-config` are real, adopted dependencies, not create-turbo leftovers: every entry takes them as `workspace:*` devDependencies. `@repo/eslint-config` wires in `@repo/conventions`.
 
 ## Scripts

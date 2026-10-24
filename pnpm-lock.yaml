@@ -348,6 +348,9 @@ importers:
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
+      '@repo/conventions':
+        specifier: workspace:*
+        version: link:../../packages/conventions
       '@repo/git-worktrees':
         specifier: workspace:*
         version: link:../git-worktrees

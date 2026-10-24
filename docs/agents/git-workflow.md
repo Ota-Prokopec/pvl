@@ -6,7 +6,7 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 
 ## Naming
 
-- **Branches** are `<type>/<slug>`: `<type>` is one of the types below, `<slug>` is lowercase kebab-case (`feat/enum-factory`, `chore/agents-system-refactor`). A Claude Code worktree starts on a `worktree-<name>` branch, so rename it with `git branch -m <type>/<slug>` before the first commit.
+- **Branches** are `<type>/<slug>`: `<type>` is one of the types below, `<slug>` is lowercase kebab-case (`feat/enum-factory`, `chore/agents-system-refactor`). A Claude Code worktree (`claude --worktree`) starts on a `worktree-<name>` branch, so rename it with `git branch -m <type>/<slug>` before the first commit. `pnpm claude` asks for the `<type>/<slug>` branch up front, so its new worktrees need no rename.
 - **Commit subjects, PR titles and issue titles** follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>): <description>`, scope optional (`feat(schema): add pvl.enum()`, `chore: move the repo to TypeScript 6.0.3`). `<type>` is `feat`, `fix`, `docs`, `refactor`, `test` or `chore`; `<scope>` is lowercase kebab-case, usually the workspace entry's folder name.
 - **Everything posted to GitHub reads as the user's own work**: PR titles and bodies, issue titles, bodies and comments carry no `CLAUDE` prefix, no mention of Claude and no "Generated with Claude Code" footer.
 
@@ -28,4 +28,4 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 2. **A leaf issue** gets a `<type>/<slug>` branch off `main`, one commit, and a PR into `main` whose body says `Closes #<n>`. Done when the PR is open and the issue carries a comment linking it.
 3. **A parent** is done when every sub-issue has a PR and the parent carries a comment linking all of them.
 
-Issues from the `/to-spec` → `/to-tickets` pipeline add the rules in the [`/implement`](../specification/skill-extensions.md#implement) or [`/implement-spec`](../specification/skill-extensions.md#implement-spec) section of skill-extensions.md. `/implement-spec` lands a whole spec through one PR, so its tickets get no PR of their own.
+Issues from the `/to-spec` → `/to-tickets` pipeline add the rules in the [`/implement`](../../.agents/skills/implement/SKILL.md) or [`/implement-spec`](../../.agents/skills/implement-spec/SKILL.md) skill. `/implement-spec` lands a whole spec through one PR, so its tickets get no PR of their own.

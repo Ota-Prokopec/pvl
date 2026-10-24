@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
+    "@repo/conventions": "workspace:*",
     "@repo/git-worktrees": "workspace:*"
   },
   "devDependencies": {

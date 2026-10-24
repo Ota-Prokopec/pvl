@@ -8,3 +8,10 @@ packages:
 allowBuilds:
   esbuild: true
   lefthook: true
+
+# Every checkout, main and each worktree, links its external packages from one
+# shared store (<pnpm store>/links), so a worktree's install is fast and nearly
+# free on disk, while workspace packages still link to the checkout's own
+# sources. CI turns it off on its own. Why not symlinks to the main checkout:
+# docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md
+enableGlobalVirtualStore: true

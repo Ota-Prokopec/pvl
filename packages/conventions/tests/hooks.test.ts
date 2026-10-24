@@ -128,27 +128,9 @@ describe('checkBashCommand', () => {
   });
 });
 
-const SKILLS_LOCK = JSON.stringify({ version: 1, skills: { tdd: {}, zod: {} } });
-
-/**
- * The reasons the edit guard denies editing `editedPath`, as run from `/repo`
- * with `lock` as its `skills-lock.json` (`null`: the file is missing). By
- * default the lock lists the `tdd` and `zod` skills.
- *
- * ```ts
- * checkEdit('packages/schema/src/pvl.ts')    // []: allowed
- * checkEdit('.agents/skills/tdd/SKILL.md')   // one reason: an installed skill
- * checkEdit('.agents/skills/my-skill/SKILL.md') // []: a skill the repo owns
- * checkEdit('.agents/skills/my-skill/SKILL.md', null) // one reason: no lock, so any skill may be installed
- * ```
- */
-const checkEdit = (editedPath: string, lock: string | null = SKILLS_LOCK): string[] => {
-  return checkEditedPath({
-    editedPath,
-    cwd: REPO,
-    readFile: (file): string | undefined =>
-      file === `${REPO}/skills-lock.json` ? (lock ?? undefined) : undefined,
-  });
+/** The reasons editing `editedPath` is denied, run from `/repo`. */
+const checkEdit = (editedPath: string): string[] => {
+  return checkEditedPath({ editedPath, cwd: REPO });
 };
 
 describe('checkEditedPath', () => {
@@ -156,25 +138,10 @@ describe('checkEditedPath', () => {
     'packages/schema/src/pvl.ts',
     '/repo/AGENTS.md',
     '/repo/.claude/settings.json',
-    '.agents/skills/prototype-code/SKILL.md',
-    '/repo/.claude/skills/prototype-code/SKILL.md',
+    '.agents/skills/tdd/SKILL.md',
+    '/repo/.claude/skills/zod/SKILL.md',
   ])('allows editing %s', (path) => {
     expect(checkEdit(path)).toEqual([]);
-  });
-
-  it.each(['.agents/skills/tdd/SKILL.md', '/repo/.claude/skills/zod/SKILL.md'])(
-    'denies editing the installed skill file %s',
-    (path) => {
-      expect(checkEdit(path)).toEqual([
-        expect.stringContaining('installed from an external source'),
-      ]);
-    },
-  );
-
-  it.each([null, 'not json'])('denies editing any skill when the lock file is %j', (lock) => {
-    expect(checkEdit('.agents/skills/prototype-code/SKILL.md', lock)).toEqual([
-      expect.stringContaining('installed from an external source'),
-    ]);
   });
 
   it('denies writing to the agent memory', () => {

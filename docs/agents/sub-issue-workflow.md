@@ -1,6 +1,6 @@
 # Sub-issue workflow
 
-How to implement a **sub-issue**, a child of a parent issue. It covers a sub-issue requested alone and one reached while orchestrating its parent, and a `/to-spec` spec with its tickets runs the same way ([skill-extensions.md](../specification/skill-extensions.md#implement) has the additions). Branch, commit and PR naming follow [git-workflow.md](./git-workflow.md).
+How to implement a **sub-issue**, a child of a parent issue. It covers a sub-issue requested alone and one reached while orchestrating its parent, and a `/to-spec` spec with its tickets runs the same way (the [`/implement`](../../.agents/skills/implement/SKILL.md) skill has the additions). Branch, commit and PR naming follow [git-workflow.md](./git-workflow.md).
 
 The agent's work ends at an open PR. The user merges every PR and closes every issue.
 
