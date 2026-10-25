@@ -1,11 +1,13 @@
 // The package's standalone types: the inference helpers and the type plumbing
 // behind the Modifiers (`InterpretedSchemaKind`, `RetypedSchema`, `PreModifiersResult`).
 // It is in the barrel, so that plumbing is tagged `@internal`.
+import type { ValueOfEnum } from '@repo/types';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { Issue } from './issue.js';
+import type { Issue } from './issue/issue.js';
 import type { ChainableInterpretedSchema } from './schemas/chainableInterpretedSchema.js';
 import type { InterpretedSchema } from './schemas/interpretedSchema.js';
-import type { StandaloneMarkerOf } from './schemas/schema.js';
+import type { Schema, StandaloneMarkerOf } from './schemas/schema.js';
+import type { pvl } from './pvl.js';
 
 /**
  * The type a schema accepts as input — what a value must look like going in.
@@ -76,3 +78,48 @@ export type RetypedSchema<TSchema, Input, Output> = (TSchema extends {
   ? (Kind & { readonly Input: Input; readonly Output: Output })['type']
   : ChainableInterpretedSchema<Input, Output>) &
   StandaloneMarkerOf<TSchema>;
+
+// Distributes over a union, as `keyof` of a union keeps only the shared keys.
+type MethodNameOf<TSchema> = TSchema extends unknown
+  ? {
+      [Key in keyof TSchema]: TSchema[Key] extends (...args: never[]) => unknown ? Key : never;
+    }[keyof TSchema]
+  : never;
+
+// Distributes over a union, as `keyof` of a union keeps only the shared keys.
+type KeyOf<TSchema> = TSchema extends unknown ? keyof TSchema : never;
+
+/**
+ * The name of every member on a schema some `pvl.*` factory builds: each
+ * {@link PvlSchemaMethodName} and each property (`'element'`, `'shape'`),
+ * leaving out the `_`- and `~`-prefixed internals.
+ *
+ * @internal
+ */
+export type PvlSchemaPropertyName = Exclude<
+  KeyOf<ReturnType<ValueOfEnum<typeof pvl>>>,
+  `_${string}` | `~${string}` | symbol
+>;
+
+/**
+ * The name of every method on a schema some `pvl.*` factory builds
+ * (`'min'`, `'optional'`, `'validate'`, …), leaving out the `_`-prefixed internals.
+ *
+ * @internal
+ */
+export type PvlSchemaMethodName = Exclude<
+  MethodNameOf<ReturnType<ValueOfEnum<typeof pvl>>>,
+  `_${string}`
+>;
+
+/**
+ * Every {@link PvlSchemaMethodName} chained onto a schema (`'min'`, `'optional'`,
+ * `'strict'`, …), leaving out the ones every {@link Schema} has (`'validate'`, `'standalone'`).
+ *
+ * @internal
+ */
+export type PvlSchemaModifierMethodName = Exclude<PvlSchemaMethodName, keyof Schema>;
+
+export type PvlObjectPropertyName = keyof typeof pvl;
+
+export type PvlFactoryName = Exclude<PvlObjectPropertyName, 'compile'>;

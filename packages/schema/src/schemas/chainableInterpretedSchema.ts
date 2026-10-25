@@ -1,5 +1,5 @@
 import { ISSUE_CODE } from '../enums.js';
-import { Issue, type IssueEditableProps } from '../issue.js';
+import { Issue, type IssueEditableProps } from '../issue/issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';

@@ -9,6 +9,7 @@ import {
   type CallExpression,
   type Identifier,
   type PrefixUnaryExpression,
+  type PropertyAccessExpression,
   type SourceFile,
   type VariableDeclaration,
 } from 'ts-morph';
@@ -28,10 +29,15 @@ export type StaticValue =
 export type FollowedConsts = ReadonlySet<VariableDeclaration>;
 
 /** A node with `const`s seen through, and every `const` followed on the way to it. */
-export type FollowedNode = {
+type FollowedNode = {
   node: Node;
   followed: FollowedConsts;
 };
+
+/** A call whose callee is a property read, `<receiver>.<methodName>(…)`. */
+export type PropertyAccessCallExpression = {
+  getExpression(): PropertyAccessExpression;
+} & CallExpression;
 
 /** A call of a property, `<receiver>.<methodName>(…)`, split into its parts. */
 export type PropertyAccessCall = {
@@ -118,25 +124,39 @@ export class GenericAst {
   }
 
   /**
+   * Whether `node` is a method call, `<receiver>.<methodName>(…)`: a call
+   * whose callee is a property read. The receiver is any expression.
+   *
+   * ```ts
+   * GenericAst.isPropertyAccessCall(<pvl.string()>)        // true
+   * GenericAst.isPropertyAccessCall(<pvl.string().min(3)>) // true
+   * GenericAst.isPropertyAccessCall(<pvl.string>)          // false: read, not called
+   * GenericAst.isPropertyAccessCall(<makeUser()>)          // false: a plain function call
+   * GenericAst.isPropertyAccessCall(<schemas['user']()>)   // false: an element access
+   * GenericAst.isPropertyAccessCall(<(pvl.string)()>)      // false: the callee is parenthesized
+   * ```
+   */
+  public static isPropertyAccessCall(node: Node): node is PropertyAccessCallExpression {
+    return Node.isCallExpression(node) && Node.isPropertyAccessExpression(node.getExpression());
+  }
+
+  /**
    * `node` split into the call, its receiver and its method name when it is a
-   * method call, `<receiver>.<methodName>(…)`; `undefined` for any other shape.
-   * The receiver is any expression, and is returned as written, `const`s not
-   * followed.
+   * method call (`isPropertyAccessCall`); `undefined` for any other shape.
+   * The receiver is returned as written, `const`s not followed.
    *
    * ```ts
    * GenericAst.asPropertyAccessCall(<pvl.string()>)        // { call: <pvl.string()>, receiver: <pvl>, methodName: 'string' }
    * GenericAst.asPropertyAccessCall(<pvl.string().min(3)>) // { call: <….min(3)>, receiver: <pvl.string()>, methodName: 'min' }
    * GenericAst.asPropertyAccessCall(<pvl.string>)          // undefined: read, not called
-   * GenericAst.asPropertyAccessCall(<makeUser()>)          // undefined: a plain function call
-   * GenericAst.asPropertyAccessCall(<schemas['user']()>)   // undefined: an element access
-   * GenericAst.asPropertyAccessCall(<(pvl.string)()>)      // undefined: the callee is parenthesized
    * ```
    */
   public static asPropertyAccessCall(node: Node): PropertyAccessCall | undefined {
-    const callee = Node.isCallExpression(node) ? node.getExpression() : undefined;
-    return Node.isCallExpression(node) && Node.isPropertyAccessExpression(callee)
-      ? { call: node, receiver: callee.getExpression(), methodName: callee.getName() }
-      : undefined;
+    if (!GenericAst.isPropertyAccessCall(node)) {
+      return undefined;
+    }
+    const callee = node.getExpression();
+    return { call: node, receiver: callee.getExpression(), methodName: callee.getName() };
   }
 
   /**
@@ -177,6 +197,7 @@ export class GenericAst {
     if (declaration === undefined || initializer === undefined) {
       throw new UnresolvedNodeError(unwrappedNode);
     }
+
     if (followed.has(declaration)) {
       throw new ConstCycleError(unwrappedNode);
     }
@@ -208,6 +229,7 @@ export class GenericAst {
     const symbol = Node.isShorthandPropertyAssignment(identifierParent)
       ? identifierParent.getValueSymbol()
       : identifier.getSymbol();
+
     const declaration = symbol?.getValueDeclaration();
     if (!Node.isVariableDeclaration(declaration)) {
       return undefined;
@@ -455,6 +477,7 @@ export class GenericAst {
 
       const nameNode = property.getNameNode();
       const key = GenericAst.readPropertyKey(nameNode, reading);
+      //TODO: Make a special function for copying object - the function will also handle `__proto__` key properly
       if (key === '__proto__' && !Node.isComputedPropertyName(nameNode)) {
         // Node.isComputedPropertyName(nameNode) true if {[key]: "value"} - key is computed
         continue;
@@ -466,24 +489,12 @@ export class GenericAst {
   }
 
   /**
-   * The key an object literal's property name `nameNode` gives at runtime,
-   * as a string.
-   *
-   * - **A plain name is the key itself**, not an expression: in
-   *   `const name = 'x'; ({ name: 1 })` the key is `'name'`, not `'x'`. So an
-   *   identifier gives its own text and is never followed as a `const`.
-   * - **A string or numeric literal name** gives its value as a string,
-   *   which is how JavaScript converts a key: `1e21` gives `'1e+21'`.
-   * - **Only a computed name, `[expression]`, is an expression**, so only it
-   *   is read with `readStaticValue`.
-   *
-   * A computed key must read as a string or a number, the key types
-   * TypeScript accepts besides a symbol, which is no static value (TS2464).
-   * JavaScript would convert `[true]` or `[['a']]` to a key too, but the
-   * compiler doesn't type-check
-   * ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)),
-   * so accepting them would compile code the application's own type check
-   * rejects, so they throw UnresolvedNodeError.
+   * The runtime key, as a string, of an object literal's property name
+   * `nameNode`. A plain name is its own text, never followed as a `const`; a
+   * string or numeric literal is its value; a computed name, `[expression]`,
+   * is read with `readStaticValue` and must be a string or a number, as
+   * TypeScript requires, else it throws UnresolvedNodeError
+   * ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)).
    *
    * ```ts
    * GenericAst.readPropertyKey(<name>)       // 'name'
@@ -497,7 +508,7 @@ export class GenericAst {
    * GenericAst.readPropertyKey(<[key]>)      // throws UnresolvedNodeError(<key>), with `let key`
    * ```
    */
-  public static readPropertyKey(nameNode: Node, followed: FollowedConsts = new Set()): string {
+  private static readPropertyKey(nameNode: Node, followed: FollowedConsts = new Set()): string {
     if (Node.isIdentifier(nameNode)) {
       return nameNode.getText();
     }

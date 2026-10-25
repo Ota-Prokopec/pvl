@@ -3,7 +3,7 @@
 import type { PossibleLiteralValue } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import type { CallChainLink } from '../ast/pvlAst.js';
+import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
@@ -43,7 +43,7 @@ export class LiteralSchema extends Schema {
    * literal, or is an object or an array.
    */
   public static readFactoryArgument(
-    link: CallChainLink,
+    link: MethodCallWithFollowedConsts,
   ): (options: SchemaOptions) => LiteralSchema {
     const value = LiteralSchema.readValue(Schema.readArgument(link), link.followed);
     return (options: SchemaOptions): LiteralSchema => new LiteralSchema({ ...options, value });

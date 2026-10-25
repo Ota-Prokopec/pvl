@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR, type SCHEMA_BRAND } from '../consts.js';
-import type { Issue } from '../issue.js';
+import type { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';

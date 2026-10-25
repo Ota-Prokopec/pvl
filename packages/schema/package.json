@@ -31,12 +31,14 @@
   },
   "dependencies": {
     "@repo/types": "workspace:*",
-    "@standard-schema/spec": "^1.1.0"
+    "@standard-schema/spec": "^1.1.0",
+    "lodash-es": "^4.18.1"
   },
   "devDependencies": {
     "@repo/conventions": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
+    "@types/lodash-es": "^4.17.12",
     "eslint": "10.9.1",
     "eslint-plugin-jsdoc": "65.0.2",
     "fast-check": "^4.10.1",

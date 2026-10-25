@@ -1,6 +1,6 @@
 import type { ValueOfEnum } from '@repo/types';
 import { ISSUE_CODE } from '../enums.js';
-import { Issue } from '../issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';

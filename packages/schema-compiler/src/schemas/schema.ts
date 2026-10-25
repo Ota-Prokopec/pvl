@@ -10,7 +10,7 @@
 // `Schema` exists (ADR-0034).
 import type { Node } from 'ts-morph';
 import type { FollowedConsts } from '../ast/genericAst.js';
-import type { CallChainLink } from '../ast/pvlAst.js';
+import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
@@ -288,7 +288,7 @@ export abstract class Schema {
    * Schema.readArgument(<pvl.array()>)             // throws
    * ```
    */
-  protected static readArgument({ call }: CallChainLink): Node {
+  protected static readArgument({ call }: MethodCallWithFollowedConsts): Node {
     const [argument] = call.getArguments();
     if (argument === undefined) {
       throw new UnresolvedNodeError(call);

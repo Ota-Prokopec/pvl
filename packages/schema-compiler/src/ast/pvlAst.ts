@@ -1,55 +1,21 @@
 // Recognising PVL in a module's syntax: the Local Names `pvl` is imported
 // under, `pvl.compile(...)` markers and what is chained onto them, and a
 // `pvl.<factory>(…)` call chain split into its links. Built on GenericAst.
-import type { ArrayInterpretedSchema, ObjectInterpretedSchema, Schema } from '@pvl/schema';
-import type { ValueOfEnum } from '@repo/types';
 import { Node, type CallExpression, type SourceFile } from 'ts-morph';
-import { GenericAst, type FollowedConsts, type PropertyAccessCall } from './genericAst.js';
+import { COMPILE_METHOD_NAME, PVL_PACKAGE_SPECIFIER } from '../consts.js';
+import {
+  GenericAst,
+  type FollowedConsts,
+  type PropertyAccessCallExpression,
+} from './genericAst.js';
 import { UnresolvedNodeError } from './unresolvedNodeError.js';
-import { STANDALONE_METHOD_NAME } from '../consts.js';
-
-/** The package `pvl` is imported from. */
-const PVL_PACKAGE = '@pvl/schema' as const;
-
-/** The members that may still be read off the result of `pvl.compile(...)`: `.validate()`, `.standalone()`, and an object's `shape` and an array's `element`, which a Compiled Schema keeps (ADR-0036), each valued by its name on the Schema. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
-const COMPILE_MARKER_ALLOWED_MEMBER = {
-  VALIDATE: 'validate',
-  STANDALONE: STANDALONE_METHOD_NAME,
-  SHAPE: 'shape',
-  ELEMENT: 'element',
-} as const satisfies Record<
-  string,
-  keyof Schema | keyof ObjectInterpretedSchema | keyof ArrayInterpretedSchema
->;
-
-type CompileMarkerAllowedMember = ValueOfEnum<typeof COMPILE_MARKER_ALLOWED_MEMBER>;
-
-const COMPILE_MARKER_ALLOWED_MEMBERS: ReadonlySet<string> = new Set<CompileMarkerAllowedMember>(
-  Object.values(COMPILE_MARKER_ALLOWED_MEMBER),
-);
-
-/** A method chained in a call chain, `.min(3)`. Its arguments never follow a `const` (ADR-0030), so it carries none of the ones followed to reach it. */
-export type ChainedMethodCall = Omit<PropertyAccessCall, 'receiver'>;
-
-/** A call chain's factory call, with the `const`s followed to reach it, which reading the factory's arguments carries on. */
-export type CallChainLink = Omit<PropertyAccessCall, 'receiver'> & {
-  followed: FollowedConsts;
-};
-
-/**
- * A `pvl.<factory>(…)` call and the methods chained onto it.
- *
- * ```ts
- * pvl.string().min(3).max(5)
- * // { factory: <pvl.string()>, methods: [<….min(3)>, <….max(5)>] }
- * ```
- */
-export type CallChain = {
-  /** The call of `pvl` itself: `pvl.string()`, or `pvl.compile(…)`. */
-  factory: CallChainLink;
-  /** The methods chained onto it, in chain order. */
-  methods: ReadonlyArray<ChainedMethodCall>;
-};
+import type { CallChain, MethodCall } from './types.js';
+import { PVL_OBJECT_PROPERTY_NAMES_ENUM, type PvlSchemaModifierMethodName } from '@pvl/schema';
+import {
+  COMPILE_MARKER_ALLOWED_PROPERTY_NAMES_ENUM,
+  type CompileMarkerAllowedPropertyName,
+} from './enums.js';
+import { COMPILE_MARKER_ALLOWED_PROPERTY_NAMES } from './consts.js';
 
 /**
  * Static helpers that recognise PVL in ts-morph nodes. Like GenericAst's,
@@ -69,13 +35,16 @@ export class PvlAst {
    * import { pvl } from './my-pvl.js';              // {}: Module Specifier isn't `@pvl/schema`
    * import { z } from '@pvl/schema';                // {}: Import Name isn't `pvl`
    * import * as schema from '@pvl/schema';          // {}: not a named import
+import { PvlSchemaMethodName } from '../../../schema/src/types';
+import { PVL_OBJECT_PROPERTY_NAMES_ENUM } from '../../../schema/src/enums';
+import { PvlSchemaMethodName } from '../../../schema/src/types';
    * ```
    */
   public static findPvlImportLocalNames(sourceFile: SourceFile): Set<string> {
     return new Set(
       sourceFile
         .getImportDeclarations()
-        .filter((declaration) => declaration.getModuleSpecifierValue() === PVL_PACKAGE)
+        .filter((declaration) => declaration.getModuleSpecifierValue() === PVL_PACKAGE_SPECIFIER)
         .flatMap((declaration) => declaration.getNamedImports())
         .filter((namedImport) => namedImport.getName() === 'pvl')
         .map((namedImport) => namedImport.getAliasNode()?.getText() ?? namedImport.getName()),
@@ -83,29 +52,49 @@ export class PvlAst {
   }
 
   /**
-   * `node` as `<pvl>.<methodName>(…)` called directly on `<pvl>`, one of
-   * `pvlImportLocalNames`, or `undefined` when it is another shape, such as a
-   * method chained onto a Schema.
+   * Whether `node` is `<pvl>.<methodName>(…)` called directly on `<pvl>`, one
+   * of `pvlImportLocalNames`, rather than another shape, such as a method
+   * chained onto a Schema.
+   *
+   * ```ts
+   * // pvlImportLocalNames: {'pvl'}
+   * PvlAst.isDirectPvlCall(<pvl.string()>, names)          // true
+   * PvlAst.isDirectPvlCall(<pvl.string().min(3)>, names)   // false: called on a Schema, not on `pvl`
+   * PvlAst.isDirectPvlCall(<schemas.compile(x)>, names)    // false: `schemas` isn't a Local Name of `pvl`
+   * ```
+   */
+  public static isDirectPvlCall(
+    node: Node,
+    pvlImportLocalNames: ReadonlySet<string>,
+  ): node is PropertyAccessCallExpression {
+    if (!GenericAst.isPropertyAccessCall(node)) {
+      return false;
+    }
+    const receiver = node.getExpression().getExpression();
+    return Node.isIdentifier(receiver) && pvlImportLocalNames.has(receiver.getText());
+  }
+
+  /**
+   * `node` split into the call and its method name when it is a direct `pvl`
+   * call (`isDirectPvlCall`); `undefined` for any other shape.
    *
    * ```ts
    * // pvlImportLocalNames: {'pvl'}
    * PvlAst.asDirectPvlCall(<pvl.string()>, names)          // { call, methodName: 'string' }
    * PvlAst.asDirectPvlCall(<pvl.string().min(3)>, names)   // undefined: called on a Schema, not on `pvl`
-   * PvlAst.asDirectPvlCall(<schemas.compile(x)>, names)    // undefined: `schemas` isn't a Local Name of `pvl`
    * ```
    */
   public static asDirectPvlCall(
     node: Node,
     pvlImportLocalNames: ReadonlySet<string>,
-  ): Omit<PropertyAccessCall, 'receiver'> | undefined {
-    const propertyAccessCall = GenericAst.asPropertyAccessCall(node);
-    if (propertyAccessCall === undefined) {
+  ): MethodCall | undefined {
+    if (!PvlAst.isDirectPvlCall(node, pvlImportLocalNames)) {
       return undefined;
     }
-    const { call, receiver, methodName } = propertyAccessCall;
-    return Node.isIdentifier(receiver) && pvlImportLocalNames.has(receiver.getText())
-      ? { call, methodName }
-      : undefined;
+    return {
+      call: node,
+      methodName: node.getExpression().getName() as PvlSchemaModifierMethodName,
+    };
   }
 
   /**
@@ -145,7 +134,7 @@ export class PvlAst {
     return sourceFile
       .getDescendants()
       .flatMap((node) => PvlAst.asDirectPvlCall(node, pvlImportLocalNames) ?? [])
-      .filter(({ methodName }) => methodName === 'compile')
+      .filter(({ methodName }) => methodName === PVL_OBJECT_PROPERTY_NAMES_ENUM.COMPILE)
       .map(({ call }) => call);
   }
 
@@ -155,9 +144,11 @@ export class PvlAst {
    * Modifier, a Constraint or an unknown property onto it. `undefined` when
    * nothing is read off the result, or only `validate`.
    *
+   * - Used for checking (there cannot be any modifier after `pvl.compile()`)
+   *
    * ```ts
-   * pvl.compile(user).optional()      // 'optional'
-   * pvl.compile(tags).min(1)          // 'min'
+   * pvl.compile(user).optional()      // 'optional' - not allowed
+   * pvl.compile(tags).min(1)          // 'min' - not allowed
    * pvl.compile(user).strict          // 'strict': read, even when not called
    * pvl.compile(user).validate(input) // undefined: a Compiled Schema has it
    * pvl.compile(user).standalone()    // undefined: a Compiled Schema has it
@@ -171,7 +162,9 @@ export class PvlAst {
 
     return Node.isPropertyAccessExpression(parent) &&
       parent.getExpression() === call &&
-      !COMPILE_MARKER_ALLOWED_MEMBERS.has(parent.getName())
+      !COMPILE_MARKER_ALLOWED_PROPERTY_NAMES.has(
+        parent.getName() as CompileMarkerAllowedPropertyName,
+      )
       ? parent.getName()
       : undefined;
   }

@@ -1,6 +1,6 @@
 // `pvl.array(element)`: a composite whose elements each match one Schema,
 // read from its argument, compiled by ArraySchemaEmitter.
-import type { CallChainLink } from '../ast/pvlAst.js';
+import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
@@ -38,7 +38,7 @@ export class ArraySchema extends Schema {
    * missing or can't be read.
    */
   public static readFactoryArgument(
-    link: CallChainLink,
+    link: MethodCallWithFollowedConsts,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ArraySchema {
     const element = readNested(Schema.readArgument(link), link.followed);

@@ -1,43 +1,90 @@
-// Every `code` an Issue can carry.
-import type { ValueOfEnum } from '@repo/types';
+import { omit } from 'lodash-es';
+import type {
+  PvlObjectPropertyName,
+  PvlSchemaFactoryName,
+  PvlSchemaMethodName,
+  PvlSchemaModifierMethodName,
+  PvlSchemaPropertyName,
+} from './types.js';
+
+export const PVL_OBJECT_PROPERTY_NAMES_ENUM = {
+  STRING: 'string',
+  NUMBER: 'number',
+  BOOLEAN: 'boolean',
+  BIGINT: 'bigint',
+  LITERAL: 'literal',
+  ENUM: 'enum',
+  OBJECT: 'object',
+  ARRAY: 'array',
+  UNION: 'union',
+  COMPILE: 'compile',
+} as const satisfies {
+  // `compile` marks an existing Schema rather than building one.
+  readonly [Factory in PvlObjectPropertyName as Uppercase<Factory>]: Factory;
+};
 
 /**
- * Every `code` an {@link Issue} can carry. Match on these rather than on
- * `message`, which is prose and can be replaced per call site with a custom
- * `{ message }` option.
+ * Every `pvl.*` factory a Schema is built from, valued by its name on `pvl`.
  *
  * @example
  * ```ts
- * import { ISSUE_CODE, pvl } from '@pvl/schema';
+ * import { pvl, SCHEMA_FACTORY_NAME_ENUM } from '@pvl/schema';
  *
- * const result = pvl.string().min(3).validate('hi');
- * if (result.issues) {
- *   result.issues[0]?.code === ISSUE_CODE.TOO_SMALL; // true
- * }
+ * pvl[SCHEMA_FACTORY_NAME_ENUM.STRING]().validate('hi'); // { value: 'hi' }
  * ```
  */
-export const ISSUE_CODE = {
-  INVALID_TYPE: 'INVALID_TYPE',
-  INVALID_VALUE: 'INVALID_VALUE',
-  TOO_SMALL: 'TOO_SMALL',
-  TOO_BIG: 'TOO_BIG',
-  INVALID_LENGTH: 'INVALID_LENGTH',
-  NOT_INTEGER: 'NOT_INTEGER',
-  UNRECOGNIZED_KEY: 'UNRECOGNIZED_KEY',
-  INVALID_UNION: 'INVALID_UNION',
-  CUSTOM: 'CUSTOM',
-} as const;
+export const PVL_FACTORY_NAMES_ENUM = omit(PVL_OBJECT_PROPERTY_NAMES_ENUM, 'COMPILE') satisfies {
+  // `compile` marks an existing Schema rather than building one.
+  readonly [Factory in PvlSchemaFactoryName as Uppercase<Factory>]: Factory;
+};
 
 /**
- * The union of {@link ISSUE_CODE}'s values — the type of {@link Issue}'s
- * `code` field.
+ * Every {@link PvlSchemaPropertyName}, valued by its name on the Schema.
  *
- * @example
- * ```ts
- * import { ISSUE_CODE, type IssueCode } from '@pvl/schema';
- *
- * const isSizeProblem = (code: IssueCode): boolean =>
- *   code === ISSUE_CODE.TOO_SMALL || code === ISSUE_CODE.TOO_BIG;
- * ```
+ * @internal
  */
-export type IssueCode = ValueOfEnum<typeof ISSUE_CODE>;
+export const PVL_SCHEMA_PROPERTY_NAMES_ENUM = {
+  VALIDATE: 'validate',
+  STANDALONE: 'standalone',
+  OPTIONAL: 'optional',
+  NULLABLE: 'nullable',
+  COERCE: 'coerce',
+  MIN: 'min',
+  MAX: 'max',
+  LENGTH: 'length',
+  INT: 'int',
+  STRICT: 'strict',
+  PASSTHROUGH: 'passthrough',
+  REFINE: 'refine',
+  TRANSFORM: 'transform',
+  ELEMENT: 'element',
+  SHAPE: 'shape',
+} as const satisfies {
+  readonly [Name in PvlSchemaPropertyName as Uppercase<Name>]: Name;
+};
+
+/**
+ * Every {@link PvlSchemaMethodName}, valued by its name on the Schema.
+ *
+ * @internal
+ */
+export const PVL_SCHEMA_METHOD_NAME_ENUM = omit(
+  PVL_SCHEMA_PROPERTY_NAMES_ENUM,
+  'ELEMENT',
+  'SHAPE',
+) satisfies {
+  readonly [Name in PvlSchemaMethodName as Uppercase<Name>]: Name;
+};
+
+/**
+ * Every {@link PvlSchemaModifierMethodName}, valued by its name on the Schema.
+ *
+ * @internal
+ */
+export const PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM = omit(
+  PVL_SCHEMA_METHOD_NAME_ENUM,
+  'VALIDATE',
+  'STANDALONE',
+) satisfies {
+  readonly [Name in PvlSchemaModifierMethodName as Uppercase<Name>]: Name;
+};

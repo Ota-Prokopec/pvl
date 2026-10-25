@@ -8,11 +8,11 @@
 import type { Node } from 'ts-morph';
 import { ConstCycleError } from '../ast/constCycleError.js';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import { PvlAst, type CallChainLink, type ChainedMethodCall } from '../ast/pvlAst.js';
+import { PvlAst, type MethodCallWithFollowedConsts, type MethodCall } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { MODIFIER_NAME, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
-import { STANDALONE_METHOD_NAME } from '../consts.js';
+import { COMPILE_METHOD_NAME, STANDALONE_METHOD_NAME } from '../consts.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { ArraySchema } from './arraySchema.js';
@@ -38,7 +38,7 @@ type SchemaClass = {
    * argument.
    */
   readFactoryArgument: (
-    link: CallChainLink,
+    link: MethodCallWithFollowedConsts,
     args: ReadFactoryArgs,
   ) => (options: SchemaOptions) => Schema;
 };
@@ -229,12 +229,12 @@ const readExpression = (
   args: ReadingArgs,
   expression: Node,
   followed?: FollowedConsts,
-  outerMethods: ReadonlyArray<ChainedMethodCall> = [],
+  outerMethods: ReadonlyArray<MethodCall> = [],
 ): Schema => {
   const { factory, methods } = PvlAst.readCallChain(expression, args.pvlImportLocalNames, followed);
   const chainedMethods = [...methods, ...outerMethods];
   const [argument] = factory.call.getArguments();
-  if (factory.methodName === 'compile' && argument !== undefined) {
+  if (factory.methodName === COMPILE_METHOD_NAME && argument !== undefined) {
     return readExpression(args, argument, factory.followed, chainedMethods);
   }
   if (!isSchemaFactory(factory.methodName)) {
@@ -287,7 +287,7 @@ const isSchemaFactory = (methodName: string): methodName is SchemaFactory =>
  * ```
  */
 const readMethodCall = (
-  { call, methodName }: ChainedMethodCall,
+  { call, methodName }: MethodCall,
   runtimeArguments: RuntimeArgument[],
 ): SchemaModifierCall => ({
   name: methodName,

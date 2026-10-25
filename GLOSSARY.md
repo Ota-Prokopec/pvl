@@ -10,6 +10,18 @@ A TypeScript validation stack: a Zod-style schema library, and a compiler that t
 A declarative description of the shape and constraints a value must satisfy, which values can be validated against. Not every Schema takes Modifiers; one that does is a Chainable Schema. In code, `Schema` is the interface every Schema implements, an Interpreted Schema and a Compiled Schema alike, kept nominal by a type-only brand ([ADR-0029](./docs/adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md)), with `.standalone()` on it ([ADR-0036](./docs/adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md)). One Schema is one factory call with its chained methods, and a composite Schema holds others: `pvl.array(pvl.string())` is a Schema, and so is its element `pvl.string()`. `@pvl/schema-compiler` has its own abstract `Schema` class, for one Schema written in a Module, read from source, with one subclass per factory, named for its schema type as its `@pvl/schema` counterpart is (`ObjectSchema` for `ObjectInterpretedSchema`, `EnumSchema`); each subclass reads its factory's argument and names its Emitter, and `compile()` compiles it whether it is marked to compile or not ([ADR-0026](./docs/adr/0026-the-compiler-reads-each-factory-into-its-own-schema-subclass.md)). `readSchema` (`src/schemas/readSchema.ts`) picks the subclass by its factory ([ADR-0034](./docs/adr/0034-every-factory-is-read-through-one-readschema-module-holding-the-factory-to-class-map.md)). A composite Schema's fields and elements are themselves Schemas built by `@pvl/schema`; a Standard Schema from another library is never one ([ADR-0018](./docs/adr/0018-composite-fields-are-pvl-schemas-only.md)).
 _Avoid_: Type, Model, Standard Schema (for this library's own Schemas).
 
+**Pvl Object**:
+The `pvl` object `@pvl/schema` exports, which every Pvl Schema is built from: it holds one Pvl Factory per schema type and `compile`, which isn't one, as it builds no Schema but marks one for AOT Compilation. In code, `pvl` in `packages/schema/src/pvl.ts`, whose members `PvlObjectPropertyName` names.
+_Avoid_: pvl namespace, Schema builder, factory object.
+
+**Pvl Factory**:
+A method of the Pvl Object that builds a Pvl Schema of one schema type, such as `pvl.string`, `pvl.object` or `pvl.enum`. A Pvl Factory takes no options, only its schema type's own argument, such as an object's shape ([ADR-0019](./docs/adr/0019-factories-take-no-options.md)). In code, `PvlFactoryName` (`packages/schema/src/types.ts`) names each one; in `@pvl/schema-compiler`, each has its own `Schema` subclass ([ADR-0026](./docs/adr/0026-the-compiler-reads-each-factory-into-its-own-schema-subclass.md)).
+_Avoid_: Schema constructor, builder, creator.
+
+**Pvl Schema**:
+A Schema built from the Pvl Object: one Pvl Factory call and every method chained onto it, such as `pvl.string()` or `pvl.number().max(10).min(0)`, a Transform included. Every Pvl Schema is an Interpreted Schema. The Schema a `pvl.compile(...)` call wraps is one, but the Compiled Schema that replaces the call isn't, and neither is a Standard Schema from another library. In code, `PvlSchemaPropertyName`, `PvlSchemaMethodName` and `PvlSchemaModifierMethodName` (`packages/schema/src/types.ts`) name the members a Pvl Schema can have.
+_Avoid_: Factory Schema, built Schema.
+
 **Issue**:
 A single reported failure produced when a value doesn't satisfy a Schema.
 _Avoid_: Error, Violation.

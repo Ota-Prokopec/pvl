@@ -3,7 +3,7 @@
 import type { EnumMember } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import type { CallChainLink } from '../ast/pvlAst.js';
+import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
 import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
@@ -42,7 +42,9 @@ export class EnumSchema extends Schema {
    * Throws an UnresolvedNodeError when its argument is missing, or isn't a
    * non-empty string array or object of strings and numbers.
    */
-  public static readFactoryArgument(link: CallChainLink): (options: SchemaOptions) => EnumSchema {
+  public static readFactoryArgument(
+    link: MethodCallWithFollowedConsts,
+  ): (options: SchemaOptions) => EnumSchema {
     const members = EnumSchema.readMembers(Schema.readArgument(link), link.followed);
     return (options: SchemaOptions): EnumSchema => new EnumSchema({ ...options, members });
   }

@@ -2,7 +2,7 @@
 // read from its argument. It has no Emitter yet, so it is reported as
 // UNSUPPORTED_SCHEMA wherever it is written.
 import { GenericAst } from '../ast/genericAst.js';
-import type { CallChainLink } from '../ast/pvlAst.js';
+import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
@@ -42,7 +42,7 @@ export class UnionSchema extends Schema {
    * be read.
    */
   public static readFactoryArgument(
-    link: CallChainLink,
+    link: MethodCallWithFollowedConsts,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => UnionSchema {
     const members = GenericAst.readArray(Schema.readArgument(link), readNested, link.followed);
