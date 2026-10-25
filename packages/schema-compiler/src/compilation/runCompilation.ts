@@ -16,28 +16,7 @@ import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject.js';
 import { Precheck } from '../precheck.js';
 import { Scanner } from '../scanner.js';
-
-/**
- * What a {@link runCompilation} run reports.
- *
- * @example
- * ```ts
- * import { runCompilation } from '@pvl/schema-compiler';
- *
- * const { diagnostics, written, destination } = await runCompilation({ cwd: process.cwd() });
- * if (written) console.log(`wrote ${destination}`);
- * ```
- */
-export type RunCompilationPayload = {
-  /** Every diagnostic, errors and warnings alike, in the order they were found. */
-  diagnostics: Diagnostic[];
-  /** The merged settings, or `undefined` when they couldn't be resolved. */
-  settings: PvlConfig | undefined;
-  /** The Destination Directory's absolute path, once settings resolved. */
-  destination: string | undefined;
-  /** Whether the Destination Directory was written. Never `true` when an error fired. */
-  written: boolean;
-};
+import type { CompilationOutput } from './types.js';
 
 /**
  * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
@@ -71,7 +50,7 @@ const createDestinationInsideIncludeDiagnostic = (
  * await runCompilation(args);
  * ```
  */
-export type RunCompilationArgs = {
+type RunCompilationArgs = {
   /** The working directory: where `pvlconfig.json` is looked for, and the base directory without one. */
   cwd: string;
   /** The config file, relative to `cwd`. Defaults to `pvlconfig.json` in `cwd`, which may be absent. */
@@ -108,7 +87,7 @@ export type RunCompilationArgs = {
  * const failed = Diagnostics.hasError(diagnostics);
  * ```
  */
-export const runCompilation = async (args: RunCompilationArgs): Promise<RunCompilationPayload> => {
+export const runCompilation = async (args: RunCompilationArgs): Promise<CompilationOutput> => {
   const payload = await runCompilationWithoutPromoting(args);
   // Promoted here, once, so every warning comes back as an error whichever
   // step the run returned from.
@@ -136,14 +115,15 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
-}: RunCompilationArgs): Promise<RunCompilationPayload> => {
+}: RunCompilationArgs): Promise<CompilationOutput> => {
   const resolvedSettingsPayload = await ConfigResolver.resolveConfig({
     cwd: path.resolve(cwd),
     configPath,
     overrides,
   });
 
-  if (resolvedSettingsPayload.settings === undefined) {
+  if (!resolvedSettingsPayload.isResolved) {
+    //TODO: this will throw an error in the future
     return {
       diagnostics: resolvedSettingsPayload.diagnostics,
       settings: undefined,
@@ -152,13 +132,12 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
-  const { settings, baseDirectory } = resolvedSettingsPayload;
-  const destination = Destination.resolveDestination(baseDirectory, settings);
-  const rootDirectory = path.resolve(baseDirectory, settings.rootDir);
+  const { rawSettings, baseDirectory, destination } = resolvedSettingsPayload;
+  const rootDirectory = path.resolve(baseDirectory, rawSettings.rootDir);
 
   const [destinationDiagnostics, scannedFilePaths] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
-    Scanner.scan({ baseDirectory, include: settings.include, destination }),
+    Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
   ]);
 
   // What the destination and `include` raise before any file is read.
@@ -212,7 +191,7 @@ const runCompilationWithoutPromoting = async ({
     tsMorphProject,
     compilations,
     generatesBarrel,
-    withTypes: settings.withTypes,
+    withTypes: rawSettings.withTypes,
   });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =

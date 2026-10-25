@@ -3,8 +3,8 @@
 import type { PossibleLiteralValue } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
-import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
+import type { PvlFactoryCall } from '../ast/types.js';
+import { UnresolvedNodeException } from '../exceptions/index.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type SchemaOptions } from './schema.js';
@@ -39,11 +39,11 @@ export class LiteralSchema extends Schema {
   /**
    * Reads the value of the `pvl.literal(value)` `link` calls, and returns
    * how its LiteralSchema is built from it and what every Schema holds.
-   * Throws an UnresolvedNodeError when its argument is missing, isn't a
+   * Throws an UnresolvedNodeException when its argument is missing, isn't a
    * literal, or is an object or an array.
    */
   public static readFactoryArgument(
-    link: MethodCallWithFollowedConsts,
+    link: PvlFactoryCall,
   ): (options: SchemaOptions) => LiteralSchema {
     const value = LiteralSchema.readValue(Schema.readArgument(link), link.followed);
     return (options: SchemaOptions): LiteralSchema => new LiteralSchema({ ...options, value });
@@ -60,7 +60,7 @@ export class LiteralSchema extends Schema {
   private static readValue(argument: Node, followed: FollowedConsts): PossibleLiteralValue {
     const value = GenericAst.readStaticValue(argument, followed);
     if (typeof value === 'object') {
-      throw new UnresolvedNodeError(argument);
+      throw new UnresolvedNodeException(argument);
     }
     return value;
   }

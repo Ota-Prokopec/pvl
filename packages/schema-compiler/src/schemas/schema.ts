@@ -10,8 +10,8 @@
 // `Schema` exists (ADR-0034).
 import type { Node } from 'ts-morph';
 import type { FollowedConsts } from '../ast/genericAst.js';
-import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
-import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
+import type { PvlFactoryCall } from '../ast/types.js';
+import { UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
@@ -199,8 +199,10 @@ export abstract class Schema {
    * Compilable Schema, at the root or nested alike:
    *
    * - UNSUPPORTED_SCHEMA: a Schema with no Emitter (a union), or a method
-   *   its Emitter can't compile, as when the source calls one `@pvl/schema`
-   *   doesn't have.
+   *   its Emitter can't compile, as when the source chains another Schema's
+   *   onto it (`pvl.string().strict()`). A method `@pvl/schema` doesn't have
+   *   at all is reported while the Schema is read, which stops there
+   *   (ADR-0038).
    * - COMPILE_ARGUMENT_UNRESOLVABLE: a compiled method's argument is spread,
    *   so it has no fixed position; any other argument it can't read is a
    *   Runtime Argument.
@@ -280,7 +282,7 @@ export abstract class Schema {
 
   /**
    * The argument of `link`, the factory call, which every factory but the
-   * primitives needs. Throws an UnresolvedNodeError at the call when there
+   * primitives needs. Throws an UnresolvedNodeException at the call when there
    * is none.
    *
    * ```ts
@@ -288,10 +290,10 @@ export abstract class Schema {
    * Schema.readArgument(<pvl.array()>)             // throws
    * ```
    */
-  protected static readArgument({ call }: MethodCallWithFollowedConsts): Node {
+  protected static readArgument({ call }: PvlFactoryCall): Node {
     const [argument] = call.getArguments();
     if (argument === undefined) {
-      throw new UnresolvedNodeError(call);
+      throw new UnresolvedNodeException(call);
     }
     return argument;
   }
@@ -305,7 +307,7 @@ export abstract class Schema {
    * .min(MIN_FROM_IMPORT) on a string    // undefined: a Runtime Argument
    * .optional() on the root object       // undefined
    * .refine(isOk) on a string            // undefined: a Runtime Argument
-   * .trim() on a string                  // UNSUPPORTED_SCHEMA: no such method
+   * .strict() on a string                // UNSUPPORTED_SCHEMA: an object's method
    * .min(...limits) on a string          // COMPILE_ARGUMENT_UNRESOLVABLE
    * ```
    */

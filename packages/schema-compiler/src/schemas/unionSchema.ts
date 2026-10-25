@@ -2,7 +2,7 @@
 // read from its argument. It has no Emitter yet, so it is reported as
 // UNSUPPORTED_SCHEMA wherever it is written.
 import { GenericAst } from '../ast/genericAst.js';
-import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
+import type { PvlFactoryCall } from '../ast/types.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
@@ -37,12 +37,12 @@ export class UnionSchema extends Schema {
   /**
    * Reads the members of the `pvl.union(members)` `link` calls, each
    * through `readNested`, and returns how its UnionSchema is built from
-   * them and what every Schema holds. Throws an UnresolvedNodeError when
+   * them and what every Schema holds. Throws an UnresolvedNodeException when
    * its members are missing or aren't an array literal, or a member can't
    * be read.
    */
   public static readFactoryArgument(
-    link: MethodCallWithFollowedConsts,
+    link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => UnionSchema {
     const members = GenericAst.readArray(Schema.readArgument(link), readNested, link.followed);

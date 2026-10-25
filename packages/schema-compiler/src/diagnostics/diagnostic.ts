@@ -88,4 +88,8 @@ export class Diagnostic {
   public promote(): Diagnostic {
     return new Diagnostic({ ...this, severity: SEVERITY.ERROR });
   }
+
+  public toString(): string {
+    return `${this.severity.toLowerCase()} ${this.code}: ${this.message}${this.file === undefined ? '' : ` (${this.file})`}\n`;
+  }
 }

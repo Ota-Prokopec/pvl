@@ -12,9 +12,8 @@ import {
   type StringLiteral,
   type VariableDeclaration,
 } from 'ts-morph';
-import { ConstCycleError } from './ast/constCycleError.js';
 import { PvlAst } from './ast/pvlAst.js';
-import { UnresolvedNodeError } from './ast/unresolvedNodeError.js';
+import { BaseException } from './exceptions/index.js';
 import {
   COMPILED_SCHEMA_IMPORT,
   GENERATED_HEADER,
@@ -205,7 +204,8 @@ export class Module {
 
   /**
    * Whether `declaration` binds one name to a Schema: every `pvl.*` method
-   * returns one, so any chain that ends in no `.validate()` does.
+   * returns one, so any chain that ends in no `.validate()` does. A chain
+   * calling a method `@pvl/schema` doesn't have returns nothing known.
    *
    * ```ts
    * const user = pvl.object({ … });      // true
@@ -213,6 +213,7 @@ export class Module {
    * const result = user.validate(input); // false: a Result
    * const getUser = () => pvl.string();  // false: a function
    * const { shape } = user;              // false: destructuring
+   * const name = pvl.string().foo();     // false: `@pvl/schema` has no `foo`
    * ```
    */
   private static holdsSchema(
@@ -228,7 +229,7 @@ export class Module {
         ({ methodName }) => methodName !== 'validate',
       );
     } catch (error) {
-      if (error instanceof UnresolvedNodeError || error instanceof ConstCycleError) {
+      if (error instanceof BaseException) {
         return false;
       }
       throw error;

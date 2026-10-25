@@ -1,6 +1,6 @@
 // `pvl.array(element)`: a composite whose elements each match one Schema,
 // read from its argument, compiled by ArraySchemaEmitter.
-import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
+import type { PvlFactoryCall } from '../ast/types.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
@@ -34,11 +34,11 @@ export class ArraySchema extends Schema {
   /**
    * Reads the element of the `pvl.array(element)` `link` calls through
    * `readNested`, and returns how its ArraySchema is built from it and what
-   * every Schema holds. Throws an UnresolvedNodeError when its element is
+   * every Schema holds. Throws an UnresolvedNodeException when its element is
    * missing or can't be read.
    */
   public static readFactoryArgument(
-    link: MethodCallWithFollowedConsts,
+    link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ArraySchema {
     const element = readNested(Schema.readArgument(link), link.followed);

@@ -6,10 +6,10 @@
 // read. Nothing imports it back: `schema.ts` never does, and a subclass reads
 // the Schemas nested in it through the `readNested` it is handed (ADR-0034).
 import type { Node } from 'ts-morph';
-import { ConstCycleError } from '../ast/constCycleError.js';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
-import { PvlAst, type MethodCallWithFollowedConsts, type MethodCall } from '../ast/pvlAst.js';
-import { UnresolvedNodeError } from '../ast/unresolvedNodeError.js';
+import { PvlAst } from '../ast/pvlAst.js';
+import type { PvlFactoryCall, SchemaCall } from '../ast/types.js';
+import { BaseException, UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { MODIFIER_NAME, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
 import { COMPILE_METHOD_NAME, STANDALONE_METHOD_NAME } from '../consts.js';
@@ -38,7 +38,7 @@ type SchemaClass = {
    * argument.
    */
   readFactoryArgument: (
-    link: MethodCallWithFollowedConsts,
+    link: PvlFactoryCall,
     args: ReadFactoryArgs,
   ) => (options: SchemaOptions) => Schema;
 };
@@ -76,6 +76,9 @@ export type ModuleCompilation = {
  *   when it is imported, built by a function or spread.
  * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
  *   to itself.
+ * - UNSUPPORTED_SCHEMA: a method `@pvl/schema` doesn't have is called in
+ *   it, on `pvl` or on a Schema, which ends the reading, so only the first
+ *   one is reported (ADR-0038).
  * - UNSUPPORTED_SCHEMA, and COMPILE_ARGUMENT_UNRESOLVABLE for a spread
  *   method argument: see Schema.findUncompilableDiagnostics, one error per
  *   problem.
@@ -141,10 +144,12 @@ export type ReadSchemaArgs = {
 };
 
 /**
- * The Schema `expression` holds, as the subclass of its factory, or an
- * error on its Module's file: COMPILE_ARGUMENT_UNRESOLVABLE naming the
- * first node that can't be read statically, or COMPILE_ARGUMENT_CYCLE
- * naming a `const` that reaches itself. Only a call chain or a factory's
+ * The Schema `expression` holds, as the subclass of its factory, or the
+ * error its reading stopped at, on its Module's file, as the diagnostic the
+ * BaseException thrown names: COMPILE_ARGUMENT_UNRESOLVABLE naming the
+ * first node that can't be read statically, COMPILE_ARGUMENT_CYCLE naming a
+ * `const` that reaches itself, or UNSUPPORTED_SCHEMA naming the first
+ * method `@pvl/schema` doesn't have. Only a call chain or a factory's
  * argument can fail to read: a method's argument that isn't a literal is a
  * Runtime Argument, and a spread one is reported by
  * `Schema.findUncompilableDiagnostics` once the Schema is read, so it never
@@ -164,6 +169,8 @@ export type ReadSchemaArgs = {
  * readSchema({ expression: <pvl.compile(…)>, … })                  // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }, at <'a'>
  * // const user = pvl.object({ friend: user });
  * readSchema({ expression: <pvl.compile(user)>, … })               // { diagnostic: COMPILE_ARGUMENT_CYCLE }
+ * // export const name = pvl.compile(pvl.string().foo());
+ * readSchema({ expression: <pvl.compile(…)>, … })                  // { diagnostic: UNSUPPORTED_SCHEMA }, at <….foo()>
  * ```
  */
 export const readSchema = (
@@ -172,24 +179,13 @@ export const readSchema = (
   try {
     return { schema: readExpression({ ...args, runtimeArguments: [] }, args.expression) };
   } catch (error) {
-    if (error instanceof ConstCycleError) {
-      const { cycleNode } = error;
-      return {
-        diagnostic: new Diagnostic({
-          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
-          message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be read statically: the const \`${cycleNode.getText()}\` refers back to itself on line ${String(cycleNode.getStartLineNumber())}, so reading it would never end.`,
-          file: args.module.path.absolutePath,
-        }),
-      };
-    }
-    if (!(error instanceof UnresolvedNodeError)) {
+    if (!(error instanceof BaseException)) {
       throw error;
     }
-    const { unresolvedNode } = error;
     return {
       diagnostic: new Diagnostic({
-        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-        message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be read statically: \`${unresolvedNode.getText()}\` on line ${String(unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one.`,
+        code: error.errorCode,
+        message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be compiled: ${error.message}`,
         file: args.module.path.absolutePath,
       }),
     };
@@ -210,8 +206,9 @@ type ReadingArgs = ReadSchemaArgs & {
  * order). It reads in the order the Schema is written, which is the order
  * its Runtime Arguments are numbered in: the factory's argument, with every
  * Schema nested in it, then the methods chained onto the call. Throws an
- * UnresolvedNodeError at the first node that can't be read, or a
- * ConstCycleError at a `const` that reaches itself.
+ * UnresolvedNodeException at the first node that can't be read, a
+ * ConstCycleException at a `const` that reaches itself, or an
+ * UnknownPvlMethodException at the first method `@pvl/schema` doesn't have.
  *
  * ```ts
  * readExpression(args, <pvl.string().min(3)>)       // <StringSchema with calls [min(3)]>
@@ -223,13 +220,14 @@ type ReadingArgs = ReadSchemaArgs & {
  * readExpression(args, <pvl.object({ name: pvl.string().max(max) }).strict(options)>)
  * // <ObjectSchema with calls [strict(<Runtime Argument options, the 2nd>)]>, whose field reads <Runtime Argument max, the 1st>
  * readExpression(args, <makeSchema()>)              // throws
+ * readExpression(args, <pvl.string().foo()>)        // throws
  * ```
  */
 const readExpression = (
   args: ReadingArgs,
   expression: Node,
   followed?: FollowedConsts,
-  outerMethods: ReadonlyArray<MethodCall> = [],
+  outerMethods: ReadonlyArray<SchemaCall> = [],
 ): Schema => {
   const { factory, methods } = PvlAst.readCallChain(expression, args.pvlImportLocalNames, followed);
   const chainedMethods = [...methods, ...outerMethods];
@@ -238,7 +236,7 @@ const readExpression = (
     return readExpression(args, argument, factory.followed, chainedMethods);
   }
   if (!isSchemaFactory(factory.methodName)) {
-    throw new UnresolvedNodeError(factory.call);
+    throw new UnresolvedNodeException(factory.call);
   }
 
   const schemaClass: SchemaClass = SCHEMA_CLASS_BY_FACTORY[factory.methodName];
@@ -287,7 +285,7 @@ const isSchemaFactory = (methodName: string): methodName is SchemaFactory =>
  * ```
  */
 const readMethodCall = (
-  { call, methodName }: MethodCall,
+  { call, methodName }: SchemaCall,
   runtimeArguments: RuntimeArgument[],
 ): SchemaModifierCall => ({
   name: methodName,
@@ -322,7 +320,7 @@ const readMethodArguments = (
     try {
       return GenericAst.readLiteral(argument);
     } catch (error) {
-      if (!(error instanceof UnresolvedNodeError)) {
+      if (!(error instanceof UnresolvedNodeException)) {
         throw error;
       }
       const runtimeArgument = new RuntimeArgument(argument, runtimeArguments.length);

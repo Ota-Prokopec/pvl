@@ -13,8 +13,7 @@ import {
   type SourceFile,
   type VariableDeclaration,
 } from 'ts-morph';
-import { ConstCycleError } from './constCycleError.js';
-import { UnresolvedNodeError } from './unresolvedNodeError.js';
+import { ConstCycleException, UnresolvedNodeException } from '../exceptions/index.js';
 
 /** An argument written as a literal in source: `3`, `'a'`, `10n`, `{ message: 'too short' }`. */
 export type StaticValue =
@@ -41,7 +40,7 @@ export type PropertyAccessCallExpression = {
 
 /** A call of a property, `<receiver>.<methodName>(…)`, split into its parts. */
 export type PropertyAccessCall = {
-  call: CallExpression;
+  call: PropertyAccessCallExpression;
   /** What the property is read off: `pvl` in `pvl.string()`. */
   receiver: Node;
   /** The property called: `string` in `pvl.string()`. */
@@ -51,8 +50,8 @@ export type PropertyAccessCall = {
 /**
  * Static helpers for matching and reading ts-morph nodes. `is…`/`as…`
  * methods answer whether a node has a shape and never throw; `read…`/`follow…`
- * methods return a value and throw UnresolvedNodeError or ConstCycleError
- * when they can't.
+ * methods return a value and throw UnresolvedNodeException or
+ * ConstCycleException when they can't.
  *
  * A `followed` parameter carries the `const`s already being read; callers
  * leave it out, and each method passes it on when it recurses.
@@ -166,9 +165,9 @@ export class GenericAst {
    * (`unwrap`). An identifier is followed only when it names a top-level
    * `const` of `node`'s own file in its scope (`findTopLevelConst`): any
    * other identifier, one shadowing such a `const` included, throws
-   * UnresolvedNodeError, and a `const` that is reached again while it is
+   * UnresolvedNodeException, and a `const` that is reached again while it is
    * being followed, or while its value is being read (`followed`), throws
-   * ConstCycleError.
+   * ConstCycleException.
    *
    * ```ts
    * // const MIN = 3; const LIMIT = (MIN);
@@ -176,14 +175,14 @@ export class GenericAst {
    * GenericAst.followConst(<'a'>)              // { node: <'a'>, followed: {} }: no const to follow
    * GenericAst.followConst(<pvl.string()>)     // { node: <pvl.string()>, followed: {} }: only identifiers are followed
    * // import { user } from './user.js'; let limit = 3;
-   * GenericAst.followConst(<user>)             // throws UnresolvedNodeError(<user>): an import
-   * GenericAst.followConst(<limit>)            // throws UnresolvedNodeError(<limit>): a `let`
+   * GenericAst.followConst(<user>)             // throws UnresolvedNodeException(<user>): an import
+   * GenericAst.followConst(<limit>)            // throws UnresolvedNodeException(<limit>): a `let`
    * // const MIN = 3; (MIN: number) => MIN;
-   * GenericAst.followConst(<MIN>)              // throws UnresolvedNodeError(<MIN>): `MIN` is the parameter
+   * GenericAst.followConst(<MIN>)              // throws UnresolvedNodeException(<MIN>): `MIN` is the parameter
    * // const a = b; const b = a;
-   * GenericAst.followConst(<a>)                // throws ConstCycleError(<a>), at the second `a`
+   * GenericAst.followConst(<a>)                // throws ConstCycleException(<a>), at the second `a`
    * // const user = pvl.object({ friend: user });
-   * GenericAst.followConst(<user>, {<user = …>}) // throws ConstCycleError(<user>): `user` is already being read
+   * GenericAst.followConst(<user>, {<user = …>}) // throws ConstCycleException(<user>): `user` is already being read
    * ```
    */
   public static followConst(node: Node, followed: FollowedConsts = new Set()): FollowedNode {
@@ -195,11 +194,11 @@ export class GenericAst {
     const declaration = GenericAst.findTopLevelConst(unwrappedNode);
     const initializer = declaration?.getInitializer();
     if (declaration === undefined || initializer === undefined) {
-      throw new UnresolvedNodeError(unwrappedNode);
+      throw new UnresolvedNodeException(unwrappedNode);
     }
 
     if (followed.has(declaration)) {
-      throw new ConstCycleError(unwrappedNode);
+      throw new ConstCycleException(unwrappedNode);
     }
 
     return GenericAst.followConst(initializer, new Set([...followed, declaration]));
@@ -247,11 +246,11 @@ export class GenericAst {
    * following `const`s: a string, number, bigint or boolean literal, a
    * template literal with no `${…}`, `-`, `+` or `!` applied to one any number
    * of times (`readPrefixUnary`), or an array or object literal built of
-   * them. Anything else throws UnresolvedNodeError at the node that can't be
-   * read: a call, an import, a `let`, a spread, a template with `${…}`, a
+   * them. Anything else throws UnresolvedNodeException at the node that can't
+   * be read: a call, an import, a `let`, a spread, a template with `${…}`, a
    * binary expression, and `++`/`--`, which assign and so never read
    * ([ADR-0025](../../../../docs/adr/0025-static-reading-never-evaluates-an-assignment.md)).
-   * A `const` that reaches itself throws ConstCycleError.
+   * A `const` that reaches itself throws ConstCycleException.
    *
    * ```ts
    * GenericAst.readStaticValue(<'a'>)                  // 'a'
@@ -262,11 +261,11 @@ export class GenericAst {
    * GenericAst.readStaticValue(<+'2'>)                 // 2
    * GenericAst.readStaticValue(<{ message: 'x' }>)     // { message: 'x' }
    * GenericAst.readStaticValue(<['A', MIN]>)           // ['A', 3], with `const MIN = 3`
-   * GenericAst.readStaticValue(<Math.max(1, 2)>)       // throws UnresolvedNodeError(<Math.max(1, 2)>)
-   * GenericAst.readStaticValue(<`${prefix}a`>)         // throws UnresolvedNodeError: a template with `${…}`
-   * GenericAst.readStaticValue(<++count>)              // throws UnresolvedNodeError(<++count>)
+   * GenericAst.readStaticValue(<Math.max(1, 2)>)       // throws UnresolvedNodeException(<Math.max(1, 2)>)
+   * GenericAst.readStaticValue(<`${prefix}a`>)         // throws UnresolvedNodeException: a template with `${…}`
+   * GenericAst.readStaticValue(<++count>)              // throws UnresolvedNodeException(<++count>)
    * // const options = { message: options };
-   * GenericAst.readStaticValue(<options>)              // throws ConstCycleError(<options>), the inner one
+   * GenericAst.readStaticValue(<options>)              // throws ConstCycleException(<options>), the inner one
    * ```
    */
   public static readStaticValue(node: Node, followed: FollowedConsts = new Set()): StaticValue {
@@ -300,14 +299,14 @@ export class GenericAst {
         ...GenericAst.readObject(value, GenericAst.readStaticValue, reading),
       };
     }
-    throw new UnresolvedNodeError(value);
+    throw new UnresolvedNodeException(value);
   }
 
   /**
    * The value `node` evaluates to when it is a literal written in place, read
    * as `readStaticValue` reads one but following no `const`: a name of a
-   * top-level `const` anywhere in it throws UnresolvedNodeError at that name,
-   * as does any other name `readStaticValue` meets. A property's own name and
+   * top-level `const` anywhere in it throws UnresolvedNodeException at that
+   * name, as does any other name `readStaticValue` meets. A property's own name and
    * a type are no names it reads.
    *
    * ```ts
@@ -316,9 +315,9 @@ export class GenericAst {
    * GenericAst.readLiteral(<['a'] as const>)    // ['a']
    * // const MAX = 3; const MESSAGE = 'x';
    * GenericAst.readLiteral(<3 as typeof MAX>)   // 3: `MAX` is in a type
-   * GenericAst.readLiteral(<MAX>)               // throws UnresolvedNodeError(<MAX>)
-   * GenericAst.readLiteral(<-MAX>)              // throws UnresolvedNodeError(<MAX>)
-   * GenericAst.readLiteral(<{ message: MESSAGE }>) // throws UnresolvedNodeError(<MESSAGE>)
+   * GenericAst.readLiteral(<MAX>)               // throws UnresolvedNodeException(<MAX>)
+   * GenericAst.readLiteral(<-MAX>)              // throws UnresolvedNodeException(<MAX>)
+   * GenericAst.readLiteral(<{ message: MESSAGE }>) // throws UnresolvedNodeException(<MESSAGE>)
    * ```
    */
   public static readLiteral(node: Node): StaticValue {
@@ -329,7 +328,7 @@ export class GenericAst {
         GenericAst.findTopLevelConst(descendant) !== undefined,
     );
     if (constName !== undefined) {
-      throw new UnresolvedNodeError(constName);
+      throw new UnresolvedNodeException(constName);
     }
     return GenericAst.readStaticValue(node);
   }
@@ -358,10 +357,10 @@ export class GenericAst {
    * GenericAst.readPrefixUnary(<+'2'>)    // 2
    * GenericAst.readPrefixUnary(<+true>)   // 1
    * GenericAst.readPrefixUnary(<+'abc'>)  // NaN
-   * GenericAst.readPrefixUnary(<-'2'>)    // throws UnresolvedNodeError(<-'2'>): `-` reads only numbers and bigints
-   * GenericAst.readPrefixUnary(<+10n>)    // throws UnresolvedNodeError(<+10n>): a TypeError at runtime
-   * GenericAst.readPrefixUnary(<++count>) // throws UnresolvedNodeError(<++count>): an assignment
-   * GenericAst.readPrefixUnary(<~1>)      // throws UnresolvedNodeError(<~1>)
+   * GenericAst.readPrefixUnary(<-'2'>)    // throws UnresolvedNodeException(<-'2'>): `-` reads only numbers and bigints
+   * GenericAst.readPrefixUnary(<+10n>)    // throws UnresolvedNodeException(<+10n>): a TypeError at runtime
+   * GenericAst.readPrefixUnary(<++count>) // throws UnresolvedNodeException(<++count>): an assignment
+   * GenericAst.readPrefixUnary(<~1>)      // throws UnresolvedNodeException(<~1>)
    * ```
    */
   private static readPrefixUnary(
@@ -374,7 +373,7 @@ export class GenericAst {
       operator !== SyntaxKind.MinusToken &&
       operator !== SyntaxKind.PlusToken
     ) {
-      throw new UnresolvedNodeError(expression);
+      throw new UnresolvedNodeException(expression);
     }
 
     const operand = GenericAst.readStaticValue(expression.getOperand(), followed);
@@ -393,21 +392,21 @@ export class GenericAst {
     ) {
       return Number(operand);
     }
-    throw new UnresolvedNodeError(expression);
+    throw new UnresolvedNodeException(expression);
   }
 
   /**
    * The elements of the array literal `node` holds, following `const`s, each
    * read by `readElement` with the `const`s followed so far, in order. Any
-   * other node throws UnresolvedNodeError; a spread is passed to
+   * other node throws UnresolvedNodeException; a spread is passed to
    * `readElement` like any element, which rejects it.
    *
    * ```ts
    * GenericAst.readArray(<[pvl.string(), user]>, readNested)  // [<StringSchema>, <what `const user` holds>]
    * GenericAst.readArray(<MEMBERS>, readStaticValue)          // ['A', 'B'], with `const MEMBERS = ['A', 'B']`
    * GenericAst.readArray(<[]>, readStaticValue)               // []
-   * GenericAst.readArray(<[...base]>, readStaticValue)        // throws UnresolvedNodeError(<...base>), from readStaticValue
-   * GenericAst.readArray(<'a'>, readStaticValue)              // throws UnresolvedNodeError(<'a'>): not an array
+   * GenericAst.readArray(<[...base]>, readStaticValue)        // throws UnresolvedNodeException(<...base>), from readStaticValue
+   * GenericAst.readArray(<'a'>, readStaticValue)              // throws UnresolvedNodeException(<'a'>): not an array
    * ```
    */
   public static readArray<Element>(
@@ -417,7 +416,7 @@ export class GenericAst {
   ): Element[] {
     const { node: array, followed: reading } = GenericAst.followConst(node, followed);
     if (!Node.isArrayLiteralExpression(array)) {
-      throw new UnresolvedNodeError(array);
+      throw new UnresolvedNodeException(array);
     }
     return array.getElements().map((element) => readElement(element, reading));
   }
@@ -431,7 +430,7 @@ export class GenericAst {
    * `__proto__: …` sets the prototype rather than adding a key, so it is
    * left out; a computed `['__proto__']: …` is a key. A shorthand `{ age }`
    * reads `age` as an expression. Any other node, a spread, a method or an
-   * accessor throws UnresolvedNodeError.
+   * accessor throws UnresolvedNodeException.
    *
    * ```ts
    * GenericAst.readObject(<{ name: 'a', 'e-mail': 'b' }>, readStaticValue) // { name: 'a', 'e-mail': 'b' }
@@ -440,9 +439,9 @@ export class GenericAst {
    * GenericAst.readObject(<{ a: 1, a: 2 }>, readStaticValue)               // { a: 2 }
    * GenericAst.readObject(<{ __proto__: 1 }>, readStaticValue)             // {}: it sets the prototype
    * GenericAst.readObject(<{ ['__proto__']: 1 }>, readStaticValue)         // { __proto__: 1 }, an own key
-   * GenericAst.readObject(<{ ...base }>, readStaticValue)                  // throws UnresolvedNodeError(<...base>)
-   * GenericAst.readObject(<{ get a() { return 1; } }>, readStaticValue)    // throws UnresolvedNodeError(<get a() …>)
-   * GenericAst.readObject(<['a']>, readStaticValue)                        // throws UnresolvedNodeError(<['a']>): not an object
+   * GenericAst.readObject(<{ ...base }>, readStaticValue)                  // throws UnresolvedNodeException(<...base>)
+   * GenericAst.readObject(<{ get a() { return 1; } }>, readStaticValue)    // throws UnresolvedNodeException(<get a() …>)
+   * GenericAst.readObject(<['a']>, readStaticValue)                        // throws UnresolvedNodeException(<['a']>): not an object
    * ```
    */
   public static readObject<Value>(
@@ -453,7 +452,7 @@ export class GenericAst {
     const { node: object, followed: reading } = GenericAst.followConst(node, followed);
 
     if (!Node.isObjectLiteralExpression(object)) {
-      throw new UnresolvedNodeError(object);
+      throw new UnresolvedNodeException(object);
     }
 
     // No prototype, so every key, `__proto__` included, is an own key.
@@ -472,7 +471,7 @@ export class GenericAst {
         : undefined;
 
       if (!Node.isPropertyAssignment(property) || initializer === undefined) {
-        throw new UnresolvedNodeError(property);
+        throw new UnresolvedNodeException(property);
       }
 
       const nameNode = property.getNameNode();
@@ -493,7 +492,7 @@ export class GenericAst {
    * `nameNode`. A plain name is its own text, never followed as a `const`; a
    * string or numeric literal is its value; a computed name, `[expression]`,
    * is read with `readStaticValue` and must be a string or a number, as
-   * TypeScript requires, else it throws UnresolvedNodeError
+   * TypeScript requires, else it throws UnresolvedNodeException
    * ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)).
    *
    * ```ts
@@ -504,8 +503,8 @@ export class GenericAst {
    * GenericAst.readPropertyKey(<['e-mail']>) // 'e-mail'
    * GenericAst.readPropertyKey(<[KEY]>)      // 'id', with `const KEY = 'id'`
    * GenericAst.readPropertyKey(<[-1]>)       // '-1'
-   * GenericAst.readPropertyKey(<[true]>)     // throws UnresolvedNodeError(<[true]>): not a string or a number
-   * GenericAst.readPropertyKey(<[key]>)      // throws UnresolvedNodeError(<key>), with `let key`
+   * GenericAst.readPropertyKey(<[true]>)     // throws UnresolvedNodeException(<[true]>): not a string or a number
+   * GenericAst.readPropertyKey(<[key]>)      // throws UnresolvedNodeException(<key>), with `let key`
    * ```
    */
   private static readPropertyKey(nameNode: Node, followed: FollowedConsts = new Set()): string {
@@ -521,6 +520,6 @@ export class GenericAst {
         return String(key);
       }
     }
-    throw new UnresolvedNodeError(nameNode);
+    throw new UnresolvedNodeException(nameNode);
   }
 }

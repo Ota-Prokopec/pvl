@@ -9,7 +9,7 @@ export * from './diagnostics/diagnostics.js';
 export * from './diagnostics/enums.js';
 // bin.ts is the `pvl` executable and cli/ its in-process entry, so the library
 // never loads yargs. ast/, barrel.ts, compilation/, config/, destination/, emitters/,
-// issue.ts, module.ts, path.ts, precheck.ts, scanner.ts, schemas/, specifier.ts,
+// exceptions/, issue.ts, module.ts, path.ts, precheck.ts, scanner.ts, schemas/, specifier.ts,
 // tsMorphProject.ts and utils.ts are runCompilation()'s internal steps;
 // config/ and diagnostics/ export their public files above. consts.ts,
 // enums.ts and config/defaults/ hold every internal constant and enum, kept

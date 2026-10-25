@@ -1,7 +1,7 @@
 // `pvl.object(shape)`: a composite of named fields, each a Schema of its
 // own read from the shape, compiled by ObjectSchemaEmitter.
 import { GenericAst } from '../ast/genericAst.js';
-import type { MethodCallWithFollowedConsts } from '../ast/pvlAst.js';
+import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
 import { SCHEMA_FACTORY } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
@@ -43,11 +43,11 @@ export class ObjectSchema extends Schema {
   /**
    * Reads the shape of the `pvl.object(shape)` `link` calls, each field
    * through `readNested`, and returns how its ObjectSchema is built from it
-   * and what every Schema holds. Throws an UnresolvedNodeError when its
+   * and what every Schema holds. Throws an UnresolvedNodeException when its
    * shape is missing or isn't an object literal, or a field can't be read.
    */
   public static readFactoryArgument(
-    link: MethodCallWithFollowedConsts,
+    link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ObjectSchema {
     const fieldSchemaByKey = GenericAst.readObject(

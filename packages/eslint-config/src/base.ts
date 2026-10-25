@@ -14,8 +14,8 @@ import tseslint from 'typescript-eslint';
 
 const TS_FILES = ['**/*.{ts,tsx,mts,cts}'];
 
-/** Selectors for the conventions that core `no-restricted-syntax` can check; each message is the instruction to follow. */
-const RESTRICTED_SYNTAX = [
+/** Selectors for the conventions that core `no-restricted-syntax` can check; each message is the instruction to follow. An entry adding its own spreads these in, as a rule's options in a later config replace them. */
+export const RESTRICTED_SYNTAX = [
   {
     selector: 'TSEnumDeclaration',
     message: 'Declare an `as const` object instead of a TypeScript `enum`.',
