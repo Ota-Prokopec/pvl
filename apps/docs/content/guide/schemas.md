@@ -30,6 +30,10 @@ username.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 
 Lengths are `String.prototype.length`, i.e. UTF-16 code units. `.coerce()` converts any input with `String()` — `undefined` becomes `'undefined'` — so chain `.optional()` or `.nullable()` before it to keep those as they are.
 
+::: info Behind the scenes
+[How `string` works](https://github.com/Ota-Prokopec/pvl/wiki/String-Schema), interpreted and compiled, graphed step by step.
+:::
+
 ## `number`
 
 Accepts a JavaScript `number` — floats and integers alike, since JavaScript has only one numeric type.
@@ -53,6 +57,10 @@ Two things this schema does not do:
 - **`Infinity` and `-Infinity` are accepted** — there is no built-in finiteness constraint. Add one with `.refine(Number.isFinite)` if you need it.
 
 Arbitrary-precision integers are [`bigint`](#bigint)'s job; this schema never accepts or produces one. `.coerce()` converts a `string` or `boolean` input with `Number()`, and an unparseable string becomes `NaN`, which is then rejected.
+
+::: info Behind the scenes
+[How `number` works](https://github.com/Ota-Prokopec/pvl/wiki/Number-Schema), interpreted and compiled, graphed step by step.
+:::
 
 ## `bigint`
 
@@ -79,6 +87,10 @@ pvl.bigint().coerce().validate('42'); // { value: 42n }
 pvl.bigint().coerce().validate('12.5'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 ```
 
+::: info Behind the scenes
+[How `bigint` works](https://github.com/Ota-Prokopec/pvl/wiki/BigInt-Schema), interpreted and compiled, graphed step by step.
+:::
+
 ## `boolean`
 
 Accepts a JavaScript `boolean`. There is nothing to constrain beyond the type, so it has no check methods of its own.
@@ -96,6 +108,10 @@ const mustAcceptTerms = pvl.literal(true);
 
 ::: warning `.coerce()` here is plain truthiness
 `pvl.boolean().coerce()` converts with `Boolean()`, so **every non-empty string is `true`** — including `'false'` and `'0'`. If you are reading booleans out of query strings or environment variables, a `pvl.enum(['true', 'false']).transform((value) => value === 'true')` says what you mean.
+:::
+
+::: info Behind the scenes
+[How `boolean` works](https://github.com/Ota-Prokopec/pvl/wiki/Boolean-Schema), interpreted and compiled, graphed step by step.
 :::
 
 ## `literal`
@@ -124,6 +140,10 @@ const event = pvl.union([
 ]);
 ```
 
+::: info Behind the scenes
+[How `literal` works](https://github.com/Ota-Prokopec/pvl/wiki/Literal-Schema), interpreted and compiled, graphed step by step.
+:::
+
 ## `enum`
 
 Accepts one of a fixed set of values. There are two source forms, and both produce the same kind of schema — only what you hand the factory differs.
@@ -146,6 +166,10 @@ const size = pvl.enum(['small', 'medium', 'large']);
 ```
 
 Membership is a `Set` lookup rather than a scan, so the check stays O(1) however large the set is. `.coerce()` is inherited but does nothing here: an enum object may mix string and number members, so there is no single target type to convert an input to.
+
+::: info Behind the scenes
+[How `enum` works](https://github.com/Ota-Prokopec/pvl/wiki/Enum-Schema), interpreted and compiled, graphed step by step.
+:::
 
 ## `array`
 
@@ -173,6 +197,10 @@ const result = tags.validate(['a', 2, 3]);
 The length constraints above are checks on the array itself, so they run only once every element has passed: an array with a failing element reports the element issues, never a length issue alongside them.
 
 `.coerce()` is inherited but does nothing: there is no unambiguous way to read an array out of a non-array, so a value that is not one is rejected rather than guessed at.
+
+::: info Behind the scenes
+[How `array` works](https://github.com/Ota-Prokopec/pvl/wiki/Array-Schema), interpreted and compiled, graphed step by step.
+:::
 
 ### Reaching the item schema with `element`
 
@@ -215,6 +243,10 @@ user.validate({ name: '', age: 1.5 });
 ```
 
 Each field runs through its own full pipeline — its `.optional()`, `.nullable()`, `.coerce()`, `.refine()` and `.transform()` all apply — and nested objects and arrays compose their path segments, so a failure deep inside reports exactly where it happened.
+
+::: info Behind the scenes
+[How `object` works](https://github.com/Ota-Prokopec/pvl/wiki/Object-Schema), interpreted and compiled, graphed step by step.
+:::
 
 ### Unknown keys
 
@@ -324,6 +356,10 @@ id.validate(true);
 
 Each member is validated at the same path as the union itself — a member is an alternative, not a nested field, so no path segment is appended the way `object` and `array` append a key or index. `.coerce()` is inherited but does nothing: the members may be unrelated types, so there is no single conversion target.
 
+::: info Behind the scenes
+[How `union` works](https://github.com/Ota-Prokopec/pvl/wiki/Union-Schema), interpreted, graphed step by step, and why it doesn't compile yet.
+:::
+
 ## Modifiers
 
 This section documents the **shared** modifiers — the five below. `object`'s `.strict()` and `.passthrough()` are modifiers too, but they belong to `object` alone and are documented [with it](#unknown-keys).
@@ -341,6 +377,10 @@ pvl.string().optional().min(3); // also fine — still a string schema
 
 `.transform()` is the exception: it ends the chain (see [below](#transform)). [`.standalone()`](#standalone) isn't one: it hands back the same schema type, marked.
 
+::: info Behind the scenes
+[How every schema runs its modifiers](https://github.com/Ota-Prokopec/pvl/wiki/Interpreted-Pipeline), around its type check, graphed step by step.
+:::
+
 ### `.optional()`
 
 Accepts `undefined` in addition to whatever the schema already accepts. As an object field, it also makes the key itself optional — and an omitted key stays omitted from the output rather than becoming an explicit `undefined` property.
@@ -350,6 +390,10 @@ const user = pvl.object({ name: pvl.string(), nickname: pvl.string().optional() 
 
 user.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
 ```
+
+::: info Behind the scenes
+[How `.optional()` works](https://github.com/Ota-Prokopec/pvl/wiki/Optional), interpreted and compiled, graphed step by step.
+:::
 
 ### `.nullable()`
 
@@ -361,6 +405,10 @@ deletedAt.validate(null); // { value: null }
 
 const eitherWay = pvl.string().nullable().optional();
 ```
+
+::: info Behind the scenes
+[How `.nullable()` works](https://github.com/Ota-Prokopec/pvl/wiki/Nullable), interpreted and compiled, graphed step by step.
+:::
 
 ### `.refine()`
 
@@ -377,6 +425,10 @@ const email = pvl.string().refine((value) => value.includes('@'), { message: 'no
 ```
 
 It runs in chain order among the constraints, and a failing refinement does not stop the ones after it — every failing check is reported. It never throws — a rejection is an `Issue`, as everywhere else.
+
+::: info Behind the scenes
+[How `.refine()` works](https://github.com/Ota-Prokopec/pvl/wiki/Refine), interpreted and compiled, graphed step by step.
+:::
 
 ### `.transform()`
 
@@ -411,6 +463,10 @@ const shortSlug = pvl
 
 A transformed `object` has no `shape`, and a transformed `array` no `element`: they describe a value the transform replaces with whatever it returns. Keep a reference to a field's or item's schema to validate it on its own.
 
+::: info Behind the scenes
+[How `.transform()` works](https://github.com/Ota-Prokopec/pvl/wiki/Transform), interpreted and compiled, graphed step by step.
+:::
+
 ### `.coerce()`
 
 Converts the raw input to the schema's type **before** the type check runs, so `'42'` can satisfy a number schema. Constraints always run after the type check, so it does not matter whether you chain it before or after them.
@@ -441,6 +497,10 @@ Only the four primitives and `literal` have a conversion. On `object`, `array`, 
 | `bigint`  | `string`, `number`            | `BigInt(value)`, with a throw caught |
 | `literal` | whatever its own type accepts | the matching primitive's conversion  |
 
+::: info Behind the scenes
+[How `.coerce()` works](https://github.com/Ota-Prokopec/pvl/wiki/Coerce), interpreted and compiled, graphed step by step.
+:::
+
 ### Coercion is not transformation
 
 The two are easy to confuse and sit on opposite sides of the check:
@@ -451,3 +511,4 @@ The two are easy to confuse and sit on opposite sides of the check:
 ## What comes next
 
 - [API reference](/api/) — generated from the source, one page per exported symbol.
+- [Behind the scenes](https://github.com/Ota-Prokopec/pvl/wiki) — the wiki: how every schema and modifier works inside, interpreted and compiled.

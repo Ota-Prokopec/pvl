@@ -34,6 +34,9 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API', link: '/api/' },
+      // The GitHub wiki, published from docs/wiki/ (ADR-0037): how each
+      // schema works inside, interpreted and compiled.
+      { text: 'Behind the scenes', link: 'https://github.com/Ota-Prokopec/pvl/wiki' },
     ],
     sidebar: {
       // Hand-written: two stable, deliberate pages.

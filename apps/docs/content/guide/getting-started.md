@@ -125,3 +125,4 @@ A field whose schema is `.optional()` becomes an optional _key_ in the composed 
 
 - [Schema types](./schemas) — every factory, constraint and modifier, with examples.
 - [API reference](/api/) — generated from the source, one page per exported symbol.
+- [Behind the scenes](https://github.com/Ota-Prokopec/pvl/wiki) — the wiki: how every schema and modifier works inside, interpreted and compiled.
