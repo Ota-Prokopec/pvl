@@ -6,3 +6,4 @@
 - Compiled code on a page is real `pvl compile` output: compile the page's example again and paste it in.
 - Edit pages here, never in the wiki: the next publish overwrites the wiki.
 - The docs site links each Schema's and Shared Modifier's page by its file name ([`apps/docs/AGENTS.md`](../../apps/docs/AGENTS.md)). Renaming, removing or adding one of those pages updates `apps/docs/content/guide/schemas.md` in the same change.
+- Link a repo file relatively, as an inline `](../…)` link: the publish workflow rewrites that form, and only that form, to the file's URL on `main`.

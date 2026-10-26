@@ -12,6 +12,6 @@ The wiki is a separate git repo that no PR reviews and no agent reads, so pages 
 
 ## Consequences
 
-- A relative link works both in the repo and in the wiki: the action turns one to another page into a wiki link, and one to a repo file into a link to it on GitHub.
+- A relative link works both in the repo and in the wiki: the action turns one to another page into a wiki link, and a step of the workflow before it turns one to a repo file (`../` or `../../`) into that file's URL on `main`, since the action leaves it relative and the wiki, a separate repo, can't resolve it.
 - Prettier formats the pages like every other `*.md` file.
 - The compiled code a page shows is real `pvl compile` output, pasted by hand; nothing regenerates or checks it, so the rule in `docs/agents/wiki.md` is what keeps it current.

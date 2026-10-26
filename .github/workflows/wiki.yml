@@ -21,6 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A page links a repo file relatively, which resolves in the repo but not
+      # in the wiki, a separate repo: point each such link at the file on main.
+      - name: Rewrite repo links to GitHub URLs
+        run: >-
+          sed -i -E
+          -e 's#\]\(\.\./\.\./#](${{ github.server_url }}/${{ github.repository }}/blob/main/#g'
+          -e 's#\]\(\.\./#](${{ github.server_url }}/${{ github.repository }}/blob/main/docs/#g'
+          docs/wiki/*.md
       - uses: Andrew-Chen-Wang/github-wiki-action@v5
         with:
           path: docs/wiki
