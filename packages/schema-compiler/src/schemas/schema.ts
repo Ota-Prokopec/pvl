@@ -15,7 +15,7 @@ import { UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs, Emitter, SchemaEmitter } from '../emitters/emitter.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
-import type { SchemaFactory } from '../enums.js';
+import type { PvlFactoryName } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { RuntimeArgument } from './runtimeArgument.js';
@@ -65,13 +65,13 @@ export type ReadFactoryArgs = {
  */
 export abstract class Schema {
   /** The `pvl.*` factory a subclass reads; every subclass declares its own. */
-  declare public static readonly factory: SchemaFactory;
+  declare public static readonly factory: PvlFactoryName;
 
   /** The Emitter compiling a subclass, `undefined` while it can't be compiled yet. */
   public static readonly emitter: SchemaEmitter | undefined = undefined;
 
   /** The `pvl.*` factory that built it. */
-  public readonly factory: SchemaFactory;
+  public readonly factory: PvlFactoryName;
   /** The Module it is written in. */
   public readonly module: Module;
   /** The expression it is read from, which compiling the root replaces. */

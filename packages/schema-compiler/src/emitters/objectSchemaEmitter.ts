@@ -46,8 +46,9 @@ import type {
   EmitterMethodOf,
   EmitterMethodTable,
   ParameterTypesOf,
-} from './emittersTypes.js';
-import { MODIFIER_NAME, UNDEFINEDNESS } from '../enums.js';
+} from './types.js';
+import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
+import { UNDEFINEDNESS } from '../enums.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
@@ -190,7 +191,10 @@ const spellFieldsType = (fields: ReadonlyArray<{ key: string; type: SpelledType 
  * ```
  */
 const isUnknownKeysCall = (call: SchemaModifierCall): boolean => {
-  return call.name === MODIFIER_NAME.STRICT || call.name === MODIFIER_NAME.PASSTHROUGH;
+  return (
+    call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT ||
+    call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH
+  );
 };
 
 /**
@@ -454,7 +458,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       if (!isUnknownKeysCall(call)) {
         return [this.emitMethodCall({ table: this.postModifierChecks, call, target })];
       }
-      return call === unknownKeysCall && call.name === MODIFIER_NAME.STRICT
+      return call === unknownKeysCall && call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT
         ? [
             this.keyChecks.strict({
               target: createObjectCheckingTarget({ schema, target, locals }),
@@ -500,8 +504,8 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     // there; with any of them, `.strict()` fails, so the output is never
     // accepted.
     const keepsUndeclaredKeys =
-      unknownKeysCall?.name === MODIFIER_NAME.PASSTHROUGH ||
-      (unknownKeysCall?.name === MODIFIER_NAME.STRICT &&
+      unknownKeysCall?.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH ||
+      (unknownKeysCall?.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT &&
         schema.postModifierCalls.some((call) => !isUnknownKeysCall(call)));
 
     return {
@@ -556,7 +560,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     const output = spellFieldsType(fields.map(({ key, output: type }) => ({ key, type })));
     const hasPassthrough = schema
       .findCallsBefore(before)
-      .some((call) => call.name === MODIFIER_NAME.PASSTHROUGH);
+      .some((call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH);
     return {
       input: { text: input, undefinedness: UNDEFINEDNESS.NEVER },
       output: {

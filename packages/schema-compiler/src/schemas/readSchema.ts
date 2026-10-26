@@ -11,7 +11,11 @@ import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall, SchemaCall } from '../ast/types.js';
 import { BaseException, UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { MODIFIER_NAME, SCHEMA_FACTORY, type SchemaFactory } from '../enums.js';
+import {
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
+  PVL_FACTORY_NAMES_ENUM,
+  type PvlFactoryName,
+} from '@pvl/schema';
 import { COMPILE_METHOD_NAME, STANDALONE_METHOD_NAME } from '../consts.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
@@ -31,7 +35,7 @@ import { UnionSchema } from './unionSchema.js';
 /** A Schema subclass, as `readSchema` picks one by the factory it reads. */
 type SchemaClass = {
   /** The `pvl.*` factory it reads. */
-  readonly factory: SchemaFactory;
+  readonly factory: PvlFactoryName;
   /**
    * Reads the argument of `link`, its factory call, and returns how its
    * Schema is built from what every Schema holds, which is read after the
@@ -45,16 +49,16 @@ type SchemaClass = {
 
 /** Every Schema subclass, by the `pvl.*` factory it reads, which is the subclass's own `factory`. */
 const SCHEMA_CLASS_BY_FACTORY = {
-  [SCHEMA_FACTORY.STRING]: StringSchema,
-  [SCHEMA_FACTORY.NUMBER]: NumberSchema,
-  [SCHEMA_FACTORY.BOOLEAN]: BooleanSchema,
-  [SCHEMA_FACTORY.BIGINT]: BigintSchema,
-  [SCHEMA_FACTORY.LITERAL]: LiteralSchema,
-  [SCHEMA_FACTORY.ENUM]: EnumSchema,
-  [SCHEMA_FACTORY.OBJECT]: ObjectSchema,
-  [SCHEMA_FACTORY.ARRAY]: ArraySchema,
-  [SCHEMA_FACTORY.UNION]: UnionSchema,
-} satisfies { readonly [Factory in SchemaFactory]: SchemaClass & { readonly factory: Factory } };
+  [PVL_FACTORY_NAMES_ENUM.STRING]: StringSchema,
+  [PVL_FACTORY_NAMES_ENUM.NUMBER]: NumberSchema,
+  [PVL_FACTORY_NAMES_ENUM.BOOLEAN]: BooleanSchema,
+  [PVL_FACTORY_NAMES_ENUM.BIGINT]: BigintSchema,
+  [PVL_FACTORY_NAMES_ENUM.LITERAL]: LiteralSchema,
+  [PVL_FACTORY_NAMES_ENUM.ENUM]: EnumSchema,
+  [PVL_FACTORY_NAMES_ENUM.OBJECT]: ObjectSchema,
+  [PVL_FACTORY_NAMES_ENUM.ARRAY]: ArraySchema,
+  [PVL_FACTORY_NAMES_ENUM.UNION]: UnionSchema,
+} satisfies { readonly [Factory in PvlFactoryName]: SchemaClass & { readonly factory: Factory } };
 
 /** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
 export type ModuleCompilation = {
@@ -255,8 +259,10 @@ const readExpression = (
     module: args.module,
     expression: args.expression,
     line: factory.call.getStartLineNumber(),
-    calls: calls.filter((call) => call.name !== MODIFIER_NAME.TRANSFORM),
-    transformCall: calls.find((call) => call.name === MODIFIER_NAME.TRANSFORM),
+    calls: calls.filter((call) => call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM),
+    transformCall: calls.find(
+      (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
+    ),
     isStandalone: chainedMethods.some((method) => method.methodName === STANDALONE_METHOD_NAME),
   });
 };
@@ -271,7 +277,7 @@ const readExpression = (
  * isSchemaFactory('toString') // false
  * ```
  */
-const isSchemaFactory = (methodName: string): methodName is SchemaFactory =>
+const isSchemaFactory = (methodName: string): methodName is PvlFactoryName =>
   Object.hasOwn(SCHEMA_CLASS_BY_FACTORY, methodName);
 
 /**

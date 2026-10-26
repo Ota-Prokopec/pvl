@@ -6,7 +6,7 @@ import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { UnresolvedNodeException } from '../exceptions/index.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type SchemaOptions } from './schema.js';
 
 /** What an EnumSchema holds besides what every Schema does. */
@@ -23,7 +23,7 @@ export type EnumSchemaOptions = SchemaOptions & {
  * ```
  */
 export class EnumSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.ENUM;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.ENUM;
 
   public static override readonly emitter = EnumSchemaEmitter;
 
@@ -42,9 +42,7 @@ export class EnumSchema extends Schema {
    * Throws an UnresolvedNodeException when its argument is missing, or isn't a
    * non-empty string array or object of strings and numbers.
    */
-  public static readFactoryArgument(
-    link: PvlFactoryCall,
-  ): (options: SchemaOptions) => EnumSchema {
+  public static readFactoryArgument(link: PvlFactoryCall): (options: SchemaOptions) => EnumSchema {
     const members = EnumSchema.readMembers(Schema.readArgument(link), link.followed);
     return (options: SchemaOptions): EnumSchema => new EnumSchema({ ...options, members });
   }

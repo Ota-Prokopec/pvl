@@ -1,7 +1,7 @@
 // `pvl.string()`: a string, which reads no argument, compiled by
 // StringSchemaEmitter.
 import { StringSchemaEmitter } from '../emitters/stringSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type SchemaOptions } from './schema.js';
 
 /**
@@ -13,7 +13,7 @@ import { Schema, type SchemaOptions } from './schema.js';
  * ```
  */
 export class StringSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.STRING;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.STRING;
 
   public static override readonly emitter = StringSchemaEmitter;
 

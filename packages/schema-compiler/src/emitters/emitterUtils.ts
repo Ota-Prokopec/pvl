@@ -19,7 +19,7 @@ import type {
   EmittedShortCircuitCondition,
   EmittedTransform,
   EmittedVariableDeclaration,
-} from './emittersTypes.js';
+} from './types.js';
 
 /**
  * Tags a template holding emitted JavaScript, so it reads as code: the text

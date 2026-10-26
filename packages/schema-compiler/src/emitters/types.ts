@@ -39,7 +39,7 @@ export type PreModifierStep =
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
 
 /** The names of the locals a composite's checks declare, all ending in the same number, so they never clash with its parent's or its children's. */
-export type CompositeLocals = {
+export type CompositeLocalVariableNames = {
   /** Its value, read as a record: `input1`. */
   input: string;
   /** The output its checks build, which replaces its value: `output1`. */

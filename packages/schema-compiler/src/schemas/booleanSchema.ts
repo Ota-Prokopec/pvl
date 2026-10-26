@@ -1,7 +1,7 @@
 // `pvl.boolean()`: a boolean, which reads no argument, compiled by
 // BooleanSchemaEmitter.
 import { BooleanSchemaEmitter } from '../emitters/booleanSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type SchemaOptions } from './schema.js';
 
 /**
@@ -13,7 +13,7 @@ import { Schema, type SchemaOptions } from './schema.js';
  * ```
  */
 export class BooleanSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.BOOLEAN;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.BOOLEAN;
 
   public static override readonly emitter = BooleanSchemaEmitter;
 

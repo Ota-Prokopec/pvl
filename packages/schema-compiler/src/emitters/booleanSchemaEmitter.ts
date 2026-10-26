@@ -4,7 +4,7 @@ import { BOOLEAN_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToBoolean } from './coercions.js';
 import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
-import type { EmittedCheck, EmittedCoercion } from './emittersTypes.js';
+import type { EmittedCheck, EmittedCoercion } from './types.js';
 import { js } from './emitterUtils.js';
 
 export class BooleanSchemaEmitter extends ChainableSchemaEmitter {

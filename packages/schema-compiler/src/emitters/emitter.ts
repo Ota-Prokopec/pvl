@@ -16,15 +16,17 @@
 // a string or a list of them (ADR-0028), or, for `_emitSchemaParts`, the
 // parts holding it (ADR-0032). A subclass adds the methods mirroring its
 // schema's to its tables and overrides the `_` hooks.
-import { ISSUE_CODE } from '@pvl/schema';
+import { ISSUE_CODE, type IssueProps } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
-import { MODIFIER_NAME, UNDEFINEDNESS } from '../enums.js';
+import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
+import { UNDEFINEDNESS } from '../enums.js';
 import type {
   CheckingTarget,
   CompositeLocals,
+  CompositeLocalVariableNames,
   CompositeParts,
   EmittedCheck,
   EmittedCoercion,
@@ -35,43 +37,37 @@ import type {
   SchemaParts,
   ShortCircuitConditionTable,
   TransformParts,
-} from './emittersTypes.js';
+} from './types.js';
 import { emitCheck, js, readCallArguments } from './emitterUtils.js';
 import { emitIssue, emitMessageAroundValue, type EmitIssueArgs } from '../issue.js';
-import { Frame, type ComposedStructure, type RuntimeArgumentParameter } from './frame.js';
-import { Scope } from './scope.js';
+import { Frame, type ComposedStructure, type RuntimeArgumentParameter } from '../frame/frame.js';
+import { Scope } from '../scope.js';
 
 /** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
-export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
+type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
 
 /** For each method whose default message names its first argument, that message (see `ArgumentMessagesOf`). */
-export type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
-
-/** What {@link SchemaEmitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
-export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  target: CheckingTarget;
-};
+type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
 
 /** What {@link Emitter.emitTypeCheck} writes a base check from: the condition it fails under, its message, the Issue path it reports at, and its code. */
-export type EmitTypeCheckArgs = Omit<EmitIssueArgs, 'code' | 'path'> & {
+type EmitTypeCheckArgs = Omit<IssueProps, 'code' | 'path'> & {
   failsWhen: string;
   /** The Issue's path, as an expression: the target's `issuePath`. */
   issuePath: string;
   /** `INVALID_TYPE` unless the check compares the value to fixed values, as `pvl.literal` and `pvl.enum`'s report `INVALID_VALUE`. */
-  code?: EmitIssueArgs['code'];
+  issueCode?: IssueProps['code'];
 };
 
 /** What {@link Emitter._emitPreModifierSteps} emits its pre-modifiers' parts for: a Schema at the target it checks. */
-export type EmitPreModifierStepsArgs<TSchema extends Schema = Schema> = {
+type EmitPreModifierStepsArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
   target: CheckingTarget;
 };
 
 /** What {@link Emitter._emitCoercion} emits `.coerce()`'s conversion for: a Schema, and the value it converts, as an expression. */
-export type EmitCoercionHookArgs<TSchema extends Schema = Schema> = {
+type EmitCoercionArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
-  value: string;
+  target: CheckingTarget;
 };
 
 /** What {@link Emitter._emitPostModifierChecks} emits its post-modifiers' checks for: a Schema at the target they read, and its composite's locals. */
@@ -80,7 +76,7 @@ export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
   /** Its own target, or, for a composite, the same with its output local as the value, which its post-modifiers read. */
   target: CheckingTarget;
   /** Its composite's locals, which a post-modifier reading something besides the value reads, as an object's `.strict()` reads its keys; `undefined` for a Schema that isn't a composite. */
-  locals: CompositeLocals | undefined;
+  locals?: CompositeLocalVariableNames | undefined;
 };
 
 /** What {@link Emitter._emitSchemaParts} emits every part of a Schema's checks for: a Schema at the target it checks, inlined into a parent, or at `Frame.rootCheckingTarget`, as the body of a Compiled Schema's `_validate`. */
@@ -229,31 +225,6 @@ const toElementTypeParameter = (index: number): string => `TElement${String(inde
 const toElementParameterName = (index: number): string => `pvlElement${String(index)}`;
 
 /**
- * An Emitter a Schema subclass compiles with (`Schema.emitter`): `Emitter`'s
- * static methods, plus the base check of its schema type, which every such
- * Emitter writes. TypeScript has no abstract static method, so this type
- * stands in for one: naming an Emitter without `_emitBaseCheck` as a
- * Schema subclass's, or emitting a Schema's parts with one, is a type
- * error.
- */
-export type SchemaEmitter = typeof Emitter & {
-  /**
-   * The base check of `schema` at `target`: its type check, as a
-   * statement, reading `schema` only when the check needs the factory's
-   * argument (`pvl.literal('a')`).
-   *
-   * ```ts
-   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', path, issuePath } })
-   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
-   * ```
-   */
-  // A method, not a function-typed property, so an Emitter's own may take
-  // the Schema subclass it compiles (`EmitBaseCheckArgs<EnumSchema>`), as
-  // an override of every other hook does.
-  _emitBaseCheck(args: EmitBaseCheckArgs): EmittedCheck;
-};
-
-/**
  * The abstract base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
  * `StringSchemaEmitter._emitSchemaParts({ schema, target, scope })` emits
@@ -385,8 +356,8 @@ export abstract class Emitter {
     target,
   }: EmitPreModifierStepsArgs): PreModifierStep[] {
     return schema.preModifierCalls.flatMap((call): PreModifierStep[] => {
-      if (call.name === MODIFIER_NAME.COERCE) {
-        const coercion = this._emitCoercion?.({ schema, value: target.value });
+      if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE) {
+        const coercion = this._emitCoercion?.({ schema, target: target });
         return coercion === undefined ? [] : [{ coercion }];
       }
       return [
@@ -414,7 +385,7 @@ export abstract class Emitter {
    * ObjectSchemaEmitter._emitCoercion                              // undefined
    * ```
    */
-  public static _emitCoercion?(args: EmitCoercionHookArgs): EmittedCoercion;
+  public static _emitCoercion?(args: EmitCoercionArgs): EmittedCoercion;
 
   /**
    * The checks of `schema.postModifierCalls` at `target`, in chain order, as
@@ -802,6 +773,7 @@ export abstract class Emitter {
     if (emitterMethod === undefined) {
       throw new Error(`${this.name} has no method to emit .${call.name}() with.`);
     }
+
     return emitterMethod({ target, args: readCallArguments(call) });
   }
 }

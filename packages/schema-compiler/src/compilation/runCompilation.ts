@@ -5,9 +5,8 @@
 import * as path from 'node:path';
 import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
 import { ConfigResolver } from '../config/configResolver.js';
-import { Barrel } from '../barrel.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { Diagnostics } from '../diagnostics/utils.js';
 import { compileAll } from './compileAll.js';
 import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
@@ -170,12 +169,7 @@ const runCompilationWithoutPromoting = async ({
     rootDirectory,
     destination,
   });
-  // A scanned `<rootDir>/index.ts` is mirrored in place of the generated barrel.
-  const generatesBarrel = !Barrel.hasScannedBarrel(modules);
-  const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({
-    modules,
-    generatesBarrel,
-  });
+  const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({ modules });
 
   const diagnostics = [...scanScopeDiagnostics, ...moduleDiagnostics];
 
@@ -190,7 +184,6 @@ const runCompilationWithoutPromoting = async ({
   const mirroredFiles = compileAll({
     tsMorphProject,
     compilations,
-    generatesBarrel,
     withTypes: rawSettings.withTypes,
   });
 

@@ -253,11 +253,6 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'out', '--root-dir', 'lib'],
   },
   {
-    code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
-    files: { 'src/schemas/user.ts': 'export default 1;\n' },
-    argv: ['--destination', 'out'],
-  },
-  {
     code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
     files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());') },
     argv: ['--destination', 'out'],
@@ -287,11 +282,6 @@ const ERROR_CASES: ReadonlyArray<{
         'export const user = pvl.compile(pvl.object({ tags: pvl.array(pvl.union([pvl.string()])) }));',
       ),
     },
-    argv: ['--destination', 'out'],
-  },
-  {
-    code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-    files: { 'src/schemas/a.ts': SCHEMA_FILE, 'src/schemas/b.ts': SCHEMA_FILE },
     argv: ['--destination', 'out'],
   },
   // A usage error still comes back as JSON under `--json`.
@@ -355,7 +345,7 @@ describe('pvl compile: warnings', () => {
       expect(payload.diagnostics).toEqual([
         expect.objectContaining({ code, severity: SEVERITY.ERROR }),
       ]);
-      expect(await readFixtureFile(root, 'out/index.ts')).toBe(undefined);
+      expect(await readFixtureFile(root, 'out/schemas/user.ts')).toBe(undefined);
     },
   );
 

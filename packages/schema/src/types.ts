@@ -120,6 +120,22 @@ export type PvlSchemaMethodName = Exclude<
  */
 export type PvlSchemaModifierMethodName = Exclude<PvlSchemaMethodName, keyof Schema>;
 
+/**
+ * The name of every method on `pvl`: each {@link PvlFactoryName} and `'compile'`.
+ *
+ * @internal
+ */
 export type PvlObjectPropertyName = keyof typeof pvl;
 
+/**
+ * The name of every `pvl.*` factory a Schema is built from (`'string'`, `'object'`, …),
+ * leaving out `'compile'`, which marks an existing Schema rather than building one.
+ *
+ * @example
+ * ```ts
+ * import { PVL_FACTORY_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
+ *
+ * const factory: PvlFactoryName = PVL_FACTORY_NAMES_ENUM.STRING; // 'string'
+ * ```
+ */
 export type PvlFactoryName = Exclude<PvlObjectPropertyName, 'compile'>;

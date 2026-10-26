@@ -5,10 +5,10 @@ export * from './config/config.js';
 export * from './config/consts.js';
 export * from './diagnostics/consts.js';
 export * from './diagnostics/diagnostic.js';
-export * from './diagnostics/diagnostics.js';
+export * from './diagnostics/utils.js';
 export * from './diagnostics/enums.js';
 // bin.ts is the `pvl` executable and cli/ its in-process entry, so the library
-// never loads yargs. ast/, barrel.ts, compilation/, config/, destination/, emitters/,
+// never loads yargs. ast/, compilation/, config/, destination/, emitters/,
 // exceptions/, issue.ts, module.ts, path.ts, precheck.ts, scanner.ts, schemas/, specifier.ts,
 // tsMorphProject.ts and utils.ts are runCompilation()'s internal steps;
 // config/ and diagnostics/ export their public files above. consts.ts,

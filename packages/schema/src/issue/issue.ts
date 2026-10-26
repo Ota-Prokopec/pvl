@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { IssueCode } from '../enums.js';
+import type { IssueCode } from './enums.js';
 
 /**
  * The message an {@link Issue} reported with `message` carries: `message`

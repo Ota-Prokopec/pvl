@@ -1,5 +1,5 @@
 import { runCompilation } from '../compilation/runCompilation.js';
-import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { Diagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
 

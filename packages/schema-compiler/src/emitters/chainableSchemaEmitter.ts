@@ -10,7 +10,8 @@
 // `ChainableInterpretedSchema`.
 import { ISSUE_CODE, replaceEmptyIssueMessage, type ChainableInterpretedSchema } from '@pvl/schema';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { MODIFIER_NAME, UNDEFINEDNESS } from '../enums.js';
+import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
+import { UNDEFINEDNESS } from '../enums.js';
 import { emitConstraintIssue } from '../issue.js';
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
@@ -28,7 +29,7 @@ import type {
   PostModifierCheckTable,
   ShortCircuitConditionTable,
   TransformParts,
-} from './emittersTypes.js';
+} from './types.js';
 import {
   emitCheck,
   emitFunctionCall,
@@ -55,9 +56,9 @@ const UNKNOWN_TYPE: SpelledType = { text: 'unknown', undefinedness: UNDEFINEDNES
 const widenType = (type: SpelledType, calls: ReadonlyArray<SchemaModifierCall>): SpelledType => {
   return calls.reduce(
     (widened, call): SpelledType =>
-      call.name === MODIFIER_NAME.OPTIONAL
+      call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.OPTIONAL
         ? { text: `${widened.text} | undefined`, undefinedness: UNDEFINEDNESS.ALWAYS }
-        : call.name === MODIFIER_NAME.NULLABLE
+        : call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.NULLABLE
           ? { ...widened, text: `${widened.text} | null` }
           : widened,
     type,
@@ -135,8 +136,8 @@ export class ChainableSchemaEmitter extends Emitter {
    */
   public static override compilesMethod(args: CompilesMethodArgs): boolean {
     return (
-      args.name === MODIFIER_NAME.COERCE ||
-      args.name === MODIFIER_NAME.TRANSFORM ||
+      args.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE ||
+      args.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM ||
       super.compilesMethod(args)
     );
   }
@@ -183,7 +184,7 @@ export class ChainableSchemaEmitter extends Emitter {
     args: SpellParameterTypesArgs,
   ): ReadonlyArray<string> | undefined {
     const { schema, call } = args;
-    if (call.name === MODIFIER_NAME.REFINE) {
+    if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE) {
       const { output } = this._spellTypes({ schema, before: call });
       return [`(value: ${output.text}) => boolean`, ISSUE_OPTIONS_TYPE];
     }
@@ -214,7 +215,7 @@ export class ChainableSchemaEmitter extends Emitter {
     const { transformCall } = schema;
     const calls = schema.findCallsBefore(before);
     return {
-      input: calls.some((call) => call.name === MODIFIER_NAME.COERCE)
+      input: calls.some((call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE)
         ? UNKNOWN_TYPE
         : widenType(input, calls),
       // A `.transform()` is chained last, so after any `before`.

@@ -13,11 +13,11 @@ import {
   schemaFile,
 } from './helpers.js';
 
-// A file asserting that the aliases the barrel re-exports are the types the
+// A file asserting that the aliases the mirrored module exports are the types the
 // interpreted Schemas infer, and that a `.transform()` gives each side its own.
 const TYPE_CHECK_FILE = [
   "import type { InferInput, InferOutput } from '@pvl/schema';",
-  "import type * as mirror from './.pvl/index.ts';",
+  "import type * as mirror from './.pvl/schemas/user.ts';",
   "import type * as source from './src/schemas/user.ts';",
   '',
   'type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;',
@@ -43,6 +43,7 @@ describe('runCompilation(): type aliases', () => {
           'export const optionalName = name.optional();',
           'export const getUser = () => pvl.object({ name });',
           'export const result = userSchema.validate({});',
+          'export const unknownMethod = name.foo();',
           'export { name as nameSchema };',
         ].join('\n'),
       ),
@@ -61,6 +62,7 @@ describe('runCompilation(): type aliases', () => {
       export const optionalName = name.optional();
       export const getUser = () => pvl.object({ name });
       export const result = userSchema.validate({});
+      export const unknownMethod = name.foo();
       export { name as nameSchema };
 
       export type UserSchemaInput = PvlInferInput<typeof userSchema>;

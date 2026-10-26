@@ -3,7 +3,10 @@
 // which chained methods are pre-modifiers. The public ones are in
 // `config/consts.ts` and `diagnostics/consts.ts`, the setting defaults in
 // `config/defaults/consts.ts`.
-import { MODIFIER_NAME, type ModifierName } from './enums.js';
+import {
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
+  type PvlSchemaModifierMethodName,
+} from '@pvl/schema';
 
 /** The file that marks a Destination Directory as written by the compiler, so a later run may replace it. */
 export const GENERATED_MARKER_FILE_NAME = '.pvl-generated' as const;
@@ -23,9 +26,6 @@ export const GITIGNORE_FILE_NAME = '.gitignore' as const;
 
 /** The default destination's `.gitignore`, which keeps the whole directory out of version control. */
 export const DEFAULT_DESTINATION_GITIGNORE_TEXT = '*\n' as const;
-
-/** The barrel's file name, at the root of the Destination Directory. */
-export const BARREL_FILE_NAME = 'index.ts' as const;
 
 /** The first line of every file the compiler writes. */
 export const GENERATED_HEADER =
@@ -87,8 +87,8 @@ export const STANDALONE_METHOD_NAME = 'standalone' as const;
  * `_withPreModifier`, which run before the type check; every other chained
  * method is a post-modifier (ADR-0010).
  */
-export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set<ModifierName>([
-  MODIFIER_NAME.OPTIONAL,
-  MODIFIER_NAME.NULLABLE,
-  MODIFIER_NAME.COERCE,
+export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set<PvlSchemaModifierMethodName>([
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.OPTIONAL,
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.NULLABLE,
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE,
 ]);

@@ -11,7 +11,7 @@ import {
   type IssueProps,
 } from '@pvl/schema';
 import { js } from './emitters/emitterUtils.js';
-import type { EmittedIssue } from './emitters/emittersTypes.js';
+import type { EmittedIssue } from './emitters/types.js';
 import { RuntimeArgument } from './schemas/runtimeArgument.js';
 
 // Stands in for a value only known at runtime while a default message is

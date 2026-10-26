@@ -11,7 +11,7 @@ import {
   emitCoerceToString,
 } from './coercions.js';
 import type { EmitBaseCheckArgs, EmitCoercionHookArgs, SpellTypesArgs } from './emitter.js';
-import type { EmittedCheck, EmittedCoercion } from './emittersTypes.js';
+import type { EmittedCheck, EmittedCoercion } from './types.js';
 import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';

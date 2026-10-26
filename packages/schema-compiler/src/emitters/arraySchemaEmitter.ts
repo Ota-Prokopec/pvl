@@ -35,7 +35,7 @@ import type {
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-} from './emittersTypes.js';
+} from './types.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union, which

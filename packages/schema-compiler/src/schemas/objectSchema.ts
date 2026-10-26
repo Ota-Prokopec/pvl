@@ -3,7 +3,7 @@
 import { GenericAst } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** One field of an object Schema. */
@@ -27,7 +27,7 @@ export type ObjectSchemaOptions = SchemaOptions & {
  * ```
  */
 export class ObjectSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.OBJECT;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.OBJECT;
 
   public static override readonly emitter = ObjectSchemaEmitter;
 

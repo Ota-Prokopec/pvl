@@ -4,7 +4,7 @@
 // rather than imported, as the emitted code imports nothing at runtime. A
 // primitive's emitter and a literal's, which coerces as the primitive of its
 // value does, write them.
-import type { EmittedCoercion } from './emittersTypes.js';
+import type { EmittedCoercion } from './types.js';
 import { composeBlock, emitCoercion, js } from './emitterUtils.js';
 
 /**

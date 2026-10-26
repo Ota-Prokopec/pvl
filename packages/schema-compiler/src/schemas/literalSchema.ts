@@ -6,7 +6,7 @@ import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { UnresolvedNodeException } from '../exceptions/index.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type SchemaOptions } from './schema.js';
 
 /** What a LiteralSchema holds besides what every Schema does. */
@@ -23,7 +23,7 @@ export type LiteralSchemaOptions = SchemaOptions & {
  * ```
  */
 export class LiteralSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.LITERAL;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.LITERAL;
 
   public static override readonly emitter = LiteralSchemaEmitter;
 

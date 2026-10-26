@@ -30,11 +30,11 @@ const pvlArg0 = getMax();
 export const base = pvl.string().max(pvlArg0);
 ```
 
-A default export would have no name in the barrel and a different import shape from every other mirrored export, so `export default`, `export =` and `export { x as default }` are the `DEFAULT_EXPORT` error: export it by name.
+### No generated barrel
 
-### The barrel
+The compiler never generates a barrel. When the Root Directory has no `index.ts`, the Destination Directory has none either: the mirror holds exactly the source's files at the source's paths, so an import of a Compiled Schema is the import of its interpreted Schema with only the alias target swapped. A barrel that existed only in the mirror would be an import with no interpreted counterpart, and the two versions would no longer be the same.
 
-`<destination>/index.ts` re-exports every mirrored module that exports something (`export * from './schemas/user.js';`, sorted by path; a declaration file gets `export type * from './schemas/types.js';`, naming the module it describes), so `from '<destination>'` imports everything at once. Two scanned files exporting the same name bound to different things would make the barrel's export ambiguous, so that is the `DUPLICATE_EXPORT` error. A re-export of the same binding under the same name isn't a clash. When `<rootDir>/index.ts` is itself scanned, it already sits where the barrel goes, so it is mirrored as the barrel, nothing is generated, and `DUPLICATE_EXPORT` isn't checked: TypeScript reports clashes in a hand-written barrel. The barrel only exists in the mirror, so an import of it has no development counterpart unless the application wrote its own `<rootDir>/index.ts`.
+A `<rootDir>/index.ts` the application wrote is mirrored like any other scanned file. Its module specifiers follow the rules above, and each keeps the extension it was written with, or its lack of one, so it resolves under whatever module resolution the application uses. An ambiguous `export *` in it is TypeScript's error, reported wherever the mirror is typechecked.
 
 ### Type aliases
 
@@ -51,7 +51,7 @@ export type OptionalNameInput = PvlInferInput<typeof optionalName>;
 export type OptionalNameOutput = PvlInferOutput<typeof optionalName>;
 ```
 
-An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s), whether marked or not. A Schema built by a function, imported, or exported only through `export { … }` gets no alias. The barrel re-exports the aliases with everything else. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
+An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s), whether marked or not. A Schema built by a function, imported, or exported only through `export { … }` gets no alias. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
 
 ### Writing it
 

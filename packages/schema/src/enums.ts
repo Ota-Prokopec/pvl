@@ -1,12 +1,17 @@
 import { omit } from 'lodash-es';
 import type {
   PvlObjectPropertyName,
-  PvlSchemaFactoryName,
+  PvlFactoryName,
   PvlSchemaMethodName,
   PvlSchemaModifierMethodName,
   PvlSchemaPropertyName,
 } from './types.js';
 
+/**
+ * Every {@link PvlObjectPropertyName}, valued by its name on `pvl`.
+ *
+ * @internal
+ */
 export const PVL_OBJECT_PROPERTY_NAMES_ENUM = {
   STRING: 'string',
   NUMBER: 'number',
@@ -19,7 +24,6 @@ export const PVL_OBJECT_PROPERTY_NAMES_ENUM = {
   UNION: 'union',
   COMPILE: 'compile',
 } as const satisfies {
-  // `compile` marks an existing Schema rather than building one.
   readonly [Factory in PvlObjectPropertyName as Uppercase<Factory>]: Factory;
 };
 
@@ -28,14 +32,14 @@ export const PVL_OBJECT_PROPERTY_NAMES_ENUM = {
  *
  * @example
  * ```ts
- * import { pvl, SCHEMA_FACTORY_NAME_ENUM } from '@pvl/schema';
+ * import { pvl, PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
  *
- * pvl[SCHEMA_FACTORY_NAME_ENUM.STRING]().validate('hi'); // { value: 'hi' }
+ * pvl[PVL_FACTORY_NAMES_ENUM.STRING]().validate('hi'); // { value: 'hi' }
  * ```
  */
 export const PVL_FACTORY_NAMES_ENUM = omit(PVL_OBJECT_PROPERTY_NAMES_ENUM, 'COMPILE') satisfies {
   // `compile` marks an existing Schema rather than building one.
-  readonly [Factory in PvlSchemaFactoryName as Uppercase<Factory>]: Factory;
+  readonly [Factory in PvlFactoryName as Uppercase<Factory>]: Factory;
 };
 
 /**

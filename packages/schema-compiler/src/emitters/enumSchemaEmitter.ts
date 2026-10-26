@@ -4,7 +4,7 @@ import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmitBaseCheckArgs, SpellTypesArgs } from './emitter.js';
-import type { EmittedCheck } from './emittersTypes.js';
+import type { EmittedCheck } from './types.js';
 import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';

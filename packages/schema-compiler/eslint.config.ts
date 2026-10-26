@@ -23,7 +23,8 @@ export default defineConfig(
         'error',
         ...RESTRICTED_SYNTAX,
         {
-          selector: "ClassDeclaration[superClass.name='Error'], ClassExpression[superClass.name='Error']",
+          selector:
+            "ClassDeclaration[superClass.name='Error'], ClassExpression[superClass.name='Error']",
           message:
             'Extend `BaseException` (`src/exceptions/`) instead of `Error`, naming the diagnostic it is reported as. A bug in the compiler throws a plain `new Error(…)`, never a class of its own.',
         },

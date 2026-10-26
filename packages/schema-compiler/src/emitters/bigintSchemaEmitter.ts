@@ -14,7 +14,7 @@ import type {
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-} from './emittersTypes.js';
+} from './types.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import { emitArgument, emitCheck, js } from './emitterUtils.js';
 

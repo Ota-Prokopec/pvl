@@ -2,7 +2,7 @@
 // read from its argument, compiled by ArraySchemaEmitter.
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** What an ArraySchema holds besides what every Schema does. */
@@ -18,7 +18,7 @@ export type ArraySchemaOptions = SchemaOptions & {
  * ```
  */
 export class ArraySchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.ARRAY;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.ARRAY;
 
   public static override readonly emitter = ArraySchemaEmitter;
 

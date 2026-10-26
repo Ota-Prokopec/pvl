@@ -3,7 +3,7 @@
 // UNSUPPORTED_SCHEMA wherever it is written.
 import { GenericAst } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
-import { SCHEMA_FACTORY } from '../enums.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 
 /** What a UnionSchema holds besides what every Schema does. */
@@ -20,7 +20,7 @@ export type UnionSchemaOptions = SchemaOptions & {
  * ```
  */
 export class UnionSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.UNION;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.UNION;
 
   /** `undefined`: a union can't be compiled yet, which reports UNSUPPORTED_SCHEMA. */
   public static override readonly emitter = undefined;

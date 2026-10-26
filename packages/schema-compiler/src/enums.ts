@@ -1,7 +1,7 @@
-// The fixed sets of named values the compiler uses internally: the `pvl.*`
-// factories it reads a Schema from, the Modifier methods chained onto one,
-// whether a spelled type admits `undefined`, and what a module specifier
-// reaches. The diagnostics' own are in `diagnostics/enums.ts`.
+// The fixed sets of named values the compiler uses internally: whether a
+// spelled type admits `undefined`, and what a module specifier reaches. The
+// diagnostics' own are in `diagnostics/enums.ts`; the factory and method names
+// come from `@pvl/schema`.
 import type { ValueOfEnum } from '@repo/types';
 
 /** What a module specifier written in a scanned module reaches, as the mirror sees it. */

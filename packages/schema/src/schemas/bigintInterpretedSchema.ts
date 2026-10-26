@@ -1,5 +1,5 @@
 import { coerceToBigint } from '../coercions.js';
-import { ISSUE_CODE } from '../enums.js';
+import { ISSUE_CODE } from '../issue/enums.js';
 import { Issue, type IssueEditableProps } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { InterpretedSchemaKind } from '../types.js';

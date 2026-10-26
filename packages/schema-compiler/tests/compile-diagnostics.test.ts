@@ -331,67 +331,7 @@ describe('runCompilation(): diagnostics', () => {
     ]);
   });
 
-  it('DEFAULT_EXPORT: every form of default export, one per statement', async () => {
-    const root = await createFixture({
-      'pvlconfig.json': configJson({}),
-      'src/schemas/a.ts': "import { pvl } from '@pvl/schema';\nexport default pvl.string();\n",
-      'src/schemas/b.ts': 'export default function format(): void {}\n',
-      'src/schemas/c.ts': 'const c = 1;\nexport { c as default };\n',
-      'src/schemas/d.ts': "export { default } from './legacy.js';\n",
-      'src/schemas/e.ts': 'const e = 1;\nexport = e;\n',
-    });
-
-    const payload = await runCompilation({ cwd: root });
-
-    expectFailure(
-      payload,
-      ['a', 'b', 'c', 'd', 'e'].map((name) => ({
-        code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
-        file: path.join(root, `src/schemas/${name}.ts`),
-      })),
-    );
-  });
-
-  it('DEFAULT_EXPORT: not raised for a default re-exported under a name', async () => {
-    const root = await createFixture({
-      'pvlconfig.json': configJson({}),
-      'src/lib/legacy.ts': 'export default 1;\n',
-      'src/schemas/a.ts': "export { default as legacy } from '../lib/legacy.js';\n",
-    });
-
-    const payload = await runCompilation({ cwd: root });
-
-    expect(payload.diagnostics).toEqual([]);
-  });
-
-  it('DUPLICATE_EXPORT: two scanned files export the same name', async () => {
-    const root = await createFixture({
-      'pvlconfig.json': configJson({}),
-      'src/schemas/a.ts': SCHEMA_FILE,
-      'src/schemas/b.ts': SCHEMA_FILE,
-    });
-
-    const payload = await runCompilation({ cwd: root });
-
-    expectFailure(payload, [
-      { code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT, file: path.join(root, 'src/schemas/b.ts') },
-    ]);
-  });
-
-  it('DUPLICATE_EXPORT: not raised when a file re-exports a binding under the name it already has', async () => {
-    const root = await createFixture({
-      'pvlconfig.json': configJson({}),
-      'src/schemas/user.ts': SCHEMA_FILE,
-      'src/schemas/forward.ts': "export { user } from './user.js';\n",
-      'src/schemas/reexport.ts': "import { user } from './user.js';\nexport { user };\n",
-    });
-
-    const payload = await runCompilation({ cwd: root });
-
-    expect(payload.diagnostics).toEqual([]);
-  });
-
-  it('FILE_EXPORTS_NOTHING: a warning that still writes, leaving the file out of the barrel', async () => {
+  it('FILE_EXPORTS_NOTHING: a warning that still writes', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
@@ -410,7 +350,6 @@ describe('runCompilation(): diagnostics', () => {
     ]);
     expect(payload.written).toBe(true);
     expect(await readFixtureFile(root, '.pvl/schemas/setup.ts')).toContain('const internal = 1;');
-    expect(await readFixtureFile(root, '.pvl/index.ts')).not.toContain('setup');
   });
 
   it('SIDE_EFFECT_COPIED: a warning that still copies the statement and writes', async () => {
@@ -638,6 +577,53 @@ describe('runCompilation(): diagnostics', () => {
     );
   });
 
+  it('UNSUPPORTED_SCHEMA: a method @pvl/schema does not have, on pvl or chained, only the first in a Schema', async () => {
+    const schemaFilePath = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [schemaFilePath]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'export const chained = pvl.compile(pvl.string().foo());',
+        'export const factory = pvl.compile(pvl.foo());',
+        'export const first = pvl.compile(pvl.object({ name: pvl.string().foo(), id: pvl.union([pvl.string()]) }));',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(
+      payload,
+      Array.from({ length: 3 }, () => ({
+        code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+        file: path.join(root, schemaFilePath),
+      })),
+    );
+  });
+
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: a receiver that cannot be read, before a method @pvl/schema does not have chained onto it', async () => {
+    const schemaFilePath = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      [schemaFilePath]: [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'export const makeName = (z: unknown) => pvl.compile(z.string().foo());',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(payload, [
+      {
+        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+        file: path.join(root, schemaFilePath),
+      },
+    ]);
+  });
+
   it('reports every error from one run together', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({ include: ['src/**/*.ts'], destination: 'src/out' }),
@@ -656,8 +642,6 @@ describe('runCompilation(): diagnostics', () => {
       'pvlconfig.json': configJson({ include: ['src/schemas/*.ts', 'lib/*.ts'] }),
       'src/schemas/user.ts': SCHEMA_FILE,
       'src/schemas/broken.ts': 'export default = ;\n',
-      'src/schemas/duplicate.ts': SCHEMA_FILE,
-      'src/schemas/legacy.ts': 'export default 1;\n',
       'src/schemas/setup.ts': 'const internal = 1;\n',
       'lib/helpers.ts': 'export const label = 1;\n',
     });
@@ -678,19 +662,9 @@ describe('runCompilation(): diagnostics', () => {
         file: path.join(root, 'src/schemas/broken.ts'),
       },
       {
-        code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
-        severity: SEVERITY.ERROR,
-        file: path.join(root, 'src/schemas/legacy.ts'),
-      },
-      {
         code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
         severity: SEVERITY.WARNING,
         file: path.join(root, 'src/schemas/setup.ts'),
-      },
-      {
-        code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-        severity: SEVERITY.ERROR,
-        file: path.join(root, 'src/schemas/user.ts'),
       },
     ]);
     expect(payload.written).toBe(false);
@@ -705,7 +679,6 @@ describe('runCompilation(): diagnostics', () => {
         "import { address } from './address.js';",
         '',
         "console.log('loaded');",
-        'export default 1;',
         'export const home = pvl.compile(address);',
         '',
       ].join('\n'),
@@ -728,11 +701,6 @@ describe('runCompilation(): diagnostics', () => {
       },
       {
         code: DIAGNOSTIC_CODE.FILE_OUTSIDE_ROOT_DIR,
-        severity: SEVERITY.ERROR,
-        file: path.join(root, 'lib/legacy.ts'),
-      },
-      {
-        code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
         severity: SEVERITY.ERROR,
         file: path.join(root, 'lib/legacy.ts'),
       },
