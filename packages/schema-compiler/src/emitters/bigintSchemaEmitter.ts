@@ -4,20 +4,21 @@
 // hook.
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, type BigintInterpretedSchema, ISSUE_CODE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { emitCoerceToBigint } from './coercions.js';
-import type { EmitCoercionArgs } from './emitter.js';
-import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
+import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
+import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
   ArgumentMessagesOf,
-  EmittedCheck,
-  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-} from './types.js';
+} from './types/methodTables.js';
+import { emitArgument } from './utils/arguments.js';
+import { emitCoerceToBigint } from './utils/coercions.js';
+import { emitCheck, emitTypeCheck } from './utils/emittedText.js';
+import { js } from './utils/js.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
 /** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
 const min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
@@ -73,7 +74,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
 
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: js`typeof ${value} !== "bigint"`,
       message: BIGINT_SCHEMA_ISSUE_MESSAGE._checkType(),
       issuePath,

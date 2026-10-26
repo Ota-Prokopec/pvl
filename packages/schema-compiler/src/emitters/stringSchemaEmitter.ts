@@ -4,20 +4,21 @@
 // hook.
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { emitCoerceToString } from './coercions.js';
-import type { EmitCoercionArgs } from './emitter.js';
-import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
+import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
+import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
   ArgumentMessagesOf,
-  EmittedCheck,
-  EmittedCoercion,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-} from './types.js';
+} from './types/methodTables.js';
+import { emitArgument } from './utils/arguments.js';
+import { emitCoerceToString } from './utils/coercions.js';
+import { emitCheck, emitTypeCheck } from './utils/emittedText.js';
+import { js } from './utils/js.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import { emitArgument, emitCheck, js } from './emitterUtils.js';
 
 /** `.min(3)` → `field0.length < 3`, reporting `TOO_SMALL`. */
 const min: EmitterMethodOf<StringInterpretedSchema['min']> = ({
@@ -96,7 +97,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: js`typeof ${value} !== "string"`,
       message: STRING_SCHEMA_ISSUE_MESSAGE._checkType(),
       issuePath,

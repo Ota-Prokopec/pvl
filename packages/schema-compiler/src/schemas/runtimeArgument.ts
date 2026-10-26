@@ -3,7 +3,7 @@
 // rather than reading it at compile time (ADR-0030).
 import type { Node } from 'ts-morph';
 import type { RuntimeArgumentParameter } from '../frame/frame.js';
-import { js } from '../emitters/emitterUtils.js';
+import { js } from '../emitters/utils/js.js';
 import { emitMessageAroundValue } from '../issue.js';
 import type { Schema } from './schema.js';
 import type { SchemaModifierCall } from './schemaTypes.js';
@@ -11,7 +11,7 @@ import type { SchemaModifierCall } from './schemaTypes.js';
 /** What {@link RuntimeArgument.getArgumentParameters} reads a Compiled Schema's Runtime Arguments for: its Schema, and, at the root, the hoisted `const`s holding them; `undefined` for a nested class, which is passed its parent's fields. */
 type GetArgumentParametersArgs = {
   schema: Schema;
-  root: { hoistedNameByExpression: ReadonlyMap<Node, string> } | undefined;
+  hoistedNameByExpression: ReadonlyMap<Node, string> | undefined;
 };
 
 /**
@@ -98,15 +98,15 @@ export class RuntimeArgument {
    * emitter, never a user error.
    *
    * ```ts
-   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, root: { hoistedNameByExpression: new Map() } })
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, hoistedNameByExpression: new Map() })
    * // [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }]
-   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, root: undefined })
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: undefined })
    * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'this.arg0', messageField: undefined, typeParameter: 'TArg0Output' }]
    * ```
    */
   public static getArgumentParameters({
     schema,
-    root,
+    hoistedNameByExpression,
   }: GetArgumentParametersArgs): RuntimeArgumentParameter[] {
     return RuntimeArgument.findChainedArguments({ schema })
       .sort((left, right) => left.argument.index - right.argument.index)
@@ -124,10 +124,9 @@ export class RuntimeArgument {
           fieldName: argument.fieldName,
           type,
           passedExpression:
-            root === undefined
+            hoistedNameByExpression === undefined
               ? js`this.${argument.fieldName}`
-              : (root.hoistedNameByExpression.get(argument.expression) ??
-                argument.expression.getText()),
+              : (hoistedNameByExpression.get(argument.expression) ?? argument.expression.getText()),
           messageField:
             messageOf === undefined
               ? undefined

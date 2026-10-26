@@ -18,15 +18,17 @@ import { STANDALONE_BRAND_NAME, STANDALONE_MARKER_TYPE_NAME } from '../consts.js
 import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
-  CheckingTarget,
   EmittedCheck,
   EmittedCoercion,
   EmittedShortCircuitCondition,
+} from '../emitters/types/emittedText.js';
+import type {
+  CheckingTarget,
   PreModifierStep,
   SchemaCompositeParts,
   SchemaParts,
-} from '../emitters/types.js';
-import { composeBlock, js } from '../emitters/emitterUtils.js';
+} from '../emitters/types/schemaParts.js';
+import { composeBlock, js } from '../emitters/utils/js.js';
 
 /** A Runtime Argument as its Compiled Schema's constructor takes it. */
 export type RuntimeArgumentParameter = {

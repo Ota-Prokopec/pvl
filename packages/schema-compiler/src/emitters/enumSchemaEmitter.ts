@@ -3,10 +3,12 @@
 import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { SpellTypesArgs } from './emitter.js';
+import type { EmittedCheck } from './types/emittedText.js';
+import type { SpellTypesArgs } from './types/hookArgs.js';
+import { emitTypeCheck } from './utils/emittedText.js';
+import { js } from './utils/js.js';
+import { emitLiteral, spellLiteralType } from './utils/literal.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import type { EmittedCheck } from './types.js';
-import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
@@ -19,7 +21,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
     target: { value, issuePath },
     schema: { members },
   }: EmitBaseCheckArgs<EnumSchema>): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: members.map((member) => js`${value} !== ${emitLiteral(member)}`).join(' && '),
       message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
       issuePath,

@@ -13,7 +13,8 @@ import type { FollowedConsts } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import type { EmitCompiledSchemaArgs, Emitter } from '../emitters/emitter.js';
+import type { Emitter } from '../emitters/emitter.js';
+import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
 import type { PvlFactoryName } from '@pvl/schema';
@@ -22,8 +23,13 @@ import type { Module } from '../module.js';
 import { RuntimeArgument } from './runtimeArgument.js';
 import type { SchemaModifierCall } from './schemaTypes.js';
 
-/** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`). */
-export type CompileSchemaArgs = Omit<EmitCompiledSchemaArgs, 'schema'>;
+/** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`), always at the root. */
+export type CompileSchemaArgs = Omit<
+  EmitCompiledSchemaArgs,
+  'schema' | 'hoistedNameByExpression'
+> & {
+  hoistedNameByExpression: NonNullable<EmitCompiledSchemaArgs['hoistedNameByExpression']>;
+};
 
 /** What every Schema holds, whichever factory built it. */
 export type SchemaOptions = {
@@ -247,7 +253,7 @@ export abstract class Schema {
    * ```
    */
   public compile(compileSchemaArgs: CompileSchemaArgs): string {
-    return this.emitter.emitCompiledSchema({ ...compileSchemaArgs, schema: this });
+    return this.emitter.emitCompiledSchema({ ...compileSchemaArgs, schema: this }).expression;
   }
 
   /**

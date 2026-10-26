@@ -1,6 +1,6 @@
 // What emitting one Compiled Schema's class shares across every Schema
 // nested in it: fresh names for the locals the emitted code declares.
-import type { CompositeLocalVariableNames } from './emitters/types.js';
+import type { CompositeLocalVariableNames } from './emitters/types/schemaParts.js';
 
 /**
  * What emitting one Compiled Schema's class shares across every Schema

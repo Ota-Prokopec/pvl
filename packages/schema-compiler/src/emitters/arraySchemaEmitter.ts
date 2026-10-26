@@ -6,36 +6,34 @@
 import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import type { EmittedCheck } from './types/emittedText.js';
 import type {
-  EmittedElementProperty,
   EmitElementPropertyArgs,
   EmitSchemaCompositePartsArgs,
   SpellTypesArgs,
-} from './emitter.js';
+} from './types/hookArgs.js';
+import type {
+  ArgumentMessagesOf,
+  EmitterMethodOf,
+  ParameterTypesOf,
+  PostModifierCheckTable,
+} from './types/methodTables.js';
+import type {
+  CheckingTarget,
+  CompositeLocalVariableNames,
+  SchemaCompositeParts,
+} from './types/schemaParts.js';
+import type { EmittedElementProperty } from './types/standaloneProperties.js';
+import { emitArgument } from './utils/arguments.js';
+import { emitCheck, emitTypeCheck, emitVariableDeclaration } from './utils/emittedText.js';
+import { composeBlock, js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
-import {
-  composeBlock,
-  emitArgument,
-  emitCheck,
-  emitVariableDeclaration,
-  js,
-} from './emitterUtils.js';
 import type { Scope } from '../scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
-import type {
-  ArgumentMessagesOf,
-  CheckingTarget,
-  CompositeLocalVariableNames,
-  EmittedCheck,
-  EmitterMethodOf,
-  ParameterTypesOf,
-  PostModifierCheckTable,
-  SchemaCompositeParts,
-} from './types.js';
 
 /**
  * An array type of `elementType`, parenthesised when it is a union, which
@@ -163,7 +161,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: js`!Array.isArray(${value})`,
       message: ARRAY_SCHEMA_ISSUE_MESSAGE._checkType(),
       issuePath,

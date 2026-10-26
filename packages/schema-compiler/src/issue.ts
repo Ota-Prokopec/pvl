@@ -10,8 +10,8 @@ import {
   type IssueEditableProps,
   type IssueProps,
 } from '@pvl/schema';
-import { js } from './emitters/emitterUtils.js';
-import type { EmittedIssue } from './emitters/types.js';
+import type { EmittedIssue } from './emitters/types/emittedText.js';
+import { js } from './emitters/utils/js.js';
 import { RuntimeArgument } from './schemas/runtimeArgument.js';
 
 // Stands in for a value only known at runtime while a default message is

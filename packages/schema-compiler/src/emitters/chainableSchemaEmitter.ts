@@ -15,30 +15,25 @@ import { UNDEFINEDNESS } from '../enums.js';
 import { emitConstraintIssue } from '../issue.js';
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
-import {
-  Emitter,
-  type CompilesMethodArgs,
-  type EmitTransformArgs,
-  type SpellParameterTypesArgs,
-  type SpellTypesArgs,
-} from './emitter.js';
+import { Emitter } from './emitter.js';
+import type { EmittedShortCircuitCondition } from './types/emittedText.js';
 import type {
-  EmittedShortCircuitCondition,
+  CompilesMethodArgs,
+  EmitTransformArgs,
+  SpellParameterTypesArgs,
+  SpellTypesArgs,
+} from './types/hookArgs.js';
+import type {
   EmitterArgs,
   EmitterMethodOf,
   PostModifierCheckTable,
   ShortCircuitConditionTable,
-  TransformParts,
-} from './types.js';
-import {
-  emitCheck,
-  emitFunctionCall,
-  emitShortCircuitCondition,
-  emitTransform,
-  js,
-  readCallArguments,
-  readFunctionArgument,
-} from './emitterUtils.js';
+} from './types/methodTables.js';
+import type { TransformParts } from './types/schemaParts.js';
+import { emitFunctionCall, readFunctionArgument } from './utils/arguments.js';
+import { emitCheck, emitShortCircuitCondition, emitTransform } from './utils/emittedText.js';
+import { js } from './utils/js.js';
+import { readCallArguments } from './utils/methodCall.js';
 
 // The Input of a coerced Schema, which takes any value.
 const UNKNOWN_TYPE: SpelledType = { text: 'unknown', undefinedness: UNDEFINEDNESS.ALWAYS };

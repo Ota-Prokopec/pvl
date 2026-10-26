@@ -15,35 +15,33 @@ import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './types/emittedText.js';
 import type {
-  EmittedShapeProperty,
   CompilesMethodArgs,
-  EmitShapePropertyArgs,
   EmitPostModifierChecksArgs,
   EmitSchemaCompositePartsArgs,
+  EmitShapePropertyArgs,
   SpellTypesArgs,
-} from './emitter.js';
-import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
-import { ISSUE_OPTIONS_TYPE, UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
-import {
-  composeBlock,
-  emitCheck,
-  emitOutputStatement,
-  emitVariableDeclaration,
-  js,
-} from './emitterUtils.js';
-import type { Scope } from '../scope.js';
+} from './types/hookArgs.js';
 import type {
-  CompositeLocalVariableNames,
-  EmittedCheck,
-  EmittedIssue,
-  EmittedOutputStatement,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
-  SchemaCompositeParts,
-} from './types.js';
+} from './types/methodTables.js';
+import type { CompositeLocalVariableNames, SchemaCompositeParts } from './types/schemaParts.js';
+import type { EmittedShapeProperty } from './types/standaloneProperties.js';
+import {
+  emitCheck,
+  emitOutputStatement,
+  emitTypeCheck,
+  emitVariableDeclaration,
+} from './utils/emittedText.js';
+import { composeBlock, js } from './utils/js.js';
+import { emitMethodCall } from './utils/methodCall.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
+import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
+import { ISSUE_OPTIONS_TYPE, UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
+import type { Scope } from '../scope.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { UNDEFINEDNESS, UNKNOWN_KEYS_MODE } from '../enums.js';
 
@@ -324,7 +322,7 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
 
   /** `typeof value !== "object" || value === null || Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: js`typeof ${value} !== "object" || ${value} === null || Array.isArray(${value})`,
       message: OBJECT_SCHEMA_ISSUE_MESSAGE._checkType(),
       issuePath,
@@ -372,7 +370,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       ...this.postModifierChecks,
       strict: createStrictCheck({ declaredKeys: schema.declaredKeys, locals: compositeLocals }),
     } satisfies PostModifierCheckTable;
-    return schema.postModifierCalls.map((call) => this.emitMethodCall({ table, call, target }));
+    return schema.postModifierCalls.map((call) =>
+      emitMethodCall({ table, call, target, emitterName: this.name }),
+    );
   }
 
   /**

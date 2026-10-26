@@ -2,7 +2,8 @@
 // static methods, plus the base check of its schema type.
 import type { Schema } from '../schemas/schema.js';
 import type { Emitter } from './emitter.js';
-import type { CheckingTarget, EmittedCheck } from './types.js';
+import type { EmittedCheck } from './types/emittedText.js';
+import type { CheckingTarget } from './types/schemaParts.js';
 
 /** What {@link SchemaEmitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {

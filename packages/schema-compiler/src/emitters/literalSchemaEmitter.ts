@@ -4,16 +4,18 @@
 import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
+import type { EmitCoercionArgs, SpellTypesArgs } from './types/hookArgs.js';
 import {
   emitCoerceToBigint,
   emitCoerceToBoolean,
   emitCoerceToNumber,
   emitCoerceToString,
-} from './coercions.js';
-import type { EmitCoercionArgs, SpellTypesArgs } from './emitter.js';
+} from './utils/coercions.js';
+import { emitTypeCheck } from './utils/emittedText.js';
+import { js } from './utils/js.js';
+import { emitLiteral, spellLiteralType } from './utils/literal.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import type { EmittedCheck, EmittedCoercion } from './types.js';
-import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
@@ -53,7 +55,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
     target: { value, issuePath },
     schema: { value: literalValue },
   }: EmitBaseCheckArgs<LiteralSchema>): EmittedCheck {
-    return this.emitTypeCheck({
+    return emitTypeCheck({
       failsWhen: js`!Object.is(${value}, ${emitLiteral(literalValue)})`,
       message: LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
       issuePath,
