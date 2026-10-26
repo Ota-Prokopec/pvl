@@ -43,4 +43,5 @@ The getting-started page opens with a `::: warning` callout saying `@pvl/schema`
 ## Writing the guide
 
 - Use the library's own vocabulary (`validate()`, `Result`, `Issue`).
+- How a schema works inside belongs in the [wiki](../../docs/agents/wiki.md), not here. Each schema and Shared Modifier section of `schemas.md` ends with a `::: info Behind the scenes` box linking its wiki page, and the nav and both "What comes next" lists link the wiki's home. A new section gets its box; the links are absolute `https://github.com/Ota-Prokopec/pvl/wiki/<Page>` URLs, which `build` doesn't check.
 - Describe what the library does today. A capability that doesn't exist yet (Compiled Schemas, async validation) is absent or named as absent.
