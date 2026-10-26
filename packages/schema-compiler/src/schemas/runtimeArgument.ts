@@ -135,7 +135,7 @@ export class RuntimeArgument {
                   expression: emitMessageAroundValue(messageOf, argument.fieldName),
                 },
           typeParameter:
-            call === owner.transformCall && position === 0
+            argument === owner.getTransformFunction()
               ? argument.outputTypeParameterName
               : undefined,
         };

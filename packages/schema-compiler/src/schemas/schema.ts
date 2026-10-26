@@ -16,6 +16,7 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { Emitter } from '../emitters/emitter.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
+import { readFunctionArgument } from '../emitters/utils/arguments.js';
 import { PRE_MODIFIER_NAMES } from '../consts.js';
 import type { PvlFactoryName } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
@@ -153,6 +154,21 @@ export abstract class Schema {
   public get chainedCalls(): ReadonlyArray<SchemaModifierCall> {
     const { calls, transformCall } = this;
     return transformCall === undefined ? calls : [...calls, transformCall];
+  }
+
+  /**
+   * The function its `.transform()` is passed, the Runtime Argument it
+   * always is; `undefined` without one. Read lazily, as a spread one is
+   * reported by `findUncompilableDiagnostics` before anything reads it.
+   *
+   * ```ts
+   * <pvl.string().transform(trim)>.getTransformFunction() // <Runtime Argument trim>
+   * <pvl.string()>.getTransformFunction()                 // undefined
+   * ```
+   */
+  public getTransformFunction(): RuntimeArgument | undefined {
+    const { transformCall } = this;
+    return transformCall === undefined ? undefined : readFunctionArgument(transformCall.args?.[0]);
   }
 
   /**
