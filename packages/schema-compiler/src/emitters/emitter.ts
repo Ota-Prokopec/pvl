@@ -195,10 +195,10 @@ export type CompilesMethodArgs = {
 };
 
 /** What {@link Emitter.emitMethodCall} emits a chained method with: the table of the kind of text it writes, the call, and the target it reads. */
-export type EmitMethodCallArgs<TOutput extends EmittedMethodText, TInput extends CheckingTarget> = {
-  table: EmitterMethodTable<TOutput, TInput>;
+export type EmitMethodCallArgs<TOutput extends EmittedMethodText> = {
+  table: EmitterMethodTable<TOutput>;
   call: SchemaModifierCall;
-  target: TInput;
+  target: CheckingTarget;
 };
 
 /** The field an array's Compiled Schema holds its unmarked element in, which its constructor takes. */
@@ -249,12 +249,11 @@ export abstract class Emitter {
 
   /**
    * The post-modifiers this emitter compiles that check its value, each
-   * writing its check, by the name of the method it mirrors. A
-   * post-modifier reading something else, as an object's `.strict()` reads
-   * its keys, sits in a table of its emitter's own instead, which its
-   * `_emitPostModifierChecks` calls it from and its `compilesMethod` reads
-   * too. `.transform()`, which replaces the value, has a hook instead
-   * (`_emitTransform`).
+   * writing its check, by the name of the method it mirrors. One closed
+   * over a Schema's own parts, as an object's `.strict()` is over its keys,
+   * is added per Schema by its emitter's `_emitPostModifierChecks`, and
+   * named by its `compilesMethod`. `.transform()`, which replaces the value,
+   * has a hook instead (`_emitTransform`).
    */
   public static readonly postModifierChecks: PostModifierCheckTable = {};
 
@@ -765,10 +764,11 @@ export abstract class Emitter {
    * StringSchemaEmitter.emitMethodCall({ table: StringSchemaEmitter.shortCircuitConditions, call: <.optional()>, target: { value: 'field0', path, issuePath } }) // 'field0 === undefined'
    * ```
    */
-  protected static emitMethodCall<
-    TOutput extends EmittedMethodText,
-    TInput extends CheckingTarget,
-  >({ table, call, target }: EmitMethodCallArgs<TOutput, TInput>): TOutput {
+  protected static emitMethodCall<TOutput extends EmittedMethodText>({
+    table,
+    call,
+    target,
+  }: EmitMethodCallArgs<TOutput>): TOutput {
     const emitterMethod = Object.hasOwn(table, call.name) ? table[call.name] : undefined;
     if (emitterMethod === undefined) {
       throw new Error(`${this.name} has no method to emit .${call.name}() with.`);

@@ -3,8 +3,11 @@
 import { GenericAst } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
-import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+import { PVL_FACTORY_NAMES_ENUM, PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
+import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
+import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
+import type { SchemaModifierCall } from './schemaTypes.js';
 
 /** One field of an object Schema. */
 export type ObjectField = {
@@ -57,6 +60,62 @@ export class ObjectSchema extends Schema {
     );
     const shape = Object.entries(fieldSchemaByKey).map(([key, schema]) => ({ key, schema }));
     return (options: SchemaOptions): ObjectSchema => new ObjectSchema({ ...options, shape });
+  }
+
+  /**
+   * The keys its shape declares, in shape order.
+   *
+   * ```ts
+   * <pvl.object({ name: pvl.string(), age: pvl.number() })>.declaredKeys // ['name', 'age']
+   * ```
+   */
+  public get declaredKeys(): ReadonlyArray<string> {
+    return this.shape.map(({ key }) => key);
+  }
+
+  /**
+   * Its unknown-key mode, set by the last of `.strict()` and `.passthrough()`
+   * chained, since each removes the other; `STRIP` with neither, as
+   * `ObjectInterpretedSchema` strips until one sets its `_keepsUnknownKeys`
+   * (ADR-0007).
+   *
+   * ```ts
+   * <pvl.object({}).strict().passthrough()>.unknownKeysMode // 'PASSTHROUGH'
+   * <pvl.object({})>.unknownKeysMode                        // 'STRIP'
+   * ```
+   */
+  public get unknownKeysMode(): UnknownKeysMode {
+    const name = this.findUnknownKeysCall()?.name;
+    if (name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT) {
+      return UNKNOWN_KEYS_MODE.STRICT;
+    }
+    return name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH
+      ? UNKNOWN_KEYS_MODE.PASSTHROUGH
+      : UNKNOWN_KEYS_MODE.STRIP;
+  }
+
+  /**
+   * Its post-modifiers, in chain order, without every `.strict()` and
+   * `.passthrough()` but a winning `.strict()`, as `ObjectInterpretedSchema`
+   * removes them: `.passthrough()` adds no post-modifier of its own.
+   *
+   * ```ts
+   * <pvl.object({}).strict().refine(isOk).strict(opts)>.postModifierCalls // [refine(isOk), strict(opts)]
+   * <pvl.object({}).strict().passthrough()>.postModifierCalls             // []
+   * ```
+   */
+  public override get postModifierCalls(): ReadonlyArray<SchemaModifierCall> {
+    const unknownKeysCall = this.findUnknownKeysCall();
+    return super.postModifierCalls.filter(
+      (call) =>
+        !UNKNOWN_KEYS_METHOD_NAMES.has(call.name) ||
+        (call === unknownKeysCall && call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT),
+    );
+  }
+
+  /** The last of `.strict()` and `.passthrough()` chained onto it, which wins; `undefined` with neither. */
+  private findUnknownKeysCall(): SchemaModifierCall | undefined {
+    return [...this.calls].reverse().find((call) => UNKNOWN_KEYS_METHOD_NAMES.has(call.name));
   }
 
   /**

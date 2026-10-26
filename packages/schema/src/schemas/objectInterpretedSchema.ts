@@ -116,35 +116,10 @@ export const OBJECT_SCHEMA_ISSUE_MESSAGE = {
 // signature on the object branch and leaves the `undefined` branch alone.
 type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, unknown> : Output;
 
-// The unknown-key modifiers run as post-modifiers, once `_checkType` has
-// accepted the value. `_checkType` keeps every key, so the undeclared ones are
-// still on the value; no post-modifier replaces it before them (`.refine()`
-// and `.strict()` only report). Not exported: this module is in the barrel,
-// and they are internal-only.
-
-// The default: every object schema starts with it as its first post-modifier,
-// and `.strict()`/`.passthrough()` remove it.
-const unknownKeysStripModifier = (
-  declaredKeys: ReadonlySet<string>,
-): Modifier<unknown, unknown> => ({
-  shape: unknownKeysStripModifier,
-  fn: (value): Result<unknown> | null => {
-    if (unknownKeysOfObject(value, declaredKeys).length === 0) {
-      return null;
-    }
-    const input = value as Record<string, unknown>;
-    // Copied rather than deleted in place, so a value an earlier step handed
-    // on is never mutated.
-    const output: Record<string, unknown> = {};
-    for (const key of Object.keys(input)) {
-      if (declaredKeys.has(key)) {
-        assignObjectProperty(output, key, input[key]);
-      }
-    }
-    return { value: output };
-  },
-});
-
+// `.strict()`'s post-modifier, which runs once `_checkType` has accepted the
+// value with the undeclared keys kept (`_keepsUnknownKeys`); no post-modifier
+// replaces it before this one (`.refine()` only reports). Not exported: this
+// module is in the barrel, and it is internal-only.
 const unknownKeysStrictModifier = (
   declaredKeys: ReadonlySet<string>,
   options?: IssueEditableProps,
@@ -162,11 +137,6 @@ const unknownKeysStrictModifier = (
     return issues.length > 0 ? { issues } : null;
   },
 });
-
-// Every unknown-key modifier, removed by `.strict()` and `.passthrough()` so
-// the last one chained wins. `.passthrough()` adds none of its own: without
-// the strip modifier, `_checkType`'s output already keeps every key.
-const UNKNOWN_KEYS_MODIFIERS = [unknownKeysStripModifier, unknownKeysStrictModifier];
 
 interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends InterpretedSchemaKind<
   ObjectInterpretedSchema<Shape, unknown, unknown>
@@ -228,10 +198,15 @@ export class ObjectInterpretedSchema<
   // construction, as a field is never replaced.
   private readonly _standaloneShape: StandaloneShape<Shape>;
 
+  // Whether `_checkType` keeps the undeclared keys: set once `.strict()` or
+  // `.passthrough()` removes the default strip, for the whole chain
+  // (ADR-0007). Unset, it strips by never copying them.
+  private _keepsUnknownKeys = false;
+
   /** @internal */
   constructor(shape: Shape) {
+    super();
     const shapeKeys = new Set(Object.keys(shape));
-    super({ postModifiers: [unknownKeysStripModifier(shapeKeys)] });
     // Spreading a generic widens to its constraint, which is what the
     // assertion restores; the copy is per-construction, not per-`.validate()`.
     this._shape = { ...shape } as Shape;
@@ -306,7 +281,7 @@ export class ObjectInterpretedSchema<
    * ```
    */
   strict(options?: IssueEditableProps): this {
-    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS)._withPostModifier(
+    return this._withKeptUnknownKeys()._withPostModifier(
       unknownKeysStrictModifier(this._shapeKeys, options),
     );
   }
@@ -332,11 +307,24 @@ export class ObjectInterpretedSchema<
    * ```
    */
   passthrough(): ObjectInterpretedSchema<Shape, Input, WithUnknownKeys<Output>> {
-    return this._withoutModifiers(UNKNOWN_KEYS_MODIFIERS) as unknown as ObjectInterpretedSchema<
+    return this._withKeptUnknownKeys() as unknown as ObjectInterpretedSchema<
       Shape,
       Input,
       WithUnknownKeys<Output>
     >;
+  }
+
+  /**
+   * A copy without `.strict()`'s post-modifier whose `_checkType` keeps the
+   * undeclared keys, as `.strict()` and `.passthrough()` each remove the
+   * default strip and the other.
+   *
+   * @internal
+   */
+  private _withKeptUnknownKeys(): this {
+    const clone = this._withoutModifier(unknownKeysStrictModifier);
+    clone._keepsUnknownKeys = true;
+    return clone;
   }
 
   /** @internal */
@@ -350,9 +338,8 @@ export class ObjectInterpretedSchema<
     }
 
     const input = value as Record<string, unknown>;
-    // Every key is kept, the undeclared ones as they came in: stripping them
-    // is the default post-modifier's job, which `.strict()` and
-    // `.passthrough()` remove.
+    // The undeclared keys are copied as they came in only once `.strict()` or
+    // `.passthrough()` removed the default strip (`_keepsUnknownKeys`).
     const output: Record<string, unknown> = {};
     const issues: Issue[] = [];
 
@@ -375,8 +362,10 @@ export class ObjectInterpretedSchema<
       return { issues };
     }
 
-    for (const key of unknownKeysOfObject(input, this._shapeKeys)) {
-      assignObjectProperty(output, key, input[key]);
+    if (this._keepsUnknownKeys) {
+      for (const key of unknownKeysOfObject(input, this._shapeKeys)) {
+        assignObjectProperty(output, key, input[key]);
+      }
     }
 
     // The loops above wrote each field's own result, which the type system

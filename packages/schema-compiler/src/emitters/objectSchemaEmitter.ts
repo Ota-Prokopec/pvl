@@ -1,11 +1,10 @@
 // The code an `ObjectSchema` compiles to, one method per method of
 // `ObjectInterpretedSchema` it mirrors, and the composite parts of a compiled
 // object, at the root or nested in another Schema, which inline every
-// field's checks, nested objects' and arrays' included. Its two methods,
-// `.strict()` and `.passthrough()`, read its keys rather than its value, so
-// each sits in a table of its own kind at that target, and its
-// `_emitPostModifierChecks` and `_emitCompositeParts` call the one that wins
-// themselves.
+// field's checks, nested objects' and arrays' included. As in
+// `ObjectInterpretedSchema`, `.strict()` is a post-modifier closed over the
+// keys the shape declares, and `.passthrough()` adds none: the output keeps
+// the undeclared keys once the strip it removes is gone.
 import {
   ISSUE_CODE,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
@@ -14,7 +13,7 @@ import {
 } from '@pvl/schema';
 import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
 import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
-import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
   CompiledStructure,
@@ -26,41 +25,33 @@ import type {
   SpellTypesArgs,
 } from './emitter.js';
 import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
-import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { ISSUE_OPTIONS_TYPE, UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
 import {
   composeBlock,
   emitCheck,
   emitOutputStatement,
   emitVariableDeclaration,
   js,
-  readCallArguments,
 } from './emitterUtils.js';
 import type { Scope } from './scope.js';
 import type {
-  CheckingTarget,
   CompositeLocals,
   CompositeParts,
   EmittedCheck,
   EmittedIssue,
   EmittedOutputStatement,
   EmitterMethodOf,
-  EmitterMethodTable,
   ParameterTypesOf,
+  PostModifierCheckTable,
 } from './types.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
-import { UNDEFINEDNESS } from '../enums.js';
+import { UNDEFINEDNESS, UNKNOWN_KEYS_MODE } from '../enums.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
 
 /** The `@pvl/schema` object whose methods `ObjectSchemaEmitter`'s mirror, whatever its shape. */
 type PvlAnyObjectSchema = ObjectInterpretedSchema;
-
-/** An object's target, its value as a record, plus the output it builds and the keys its shape declares. */
-export type ObjectCheckingTarget = CheckingTarget & {
-  output: string;
-  declaredKeys: ReadonlyArray<string>;
-};
 
 /** A field of the shape, with the name its value is read into: `field0`, `field1`, … */
 export type NamedField = ObjectField & {
@@ -181,68 +172,6 @@ const spellFieldsType = (fields: ReadonlyArray<{ key: string; type: SpelledType 
   return `{ [K in keyof ${composedType}]: ${composedType}[K] }`;
 };
 
-/**
- * Whether `call` is `.strict()` or `.passthrough()`, which read an object's
- * keys rather than its value.
- *
- * ```ts
- * isUnknownKeysCall(<.strict()>)     // true
- * isUnknownKeysCall(<.refine(isOk)>) // false
- * ```
- */
-const isUnknownKeysCall = (call: SchemaModifierCall): boolean => {
-  return (
-    call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT ||
-    call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH
-  );
-};
-
-/**
- * The last of `.strict()` and `.passthrough()` chained onto an object, which
- * wins, since each removes the other; `undefined` means it strips.
- *
- * ```ts
- * findUnknownKeysCall([strict(), passthrough()]) // passthrough()
- * findUnknownKeysCall([])                        // undefined
- * ```
- */
-const findUnknownKeysCall = (
-  calls: ReadonlyArray<SchemaModifierCall>,
-): SchemaModifierCall | undefined => {
-  return [...calls].reverse().find((call) => isUnknownKeysCall(call));
-};
-
-/** What {@link createObjectCheckingTarget} reads an object's target from: its Schema at its target, and its locals. */
-export type CreateObjectCheckingTargetArgs = {
-  schema: ObjectSchema;
-  target: CheckingTarget;
-  locals: CompositeLocals;
-};
-
-/**
- * The target `.strict()` and `.passthrough()` read: the object's value as a
- * record in its `input` local, its path local, which an unknown key's Issue
- * path extends, its `output` local, and the keys its shape declares.
- *
- * ```ts
- * createObjectCheckingTarget({ schema: <pvl.object({ name: pvl.string() })>, target: <field0 at [...path1, "user"]>, locals: <locals ending in 2> })
- * // { value: 'input2', path: 'path2', issuePath: '[...path1, "user"]', output: 'output2', declaredKeys: ['name'] }
- * ```
- */
-const createObjectCheckingTarget = ({
-  schema,
-  target,
-  locals,
-}: CreateObjectCheckingTargetArgs): ObjectCheckingTarget => {
-  return {
-    value: locals.input,
-    path: locals.path,
-    issuePath: target.issuePath,
-    output: locals.output,
-    declaredKeys: schema.shape.map(({ key }) => key),
-  };
-};
-
 /** What {@link emitFieldChecks} emits a field's checks for: the field, named, and its object's locals. */
 export type EmitFieldChecksArgs = {
   field: NamedField;
@@ -289,18 +218,18 @@ const emitFieldChecks = ({
  * the output instead.
  *
  * ```ts
- * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, objectTarget: { value: 'input1', output: 'output1', … } })
+ * emitOutputAssignment({ field: { key: 'name', schema: <pvl.string()>, value: 'field0' }, locals: <locals ending in 1> })
  * // 'output1["name"] = field0;'
- * emitOutputAssignment({ field: { key: 'age', schema: <pvl.number().optional()>, value: 'field1' }, objectTarget: <the same> })
+ * emitOutputAssignment({ field: { key: 'age', schema: <pvl.number().optional()>, value: 'field1' }, locals: <the same> })
  * // 'if (field1 !== undefined || Object.hasOwn(input1, "age")) {\n  output1["age"] = field1;\n}'
  * ```
  */
 const emitOutputAssignment = ({
   field: { key, schema: fieldSchema, value },
-  objectTarget: { value: input, output },
+  locals: { input, output },
 }: {
   field: NamedField;
-  objectTarget: ObjectCheckingTarget;
+  locals: CompositeLocals;
 }): EmittedOutputStatement => {
   const keyLiteral = JSON.stringify(key);
   const assignment =
@@ -319,9 +248,19 @@ const emitOutputAssignment = ({
   });
 };
 
+/** What {@link createStrictCheck} and {@link emitUnknownKeysCopy} read an object's keys with: the keys its shape declares, and its locals. */
+export type UnknownKeysArgs = {
+  declaredKeys: ReadonlyArray<string>;
+  locals: CompositeLocals;
+};
+
 /**
- * `.strict()`: an `UNRECOGNIZED_KEY` Issue per key of `input` the shape
- * doesn't declare.
+ * `.strict()`, closed over the keys the shape declares and the object's
+ * `input` and path locals, as `ObjectInterpretedSchema`'s is over its shape's
+ * keys: an `UNRECOGNIZED_KEY` Issue per key of `input` the shape doesn't
+ * declare. It reads `input` rather than its target, the output, which holds
+ * the unknown keys only when another post-modifier reads them
+ * (`_emitCompositeParts`).
  *
  * ```ts
  * for (const key of Object.keys(input)) {
@@ -331,20 +270,23 @@ const emitOutputAssignment = ({
  * }
  * ```
  */
-const strict: EmitterMethodOf<PvlAnyObjectSchema['strict'], EmittedCheck, ObjectCheckingTarget> = ({
-  target: { value, path, declaredKeys },
-  args: [options],
-}) =>
-  emitCheck({
-    loopHead: js`for (const key of Object.keys(${value}))`,
-    failsWhen: emitIsUndeclaredKey(declaredKeys),
-    issue: emitUnrecognizedKeyIssue(path, options),
-  });
+const createStrictCheck =
+  ({
+    declaredKeys,
+    locals: { input, path },
+  }: UnknownKeysArgs): EmitterMethodOf<PvlAnyObjectSchema['strict']> =>
+  ({ args: [options] }) =>
+    emitCheck({
+      loopHead: js`for (const key of Object.keys(${input}))`,
+      failsWhen: emitIsUndeclaredKey(declaredKeys),
+      issue: emitUnrecognizedKeyIssue(path, options),
+    });
 
 /**
- * `.passthrough()`: copies every key of `input` the shape doesn't declare
- * onto `output`, after the declared ones. `__proto__` is defined rather
- * than assigned, which would reparent `output` instead.
+ * Copies every key of `input` the shape doesn't declare onto `output`,
+ * after the declared ones, as `_checkType` keeps them once `.strict()` or
+ * `.passthrough()` removed the strip. `__proto__` is defined rather than
+ * assigned, which would reparent `output` instead.
  *
  * ```ts
  * for (const key of Object.keys(input)) {
@@ -358,18 +300,17 @@ const strict: EmitterMethodOf<PvlAnyObjectSchema['strict'], EmittedCheck, Object
  * }
  * ```
  */
-const passthrough: EmitterMethodOf<
-  PvlAnyObjectSchema['passthrough'],
-  EmittedOutputStatement,
-  ObjectCheckingTarget
-> = ({ target: { value, output, declaredKeys } }) =>
+const emitUnknownKeysCopy = ({
+  declaredKeys,
+  locals: { input, output },
+}: UnknownKeysArgs): EmittedOutputStatement =>
   emitOutputStatement({
-    statement: js`for (const key of Object.keys(${value})) {
+    statement: js`for (const key of Object.keys(${input})) {
       if (${emitIsUndeclaredKey(declaredKeys)}) {
         if (key === "__proto__") {
-          Object.defineProperty(${output}, key, { value: ${value}[key], writable: true, enumerable: true, configurable: true });
+          Object.defineProperty(${output}, key, { value: ${input}[key], writable: true, enumerable: true, configurable: true });
         } else {
-          ${output}[key] = ${value}[key];
+          ${output}[key] = ${input}[key];
         }
       }
     }`,
@@ -391,30 +332,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   }
 
   /**
-   * `.strict()`, the post-modifier checking an object's keys rather than
-   * its value (`ObjectCheckingTarget`). Not in `postModifierChecks`, whose
-   * methods read a plain `CheckingTarget`, so it is never dispatched:
-   * `_emitPostModifierChecks` calls it itself when it is the last of
-   * `.strict()` and `.passthrough()` chained.
-   */
-  public static readonly keyChecks = { strict } satisfies EmitterMethodTable<
-    EmittedCheck,
-    ObjectCheckingTarget
-  >;
-
-  /**
-   * `.passthrough()`, which copies an object's undeclared keys onto its
-   * output. `_emitCompositeParts` calls it itself when it is the last of
-   * `.strict()` and `.passthrough()` chained.
-   */
-  public static readonly outputStatements = { passthrough } satisfies EmitterMethodTable<
-    EmittedOutputStatement,
-    ObjectCheckingTarget
-  >;
-
-  /**
-   * Whether it compiles the Schema method `name`: one of its tables holds
-   * it, those it calls itself (`keyChecks`, `outputStatements`) included.
+   * Whether it compiles the Schema method `name`: its tables hold it, or it
+   * is `.strict()`, built per Schema (`_emitPostModifierChecks`), or
+   * `.passthrough()`, which adds no post-modifier.
    *
    * ```ts
    * ObjectSchemaEmitter.compilesMethod({ name: 'strict' })   // true
@@ -423,22 +343,17 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * ```
    */
   public static override compilesMethod(args: CompilesMethodArgs): boolean {
-    return (
-      Object.hasOwn(this.keyChecks, args.name) ||
-      Object.hasOwn(this.outputStatements, args.name) ||
-      super.compilesMethod(args)
-    );
+    return UNKNOWN_KEYS_METHOD_NAMES.has(args.name) || super.compilesMethod(args);
   }
 
   /**
    * An object's post-modifiers' checks, in chain order, once every field
-   * has passed. `.strict()` reads its keys rather than its value, and
-   * checks them where the last of `.strict()` and `.passthrough()` chained
-   * is, which wins (ADR-0007), as each `.strict()` moves it there and
-   * `.passthrough()` removes it; any other, such as `.refine()`, reads the
-   * output (`target`), as the interpreted one reads `_checkType`'s
-   * (ADR-0035). Throws without `locals`, which an object, a composite,
-   * always has.
+   * has passed, dispatched through its `postModifierChecks` and the
+   * `.strict()` closed over its keys and locals, which only a winning
+   * `.strict()` reaches (`ObjectSchema.postModifierCalls`). Any other, such
+   * as `.refine()`, reads the output (`target`), as the interpreted one
+   * reads `_checkType`'s (ADR-0035). Throws without `locals`, which an
+   * object, a composite, always has.
    *
    * ```ts
    * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <output2 at [...path1, "user"]>, locals: <locals ending in 2> })
@@ -453,30 +368,21 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     if (locals === undefined) {
       throw new Error(`${this.name} has no composite locals to check an object's keys with.`);
     }
-    const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
-    return schema.postModifierCalls.flatMap((call) => {
-      if (!isUnknownKeysCall(call)) {
-        return [this.emitMethodCall({ table: this.postModifierChecks, call, target })];
-      }
-      return call === unknownKeysCall && call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT
-        ? [
-            this.keyChecks.strict({
-              target: createObjectCheckingTarget({ schema, target, locals }),
-              args: readCallArguments(call),
-            }),
-          ]
-        : [];
-    });
+    const table = {
+      ...this.postModifierChecks,
+      strict: createStrictCheck({ declaredKeys: schema.declaredKeys, locals }),
+    } satisfies PostModifierCheckTable;
+    return schema.postModifierCalls.map((call) => this.emitMethodCall({ table, call, target }));
   }
 
   /**
    * An object's composite parts, at the root or nested in another Schema:
    * its locals, every field's checks inlined in shape order as its
-   * children, and the output built from the fields. `.passthrough()` copies
-   * the keys the shape doesn't declare onto the output, after the declared
-   * fields, and so does `.strict()` when another post-modifier reads the
-   * output, as the interpreted value it reads still carries them; otherwise
-   * they are stripped. The frame hands the output on.
+   * children, and the output built from the fields. Like `_checkType`, it
+   * strips by never copying the keys the shape doesn't declare, and copies
+   * them after the declared fields once `.strict()` or `.passthrough()`
+   * removed the strip (`unknownKeysMode`), unless nothing can read them.
+   * The frame hands the output on.
    *
    * ```ts
    * ObjectSchemaEmitter._emitCompositeParts({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <field0 at [...path1, "user"]>, scope })
@@ -493,20 +399,15 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     // Numbered first, so before its fields and any Schema nested in them.
     const locals: CompositeLocals = scope.nextCompositeLocals();
     const fields = nameFields(schema.shape, scope);
-    const objectTarget: ObjectCheckingTarget = createObjectCheckingTarget({
-      schema,
-      target,
-      locals,
-    });
-    const unknownKeysCall = findUnknownKeysCall(schema.postModifierCalls);
-    // `.strict()` only reports the undeclared keys, so a post-modifier
-    // reading the output reads them on it, as `.passthrough()` keeps them
-    // there; with any of them, `.strict()` fails, so the output is never
-    // accepted.
-    const keepsUndeclaredKeys =
-      unknownKeysCall?.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH ||
-      (unknownKeysCall?.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT &&
-        schema.postModifierCalls.some((call) => !isUnknownKeysCall(call)));
+    const { unknownKeysMode } = schema;
+    // Kept as `_checkType` keeps them once the strip is removed. A `.strict()`
+    // with no other post-modifier reading the output skips the copy, which
+    // nothing can observe: with an unknown key it fails, so the output is
+    // never accepted, and without one there is nothing to copy. Its check
+    // reads `input` for that reason (`createStrictCheck`).
+    const copiesUnknownKeys =
+      unknownKeysMode === UNKNOWN_KEYS_MODE.PASSTHROUGH ||
+      (unknownKeysMode === UNKNOWN_KEYS_MODE.STRICT && schema.postModifierCalls.length > 1);
 
     return {
       locals,
@@ -522,9 +423,9 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
         emitOutputStatement({
           statement: js`const ${locals.output}: Record<string, unknown> = {};`,
         }),
-        ...fields.map((field) => emitOutputAssignment({ field, objectTarget })),
-        ...(keepsUndeclaredKeys
-          ? [this.outputStatements.passthrough({ target: objectTarget, args: [] })]
+        ...fields.map((field) => emitOutputAssignment({ field, locals })),
+        ...(copiesUnknownKeys
+          ? [emitUnknownKeysCopy({ declaredKeys: schema.declaredKeys, locals })]
           : []),
       ],
     };

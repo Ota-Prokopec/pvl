@@ -38,6 +38,8 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   passthrough: 'pvl.object({ name: pvl.string().optional() }).passthrough()',
   passthroughThenStrict: 'pvl.object({ name: pvl.string() }).passthrough().strict()',
   strictThenPassthrough: 'pvl.object({ name: pvl.string() }).strict().passthrough()',
+  strictReplacedAfterRefine:
+    "pvl.object({ name: pvl.string() }).strict().refine((value) => value.name !== 'a').strict({ message: 'extra' })",
   empty: 'pvl.object({})',
   integerKeys: 'pvl.object({ b: pvl.string(), 1: pvl.number(), 0: pvl.boolean() })',
   duplicateEnumMembers: "pvl.array(pvl.enum(['A', 'A', 'B']))",

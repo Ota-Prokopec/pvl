@@ -1,6 +1,7 @@
 // The constants the compiler uses internally: the Destination Directory's
 // layout, the text every generated module shares, and
-// which chained methods are pre-modifiers. The public ones are in
+// which chained methods are pre-modifiers or set an object's unknown-key
+// mode. The public ones are in
 // `config/consts.ts` and `diagnostics/consts.ts`, the setting defaults in
 // `config/defaults/consts.ts`.
 import {
@@ -91,4 +92,10 @@ export const PRE_MODIFIER_NAMES: ReadonlySet<string> = new Set<PvlSchemaModifier
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.OPTIONAL,
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.NULLABLE,
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE,
+]);
+
+/** The methods setting how an object treats the keys its shape doesn't declare, the last of them chained winning (ADR-0007). */
+export const UNKNOWN_KEYS_METHOD_NAMES: ReadonlySet<string> = new Set<PvlSchemaModifierMethodName>([
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT,
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.PASSTHROUGH,
 ]);
