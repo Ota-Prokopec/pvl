@@ -1,4 +1,9 @@
-import type { Diagnostic } from 'ts-morph';
+// Reading and validating the config file, and the diagnostics it raises.
+import type { Issue } from '@pvl/schema';
+import { Diagnostic } from '../diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
+import { errorMessage } from '../utils.js';
+import { pvlConfigFilePayloadSchema } from './configValidationSchemas.js';
 import type { PvlConfigFilePayload } from './types.js';
 
 export const isMissingFileError = (error: unknown): boolean => {
@@ -33,7 +38,7 @@ export const parseSettingsFile = (
     };
   }
 
-  const result = configSchema.validate(json);
+  const result = pvlConfigFilePayloadSchema.validate(json);
   if (result.issues) {
     return {
       diagnostics: getInvalidConfigDiagnostics(result.issues, file),
@@ -43,7 +48,7 @@ export const parseSettingsFile = (
   return { diagnostics: [], config: result.value };
 };
 
-const getInvalidConfigDiagnostics = (
+export const getInvalidConfigDiagnostics = (
   issues: ReadonlyArray<Issue>,
   file: string | undefined,
 ): Diagnostic[] => {
@@ -61,7 +66,7 @@ const getInvalidConfigDiagnostics = (
   });
 };
 
-const createConfigFileUnreadableDiagnostic = (file: string, reason: string): Diagnostic => {
+export const createConfigFileUnreadableDiagnostic = (file: string, reason: string): Diagnostic => {
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.CONFIG_UNREADABLE,
     message: `Can't read the config file: ${reason}.`,

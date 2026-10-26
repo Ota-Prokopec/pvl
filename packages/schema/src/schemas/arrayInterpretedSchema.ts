@@ -3,7 +3,26 @@ import { Issue, type IssueEditableProps } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
-import type { Schema } from './schema.js';
+import type { Schema, StandaloneMarker } from './schema.js';
+
+/**
+ * What an array schema's `element` holds: its item schema when
+ * `.standalone()` marked it, and `undefined` otherwise, as an object schema's
+ * `shape` holds only its marked fields.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type StandaloneElement } from '@pvl/schema';
+ *
+ * const tag = pvl.string().standalone();
+ *
+ * type Exposed = StandaloneElement<typeof tag>; // StringInterpretedSchema & StandaloneMarker
+ * type Hidden = StandaloneElement<ReturnType<typeof pvl.string>>; // undefined
+ * ```
+ */
+export type StandaloneElement<ItemSchema> = ItemSchema extends StandaloneMarker
+  ? ItemSchema
+  : undefined;
 
 /**
  * The default message of every Issue `ArrayInterpretedSchema` reports, keyed by the method
@@ -75,16 +94,17 @@ export class ArrayInterpretedSchema<
   // rather than a keyed collection, so — unlike `ObjectInterpretedSchema`'s `shape` —
   // there is nothing below it to make read-only. The schema handed back is the
   // very instance the caller declared, so its own modifiers come with it.
-  // Every array has one, marked or not, and a compiled array too: the
-  // marker only decides whether a compiled `element` is compiled (ADR-0036).
+  // Opt-in as `shape` is, at both the type level and runtime, so a compiled
+  // array never has to carry an item nobody validates alone (ADR-0039).
   /**
-   * The schema every element of this array is validated against, so a single
-   * item can be reached and validated on its own without validating a whole
-   * array. An object item carries its own `shape`, holding its Standalone
-   * Keys, and an array item its own `element`, so nested structure is
-   * reachable all the way down. It survives every modifier, `.standalone()`
-   * and `pvl.compile()`, but not `.transform()`, whose value needn't be an
-   * array.
+   * The schema every element of this array is validated against, when the
+   * item schema is marked `.standalone()`, so a single item can be reached
+   * and validated on its own without validating a whole array, and
+   * `undefined` otherwise. An object item carries its own `shape`, holding
+   * its Standalone Keys, and a marked array item its own `element`, so
+   * nested structure is reachable all the way down. It survives every
+   * modifier, `.standalone()` and `pvl.compile()`, but not `.transform()`,
+   * whose value needn't be an array.
    *
    * Read-only: reading the item schema never affects how this schema
    * validates, and it cannot be replaced.
@@ -93,14 +113,18 @@ export class ArrayInterpretedSchema<
    * ```ts
    * import { pvl } from '@pvl/schema';
    *
-   * const users = pvl.array(pvl.object({ name: pvl.string().standalone() }));
+   * const users = pvl.array(pvl.object({ name: pvl.string().standalone() }).standalone());
    *
    * users.element.validate({ name: 'Ada' }); // { value: { name: 'Ada' } }
    * users.element.shape.name.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * pvl.array(pvl.string()).element; // undefined: the item isn't marked
    * ```
    */
-  get element(): ItemSchema {
-    return this.itemSchema;
+  get element(): StandaloneElement<ItemSchema> {
+    // The type can't follow the runtime flag back to the marker type.
+    return (
+      this.itemSchema._standalone ? this.itemSchema : undefined
+    ) as StandaloneElement<ItemSchema>;
   }
 
   /**

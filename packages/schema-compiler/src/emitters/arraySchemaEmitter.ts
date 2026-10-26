@@ -7,12 +7,12 @@ import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } f
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
-  CompiledStructure,
-  EmitBaseCheckArgs,
-  EmitCompiledStructureArgs,
-  EmitSchemaPartsArgs,
+  EmittedElementProperty,
+  EmitElementPropertyArgs,
+  EmitSchemaCompositePartsArgs,
   SpellTypesArgs,
 } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE } from '../consts.js';
 import {
@@ -22,19 +22,19 @@ import {
   emitVariableDeclaration,
   js,
 } from './emitterUtils.js';
-import type { Scope } from './scope.js';
+import type { Scope } from '../scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
 import type {
   ArgumentMessagesOf,
   CheckingTarget,
-  CompositeLocals,
-  CompositeParts,
+  CompositeLocalVariableNames,
   EmittedCheck,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
+  SchemaCompositeParts,
 } from './types.js';
 
 /**
@@ -58,7 +58,7 @@ export type EmitLoopArgs = {
   elementSchema: Schema;
   /** The array's target, whose value is looped over. */
   target: CheckingTarget;
-  locals: CompositeLocals;
+  locals: CompositeLocalVariableNames;
   scope: Scope;
 };
 
@@ -178,18 +178,18 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * element has passed, and hands the output on.
    *
    * ```ts
-   * ArraySchemaEmitter._emitCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
+   * ArraySchemaEmitter._emitSchemaCompositeParts({ schema: <pvl.array(pvl.string()).min(1)>, target: <field0 at [...path1, "tags"]>, scope })
    * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'],
    * //   childChecks: ['for (let index2 = 0; index2 < field0.length; index2++) {\n  const element2: unknown = field0[index2];\n  …\n  output2.push(element2);\n}'], setsChildrenApart: false, outputStatements: [] }
    * ```
    */
-  protected static override _emitCompositeParts({
+  protected static override _emitSchemaCompositeParts({
     schema,
     target,
     scope,
-  }: EmitSchemaPartsArgs<ArraySchema>): CompositeParts {
+  }: EmitSchemaCompositePartsArgs<ArraySchema>): SchemaCompositeParts {
     // Numbered first, so before the element's own locals.
-    const locals: CompositeLocals = scope.nextCompositeLocals();
+    const locals: CompositeLocalVariableNames = scope.nextCompositeLocals();
     return {
       locals,
       declarations: [
@@ -218,37 +218,27 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
 
   /**
    * A compiled array's `element`: the element's own Compiled Schema, built
-   * by the constructor, when it is marked `.standalone()`, and else the
-   * interpreted Schema it is, which its source, passed where the root's
-   * `pvl.compile(...)` call was, builds, typed by a type parameter inferred
-   * from it, so no code is emitted for an element nobody validates alone
-   * (ADR-0036).
+   * by the constructor, when it is marked `.standalone()`, and none
+   * otherwise, as `ArrayInterpretedSchema`'s own `element` is `undefined`
+   * then (ADR-0039).
    *
    * ```ts
-   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0', nextElementIndex })
-   * // { type: '{ readonly element: TElement0 }', composed: undefined, elements: [{ index: 0, array: <pvl.array(…)>, expression: 'pvl.string()' }] }
-   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0', nextElementIndex })
-   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }, elements: [] }
+   * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0' })
+   * // undefined
+   * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0' })
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' } }
    * ```
    */
-  protected static override _emitCompiledStructure({
-    schema,
+  protected static override _emitElementProperty({
+    schema: { element },
     className,
-    nextElementIndex,
-  }: EmitCompiledStructureArgs<ArraySchema>): CompiledStructure {
-    const { element } = schema;
+  }: EmitElementPropertyArgs<ArraySchema>): EmittedElementProperty | undefined {
     if (!element.isStandalone) {
-      const index = nextElementIndex();
-      return {
-        type: js`{ readonly element: TElement${String(index)} }`,
-        composed: undefined,
-        elements: [{ index, array: schema, expression: element.expression.getText() }],
-      };
+      return undefined;
     }
     const elementSchema = element.emitter.emitStandaloneCompiledSchema({
       schema: element,
       className: js`${className}_element`,
-      nextElementIndex,
     });
     return {
       type: js`{ readonly element: ${elementSchema.type} }`,
@@ -257,7 +247,6 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
         // A plain template: `js` would strip the multi-line class's indentation.
         statement: `this.element = ${elementSchema.expression};`,
       },
-      elements: elementSchema.elements,
     };
   }
 }

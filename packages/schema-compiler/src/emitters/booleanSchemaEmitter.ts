@@ -3,14 +3,15 @@
 import { BOOLEAN_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToBoolean } from './coercions.js';
-import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
+import type { EmitCoercionArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import type { EmittedCheck, EmittedCoercion } from './types.js';
 import { js } from './emitterUtils.js';
 
 export class BooleanSchemaEmitter extends ChainableSchemaEmitter {
   /** `.coerce()` → `field0 = Boolean(field0)` for a string, a number or a bigint, as `coerceToBoolean` converts. */
-  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
-    return emitCoerceToBoolean(value);
+  public static override _emitCoercion({ target }: EmitCoercionArgs): EmittedCoercion {
+    return emitCoerceToBoolean(target.value);
   }
 
   /** `typeof field0 !== "boolean"`, reporting `INVALID_TYPE`. */

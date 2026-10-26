@@ -1,4 +1,4 @@
-import type { PvlConfig } from '../config/config.js';
+import type { PvlConfig } from '../config/types.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /**

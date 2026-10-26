@@ -16,14 +16,14 @@ import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type {
-  CompiledStructure,
+  EmittedShapeProperty,
   CompilesMethodArgs,
-  EmitBaseCheckArgs,
-  EmitCompiledStructureArgs,
+  EmitShapePropertyArgs,
   EmitPostModifierChecksArgs,
-  EmitSchemaPartsArgs,
+  EmitSchemaCompositePartsArgs,
   SpellTypesArgs,
 } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
 import { ISSUE_OPTIONS_TYPE, UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
 import {
@@ -33,16 +33,16 @@ import {
   emitVariableDeclaration,
   js,
 } from './emitterUtils.js';
-import type { Scope } from './scope.js';
+import type { Scope } from '../scope.js';
 import type {
-  CompositeLocals,
-  CompositeParts,
+  CompositeLocalVariableNames,
   EmittedCheck,
   EmittedIssue,
   EmittedOutputStatement,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
+  SchemaCompositeParts,
 } from './types.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { UNDEFINEDNESS, UNKNOWN_KEYS_MODE } from '../enums.js';
@@ -175,7 +175,7 @@ const spellFieldsType = (fields: ReadonlyArray<{ key: string; type: SpelledType 
 /** What {@link emitFieldChecks} emits a field's checks for: the field, named, and its object's locals. */
 export type EmitFieldChecksArgs = {
   field: NamedField;
-  locals: CompositeLocals;
+  locals: CompositeLocalVariableNames;
   scope: Scope;
 };
 
@@ -229,7 +229,7 @@ const emitOutputAssignment = ({
   locals: { input, output },
 }: {
   field: NamedField;
-  locals: CompositeLocals;
+  locals: CompositeLocalVariableNames;
 }): EmittedOutputStatement => {
   const keyLiteral = JSON.stringify(key);
   const assignment =
@@ -251,7 +251,7 @@ const emitOutputAssignment = ({
 /** What {@link createStrictCheck} and {@link emitUnknownKeysCopy} read an object's keys with: the keys its shape declares, and its locals. */
 export type UnknownKeysArgs = {
   declaredKeys: ReadonlyArray<string>;
-  locals: CompositeLocals;
+  locals: CompositeLocalVariableNames;
 };
 
 /**
@@ -260,7 +260,7 @@ export type UnknownKeysArgs = {
  * keys: an `UNRECOGNIZED_KEY` Issue per key of `input` the shape doesn't
  * declare. It reads `input` rather than its target, the output, which holds
  * the unknown keys only when another post-modifier reads them
- * (`_emitCompositeParts`).
+ * (`_emitSchemaCompositeParts`).
  *
  * ```ts
  * for (const key of Object.keys(input)) {
@@ -352,25 +352,25 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * `.strict()` closed over its keys and locals, which only a winning
    * `.strict()` reaches (`ObjectSchema.postModifierCalls`). Any other, such
    * as `.refine()`, reads the output (`target`), as the interpreted one
-   * reads `_checkType`'s (ADR-0035). Throws without `locals`, which an
+   * reads `_checkType`'s (ADR-0035). Throws without `compositeLocals`, which an
    * object, a composite, always has.
    *
    * ```ts
-   * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <output2 at [...path1, "user"]>, locals: <locals ending in 2> })
+   * ObjectSchemaEmitter._emitPostModifierChecks({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <output2 at [...path1, "user"]>, compositeLocals: <locals ending in 2> })
    * // ['for (const key of Object.keys(input2)) {\n  if (key !== "name") {\n    issues.push({ code: "UNRECOGNIZED_KEY", … path: [...path2, key] });\n  }\n}']
    * ```
    */
   public static override _emitPostModifierChecks({
     schema,
     target,
-    locals,
+    compositeLocals,
   }: EmitPostModifierChecksArgs<ObjectSchema>): EmittedCheck[] {
-    if (locals === undefined) {
+    if (compositeLocals === undefined) {
       throw new Error(`${this.name} has no composite locals to check an object's keys with.`);
     }
     const table = {
       ...this.postModifierChecks,
-      strict: createStrictCheck({ declaredKeys: schema.declaredKeys, locals }),
+      strict: createStrictCheck({ declaredKeys: schema.declaredKeys, locals: compositeLocals }),
     } satisfies PostModifierCheckTable;
     return schema.postModifierCalls.map((call) => this.emitMethodCall({ table, call, target }));
   }
@@ -385,19 +385,19 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * The frame hands the output on.
    *
    * ```ts
-   * ObjectSchemaEmitter._emitCompositeParts({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <field0 at [...path1, "user"]>, scope })
+   * ObjectSchemaEmitter._emitSchemaCompositeParts({ schema: <pvl.object({ name: pvl.string() }).strict()>, target: <field0 at [...path1, "user"]>, scope })
    * // { locals: <locals ending in 2>, declarations: ['const input2 = field0 as Record<string, unknown>;'],
    * //   childChecks: ['// name\nconst field1 = input2["name"];\nif (typeof field1 !== "string") { … path: [...path2, "name"] … }'], setsChildrenApart: true,
    * //   outputStatements: ['const output2: Record<string, unknown> = {};', 'output2["name"] = field1;'] }
    * ```
    */
-  protected static override _emitCompositeParts({
+  protected static override _emitSchemaCompositeParts({
     schema,
     target,
     scope,
-  }: EmitSchemaPartsArgs<ObjectSchema>): CompositeParts {
+  }: EmitSchemaCompositePartsArgs<ObjectSchema>): SchemaCompositeParts {
     // Numbered first, so before its fields and any Schema nested in them.
-    const locals: CompositeLocals = scope.nextCompositeLocals();
+    const locals: CompositeLocalVariableNames = scope.nextCompositeLocals();
     const fields = nameFields(schema.shape, scope);
     const { unknownKeysMode } = schema;
     // Kept as `_checkType` keeps them once the strip is removed. A `.strict()`
@@ -480,17 +480,16 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    * reparenting the object with.
    *
    * ```ts
-   * ObjectSchemaEmitter._emitCompiledStructure({ schema: <pvl.object({ name: pvl.string().standalone(), age: pvl.number() })>, className: 'PvlCompiledSchema0', nextElementIndex })
-   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', composed: { declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' }, elements: [] }
-   * ObjectSchemaEmitter._emitCompiledStructure({ schema: <pvl.object({ age: pvl.number() })>, … })
-   * // { type: '{ readonly shape: {} }', composed: { declaration: 'readonly shape: {} = {};', statement: undefined }, elements: [] }
+   * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ name: pvl.string().standalone(), age: pvl.number() })>, className: 'PvlCompiledSchema0' })
+   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', composed: { declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' } }
+   * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ age: pvl.number() })>, … })
+   * // { type: '{ readonly shape: {} }', composed: { declaration: 'readonly shape: {} = {};', statement: undefined } }
    * ```
    */
-  protected static override _emitCompiledStructure({
+  protected static override _emitShapeProperty({
     schema,
     className,
-    nextElementIndex,
-  }: EmitCompiledStructureArgs<ObjectSchema>): CompiledStructure {
+  }: EmitShapePropertyArgs<ObjectSchema>): EmittedShapeProperty {
     const standaloneKeys = schema.shape.flatMap(({ key, schema: fieldSchema }, index) =>
       fieldSchema.isStandalone
         ? [
@@ -499,7 +498,6 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
               ...fieldSchema.emitter.emitStandaloneCompiledSchema({
                 schema: fieldSchema,
                 className: js`${className}_${String(index)}`,
-                nextElementIndex,
               }),
             },
           ]
@@ -509,7 +507,6 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
       return {
         type: '{ readonly shape: {} }',
         composed: { declaration: 'readonly shape: {} = {};', statement: undefined },
-        elements: [],
       };
     }
     const shapeType = js`{ ${standaloneKeys.map(({ key, type }) => js`readonly ${formatKey(key)}: ${type}`).join('; ')} }`;
@@ -528,7 +525,6 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
             .join('\n'),
         })};`,
       },
-      elements: standaloneKeys.flatMap(({ elements }) => elements),
     };
   }
 }

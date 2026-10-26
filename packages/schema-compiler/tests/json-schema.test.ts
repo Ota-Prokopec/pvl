@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import configJsonSchema from '../src/config/json-schema.json' with { type: 'json' };
-import {
-  DEFAULT_INCLUDE,
-  DEFAULT_ROOT_DIR,
-  DEFAULT_WATCH,
-  DEFAULT_WITH_TYPES,
-} from '../src/config/defaults/consts.js';
-import type { PvlConfigFile } from '../src/index.js';
+import { defaultConfig } from '../src/config/defaultConfig.js';
+import type { PvlConfigFilePayload } from '../src/index.js';
 
 // Every key `configSchema` declares, which `satisfies` keeps in step with it:
 // adding or removing a key there fails type-checking here.
@@ -17,7 +12,7 @@ const CONFIG_KEYS = {
   destination: true,
   withTypes: true,
   watch: true,
-} as const satisfies Record<keyof PvlConfigFile, true>;
+} as const satisfies Record<keyof PvlConfigFilePayload, true>;
 
 describe('json-schema.json', () => {
   it('describes every pvlconfig.json setting, with its default', () => {
@@ -77,10 +72,10 @@ describe('json-schema.json', () => {
   it('has the defaults the compiler runs with', () => {
     const { include, rootDir, withTypes, watch } = configJsonSchema.properties;
     expect([include.default, rootDir.default, withTypes.default, watch.default]).toEqual([
-      DEFAULT_INCLUDE,
-      DEFAULT_ROOT_DIR,
-      DEFAULT_WITH_TYPES,
-      DEFAULT_WATCH,
+      defaultConfig.include,
+      defaultConfig.rootDir,
+      defaultConfig.withTypes,
+      defaultConfig.watch,
     ]);
   });
 });

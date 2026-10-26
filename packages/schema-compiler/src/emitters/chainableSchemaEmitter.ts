@@ -18,7 +18,7 @@ import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/sc
 import {
   Emitter,
   type CompilesMethodArgs,
-  type EmitTransformHookArgs,
+  type EmitTransformArgs,
   type SpellParameterTypesArgs,
   type SpellTypesArgs,
 } from './emitter.js';
@@ -156,7 +156,7 @@ export class ChainableSchemaEmitter extends Emitter {
   public static override _emitTransform({
     schema: { transformCall },
     target: { value },
-  }: EmitTransformHookArgs): TransformParts | undefined {
+  }: EmitTransformArgs): TransformParts | undefined {
     if (transformCall === undefined) {
       return undefined;
     }

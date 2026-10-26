@@ -1,6 +1,6 @@
 // What emitting one Compiled Schema's class shares across every Schema
 // nested in it: fresh names for the locals the emitted code declares.
-import type { CompositeLocals } from './emittersTypes.js';
+import type { CompositeLocalVariableNames } from './emitters/types.js';
 
 /**
  * What emitting one Compiled Schema's class shares across every Schema
@@ -37,7 +37,7 @@ export class Scope {
    * scope.nextCompositeLocals() // { input: 'input2', …, issueCount: 'issueCount2' }
    * ```
    */
-  public nextCompositeLocals(): CompositeLocals {
+  public nextCompositeLocals(): CompositeLocalVariableNames {
     this.compositeCount += 1;
     const suffix = String(this.compositeCount);
     return {

@@ -1,8 +1,8 @@
-import type { RunCompilationPayload } from '../compilation/runCompilation.js';
+import type { CompilationOutput } from '../compilation/types.js';
 import type { RunCliOptions } from './types.js';
 
 type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
-  payload: RunCompilationPayload;
+  payload: CompilationOutput;
   json: boolean;
 };
 

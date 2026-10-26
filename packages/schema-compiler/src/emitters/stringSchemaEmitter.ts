@@ -5,7 +5,8 @@
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToString } from './coercions.js';
-import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
+import type { EmitCoercionArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
@@ -65,8 +66,8 @@ const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
 
 export class StringSchemaEmitter extends ChainableSchemaEmitter {
   /** `.coerce()` → `field0 = String(field0);`, as `coerceToString` converts. */
-  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
-    return emitCoerceToString(value);
+  public static override _emitCoercion({ target }: EmitCoercionArgs): EmittedCoercion {
+    return emitCoerceToString(target.value);
   }
 
   public static override readonly postModifierChecks = {

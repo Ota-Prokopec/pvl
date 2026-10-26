@@ -1,5 +1,5 @@
 import { runCompilation } from '../compilation/runCompilation.js';
-import { Diagnostics } from '../diagnostics/utils.js';
+import { isErrorInDiagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
 
@@ -26,5 +26,5 @@ export const runCompile = async (
     strict: flags.strict,
   });
   report({ payload, json: flags.json, stdout, stderr });
-  return Diagnostics.hasError(payload.diagnostics) ? 1 : 0;
+  return isErrorInDiagnostics(payload.diagnostics) ? 1 : 0;
 };

@@ -21,7 +21,7 @@ export const createDestinationUnwritableDiagnostic = (
      generated/ holding nothing                         // true
      src/ holding index.ts, app.ts                      // false
      **/
-export const isReplaceableDirectory = (directoryPath: string): Promise<boolean> => {
+export const isReplaceableDirectory = async (directoryPath: string): Promise<boolean> => {
   const entryNames = await fsPromises.readdir(directoryPath);
   return entryNames.length === 0 || entryNames.includes(GENERATED_MARKER_FILE_NAME);
 };

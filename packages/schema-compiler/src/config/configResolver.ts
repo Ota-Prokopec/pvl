@@ -6,19 +6,16 @@ import { Destination } from '../destination/destination.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { definedOnlyKeys, errorMessage } from '../utils.js';
-import {
-  configSchema,
-  type PvlConfig,
-  type PvlConfigFilePayload,
-  type PvlConfigOverrides,
-} from './config.js';
+import { pvlConfigSchema } from './configValidationSchemas.js';
 import { CONFIG_FILE_NAME } from './consts.js';
+import { defaultConfig } from './defaultConfig.js';
+import type { PvlConfig, PvlConfigFilePayload, PvlConfigOverrides } from './types.js';
 import {
-  DEFAULT_INCLUDE,
-  DEFAULT_ROOT_DIR,
-  DEFAULT_WATCH,
-  DEFAULT_WITH_TYPES,
-} from './defaults/consts.js';
+  createConfigFileUnreadableDiagnostic,
+  getInvalidConfigDiagnostics,
+  isMissingFileError,
+  parseSettingsFile,
+} from './utils.js';
 
 type ResolveSettingsPayload =
   | { rawSettings: PvlConfig; baseDirectory: string; destination: Destination; isResolved: true }
@@ -30,13 +27,13 @@ type ResolveSettingsArgs = {
   overrides: PvlConfigOverrides;
 };
 
-export const resolveConfig = ({
+export const resolveConfig = async ({
   cwd,
   configPath,
   overrides,
 }: ResolveSettingsArgs): Promise<ResolveSettingsPayload> => {
   const givenOverrides = definedOnlyKeys(overrides);
-  const overrideIssues = configSchema.validate(givenOverrides).issues;
+  const overrideIssues = pvlConfigSchema.validate(givenOverrides).issues;
   if (overrideIssues) {
     return {
       //TODO: This will throw error in the future
@@ -83,18 +80,18 @@ export const resolveConfig = ({
 
   const baseDirectory = text === undefined ? cwd : path.dirname(file);
 
+  // `destination` has no default here: unset, the Destination Directory goes to `defaultConfig.destination`.
+  const rawSettings: PvlConfig = {
+    include: givenOverrides.include ?? config.include ?? [...defaultConfig.include],
+    rootDir: givenOverrides.rootDir ?? config.rootDir ?? defaultConfig.rootDir,
+    destination: givenOverrides.destination ?? config.destination,
+    withTypes: givenOverrides.withTypes ?? config.withTypes ?? defaultConfig.withTypes,
+    watch: givenOverrides.watch ?? config.watch ?? defaultConfig.watch,
+  };
+
   return {
-    rawSettings: {
-      include: givenOverrides.include ?? config.include ?? [...DEFAULT_INCLUDE],
-      rootDir: givenOverrides.rootDir ?? config.rootDir ?? DEFAULT_ROOT_DIR,
-      destination: givenOverrides.destination ?? config.destination,
-      withTypes: givenOverrides.withTypes ?? config.withTypes ?? DEFAULT_WITH_TYPES,
-      watch: givenOverrides.watch ?? config.watch ?? DEFAULT_WATCH,
-    },
-    destination: Destination.resolveDestination(
-      baseDirectory,
-      givenOverrides.destination ?? config.destination,
-    ),
+    rawSettings,
+    destination: Destination.resolveDestination(baseDirectory, rawSettings),
     baseDirectory,
     isResolved: true,
   };

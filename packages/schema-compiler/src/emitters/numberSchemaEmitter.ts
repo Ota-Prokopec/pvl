@@ -5,7 +5,8 @@
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToNumber } from './coercions.js';
-import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
+import type { EmitCoercionArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
@@ -65,8 +66,8 @@ const int: EmitterMethodOf<NumberInterpretedSchema['int']> = ({
 
 export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   /** `.coerce()` → `field0 = Number(field0)` for a string or a boolean, as `coerceToNumber` converts. */
-  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
-    return emitCoerceToNumber(value);
+  public static override _emitCoercion({ target }: EmitCoercionArgs): EmittedCoercion {
+    return emitCoerceToNumber(target.value);
   }
 
   public static override readonly postModifierChecks = {

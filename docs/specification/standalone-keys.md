@@ -26,7 +26,7 @@ user.shape.email.validate('a@b.c'); // compiled validator for `email` alone
 user.shape.age; // compile error: `age` is not a Standalone Key
 ```
 
-An array always exposes its single `element`, on both sides. It is a Compiled Schema when the element was marked `.standalone()`, and the original interpreted element Schema otherwise.
+An array exposes its single `element` only when the element was marked `.standalone()`, as an object exposes only its marked keys: then it is the element Schema, a Compiled Schema on the compiled side, and otherwise `element` is `undefined` ([ADR-0039](../adr/0039-an-arrays-element-is-opt-in-as-shapes-keys-are.md)).
 
 `shape` and `element` survive `.optional()`, `.nullable()`, `.refine()`, `.standalone()` and `pvl.compile()`, so nested structure stays reachable through a marked key at any depth. A `.transform()` ends them: its function's value can be anything, so a transformed object has no `shape` and a transformed array no `element`.
 
@@ -54,9 +54,9 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 20. As a `pvl` user, I want a transformed object to have no `shape`, and a transformed array no `element`, so that nothing is read off a Schema whose value the function replaced.
 21. As a `pvl` user, I want `shape` to survive `.standalone()`, so that a marked nested object still exposes its own Standalone Keys.
 22. As a `pvl` user, I want `shape` to survive `pvl.compile()`, so that a compiled object exposes its Standalone Keys.
-23. As a `pvl` user, I want every array to expose its `element`, so that I can validate a single item on its own.
+23. As a `pvl` user, I want every array to expose its `element`, so that I can validate a single item on its own. (Amended by ADR-0039: only when I marked the item `.standalone()`, as with a key.)
 24. As a `pvl` user, I want `element` to be a Compiled Schema when I marked the element `.standalone()`, so that validating one item uses compiled code.
-25. As a `pvl` user, I want an unmarked `element` to stay the interpreted Schema I declared, so that the compiler emits no extra code for items nobody validates alone.
+25. As a `pvl` user, I want an unmarked `element` to stay the interpreted Schema I declared, so that the compiler emits no extra code for items nobody validates alone. (Superseded by ADR-0039: an unmarked `element` is `undefined`, and the compiler writes none.)
 26. As a `pvl` user, I want `element` to survive the same calls `shape` does, so that arrays and objects follow one rule.
 27. As a `pvl` user, I want an object element's `shape` to follow the Standalone Key rule, so that `list.element.shape` is opt-in like every other `shape`.
 28. As a `pvl` user, I want a union to expose no member Schemas, so that the surface stays as it is today.
@@ -87,15 +87,15 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 
 ### `element` (arrays)
 
-- Every `ArrayInterpretedSchema` keeps its `element`, interpreted and compiled, with or without a marker, and it survives the same calls as `shape`, through the same return-type mechanism, so a transformed array has none.
+- An `ArrayInterpretedSchema`'s `element` holds its item Schema only when the item carries the Standalone marker, at both the type level and runtime, interpreted and compiled, and is `undefined` otherwise ([ADR-0039](../adr/0039-an-arrays-element-is-opt-in-as-shapes-keys-are.md)). It survives the same calls as `shape`, through the same return-type mechanism, so a transformed array has none.
 - An object element's `shape` follows the Standalone Key rule.
-- `.standalone()` on an element only decides whether the compiler emits a compiled `element`; it does not decide whether `element` exists.
+- `.standalone()` on an element decides both whether `element` exists and whether the compiler emits a compiled `element`.
 
 ### `pvl.compile()`
 
 - It stays a runtime identity function and accepts any Schema.
 - Its return type is `Schema<InferInput<x>, InferOutput<x>>` plus the argument's `shape` or `element` and its Standalone marker, when present, and nothing else. No Modifier can be chained onto it, but `.standalone()` can, because it lives on `Schema`.
-- Each Standalone Key in that `shape`, and a marked `element`, is typed as `pvl.compile()` types it in turn, a plain Schema, as the compiler emits a Compiled Schema for it. An unmarked `element` keeps its interpreted type, as the compiler passes the interpreted Schema in.
+- Each Standalone Key in that `shape`, and a marked `element`, is typed as `pvl.compile()` types it in turn, a plain Schema, as the compiler emits a Compiled Schema for it. An unmarked `element` is `undefined`, which is no Schema, so the Compiled Schema's type has no `element` (ADR-0039).
 - `pvl.compile(x.standalone())` and `pvl.compile(x).standalone()` produce the same type and, as a field, the same `shape` entry.
 - This supersedes ADR-0020's "`pvl.compile(x)` returns a plain Schema with neither `shape` nor `element`", and its removal of `.standalone()` and the Standalone Key.
 
@@ -107,10 +107,10 @@ An array always exposes its single `element`, on both sides. It is a Compiled Sc
 
 - A compiled parent still validates every nested composite field through a private emitted function per child, per ADR-0017's inline-with-delegation rule, marked or not. Primitive checks stay inlined in the parent body.
 - For each Standalone Key, the compiler additionally emits a public Compiled Schema exposed as `shape.<key>`. A composite Standalone Key wraps the private function the parent already calls; a primitive one gets a small function of its own, duplicating the check the parent inlines. That duplication is accepted.
-- A compiled array's `element` is a public Compiled Schema when the element is marked, built the same way; otherwise it is the interpreted element Schema, which the Destination File already contains as copied-through source.
+- A compiled array's `element` is a public Compiled Schema when the element is marked, built the same way; otherwise it has none (ADR-0039).
 - A compiled object Schema class defines `shape` itself, holding exactly those emitted Compiled Schemas, so its runtime surface matches the interpreted one.
 
-> Amended by [ADR-0023](../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md) and [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md): a parent inlines every check, a composite's included, so a composite Standalone Key gets a fully inlined class of its own rather than wrapping a function the parent calls. An unmarked `element` is passed in as its source where the root's `pvl.compile(...)` call was, and typed by a type parameter inferred from it. The `pvl.compile(...)` call it was written in is replaced, so the Destination Directory doesn't otherwise contain it.
+> Amended by [ADR-0023](../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md) and [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md): a parent inlines every check, a composite's included, so a composite Standalone Key gets a fully inlined class of its own rather than wrapping a function the parent calls.
 
 ### Domain and decision records
 
@@ -133,13 +133,13 @@ A good test exercises external behaviour only: what a Schema's `validate()`, `sh
 ### `@pvl/schema-compiler`: its programmatic entry-point seam
 
 - The differential test diffs each emitted `shape.<key>` and marked `element` against the interpreted field Schema under `fast-check`, comparing accepted values, Issue messages and Issue paths.
-- The emitted-text snapshot shows a public Compiled Schema for each marked key, none for an unmarked key, and an unmarked `element` left as the interpreted Schema.
+- The emitted-text snapshot shows a public Compiled Schema for each marked key, none for an unmarked key, and no `element` for an unmarked one.
 - No CLI-seam coverage: `.standalone()` produces no diagnostic.
 
 ## Out of Scope
 
 - Exposing union members (`options` or similar).
-- A marker that makes an array's `element` absent, or a way to expose unmarked object keys.
+- A way to expose an unmarked object key or array element.
 - Any compiler diagnostic about `.standalone()`; #41's planned "`.standalone()` on a never-compiled Schema" warning is dropped.
 - Inlining a Standalone Key's validator into its parent differently from ADR-0017: the parent's code is the same whether or not a key is marked.
 
@@ -148,4 +148,4 @@ A good test exercises external behaviour only: what a Schema's `validate()`, `sh
 - Part of #41. This replaces #47, whose terminal-type half is already on `main` (ADR-0020) and whose `.standalone()` half contradicted ADR-0020, and it reshapes #53, whose compiler side now follows this spec.
 - The size argument: a compiled object holding a public compiled validator for every key, recursively, grows with the whole tree, while most keys are never validated alone. Opt-in exposure keeps the Destination File proportional to what is used. Since ADR-0023 inlines every check, exposing a composite key duplicates its checks, which is the cost of the opt-in.
 - A quick microbenchmark during the design (Node 24, a 12-field object with one nested object) measured full inlining at roughly 10% faster than a call per field on valid input and 25% faster on invalid input, with calls about 3× slower when V8's own inlining was disabled. This is why the parent keeps inlining primitives and why a primitive Standalone Key gets its own small function rather than the parent calling it.
-- Arrays and objects differ on purpose: an object may have many keys, so `shape` is opt-in; an array has exactly one element, so `element` is always present and the marker decides only whether it is compiled.
+- Arrays and objects follow one rule: what is marked is exposed. ADR-0036 first kept every array's `element`, as an array has one item. ADR-0039 made it opt-in too, as exposing an unmarked item cost the compiled side a parameter threaded through every class and the item's source evaluated at load.

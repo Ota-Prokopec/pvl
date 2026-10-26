@@ -10,7 +10,8 @@ import {
   emitCoerceToNumber,
   emitCoerceToString,
 } from './coercions.js';
-import type { EmitBaseCheckArgs, EmitCoercionHookArgs, SpellTypesArgs } from './emitter.js';
+import type { EmitCoercionArgs, SpellTypesArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import type { EmittedCheck, EmittedCoercion } from './types.js';
 import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
@@ -22,14 +23,14 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
    * value check then decides.
    *
    * ```ts
-   * LiteralSchemaEmitter._emitCoercion({ schema: <pvl.literal(1)>, value: 'field0' })
+   * LiteralSchemaEmitter._emitCoercion({ schema: <pvl.literal(1)>, target: { value: 'field0', path, issuePath } })
    * // 'if (typeof field0 === "string" || typeof field0 === "boolean") {\n  field0 = Number(field0);\n}'
    * ```
    */
   public static override _emitCoercion({
     schema,
-    value,
-  }: EmitCoercionHookArgs<LiteralSchema>): EmittedCoercion {
+    target: { value },
+  }: EmitCoercionArgs<LiteralSchema>): EmittedCoercion {
     // By the type of its value, as `LiteralInterpretedSchema._coerceInput` picks it.
     switch (typeof schema.value) {
       case 'string':
@@ -56,7 +57,7 @@ export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
       failsWhen: js`!Object.is(${value}, ${emitLiteral(literalValue)})`,
       message: LITERAL_SCHEMA_ISSUE_MESSAGE._checkType(literalValue),
       issuePath,
-      code: ISSUE_CODE.INVALID_VALUE,
+      issueCode: ISSUE_CODE.INVALID_VALUE,
     });
   }
 

@@ -16,11 +16,11 @@ Every relative path (`include`, `rootDir`, `destination`, and the same settings 
 
 The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--include <glob...>`, `--root-dir <path>`, `--destination <path>`, `--with-types`/`--no-with-types`, `--watch`), plus:
 
-| Flag              | Effect                                                                                               |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `--config <path>` | The config file to read, relative to the working directory                                           |
-| `--strict`        | Promotes every warning to an error                                                                   |
-| `--json`          | Prints the run's `RunCompilationPayload` as one JSON document on stdout only, a usage error included |
+| Flag              | Effect                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------ |
+| `--config <path>` | The config file to read, relative to the working directory                                       |
+| `--strict`        | Promotes every warning to an error                                                               |
+| `--json`          | Prints the run's `CompilationOutput` as one JSON document on stdout only, a usage error included |
 
 Precedence is flags, then the config file, then defaults. A run with no config file at all is valid as long as at least one setting is passed as a flag; with neither, it fails with `NO_CONFIG`.
 
@@ -36,7 +36,7 @@ Every diagnostic carries a stable, publicly documented code, so users and tests 
 | ------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NO_CONFIG`                     | `ERROR`   | No `pvlconfig.json` in the working directory, no `--config`, and no setting passed as a flag                                                                                                                                                                                                         |
 | `CONFIG_UNREADABLE`             | `ERROR`   | The config file named by `--config` doesn't exist, or the config file can't be read or isn't valid JSON                                                                                                                                                                                              |
-| `INVALID_CONFIG`                | `ERROR`   | A setting, from the config file or a flag, fails `configSchema` (wrong type, unknown key); one diagnostic per failing setting                                                                                                                                                                        |
+| `INVALID_CONFIG`                | `ERROR`   | A setting, from the config file or a flag, fails `pvlConfigFilePayloadSchema`, or as a flag `pvlConfigSchema` (wrong type, or an unknown key in the file); one diagnostic per failing setting                                                                                                        |
 | `NO_INPUT_FILES`                | `ERROR`   | `include` matched no file                                                                                                                                                                                                                                                                            |
 | `DESTINATION_UNWRITABLE`        | `ERROR`   | `destination` is a file, or it can't be created or written (a parent is a file, a directory is read-only); only a file is found up front, the rest when the run writes                                                                                                                               |
 | `DESTINATION_NOT_EMPTY`         | `ERROR`   | `destination` is a directory holding files but no `.pvl-generated` marker, so it wasn't written by the compiler and won't be replaced                                                                                                                                                                |

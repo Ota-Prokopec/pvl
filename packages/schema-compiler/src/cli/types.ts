@@ -1,4 +1,4 @@
-import type { PvlConfigOverrides } from '../config/config.js';
+import type { PvlConfigOverrides } from '../config/types.js';
 
 /** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
 type CliStream = {

@@ -535,7 +535,7 @@ describe('runCompilation(): diagnostics', () => {
         'export const checked = pvl.compile(pvl.object({})).validate({});',
         'export const marked = pvl.compile(pvl.string()).standalone();',
         'export const shape = pvl.compile(pvl.object({ name: pvl.string().standalone() })).shape;',
-        'export const element = pvl.compile(pvl.array(pvl.string())).element;',
+        'export const element = pvl.compile(pvl.array(pvl.string().standalone())).element;',
         '',
       ].join('\n'),
     });

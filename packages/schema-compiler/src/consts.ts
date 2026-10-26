@@ -3,7 +3,7 @@
 // which chained methods are pre-modifiers or set an object's unknown-key
 // mode. The public ones are in
 // `config/consts.ts` and `diagnostics/consts.ts`, the setting defaults in
-// `config/defaults/consts.ts`.
+// `config/defaultConfig.ts`.
 import {
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
   type PvlSchemaModifierMethodName,

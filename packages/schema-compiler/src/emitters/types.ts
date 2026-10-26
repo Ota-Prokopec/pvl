@@ -65,9 +65,9 @@ export type CompositeLocalVariableNames = {
  * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'], childChecks: ['for (let index2 = 0; …) { … }'], setsChildrenApart: false, outputStatements: [] }
  * ```
  */
-export type CompositeParts = {
+export type SchemaCompositeParts = {
   /** The names of its locals, numbered before any Schema nested in it. Its Frame declares its path and Issue-count locals, and hands its output on. */
-  locals: CompositeLocals;
+  locals: CompositeLocalVariableNames;
   /** The locals it declares itself, after its Frame's own. */
   declarations: EmittedVariableDeclaration[];
   /** Its children's checks, each composed by the child's own Frame. */
@@ -96,7 +96,7 @@ export type SchemaParts = {
   /** Its post-modifiers' checks, which run once its base check has passed, and every child has. */
   postModifierChecks: EmittedCheck[];
   /** What a composite adds; `undefined` for any other Schema. */
-  composite?: CompositeParts;
+  composite?: SchemaCompositeParts;
   /** Its `.transform()`, which runs once every other check has, unless one of them reported an Issue, and after a short-circuit too; `undefined` when it has none. */
   transform?: TransformParts;
 };

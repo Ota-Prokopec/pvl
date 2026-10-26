@@ -1,6 +1,7 @@
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { statOrUndefined } from '../utils.js';
+import { createDestinationUnwritableDiagnostic, isReplaceableDirectory } from './utils.js';
 
 /**
  * Checks, without writing anything, that writing the Destination Directory at
@@ -24,17 +25,14 @@ export const checkDestination = async (absoluteDestinationPath: string): Promise
 
   if (existing !== undefined && !existing.isDirectory()) {
     return [
-      DestinationWriter.createDestinationUnwritableDiagnostic(
+      createDestinationUnwritableDiagnostic(
         absoluteDestinationPath,
         'it is a file, and destination names a directory',
       ),
     ];
   }
 
-  if (
-    existing !== undefined &&
-    !(await DestinationWriter.isReplaceableDirectory(absoluteDestinationPath))
-  ) {
+  if (existing !== undefined && !(await isReplaceableDirectory(absoluteDestinationPath))) {
     return [
       new Diagnostic({
         code: DIAGNOSTIC_CODE.DESTINATION_NOT_EMPTY,

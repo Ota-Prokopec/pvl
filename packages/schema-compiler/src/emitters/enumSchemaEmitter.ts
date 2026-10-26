@@ -3,7 +3,8 @@
 import { ENUM_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE } from '@pvl/schema';
 import type { EnumSchema } from '../schemas/enumSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmitBaseCheckArgs, SpellTypesArgs } from './emitter.js';
+import type { SpellTypesArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import type { EmittedCheck } from './types.js';
 import { emitLiteral, js, spellLiteralType } from './emitterUtils.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
@@ -22,7 +23,7 @@ export class EnumSchemaEmitter extends ChainableSchemaEmitter {
       failsWhen: members.map((member) => js`${value} !== ${emitLiteral(member)}`).join(' && '),
       message: ENUM_SCHEMA_ISSUE_MESSAGE._checkType(members),
       issuePath,
-      code: ISSUE_CODE.INVALID_VALUE,
+      issueCode: ISSUE_CODE.INVALID_VALUE,
     });
   }
 

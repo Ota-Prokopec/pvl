@@ -1,3 +1,9 @@
+// The type of an Emitter a Schema subclass compiles with: `Emitter`'s
+// static methods, plus the base check of its schema type.
+import type { Schema } from '../schemas/schema.js';
+import type { Emitter } from './emitter.js';
+import type { CheckingTarget, EmittedCheck } from './types.js';
+
 /** What {@link SchemaEmitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
 export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;

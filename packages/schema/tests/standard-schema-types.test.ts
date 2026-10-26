@@ -337,13 +337,15 @@ describe('type inference', () => {
   it("types a nested composite's shape and element through a Standalone Key only", () => {
     const schema = pvl.object({
       user: pvl.object({ city: pvl.string().standalone(), zip: pvl.string() }).standalone(),
-      tags: pvl.array(pvl.number()).standalone(),
+      tags: pvl.array(pvl.number().standalone()).standalone(),
       hidden: pvl.object({ city: pvl.string().standalone() }),
     });
     expectTypeOf(schema.shape.user.shape).toEqualTypeOf<{
       readonly city: StringInterpretedSchema & StandaloneMarker;
     }>();
-    expectTypeOf(schema.shape.tags.element).toEqualTypeOf<NumberInterpretedSchema>();
+    expectTypeOf(schema.shape.tags.element).toEqualTypeOf<
+      NumberInterpretedSchema & StandaloneMarker
+    >();
     expectTypeOf(schema.shape).not.toHaveProperty('hidden');
   });
 
@@ -362,27 +364,38 @@ describe('type inference', () => {
     >();
   });
 
-  it("types element as the item's own schema class", () => {
-    const schema = pvl.array(pvl.string());
-    expectTypeOf(schema.element).toEqualTypeOf<StringInterpretedSchema>();
+  it("types element as the item's own schema class when the item is marked, and undefined otherwise", () => {
+    expectTypeOf(pvl.array(pvl.string().standalone()).element).toEqualTypeOf<
+      StringInterpretedSchema & StandaloneMarker
+    >();
+    expectTypeOf(pvl.array(pvl.string()).element).toEqualTypeOf<undefined>();
   });
 
   it("infers the item's own input/output through element", () => {
-    const schema = pvl.array(pvl.string().transform((value) => value.length));
+    const schema = pvl.array(
+      pvl
+        .string()
+        .transform((value) => value.length)
+        .standalone(),
+    );
     expectTypeOf<StandardSchemaV1.InferInput<typeof schema.element>>().toEqualTypeOf<string>();
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema.element>>().toEqualTypeOf<number>();
   });
 
   it('keeps element typed through the length constraints, the base modifiers, .standalone() and pvl.compile()', () => {
-    const base = pvl.array(pvl.string());
-    expectTypeOf(base.min(1).element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.max(5).element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.length(2).element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.optional().element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.nullable().element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.refine(() => true).element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(base.standalone().element).toEqualTypeOf<StringInterpretedSchema>();
-    expectTypeOf(pvl.compile(base).element).toEqualTypeOf<StringInterpretedSchema>();
+    const base = pvl.array(pvl.string().standalone());
+    type Item = StringInterpretedSchema & StandaloneMarker;
+    expectTypeOf(base.min(1).element).toEqualTypeOf<Item>();
+    expectTypeOf(base.max(5).element).toEqualTypeOf<Item>();
+    expectTypeOf(base.length(2).element).toEqualTypeOf<Item>();
+    expectTypeOf(base.optional().element).toEqualTypeOf<Item>();
+    expectTypeOf(base.nullable().element).toEqualTypeOf<Item>();
+    expectTypeOf(base.refine(() => true).element).toEqualTypeOf<Item>();
+    expectTypeOf(base.standalone().element).toEqualTypeOf<Item>();
+    // A compiled marked element is a plain Schema, as its compiled validator is.
+    expectTypeOf(pvl.compile(base).element).toEqualTypeOf<
+      Schema<string, string> & StandaloneMarker
+    >();
   });
 
   it('makes a transformed schema plain: no modifier, no shape and no element', () => {

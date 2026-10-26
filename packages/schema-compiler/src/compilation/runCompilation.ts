@@ -3,10 +3,10 @@
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
 import * as path from 'node:path';
-import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
-import { ConfigResolver } from '../config/configResolver.js';
+import { resolveConfig } from '../config/configResolver.js';
+import type { PvlConfigOverrides } from '../config/types.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { Diagnostics } from '../diagnostics/utils.js';
+import { isErrorInDiagnostics, promoteAllDiagnostics } from '../diagnostics/utils.js';
 import { compileAll } from './compileAll.js';
 import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
@@ -77,13 +77,13 @@ type RunCompilationArgs = {
  *
  * @example
  * ```ts
- * import { runCompilation, Diagnostics } from '@pvl/schema-compiler';
+ * import { runCompilation, isErrorInDiagnostics } from '@pvl/schema-compiler';
  *
  * const { diagnostics } = await runCompilation({
  *   cwd: process.cwd(),
  *   overrides: { destination: 'src/generated' },
  * });
- * const failed = Diagnostics.hasError(diagnostics);
+ * const failed = isErrorInDiagnostics(diagnostics);
  * ```
  */
 export const runCompilation = async (args: RunCompilationArgs): Promise<CompilationOutput> => {
@@ -91,7 +91,7 @@ export const runCompilation = async (args: RunCompilationArgs): Promise<Compilat
   // Promoted here, once, so every warning comes back as an error whichever
   // step the run returned from.
   return args.strict === true
-    ? { ...payload, diagnostics: Diagnostics.promote(payload.diagnostics) }
+    ? { ...payload, diagnostics: promoteAllDiagnostics(payload.diagnostics) }
     : payload;
 };
 
@@ -115,7 +115,7 @@ const runCompilationWithoutPromoting = async ({
   overrides = {},
   strict = false,
 }: RunCompilationArgs): Promise<CompilationOutput> => {
-  const resolvedSettingsPayload = await ConfigResolver.resolveConfig({
+  const resolvedSettingsPayload = await resolveConfig({
     cwd: path.resolve(cwd),
     configPath,
     overrides,
@@ -141,12 +141,12 @@ const runCompilationWithoutPromoting = async ({
 
   // What the destination and `include` raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
-    ...findPatternsMatchingPath(settings.include, destination.relativePath.pathFromBase).map(
+    ...findPatternsMatchingPath(rawSettings.include, destination.relativePath.pathFromBase).map(
       (pattern) => createDestinationInsideIncludeDiagnostic(destination, pattern),
     ),
     ...destinationDiagnostics,
     ...(scannedFilePaths.length === 0
-      ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
+      ? [Scanner.createNoInputFilesDiagnostic(rawSettings.include)]
       : []),
   ];
 
@@ -156,7 +156,7 @@ const runCompilationWithoutPromoting = async ({
   if (tsMorphProjectPayload.tsMorphProject === undefined) {
     return {
       diagnostics: [...scanScopeDiagnostics, ...tsMorphProjectPayload.diagnostics],
-      settings,
+      settings: rawSettings,
       destination: destination.absolutePath,
       written: false,
     };
@@ -177,8 +177,13 @@ const runCompilationWithoutPromoting = async ({
   // under `strict`; warnings alone let the run go ahead otherwise.
   // PARSE_FAILED is an error, so past this point every scanned module parsed
   // and has its compilation.
-  if (Diagnostics.hasError(diagnostics) || (strict && diagnostics.length > 0)) {
-    return { diagnostics, settings, destination: destination.absolutePath, written: false };
+  if (isErrorInDiagnostics(diagnostics) || (strict && diagnostics.length > 0)) {
+    return {
+      diagnostics,
+      settings: rawSettings,
+      destination: destination.absolutePath,
+      written: false,
+    };
   }
 
   const mirroredFiles = compileAll({
@@ -192,7 +197,7 @@ const runCompilationWithoutPromoting = async ({
 
   return {
     diagnostics: [...diagnostics, ...writeDestinationDiagnostics],
-    settings,
+    settings: rawSettings,
     destination: destination.absolutePath,
     written: isWritten,
   };

@@ -2,6 +2,17 @@
 // statically, which a Compiled Schema evaluates once, where it is written,
 // rather than reading it at compile time (ADR-0030).
 import type { Node } from 'ts-morph';
+import type { RuntimeArgumentParameter } from '../frame/frame.js';
+import { js } from '../emitters/emitterUtils.js';
+import { emitMessageAroundValue } from '../issue.js';
+import type { Schema } from './schema.js';
+import type { SchemaModifierCall } from './schemaTypes.js';
+
+/** What {@link RuntimeArgument.getArgumentParameters} reads a Compiled Schema's Runtime Arguments for: its Schema, and, at the root, the hoisted `const`s holding them; `undefined` for a nested class, which is passed its parent's fields. */
+type GetArgumentParametersArgs = {
+  schema: Schema;
+  root: { hoistedNameByExpression: ReadonlyMap<Node, string> } | undefined;
+};
 
 /**
  * A method's argument that isn't a literal written in place, such as a
@@ -72,5 +83,91 @@ export class RuntimeArgument {
    */
   public emitMessageReading(): string {
     return `this.${this.messageFieldName}`;
+  }
+
+  /**
+   * Every Runtime Argument of the methods chained onto `schema` and onto
+   * every Schema nested in it, in the order they are numbered, as its
+   * Compiled Schema's constructor takes them: the type of the parameter, from
+   * its own Schema's emitter (`parameterTypes`); what is passed for it, the
+   * argument as written or its hoisted `const` at the root, its parent's
+   * field in a nested class; when it is a method's first argument, the
+   * default message naming it (`argumentMessages`); and, when it is a
+   * `.transform()`'s function, the type parameter its return type is
+   * inferred as. Throws for a parameter with no type, which is a bug in an
+   * emitter, never a user error.
+   *
+   * ```ts
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, root: { hoistedNameByExpression: new Map() } })
+   * // [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }]
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, root: undefined })
+   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'this.arg0', messageField: undefined, typeParameter: 'TArg0Output' }]
+   * ```
+   */
+  public static getArgumentParameters({
+    schema,
+    root,
+  }: GetArgumentParametersArgs): RuntimeArgumentParameter[] {
+    return RuntimeArgument.findChainedArguments({ schema })
+      .sort((left, right) => left.argument.index - right.argument.index)
+      .map(({ argument, owner, call, position }) => {
+        const { emitter } = owner;
+        const type = emitter._spellParameterTypes({ schema: owner, call })?.[position];
+        if (type === undefined) {
+          throw new Error(
+            `${emitter.name} has no type for argument ${String(position)} of .${call.name}().`,
+          );
+        }
+        // Only a method's first argument is a value its default message names.
+        const messageOf = position === 0 ? emitter.argumentMessages[call.name] : undefined;
+        return {
+          fieldName: argument.fieldName,
+          type,
+          passedExpression:
+            root === undefined
+              ? js`this.${argument.fieldName}`
+              : (root.hoistedNameByExpression.get(argument.expression) ??
+                argument.expression.getText()),
+          messageField:
+            messageOf === undefined
+              ? undefined
+              : {
+                  fieldName: argument.messageFieldName,
+                  expression: emitMessageAroundValue(messageOf, argument.fieldName),
+                },
+          typeParameter:
+            call === owner.transformCall && position === 0
+              ? argument.outputTypeParameterName
+              : undefined,
+        };
+      });
+  }
+
+  /**
+   * Every Runtime Argument of the methods chained onto `schema` and onto
+   * every Schema nested in it, its own first, each with the Schema (`owner`)
+   * and the call it is passed to and its position among the call's arguments.
+   *
+   * ```ts
+   * RuntimeArgument.findChainedArguments({ schema: <pvl.string().max(max)> })
+   * // [{ argument: <max>, owner: <pvl.string().max(max)>, call: <.max(max)>, position: 0 }]
+   * ```
+   */
+  private static findChainedArguments({ schema }: { schema: Schema }): Array<{
+    argument: RuntimeArgument;
+    owner: Schema;
+    call: SchemaModifierCall;
+    position: number;
+  }> {
+    return [
+      ...schema.chainedCalls.flatMap((call) =>
+        (call.args ?? []).flatMap((argument, position) =>
+          argument instanceof RuntimeArgument ? [{ argument, owner: schema, call, position }] : [],
+        ),
+      ),
+      ...schema
+        .findChildren()
+        .flatMap((child) => RuntimeArgument.findChainedArguments({ schema: child })),
+    ];
   }
 }

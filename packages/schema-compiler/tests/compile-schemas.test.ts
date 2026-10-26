@@ -490,11 +490,9 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
       import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandaloneMarker as PvlStandaloneMarker, StandardSchemaProps as PvlStandardSchemaProps } from '@pvl/schema';
       import type { InferInput as PvlInferInput, InferOutput as PvlInferOutput } from '@pvl/schema';
 
-      export const tags = (<TElement0,>(element: TElement0): PvlSchema<(string | undefined)[], (string | undefined)[]> & { readonly element: TElement0 } => new (class PvlCompiledSchema0 implements PvlSchema<(string | undefined)[], (string | undefined)[]> {
+      export const tags = (new (class PvlCompiledSchema0 implements PvlSchema<(string | undefined)[], (string | undefined)[]> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
-
-        constructor(readonly element: TElement0) {}
 
         get "~standard"(): PvlStandardSchemaProps<(string | undefined)[], (string | undefined)[]> {
           return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
@@ -534,7 +532,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
         standalone(): this & PvlStandaloneMarker {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
-      })(element))(pvl.string().optional());
+      })() as PvlSchema<(string | undefined)[], (string | undefined)[]>);
       export const person = (new (class PvlCompiledSchema1 implements PvlSchema<{ age?: number | undefined }, { age?: number | undefined }> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
@@ -872,11 +870,9 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<string | undefined, string | undefined>);
-      export const scores = (<TElement0,>(element: TElement0): PvlSchema<number[] | null | undefined, number[] | null | undefined> & { readonly element: TElement0 } => new (class PvlCompiledSchema1 implements PvlSchema<number[] | null | undefined, number[] | null | undefined> {
+      export const scores = (new (class PvlCompiledSchema1 implements PvlSchema<number[] | null | undefined, number[] | null | undefined> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
-
-        constructor(readonly element: TElement0) {}
 
         get "~standard"(): PvlStandardSchemaProps<number[] | null | undefined, number[] | null | undefined> {
           return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
@@ -910,7 +906,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
         standalone(): this & PvlStandaloneMarker {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
-      })(element))(pvl.number());
+      })() as PvlSchema<number[] | null | undefined, number[] | null | undefined>);
 
       export type CodeInput = PvlInferInput<typeof code>;
       export type CodeOutput = PvlInferOutput<typeof code>;
@@ -986,11 +982,11 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })(arg0, arg1))(isShort, (value) => value?.length);
-      export const tags = (<TElement0,>(arg0: (value: number[]) => boolean, element: TElement0): PvlSchema<unknown[], number[]> & { readonly element: TElement0 } => new (class PvlCompiledSchema1 implements PvlSchema<unknown[], number[]> {
+      export const tags = (new (class PvlCompiledSchema1 implements PvlSchema<unknown[], number[]> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
 
-        constructor(readonly arg0: (value: number[]) => boolean, readonly element: TElement0) {}
+        constructor(readonly arg0: (value: number[]) => boolean) {}
 
         get "~standard"(): PvlStandardSchemaProps<unknown[], number[]> {
           return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
@@ -1031,7 +1027,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
         standalone(): this & PvlStandaloneMarker {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
-      })(arg0, element))((value) => value.length > 0, pvl.number().coerce());
+      })((value) => value.length > 0) as PvlSchema<unknown[], number[]>);
 
       export type NameInput = PvlInferInput<typeof name>;
       export type NameOutput = PvlInferOutput<typeof name>;
@@ -1041,7 +1037,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
     `);
   });
 
-  it("exposes each Standalone Key's own Compiled Schema through shape, built once, and an unmarked element as the interpreted Schema it is", async () => {
+  it("exposes each Standalone Key's own Compiled Schema through shape, built once, and no element for an unmarked one", async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': schemaFile(
@@ -1069,15 +1065,15 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
       import type { STANDALONE_BRAND as PVL_STANDALONE_BRAND } from '@pvl/schema';
 
       export const getUser = (max: number) =>
-        (<TElement0,>(arg0: number, pvlElement0: TElement0): PvlSchema<{ name: string; age: number; address?: { city: string } | undefined; tags: string[] }, { name: string; age: number; address?: { city: string } | undefined; tags: string[] }> & { readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker; readonly address: PvlSchema<{ city: string } | undefined, { city: string } | undefined> & PvlStandaloneMarker & { readonly shape: { readonly city: PvlSchema<string, string> & PvlStandaloneMarker } }; readonly tags: PvlSchema<string[], string[]> & PvlStandaloneMarker & { readonly element: TElement0 } } } => new (class PvlCompiledSchema0 implements PvlSchema<{ name: string; age: number; address?: { city: string } | undefined; tags: string[] }, { name: string; age: number; address?: { city: string } | undefined; tags: string[] }> {
+        (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string; age: number; address?: { city: string } | undefined; tags: string[] }, { name: string; age: number; address?: { city: string } | undefined; tags: string[] }> {
           declare readonly [PVL_SCHEMA_BRAND]: true;
           readonly _standalone: boolean = false;
 
-          readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker; readonly address: PvlSchema<{ city: string } | undefined, { city: string } | undefined> & PvlStandaloneMarker & { readonly shape: { readonly city: PvlSchema<string, string> & PvlStandaloneMarker } }; readonly tags: PvlSchema<string[], string[]> & PvlStandaloneMarker & { readonly element: TElement0 } };
+          readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker; readonly address: PvlSchema<{ city: string } | undefined, { city: string } | undefined> & PvlStandaloneMarker & { readonly shape: { readonly city: PvlSchema<string, string> & PvlStandaloneMarker } }; readonly tags: PvlSchema<string[], string[]> & PvlStandaloneMarker };
 
           readonly arg0Message: string;
 
-          constructor(readonly arg0: number, pvlElement0: TElement0) {
+          constructor(readonly arg0: number) {
             this.arg0Message = \`String must contain at most \${arg0} character(s)\`;
             this.shape = {
               "name": (new (class PvlCompiledSchema0_0 implements PvlSchema<string, string> {
@@ -1192,8 +1188,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
                 declare readonly [PVL_STANDALONE_BRAND]: true;
                 readonly _standalone: boolean = true;
 
-                constructor(readonly element: TElement0) {}
-
                 get "~standard"(): PvlStandardSchemaProps<string[], string[]> {
                   return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
                 }
@@ -1228,7 +1222,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
                 standalone(): this & PvlStandaloneMarker {
                   return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
                 }
-              })(pvlElement0) as PvlSchema<string[], string[]> & PvlStandaloneMarker & { readonly element: TElement0 }),
+              })() as PvlSchema<string[], string[]> & PvlStandaloneMarker),
             };
           }
 
@@ -1321,7 +1315,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           standalone(): this & PvlStandaloneMarker {
             return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
           }
-        })(arg0, pvlElement0))(max, pvl.string().min(1));
+        })(max) as PvlSchema<{ name: string; age: number; address?: { city: string } | undefined; tags: string[] }, { name: string; age: number; address?: { city: string } | undefined; tags: string[] }> & { readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker; readonly address: PvlSchema<{ city: string } | undefined, { city: string } | undefined> & PvlStandaloneMarker & { readonly shape: { readonly city: PvlSchema<string, string> & PvlStandaloneMarker } }; readonly tags: PvlSchema<string[], string[]> & PvlStandaloneMarker } });
       "
     `);
   });

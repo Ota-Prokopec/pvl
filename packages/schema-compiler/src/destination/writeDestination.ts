@@ -10,6 +10,7 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { MirroredFile } from '../module.js';
 import { errorMessage, statOrUndefined } from '../utils.js';
 import type { Destination } from './destination.js';
+import { createDestinationUnwritableDiagnostic } from './utils.js';
 
 /**
  * Writes the Destination Directory in one move: every mirrored file, the
@@ -98,10 +99,7 @@ export const writeDestination = async ({
     return {
       isWritten: false,
       diagnostics: [
-        DestinationWriter.createDestinationUnwritableDiagnostic(
-          destination.absolutePath,
-          errorMessage(error),
-        ),
+        createDestinationUnwritableDiagnostic(destination.absolutePath, errorMessage(error)),
       ],
     };
   }

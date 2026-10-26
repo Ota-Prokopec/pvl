@@ -5,7 +5,8 @@
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, type BigintInterpretedSchema, ISSUE_CODE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import { emitCoerceToBigint } from './coercions.js';
-import type { EmitBaseCheckArgs, EmitCoercionHookArgs } from './emitter.js';
+import type { EmitCoercionArgs } from './emitter.js';
+import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import type {
   ArgumentMessagesOf,
@@ -50,8 +51,8 @@ const max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
 
 export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   /** `.coerce()` → `field0 = BigInt(field0)` for a string or a number it accepts, as `coerceToBigint` converts. */
-  public static override _emitCoercion({ value }: EmitCoercionHookArgs): EmittedCoercion {
-    return emitCoerceToBigint(value);
+  public static override _emitCoercion({ target }: EmitCoercionArgs): EmittedCoercion {
+    return emitCoerceToBigint(target.value);
   }
 
   public static override readonly postModifierChecks = {

@@ -19,14 +19,14 @@ import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
   CheckingTarget,
-  CompositeParts,
   EmittedCheck,
   EmittedCoercion,
   EmittedShortCircuitCondition,
   PreModifierStep,
+  SchemaCompositeParts,
   SchemaParts,
-} from './emittersTypes.js';
-import { composeBlock, js } from './emitterUtils.js';
+} from '../emitters/types.js';
+import { composeBlock, js } from '../emitters/emitterUtils.js';
 
 /** A Runtime Argument as its Compiled Schema's constructor takes it. */
 export type RuntimeArgumentParameter = {
@@ -38,27 +38,12 @@ export type RuntimeArgumentParameter = {
   passedExpression: string;
   /** The field holding the default message naming it, which the constructor builds once: its name (`arg0Message`) and the message's expression, in terms of the parameter. `undefined` when no default message names it. */
   messageField: { fieldName: string; expression: string } | undefined;
-};
-
-/**
- * An unmarked array element a Compiled Schema exposes as the interpreted
- * Schema it is, as its class's constructor takes it: typed by a type
- * parameter TypeScript infers from the element's source, which is passed
- * where the root's `pvl.compile(...)` call was (ADR-0036).
- */
-export type ElementParameter = {
-  /** The constructor's parameter: `element`, a field, for the class's own element, or `pvlElement1`, handed on to the class exposing it. */
-  name: string;
-  /** Whether it is the class's own `element`, so a `readonly` field. */
-  isField: boolean;
-  /** Its type parameter: `TElement1`. */
-  type: string;
-  /** What is passed for it: the element's source at the root, or the parameter holding it in the class building this one. */
-  passedExpression: string;
+  /** The type parameter its type names, which the root's class is generic in: `TArg0Output` for a `.transform()`'s function, `undefined` otherwise. */
+  typeParameter: string | undefined;
 };
 
 /** How a Compiled Schema's class holds its `shape` or `element`, when its constructor builds it. */
-export type ComposedStructure = {
+export type ComposedShapeOrElement = {
   /** The field declaring it: `readonly shape: { … };`. */
   declaration: string;
   /** The constructor's statement building it, `undefined` when the declaration initializes it. */
@@ -70,8 +55,8 @@ export type SpellCompiledSchemaTypeArgs = {
   types: SchemaTypes;
   /** Whether it is marked `.standalone()`. */
   isStandalone: boolean;
-  /** The type of its `shape` or `element`, as it exposes it: `{ readonly element: TElement0 }`. */
-  structureType: string | undefined;
+  /** The type of its `shape` or `element`, as it exposes it: `{ readonly shape: {} }`. */
+  shapeOrElementType: string | undefined;
 };
 
 /** What {@link Frame.composeChecks} composes: one Schema's parts, emitted at its target. */
@@ -86,20 +71,18 @@ export type ComposeSchemaArgs = {
   className: string;
   /** The Schema's `Input` and `Output` types, the `PvlSchema` type arguments the class implements. */
   types: SchemaTypes;
-  /** The type it is cast up to, `PvlSchema<…>` with its marker and structure (`Frame.spellCompiledSchemaType`). */
+  /** The type it is cast up to, `PvlSchema<…>` with its marker and its `shape` or `element` (`Frame.spellCompiledSchemaType`). */
   compiledSchemaType: string;
   /** Whether it is marked `.standalone()`, which its `_standalone` reports. */
   isStandalone: boolean;
-  /** The type parameters it is generic in, which its `types` and its Runtime Arguments' may name: `.transform()`'s output, `TArg0Output`, and an unmarked element's, `TElement0`. Only a root's: a nested class is written inside the root, where they are in scope. */
+  /** The type parameters it is generic in, which its `types` and its Runtime Arguments' may name: `.transform()`'s output, `TArg0Output`. Only a root's: a nested class is written inside the root, where they are in scope. */
   typeParameters: ReadonlyArray<string>;
   /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
   indentation: string;
   /** Its Runtime Arguments, in the order its constructor takes them. */
   runtimeArguments: ReadonlyArray<RuntimeArgumentParameter>;
-  /** The unmarked elements it exposes, at any depth, which its constructor takes after its Runtime Arguments. */
-  elementParameters: ReadonlyArray<ElementParameter>;
-  /** How it holds its `shape` or `element`, `undefined` when it has neither or its constructor takes its `element`. */
-  structure: ComposedStructure | undefined;
+  /** How it holds its `shape` or `element`, `undefined` when it has neither. */
+  composedShapeOrElement: ComposedShapeOrElement | undefined;
   /** The Schema's parts, emitted at `Frame.rootCheckingTarget`. */
   parts: SchemaParts;
 };
@@ -123,7 +106,7 @@ export type CreateNestedCheckingTargetArgs = {
 export type ComposeCompositeStatementsArgs = {
   target: CheckingTarget;
   postModifierChecks: ReadonlyArray<EmittedCheck>;
-  composite: CompositeParts;
+  composite: SchemaCompositeParts;
 };
 
 // The names of a Compiled Schema's `_validate` parameters, which the root is
@@ -310,10 +293,10 @@ export class Frame {
    * and its `shape` or `element` when it has one.
    *
    * ```ts
-   * Frame.spellCompiledSchemaType({ types: <string, string>, isStandalone: true, structureType: undefined })
+   * Frame.spellCompiledSchemaType({ types: <string, string>, isStandalone: true, shapeOrElementType: undefined })
    * // 'PvlSchema<string, string> & PvlStandaloneMarker'
-   * Frame.spellCompiledSchemaType({ types: <string[], string[]>, isStandalone: false, structureType: '{ readonly element: TElement0 }' })
-   * // 'PvlSchema<string[], string[]> & { readonly element: TElement0 }'
+   * Frame.spellCompiledSchemaType({ types: <{ name: string }, { name: string }>, isStandalone: false, shapeOrElementType: '{ readonly shape: {} }' })
+   * // 'PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} }'
    * ```
    */
   public static spellCompiledSchemaType({
@@ -322,12 +305,12 @@ export class Frame {
       output: { text: output },
     },
     isStandalone,
-    structureType,
+    shapeOrElementType,
   }: SpellCompiledSchemaTypeArgs): string {
     return [
       `PvlSchema<${input}, ${output}>`,
       ...(isStandalone ? [STANDALONE_MARKER_TYPE_NAME] : []),
-      ...(structureType === undefined ? [] : [structureType]),
+      ...(shapeOrElementType === undefined ? [] : [shapeOrElementType]),
     ].join(' & ');
   }
 
@@ -338,8 +321,8 @@ export class Frame {
    * types as `pvl.compile()` does. Its constructor, when it has Runtime
    * Arguments, takes each one's value, which is passed where the call was,
    * evaluated there once (ADR-0030), and builds each default message naming
-   * one into a field of its own, once. It then takes each unmarked element
-   * it exposes, and builds its `shape` or marked `element` (ADR-0036). Its
+   * one into a field of its own, once. It then builds its `shape` or
+   * marked `element` (ADR-0036, ADR-0039). Its
    * `_validate` collects its Issues, runs the checks `composeChecks`
    * composes from `parts` at `Frame.rootCheckingTarget`, and then returns
    * its Result, and its `validate` and `"~standard"` call it. Its
@@ -348,7 +331,7 @@ export class Frame {
    * argument is written as it is.
    *
    * ```ts
-   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, compiledSchemaType: 'PvlSchema<string, string>', isStandalone: false, typeParameters: [], indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' } }], elementParameters: [], structure: undefined, parts: <the parts of pvl.string().max(max) at the root> })
+   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, compiledSchemaType: 'PvlSchema<string, string>', isStandalone: false, typeParameters: [], indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }], shapeOrElement: undefined, parts: <the parts of pvl.string().max(max) at the root> })
    * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
    * //   readonly _standalone: boolean = false;
@@ -382,8 +365,7 @@ export class Frame {
   // The cast is an upcast, as the class implements `PvlSchema`: it keeps the
   // Compiled Schema's type what `pvl.compile()` returns, and no anonymous
   // class type reaches a declaration file. A Compiled Schema generic in a
-  // `.transform()`'s output or an unmarked element's type is built by a
-  // generic arrow function instead, whose return type is the upcast, so that
+  // `.transform()`'s output is built by a generic arrow function instead, whose return type is the upcast, so that
   // type can be inferred. The parentheses let a `.validate(…)` read off the
   // call site still apply to the whole of it.
   // Each field is `readonly` but not `private`, so one a method that doesn't
@@ -401,28 +383,18 @@ export class Frame {
     typeParameters,
     indentation,
     runtimeArguments,
-    elementParameters,
-    structure,
+    composedShapeOrElement,
     parts,
   }: ComposeSchemaArgs): string {
     const messageFields = runtimeArguments.flatMap(({ messageField }) =>
       messageField === undefined ? [] : [messageField],
     );
-    // Every parameter its constructor takes, in order: each Runtime
-    // Argument, a field, then each unmarked element.
-    const parameters = [
-      ...runtimeArguments.map(({ fieldName, type, passedExpression }) => ({
-        name: fieldName,
-        isField: true,
-        type,
-        passedExpression,
-      })),
-      ...elementParameters,
-    ];
-    const constructorHead = `constructor(${parameters.map(({ name, isField, type }) => `${isField ? 'readonly ' : ''}${name}: ${type}`).join(', ')})`;
+    const constructorHead = `constructor(${runtimeArguments.map(({ fieldName, type }) => `readonly ${fieldName}: ${type}`).join(', ')})`;
     const constructorStatements = [
       ...messageFields.map(({ fieldName, expression }) => `this.${fieldName} = ${expression};`),
-      ...(structure?.statement === undefined ? [] : [structure.statement]),
+      ...(composedShapeOrElement?.statement === undefined
+        ? []
+        : [composedShapeOrElement.statement]),
     ];
 
     const members = [
@@ -433,11 +405,11 @@ export class Frame {
         ...(isStandalone ? [`declare readonly [${STANDALONE_BRAND_NAME}]: true;`] : []),
         `readonly _standalone: boolean = ${String(isStandalone)};`,
       ].join('\n'),
-      ...(structure === undefined ? [] : [structure.declaration]),
+      ...(composedShapeOrElement === undefined ? [] : [composedShapeOrElement.declaration]),
       ...(messageFields.length > 0
         ? [messageFields.map(({ fieldName }) => `readonly ${fieldName}: string;`).join('\n')]
         : []),
-      ...(parameters.length === 0 && constructorStatements.length === 0
+      ...(runtimeArguments.length === 0 && constructorStatements.length === 0
         ? []
         : constructorStatements.length === 0
           ? [`${constructorHead} {}`]
@@ -473,7 +445,9 @@ export class Frame {
       }),
       indentation,
     );
-    const passedExpressions = parameters.map(({ passedExpression }) => passedExpression).join(', ');
+    const passedExpressions = runtimeArguments
+      .map(({ passedExpression }) => passedExpression)
+      .join(', ');
 
     if (typeParameters.length === 0) {
       return `(new (${classExpression})(${passedExpressions}) as ${compiledSchemaType})`;
@@ -482,8 +456,10 @@ export class Frame {
     // the arguments it is passed, as it infers a `.transform()`'s `NewOutput`;
     // its return type is the upcast. The trailing comma keeps `<T,>` a type
     // parameter list in a `.tsx` module too.
-    const arrowParameters = parameters.map(({ name, type }) => `${name}: ${type}`).join(', ');
-    const parameterNames = parameters.map(({ name }) => name).join(', ');
+    const arrowParameters = runtimeArguments
+      .map(({ fieldName, type }) => `${fieldName}: ${type}`)
+      .join(', ');
+    const parameterNames = runtimeArguments.map(({ fieldName }) => fieldName).join(', ');
     return `(<${typeParameters.join(', ')},>(${arrowParameters}): ${compiledSchemaType} => new (${classExpression})(${parameterNames}))(${passedExpressions})`;
   }
 

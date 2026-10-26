@@ -311,7 +311,7 @@ describe('pvl.object()', () => {
     });
 
     it('reaches a nested array field through its element', () => {
-      const tag = pvl.string();
+      const tag = pvl.string().standalone();
       const schema = pvl.object({ tags: pvl.array(tag).standalone() });
       expect(schema.shape.tags.element).toBe(tag);
     });
