@@ -31,6 +31,10 @@ Read [`destination-directory.md`](../../docs/specification/schema-compiler/desti
 
 Read [`code-generation.md`](../../docs/specification/schema-compiler/code-generation.md) before you write or change an emit template.
 
+## Wiki
+
+Read [`wiki.md`](../../docs/agents/wiki.md) before you change an Emitter, the Frame or the build pipeline: the wiki page that describes it changes with it.
+
 ## Configuration and CLI
 
 Read [`configuration-and-cli.md`](../../docs/specification/schema-compiler/configuration-and-cli.md) before you change `pvlconfig.json`, a CLI flag, or a diagnostic.

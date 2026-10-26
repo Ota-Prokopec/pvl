@@ -42,6 +42,10 @@ Read [`GLOSSARY.md`](./GLOSSARY.md) and the ADRs in [`docs/adr/`](./docs/adr/) t
 - **[`GLOSSARY.md`](./GLOSSARY.md) is the living glossary and domain model.** Update a term's entry in the same change that coins, renames or redefines it. Each entry cross-links the ADR or spec doc that owns it.
 - A change that is an architectural decision gets an ADR in [`docs/adr/`](./docs/adr/).
 
+## Wiki
+
+Read [`docs/agents/wiki.md`](./docs/agents/wiki.md) before you change a Schema's behaviour, the interpreted pipeline, an Emitter or the Frame, or edit a page in [`docs/wiki/`](./docs/wiki/), the source of the GitHub wiki.
+
 ## Skills
 
 Read [`docs/agents/skills.md`](./docs/agents/skills.md) before you edit or update a skill, or start a feature through the skill pipeline.
