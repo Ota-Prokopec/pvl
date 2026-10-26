@@ -35,10 +35,6 @@ Read [`public-contract.md`](../../docs/specification/schema/public-contract.md) 
 
 Read [`compile.md`](../../docs/specification/schema/compile.md) before you touch `pvl.compile()`, the `Schema` type, `_validate`, or how a composite calls its children.
 
-## Wiki
-
-Read [`wiki.md`](../../docs/agents/wiki.md) before you change a schema type's behaviour or the Modifier pipeline: the wiki page that describes it changes with it.
-
 ## TSDoc
 
 Read [`tsdoc.md`](../../docs/standards/tsdoc.md) before you write a doc comment or export something new.
