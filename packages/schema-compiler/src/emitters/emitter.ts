@@ -71,7 +71,7 @@ type EmitCoercionArgs<TSchema extends Schema = Schema> = {
 };
 
 /** What {@link Emitter._emitPostModifierChecks} emits its post-modifiers' checks for: a Schema at the target they read, and its composite's locals. */
-export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
+type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
   /** Its own target, or, for a composite, the same with its output local as the value, which its post-modifiers read. */
   target: CheckingTarget;

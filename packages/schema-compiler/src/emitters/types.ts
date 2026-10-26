@@ -38,7 +38,7 @@ export type PreModifierStep =
 /** A statement building a composite's output: `output1["name"] = field1;`, `.passthrough()`'s loop. */
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
 
-/** The names of the locals a composite's checks declare, all ending in the same number, so they never clash with its parent's or its children's. */
+/** The names of the locals a composite's checks declare, all ending in the same number, so they never clash with its parent's or its children's. Each composite, root or nested, has its own; its children have none of them, but are checked at the targets built from them: `{ value: 'field1', path: '[...path2, "name"]' }` from `input2` and `path2`. */
 export type CompositeLocalVariableNames = {
   /** Its value, read as a record: `input1`. */
   input: string;
@@ -117,7 +117,7 @@ export type TransformParts = {
   statement: EmittedTransform;
 };
 
-/** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. */
+/** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. Every Schema is checked at one: the root at `Frame.rootCheckingTarget`, a nested one at the target its parent builds from its own locals (`CompositeLocalVariableNames`). */
 export type CheckingTarget = {
   /** The checked value, as an expression: `value`, `field0`, `element1`. */
   value: string;
