@@ -129,7 +129,9 @@ export class ObjectSchema extends Schema {
 
   /** The last of `.strict()` and `.passthrough()` chained onto it, which wins; `undefined` with neither. */
   private findUnknownKeysCall(): SchemaModifierCall | undefined {
-    return [...this.calls].reverse().find((call) => PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES.has(call.name));
+    return [...this.calls]
+      .reverse()
+      .find((call) => PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES.has(call.name));
   }
 
   /**

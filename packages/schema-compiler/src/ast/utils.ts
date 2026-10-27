@@ -1,7 +1,11 @@
 // Narrowing a method name read from source to the name `@pvl/schema` gives
 // it, so PvlAst hands on `pvl`'s and a Schema's methods typed (ADR-0038).
-import type { PvlObjectPropertyName, PvlSchemaMethodName } from '@pvl/schema';
-import { PVL_OBJECT_PROPERTY_NAMES, PVL_SCHEMA_METHOD_NAMES } from './consts.js';
+import {
+  PVL_OBJECT_PROPERTY_NAMES,
+  PVL_SCHEMA_METHOD_NAMES,
+  type PvlObjectPropertyName,
+  type PvlSchemaMethodName,
+} from '@pvl/schema';
 
 /**
  * Whether `methodName` is a method of `pvl`: a factory, or `compile`.
