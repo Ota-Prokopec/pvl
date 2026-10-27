@@ -21,7 +21,7 @@ const PATH = 'src/schemas/compiled.ts' as const;
  *
  * ```ts
  * await compileClassHeads("export const a = pvl.compile(pvl.array(pvl.literal('a')));")
- * // ['class PvlCompiledSchema0 implements PvlSchema<"a"[], "a"[]> {']
+ * // ['class PvlCompiledSchema0 implements PvlSchema<("a")[], ("a")[]> {']
  * ```
  */
 const compileClassHeads = async (source: string): Promise<string[]> => {
@@ -60,7 +60,7 @@ describe('StringSchema, NumberSchema, BooleanSchema and BigintSchema', () => {
       ),
     ).toEqual([
       'class PvlCompiledSchema0 implements PvlSchema<{ s: string; n: number; b: boolean; g: bigint }, { s: string; n: number; b: boolean; g: bigint }> {',
-      'class PvlCompiledSchema1 implements PvlSchema<string[], string[]> {',
+      'class PvlCompiledSchema1 implements PvlSchema<(string)[], (string)[]> {',
     ]);
   });
 
@@ -89,9 +89,9 @@ describe('LiteralSchema', () => {
         ].join('\n'),
       ),
     ).toEqual([
-      'class PvlCompiledSchema0 implements PvlSchema<"user"[], "user"[]> {',
-      'class PvlCompiledSchema1 implements PvlSchema<-1[], -1[]> {',
-      'class PvlCompiledSchema2 implements PvlSchema<"user"[], "user"[]> {',
+      'class PvlCompiledSchema0 implements PvlSchema<("user")[], ("user")[]> {',
+      'class PvlCompiledSchema1 implements PvlSchema<(-1)[], (-1)[]> {',
+      'class PvlCompiledSchema2 implements PvlSchema<("user")[], ("user")[]> {',
     ]);
   });
 
@@ -138,7 +138,7 @@ describe('ObjectSchema', () => {
         'const name = pvl.string();\nconst shape = { name, tags: pvl.array(pvl.number()) };\nexport const a = pvl.compile(pvl.object(shape));',
       ),
     ).toEqual([
-      'class PvlCompiledSchema0 implements PvlSchema<{ name: string; tags: number[] }, { name: string; tags: number[] }> {',
+      'class PvlCompiledSchema0 implements PvlSchema<{ name: string; tags: (number)[] }, { name: string; tags: (number)[] }> {',
     ]);
   });
 
@@ -159,7 +159,9 @@ describe('ArraySchema', () => {
       await compileClassHeads(
         'const element = pvl.array(pvl.boolean());\nexport const a = pvl.compile(pvl.array(element));',
       ),
-    ).toEqual(['class PvlCompiledSchema0 implements PvlSchema<boolean[][], boolean[][]> {']);
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<((boolean)[])[], ((boolean)[])[]> {',
+    ]);
   });
 
   it('rejects an element that is no Schema, and a missing one', async () => {
