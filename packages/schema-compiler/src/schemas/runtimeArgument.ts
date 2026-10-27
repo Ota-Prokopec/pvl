@@ -159,7 +159,7 @@ export class RuntimeArgument {
     position: number;
   }> {
     return [
-      ...schema.chainedCalls.flatMap((call) =>
+      ...schema.calls.flatMap((call) =>
         (call.args ?? []).flatMap((argument, position) =>
           argument instanceof RuntimeArgument ? [{ argument, owner: schema, call, position }] : [],
         ),

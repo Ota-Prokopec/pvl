@@ -18,7 +18,7 @@ import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
 import { readFunctionArgument } from '../emitters/utils/arguments.js';
 import { PRE_MODIFIER_NAMES } from './consts.js';
-import type { PvlFactoryName } from '@pvl/schema';
+import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { RuntimeArgument } from './runtimeArgument.js';
@@ -40,10 +40,8 @@ export type SchemaOptions = {
   expression: Node;
   /** The 1-based line its factory call is written on. */
   line: number;
-  /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` left out. */
+  /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` included, last. */
   calls: ReadonlyArray<SchemaModifierCall>;
-  /** The `.transform()` that ends its chain, if any. */
-  transformCall: SchemaModifierCall | undefined;
   /** Whether `.standalone()` is chained onto it. */
   isStandalone: boolean;
 };
@@ -88,22 +86,18 @@ export abstract class Schema {
   public readonly line: number;
   /**
    * The Modifiers chained onto its factory call, pre- and post-modifiers
-   * together, in chain order, its `.transform()` left out: the types a
-   * Modifier sees are those the ones before it left.
+   * together, in chain order: the types a Modifier sees are those the ones
+   * before it left. Its `.transform()`, if any, is last: one returns a plain
+   * Schema, which no Modifier can be chained onto, so a chain holds at most
+   * one. The compiler checks syntax, not types (ADR-0024), so it trusts
+   * that.
    */
   public readonly calls: ReadonlyArray<SchemaModifierCall>;
-  /**
-   * The `.transform()` that ends its chain, if any: one returns a plain
-   * Schema, which no Modifier can be chained onto, so a chain holds at most
-   * one, always last. The compiler checks syntax, not types (ADR-0024), so
-   * it trusts that.
-   */
-  public readonly transformCall: SchemaModifierCall | undefined;
   /**
    * Whether `.standalone()` is chained onto it, making it a Standalone Key
    * as an object's field: its Compiled Schema is then reachable through the
    * object's compiled `shape`, or an array's compiled `element`. It is no
-   * Modifier, so it is in neither `calls` nor `transformCall`, and changes
+   * Modifier, so it isn't in `calls`, and changes
    * no check (ADR-0036).
    */
   public readonly isStandalone: boolean;
@@ -115,21 +109,13 @@ export abstract class Schema {
    * A Schema holding `options`, with the factory and Emitter of the
    * subclass being constructed (`new.target`).
    */
-  protected constructor({
-    module,
-    expression,
-    line,
-    calls,
-    transformCall,
-    isStandalone,
-  }: SchemaOptions) {
+  protected constructor({ module, expression, line, calls, isStandalone }: SchemaOptions) {
     this.factory = new.target.factory;
     this.subclassEmitter = new.target.emitter;
     this.module = module;
     this.expression = expression;
     this.line = line;
     this.calls = calls;
-    this.transformCall = transformCall;
     this.isStandalone = isStandalone;
   }
 
@@ -138,22 +124,9 @@ export abstract class Schema {
     return this.calls.filter((call) => PRE_MODIFIER_NAMES.has(call.name));
   }
 
-  /** Its post-modifiers, in chain order, its `.transform()` left out: they run after the type check (ADR-0010). */
+  /** Its post-modifiers, in chain order, its `.transform()` included, last: they run after the type check (ADR-0010). */
   public get postModifierCalls(): ReadonlyArray<SchemaModifierCall> {
     return this.calls.filter((call) => !PRE_MODIFIER_NAMES.has(call.name));
-  }
-
-  /**
-   * Every method chained onto its factory call, in chain order, its
-   * `.transform()` included, last: those whose arguments are read.
-   *
-   * ```ts
-   * <pvl.string().min(3).transform(trim)>.chainedCalls // [min(3), transform(<Runtime Argument trim>)]
-   * ```
-   */
-  public get chainedCalls(): ReadonlyArray<SchemaModifierCall> {
-    const { calls, transformCall } = this;
-    return transformCall === undefined ? calls : [...calls, transformCall];
   }
 
   /**
@@ -167,16 +140,17 @@ export abstract class Schema {
    * ```
    */
   public getTransformFunction(): RuntimeArgument | undefined {
-    const { transformCall } = this;
+    const transformCall = this.calls.find(
+      (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
+    );
     return transformCall === undefined ? undefined : readFunctionArgument(transformCall.args?.[0]);
   }
 
   /**
    * The Modifiers chained before `call`, in chain order, which left the
-   * types it sees; every one of them when `call` is omitted, or is the
-   * `.transform()`, which is chained after them all. Throws for a call
-   * chained onto another Schema, which is a bug in the compiler, never a
-   * user error.
+   * types it sees; every one of them, its `.transform()` included, when
+   * `call` is omitted. Throws for a call chained onto another Schema, which
+   * is a bug in the compiler, never a user error.
    *
    * ```ts
    * <pvl.string().refine(isOk).optional()>.findCallsBefore(<.refine(isOk)>) // []
@@ -185,7 +159,7 @@ export abstract class Schema {
    */
   public findCallsBefore(call: SchemaModifierCall | undefined): ReadonlyArray<SchemaModifierCall> {
     const { calls } = this;
-    if (call === undefined || call === this.transformCall) {
+    if (call === undefined) {
       return calls;
     }
     const callIndex = calls.indexOf(call);
@@ -249,7 +223,7 @@ export abstract class Schema {
       ];
     }
     return [
-      ...this.chainedCalls.flatMap(
+      ...this.calls.flatMap(
         (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call) ?? [],
       ),
       ...this.findChildren().flatMap((child) => child.findUncompilableDiagnostics()),
@@ -296,7 +270,7 @@ export abstract class Schema {
    */
   public findRuntimeArguments(): ReadonlyArray<RuntimeArgument> {
     return [
-      ...this.chainedCalls.flatMap((call) =>
+      ...this.calls.flatMap((call) =>
         (call.args ?? []).filter((argument) => argument instanceof RuntimeArgument),
       ),
       ...this.findChildren().flatMap((child) => child.findRuntimeArguments()),

@@ -30,7 +30,7 @@ import type {
 } from '../emitters/types/emittedText.js';
 import type {
   CheckingTarget,
-  PreModifierStep,
+  EmittedPreModifierStep,
   SchemaCompositeParts,
   SchemaParts,
 } from '../emitters/types/schemaParts.js';
@@ -97,7 +97,7 @@ export type ComposeSchemaArgs = {
 
 /** What {@link Frame.groupPreModifierSteps} groups: a Schema's pre-modifiers' parts. */
 export type GroupPreModifierStepsArgs = {
-  steps: ReadonlyArray<PreModifierStep>;
+  steps: ReadonlyArray<EmittedPreModifierStep>;
 };
 
 /** A Schema's pre-modifier step as grouped: a conversion, which replaces the value before what follows it, or the conditions chained one after another, whose one guard what follows runs behind. */

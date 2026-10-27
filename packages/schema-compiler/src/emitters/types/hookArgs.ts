@@ -3,22 +3,7 @@
 import type { Schema } from '../../schemas/schema.js';
 import type { SchemaModifierCall } from '../../schemas/schemaTypes.js';
 import type { Scope } from '../../scope.js';
-import type { CheckingTarget, CompositeLocalVariableNames } from './schemaParts.js';
-
-/** What `Emitter._emitCoercion` emits `.coerce()`'s conversion for: a Schema, and the value it converts, as an expression. */
-export type EmitCoercionArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  target: CheckingTarget;
-};
-
-/** What `Emitter._emitPostModifierChecks` emits its post-modifiers' checks for: a Schema at the target they read, and its composite's locals. */
-export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  /** Its own target, or, for a composite, the same with its output local as the value, which its post-modifiers read. */
-  target: CheckingTarget;
-  /** Its composite's locals, which a post-modifier reading something besides the value reads, as an object's `.strict()` reads its keys; `undefined` for a Schema that isn't a composite. */
-  compositeLocals?: CompositeLocalVariableNames | undefined;
-};
+import type { CheckingTarget } from './schemaParts.js';
 
 /** What `Emitter._emitSchemaCompositeParts` emits a composite's parts for: a Schema at the target it checks. */
 export type EmitSchemaCompositePartsArgs<TSchema extends Schema = Schema> = {
@@ -26,12 +11,6 @@ export type EmitSchemaCompositePartsArgs<TSchema extends Schema = Schema> = {
   target: CheckingTarget;
   /** Numbers its own locals first, then its children's. */
   scope: Scope;
-};
-
-/** What `Emitter._emitTransform` emits a Schema's `.transform()` for: a Schema at the target it checks. */
-export type EmitTransformArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  target: CheckingTarget;
 };
 
 /** What `Emitter._spellTypes` and `Emitter._spellFactoryTypes` spell types for: the Schema, as the methods chained before `before` left it. */

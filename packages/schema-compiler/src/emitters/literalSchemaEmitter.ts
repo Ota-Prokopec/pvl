@@ -1,11 +1,17 @@
 // The code a `LiteralSchema` compiles to: its value check, as it has no
-// Constraint, and `.coerce()`, written by its `_emitCoercion` hook, which
+// Constraint, and `.coerce()`, held in its `preModifierSteps` table, which
 // converts as the primitive of its value does.
-import { ISSUE_CODE, LITERAL_SCHEMA_ISSUE_MESSAGE } from '@pvl/schema';
+import {
+  ISSUE_CODE,
+  LITERAL_SCHEMA_ISSUE_MESSAGE,
+  type ChainableInterpretedSchema,
+} from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
-import type { EmitCoercionArgs, SpellTypesArgs } from './types/hookArgs.js';
+import type { EmittedCheck } from './types/emittedText.js';
+import type { SpellTypesArgs } from './types/hookArgs.js';
+import type { EmitterMethodOf, PreModifierStepTable } from './types/methodTables.js';
+import type { EmittedPreModifierStep } from './types/schemaParts.js';
 import {
   emitCoerceToBigint,
   emitCoerceToBoolean,
@@ -19,32 +25,38 @@ import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
-export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
-  /**
-   * `.coerce()` → the conversion of the primitive its value is, so the
-   * value check then decides.
-   *
-   * ```ts
-   * LiteralSchemaEmitter._emitCoercion({ schema: <pvl.literal(1)>, target: { value: 'field0', path, issuePath } })
-   * // 'if (typeof field0 === "string" || typeof field0 === "boolean") {\n  field0 = Number(field0);\n}'
-   * ```
-   */
-  public static override _emitCoercion({
-    schema,
-    target: { value },
-  }: EmitCoercionArgs<LiteralSchema>): EmittedCoercion {
-    // By the type of its value, as `LiteralInterpretedSchema._coerceInput` picks it.
-    switch (typeof schema.value) {
-      case 'string':
-        return emitCoerceToString(value);
-      case 'number':
-        return emitCoerceToNumber(value);
-      case 'boolean':
-        return emitCoerceToBoolean(value);
-      default:
-        return emitCoerceToBigint(value);
-    }
+/**
+ * `.coerce()` → the conversion of the primitive its value is, so the value
+ * check then decides.
+ *
+ * ```ts
+ * coerce({ schema: <pvl.literal(1)>, target: { value: 'field0', path, issuePath }, … })
+ * // { coercion: 'if (typeof field0 === "string" || typeof field0 === "boolean") {\n  field0 = Number(field0);\n}' }
+ * ```
+ */
+const coerce: EmitterMethodOf<
+  ChainableInterpretedSchema['coerce'],
+  EmittedPreModifierStep,
+  LiteralSchema
+> = ({ schema, target: { value } }) => {
+  // By the type of its value, as `LiteralInterpretedSchema._coerceInput` picks it.
+  switch (typeof schema.value) {
+    case 'string':
+      return { coercion: emitCoerceToString(value) };
+    case 'number':
+      return { coercion: emitCoerceToNumber(value) };
+    case 'boolean':
+      return { coercion: emitCoerceToBoolean(value) };
+    default:
+      return { coercion: emitCoerceToBigint(value) };
   }
+};
+
+export class LiteralSchemaEmitter extends ChainableSchemaEmitter {
+  public static override readonly preModifierSteps = {
+    ...ChainableSchemaEmitter.preModifierSteps,
+    coerce,
+  } satisfies PreModifierStepTable<LiteralSchema>;
 
   /**
    * `pvl.literal('a')` → `!Object.is(field0, "a")`, reporting

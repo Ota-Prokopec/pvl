@@ -1,10 +1,9 @@
-// The code the Shared Modifiers of `ChainableInterpretedSchema` compile to:
-// `.optional()` and `.nullable()`, held in its `shortCircuitConditions`
-// table, and `.refine()`, held in its `postModifierChecks` table, written in
-// `utils/sharedModifiers.ts`; `.transform()`, written by its
-// `_emitTransform` hook, which calls the user's own function; and
-// `.coerce()`, the identity here, which a primitive's emitter converts with
-// in its `_emitCoercion` hook. It also spells the types they widen. Every
+// The code the Shared Modifiers of `ChainableInterpretedSchema` compile to,
+// written in `utils/sharedModifiers.ts`: `.optional()`, `.nullable()` and
+// `.coerce()`, the identity here, which a primitive's emitter overrides with
+// its conversion, held in its `preModifierSteps` table, and `.refine()` and
+// `.transform()`, which call the user's own functions, held in its
+// `postModifierSteps` table. It also spells the types they widen. Every
 // schema's emitter extends it, as every schema extends
 // `ChainableInterpretedSchema`.
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
@@ -13,71 +12,24 @@ import { UNDEFINEDNESS } from '../enums.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import { UNKNOWN_SPELLED_TYPE } from './consts/spelledTypes.js';
 import { Emitter } from './emitter.js';
-import type {
-  CompilesMethodArgs,
-  EmitTransformArgs,
-  SpellParameterTypesArgs,
-  SpellTypesArgs,
-} from './types/hookArgs.js';
-import type { PostModifierCheckTable, ShortCircuitConditionTable } from './types/methodTables.js';
-import type { EmittedTransform } from './types/emittedText.js';
-import { emitFunctionCall } from './utils/arguments.js';
-import { emitTransform } from './utils/emittedText.js';
-import { js } from './utils/js.js';
-import { nullable, optional, refine } from './utils/sharedModifiers.js';
+import type { SpellParameterTypesArgs, SpellTypesArgs } from './types/hookArgs.js';
+import type { PostModifierStepTable, PreModifierStepTable } from './types/methodTables.js';
+import { coerce, nullable, optional, refine, transform } from './utils/sharedModifiers.js';
 import { widenType } from './utils/spelledType.js';
 
 export class ChainableSchemaEmitter extends Emitter {
-  public static override readonly shortCircuitConditions = {
-    ...Emitter.shortCircuitConditions,
+  public static override readonly preModifierSteps = {
+    ...Emitter.preModifierSteps,
     optional,
     nullable,
-  } satisfies ShortCircuitConditionTable;
+    coerce,
+  } satisfies PreModifierStepTable;
 
-  public static override readonly postModifierChecks = {
-    ...Emitter.postModifierChecks,
+  public static override readonly postModifierSteps = {
+    ...Emitter.postModifierSteps,
     refine,
-  } satisfies PostModifierCheckTable;
-
-  /**
-   * Whether it compiles the Schema method `name`: one of its tables holds
-   * it, or it is `.coerce()` or `.transform()`, which a hook emits
-   * (`_emitCoercion`, `_emitTransform`).
-   *
-   * ```ts
-   * StringSchemaEmitter.compilesMethod({ name: 'transform' }) // true
-   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })      // true: the identity
-   * ```
-   */
-  public static override compilesMethod(args: CompilesMethodArgs): boolean {
-    return (
-      args.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE ||
-      args.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM ||
-      super.compilesMethod(args)
-    );
-  }
-
-  /**
-   * `.transform(fn)` → `field0 = this.arg0.call(undefined, field0 as never);`.
-   *
-   * ```ts
-   * StringSchemaEmitter._emitTransform({ schema: <pvl.string().transform(trim)>, target: { value: 'field0', path, issuePath } })
-   * // 'field0 = this.arg0.call(undefined, field0 as never);'
-   * StringSchemaEmitter._emitTransform({ schema: <pvl.string()>, target }) // undefined
-   * ```
-   */
-  public static override _emitTransform({
-    schema,
-    target: { value },
-  }: EmitTransformArgs): EmittedTransform | undefined {
-    const transformFunction = schema.getTransformFunction();
-    if (transformFunction === undefined) {
-      return undefined;
-    }
-    return emitTransform({
-      statement: js`${value} = ${emitFunctionCall(transformFunction, value)};`,
-    });
-  }
+    transform,
+  } satisfies PostModifierStepTable;
 
   /**
    * Its emitter's `parameterTypes`, `.refine()`'s and `.transform()`'s: a

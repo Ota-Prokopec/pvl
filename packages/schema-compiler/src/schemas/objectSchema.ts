@@ -95,21 +95,40 @@ export class ObjectSchema extends Schema {
   }
 
   /**
-   * Its post-modifiers, in chain order, without every `.strict()` and
-   * `.passthrough()` but a winning `.strict()`, as `ObjectInterpretedSchema`
-   * removes them: `.passthrough()` adds no post-modifier of its own.
+   * Its post-modifiers, in chain order, without every `.strict()` but a
+   * winning one, as `ObjectInterpretedSchema`'s `.strict()` and
+   * `.passthrough()` each remove an earlier `.strict()`'s post-modifier.
    *
    * ```ts
    * <pvl.object({}).strict().refine(isOk).strict(opts)>.postModifierCalls // [refine(isOk), strict(opts)]
-   * <pvl.object({}).strict().passthrough()>.postModifierCalls             // []
+   * <pvl.object({}).strict().passthrough()>.postModifierCalls             // [passthrough()]
    * ```
    */
   public override get postModifierCalls(): ReadonlyArray<SchemaModifierCall> {
     const unknownKeysCall = this.findUnknownKeysCall();
     return super.postModifierCalls.filter(
       (call) =>
-        !UNKNOWN_KEYS_METHOD_NAMES.has(call.name) ||
-        (call === unknownKeysCall && call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT),
+        call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.STRICT || call === unknownKeysCall,
+    );
+  }
+
+  /**
+   * Whether a post-modifier besides `.strict()`, `.passthrough()` and
+   * `.transform()` reads its output, which then has to hold the undeclared
+   * keys a winning `.strict()` keeps, as `_checkType` keeps them.
+   * `.transform()` runs only once nothing has failed, so after a `.strict()`
+   * there is no undeclared key left for it to read.
+   *
+   * ```ts
+   * <pvl.object({}).strict().refine(isOk)>.readsUnknownKeysAfterStrict    // true
+   * <pvl.object({}).strict().transform(toUser)>.readsUnknownKeysAfterStrict // false
+   * ```
+   */
+  public get readsUnknownKeysAfterStrict(): boolean {
+    return this.postModifierCalls.some(
+      (call) =>
+        !UNKNOWN_KEYS_METHOD_NAMES.has(call.name) &&
+        call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
     );
   }
 

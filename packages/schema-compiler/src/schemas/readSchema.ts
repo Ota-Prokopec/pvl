@@ -14,7 +14,6 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import {
   PVL_OBJECT_PROPERTY_NAMES_ENUM,
   PVL_SCHEMA_METHOD_NAME_ENUM,
-  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
   PVL_FACTORY_NAMES_ENUM,
   type PvlFactoryName,
 } from '@pvl/schema';
@@ -218,7 +217,7 @@ type ReadingArgs = ReadSchemaArgs & {
  * ```ts
  * readExpression(args, <pvl.string().min(3)>)       // <StringSchema with calls [min(3)]>
  * readExpression(args, <pvl.string().refine(isOk)>) // <StringSchema with calls [refine(<Runtime Argument isOk>)]>
- * readExpression(args, <pvl.string().transform(trim)>) // <StringSchema with calls [] and transformCall transform(<Runtime Argument trim>)>
+ * readExpression(args, <pvl.string().transform(trim)>) // <StringSchema with calls [transform(<Runtime Argument trim>)]>
  * readExpression(args, <user>)                      // what `const user = …` holds
  * readExpression(args, <pvl.compile(pvl.string())>) // <StringSchema> read from <pvl.compile(…)>
  * readExpression(args, <pvl.compile(pvl.string()).standalone()>) // <StringSchema with calls [], a Standalone Key>
@@ -260,10 +259,7 @@ const readExpression = (
     module: args.module,
     expression: args.expression,
     line: factory.call.getStartLineNumber(),
-    calls: calls.filter((call) => call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM),
-    transformCall: calls.find(
-      (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
-    ),
+    calls,
     isStandalone: chainedMethods.some(
       (method) => method.methodName === PVL_SCHEMA_METHOD_NAME_ENUM.STANDALONE,
     ),

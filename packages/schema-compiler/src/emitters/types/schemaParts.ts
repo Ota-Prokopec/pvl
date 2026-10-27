@@ -1,7 +1,7 @@
 // The parts an Emitter emits for one Schema, which its Frame composes, the
+// steps its pre- and post-modifiers' table methods write them from, the
 // names of a composite's locals among them, and the target every Schema is
-// checked at. `.coerce()`'s conversion and `.transform()`'s call are written
-// by hooks of their own, not dispatched from a table (ADR-0035).
+// checked at.
 import type {
   EmittedCheck,
   EmittedCoercion,
@@ -16,8 +16,15 @@ import type {
  * short-circuits under (`.optional()`, `.nullable()`), or the conversion
  * replacing it (`.coerce()`).
  */
-export type PreModifierStep =
+export type EmittedPreModifierStep =
   { shortCircuitCondition: EmittedShortCircuitCondition } | { coercion: EmittedCoercion };
+
+/**
+ * One post-modifier's part, in chain order: its check (a Constraint,
+ * `.refine()`, `.strict()`), or the call replacing the value (`.transform()`),
+ * which its Frame runs apart from the checks, as `@pvl/schema` tags it.
+ */
+export type EmittedPostModifierStep = { check: EmittedCheck } | { transform: EmittedTransform };
 
 /** The names of the locals a composite's checks declare, all ending in the same number, so they never clash with its parent's or its children's. Each composite, root or nested, has its own; its children have none of them, but are checked at the targets built from them: `{ value: 'field1', path: '[...path2, "name"]' }` from `input2` and `path2`. */
 export type CompositeLocalVariableNames = {
@@ -71,7 +78,7 @@ export type SchemaParts = {
   /** Its type check, whose `else` everything but its pre-modifiers' parts and its transform runs in. */
   baseCheck: EmittedCheck;
   /** Its pre-modifiers' parts, in chain order: a condition skips every check after it, and a conversion replaces the value. */
-  preModifierSteps: PreModifierStep[];
+  preModifierSteps: EmittedPreModifierStep[];
   /** Its post-modifiers' checks, which run once its base check has passed, and every child has. */
   postModifierChecks: EmittedCheck[];
   /** What a composite adds; `undefined` for any other Schema. */

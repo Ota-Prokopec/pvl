@@ -23,6 +23,3 @@ export type EmittedTransform = string & { readonly __brand: 'transform' };
 
 /** A statement building a composite's output: `output1["name"] = field1;`, `.passthrough()`'s loop. */
 export type EmittedOutputStatement = string & { readonly __brand: 'outputStatement' };
-
-/** The kinds of source text an emitter method writes: a check, or a pre-modifier's short-circuit condition. */
-export type EmittedMethodText = EmittedCheck | EmittedShortCircuitCondition;

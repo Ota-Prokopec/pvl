@@ -1,5 +1,5 @@
 // The code an `ArraySchema` compiles to, one method per method of
-// `ArrayInterpretedSchema` it mirrors, held in its `postModifierChecks`
+// `ArrayInterpretedSchema` it mirrors, held in its `postModifierSteps`
 // table, and the composite parts of a compiled array, at the root or nested
 // in another Schema: one loop with the element's checks inlined into it, a
 // nested object's or array's included.
@@ -16,7 +16,7 @@ import type {
 import type {
   EmitterMethodOf,
   ParameterTypesOf,
-  PostModifierCheckTable,
+  PostModifierStepTable,
 } from './types/methodTables.js';
 import type {
   CheckingTarget,
@@ -36,17 +36,16 @@ import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
 /**
- * An array type of `elementType`, parenthesised when it is a union, which
- * never admits `undefined`, whatever its elements do.
+ * An array type of `elementType` parenthesised.
  *
  * ```ts
- * spellArrayType({ text: 'string', undefinedness: 'NEVER' })                  // { text: 'string[]', undefinedness: 'NEVER' }
+ * spellArrayType({ text: 'string', undefinedness: 'NEVER' })                  // { text: '(string)[]', undefinedness: 'NEVER' }
  * spellArrayType({ text: 'string | undefined', undefinedness: 'ALWAYS' })     // { text: '(string | undefined)[]', undefinedness: 'NEVER' }
  * ```
  */
 const spellArrayType = ({ text }: SpelledType): SpelledType => {
   return {
-    text: text.includes(' ') ? `(${text})[]` : `${text}[]`,
+    text: `(${text})[]`,
     undefinedness: UNDEFINEDNESS.NEVER,
   };
 };
@@ -98,8 +97,8 @@ const emitLoop = ({ elementSchema, target, locals, scope }: EmitLoopArgs): strin
 const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
   target: { value, issuePath },
   args: [minLength, options],
-}) =>
-  emitCheck({
+}) => ({
+  check: emitCheck({
     failsWhen: js`${value}.length < ${emitArgument(minLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_SMALL,
@@ -107,14 +106,15 @@ const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
       options,
       defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.min, minLength),
     }),
-  });
+  }),
+});
 
 /** `.max(10)` → `value.length > 10`, reporting `TOO_BIG`. */
 const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
   target: { value, issuePath },
   args: [maxLength, options],
-}) =>
-  emitCheck({
+}) => ({
+  check: emitCheck({
     failsWhen: js`${value}.length > ${emitArgument(maxLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.TOO_BIG,
@@ -122,14 +122,15 @@ const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
       options,
       defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.max, maxLength),
     }),
-  });
+  }),
+});
 
 /** `.length(3)` → `value.length !== 3`, reporting `INVALID_LENGTH`. */
 const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
   target: { value, issuePath },
   args: [exactLength, options],
-}) =>
-  emitCheck({
+}) => ({
+  check: emitCheck({
     failsWhen: js`${value}.length !== ${emitArgument(exactLength)}`,
     issue: emitConstraintIssue({
       code: ISSUE_CODE.INVALID_LENGTH,
@@ -137,15 +138,16 @@ const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
       options,
       defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.length, exactLength),
     }),
-  });
+  }),
+});
 
 export class ArraySchemaEmitter extends ChainableSchemaEmitter {
-  public static override readonly postModifierChecks = {
-    ...ChainableSchemaEmitter.postModifierChecks,
+  public static override readonly postModifierSteps = {
+    ...ChainableSchemaEmitter.postModifierSteps,
     min,
     max,
     length,
-  } satisfies PostModifierCheckTable;
+  } satisfies PostModifierStepTable;
 
   public static override readonly parameterTypes: ParameterTypesOf<ArrayInterpretedSchema> = {
     min: ['number', CHECK_OPTIONS_TYPE_STRING],

@@ -1,7 +1,7 @@
 // The abstract base class every emitter extends, as every schema of
 // `@pvl/schema` extends `Schema`. It does the emitting, following the
-// pipeline of ADR-0010: its `_` hooks emit a Schema's parts as source text
-// (its composite parts, its base check, its pre-modifiers' parts, its
+// pipeline of ADR-0010: it emits a Schema's parts as source text (its
+// composite parts, its base check, its pre-modifiers' parts, its
 // post-modifiers' checks, its transform), and `_emitSchemaParts` returns
 // them as one `SchemaParts`. A composite's emitter supplies what makes it
 // one through `_emitSchemaCompositeParts` (locals, declarations, children's
@@ -10,14 +10,13 @@
 // reads the value and at the root, at `_validate`'s own parameters, where it
 // wraps the checks in the Compiled Schema's class (`emitCompiledSchema`). It
 // also dispatches each chained method to the emitter method of its name,
-// through the table of the kind of text that method writes (ADR-0033), all
-// but `.coerce()` and `.transform()`, which have a hook each (ADR-0035).
+// through the table of the kind of step that method writes (ADR-0033): a
+// pre-modifier's, or a post-modifier's.
 // Every method whose name starts with `emit` or `_emit` returns source text,
 // a string or a list of them (ADR-0028), or, for `_emitSchemaParts`, the
 // parts holding it (ADR-0032). A subclass adds the methods mirroring its
 // schema's to its tables and overrides the `_` hooks. What reads nothing of
 // the emitter it is called on is a function in `./utils/`.
-import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { UNDEFINEDNESS } from '../enums.js';
@@ -25,22 +24,22 @@ import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
 import type { SchemaEmitter } from './schemaEmitter.js';
 import type { CompiledSchema, EmitCompiledSchemaArgs } from './types/compiledSchema.js';
-import type { EmittedCheck, EmittedCoercion, EmittedTransform } from './types/emittedText.js';
 import type {
   CompilesMethodArgs,
-  EmitCoercionArgs,
   EmitElementPropertyArgs,
-  EmitPostModifierChecksArgs,
   EmitSchemaCompositePartsArgs,
   EmitShapePropertyArgs,
-  EmitTransformArgs,
   SpellParameterTypesArgs,
   SpellTypesArgs,
 } from './types/hookArgs.js';
-import type { PostModifierCheckTable, ShortCircuitConditionTable } from './types/methodTables.js';
+import type {
+  EmitterMethodInput,
+  PostModifierStepTable,
+  PreModifierStepTable,
+} from './types/methodTables.js';
 import type {
   CheckingTarget,
-  PreModifierStep,
+  EmittedPreModifierStep,
   SchemaCompositeParts,
   SchemaParts,
 } from './types/schemaParts.js';
@@ -55,11 +54,14 @@ type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<strin
 /** For each method whose default message names its first argument, that message (see `ArgumentMessagesOf`). */
 type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
 
-/** What {@link Emitter._emitPreModifierSteps} emits its pre-modifiers' parts for: a Schema at the target it checks. */
-type EmitPreModifierStepsArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
+/** What {@link Emitter.emitPreModifierSteps} emits its pre-modifiers' parts for: a Schema at the target it checks. */
+type EmitPreModifierStepsArgs = {
+  schema: Schema;
   target: CheckingTarget;
 };
+
+/** What {@link Emitter.emitPostModifierSteps} emits its post-modifiers' parts for: a Schema at the targets they read, and its composite's locals. */
+type EmitPostModifierStepsArgs = Omit<EmitterMethodInput<never, Schema>, 'args'>;
 
 /** What {@link Emitter._emitSchemaParts} emits every part of a Schema's checks for: a Schema at the target it checks, inlined into a parent, or at `Frame.rootCheckingTarget`, as the body of a Compiled Schema's `_validate`. */
 type EmitSchemaPartsArgs<TSchema extends Schema = Schema> = {
@@ -94,34 +96,34 @@ type EmitStandaloneCompiledSchemaArgs = Omit<
  * The abstract base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
  * `StringSchemaEmitter._emitSchemaParts({ schema, target, scope })` emits
- * `.min(3)` with `StringSchemaEmitter.postModifierChecks.min`.
+ * `.min(3)` with `StringSchemaEmitter.postModifierSteps.min`.
  *
- * The methods mirroring a Schema's are held in tables, one per kind of text
- * they write, each spread from the table of the Emitter it extends: a
- * chained method compiles exactly when a table holds a method of its name,
- * or a hook emits it, as `_emitCoercion` does `.coerce()` and
- * `_emitTransform` does `.transform()` (`compilesMethod`). Every method
- * takes one object, so a hook reads only what it needs.
+ * The methods mirroring a Schema's are held in tables, one per kind of step
+ * they write, as a Schema splits its calls (`preModifierCalls`,
+ * `postModifierCalls`), each spread from the table of the Emitter it
+ * extends: a chained method compiles exactly when a table holds a method of
+ * its name (`compilesMethod`). Every method takes one object, so a hook
+ * reads only what it needs.
  */
 export abstract class Emitter {
   /**
-   * The pre-modifiers this emitter compiles, each writing the condition a
-   * value short-circuits under, by the name of the method it mirrors.
-   * `ChainableSchemaEmitter` adds `.optional()` and `.nullable()`.
-   * `.coerce()`, the pre-modifier converting the value, has a hook instead
-   * (`_emitCoercion`).
+   * The pre-modifiers this emitter compiles, each writing its step, by the
+   * name of the method it mirrors: the condition a value short-circuits
+   * under, or the conversion replacing it. `ChainableSchemaEmitter` adds
+   * `.optional()`, `.nullable()` and `.coerce()`, the identity, which a
+   * primitive's emitter overrides with its conversion.
    */
-  public static readonly shortCircuitConditions: ShortCircuitConditionTable = {};
+  public static readonly preModifierSteps: PreModifierStepTable = {};
 
   /**
-   * The post-modifiers this emitter compiles that check its value, each
-   * writing its check, by the name of the method it mirrors. One closed
-   * over a Schema's own parts, as an object's `.strict()` is over its keys,
-   * is added per Schema by its emitter's `_emitPostModifierChecks`, and
-   * named by its `compilesMethod`. `.transform()`, which replaces the value,
-   * has a hook instead (`_emitTransform`).
+   * The post-modifiers this emitter compiles, each writing its step, by the
+   * name of the method it mirrors: its check, or `.transform()`'s call
+   * replacing the value. `ChainableSchemaEmitter` adds `.refine()` and
+   * `.transform()`, and each schema's emitter its Constraints; an object's
+   * `.strict()` reads its Schema's keys and its composite's locals, and its
+   * `.passthrough()` writes nothing.
    */
-  public static readonly postModifierChecks: PostModifierCheckTable = {};
+  public static readonly postModifierSteps: PostModifierStepTable = {};
 
   /**
    * For each method this emitter compiles, the TypeScript type of each of
@@ -164,14 +166,14 @@ export abstract class Emitter {
 
     return {
       baseCheck: this._emitBaseCheck({ schema, target }),
-      preModifierSteps: this._emitPreModifierSteps({ schema, target }),
-      postModifierChecks: this._emitPostModifierChecks({
+      preModifierSteps: this.emitPreModifierSteps({ schema, target }),
+      ...this.emitPostModifierSteps({
         schema,
         target: composite === undefined ? target : { ...target, value: composite.locals.output },
+        schemaTarget: target,
         compositeLocals: composite?.locals,
       }),
       composite,
-      transform: this._emitTransform?.({ schema, target }),
     };
   }
 
@@ -230,82 +232,73 @@ export abstract class Emitter {
   ): EmittedElementProperty | undefined;
 
   /**
-   * The parts of `schema.preModifierCalls` at `target`, in chain order: a
+   * The parts of `schema.preModifierCalls` at `target`, in chain order, each
+   * written by the method of its name in `preModifierSteps`: a
    * short-circuit condition, which a value a pre-modifier accepts holds
-   * for, skipping every check after it, or `.coerce()`'s conversion
-   * (`_emitCoercion`), which replaces the value, left out where it is the
-   * identity.
+   * for, skipping every check after it, or `.coerce()`'s conversion, which
+   * replaces the value, left out where it is the identity.
    *
    * ```ts
-   * StringSchemaEmitter._emitPreModifierSteps({ schema: <pvl.string().nullable().coerce().optional()>, target: { value: 'field0', path, issuePath } })
+   * StringSchemaEmitter.emitPreModifierSteps({ schema: <pvl.string().nullable().coerce().optional()>, target: { value: 'field0', path, issuePath } })
    * // [{ shortCircuitCondition: 'field0 === null' }, { coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }]
-   * ObjectSchemaEmitter._emitPreModifierSteps({ schema: <pvl.object({}).coerce()>, target }) // []
+   * ObjectSchemaEmitter.emitPreModifierSteps({ schema: <pvl.object({}).coerce()>, target }) // []
    * ```
    */
-  public static _emitPreModifierSteps({
+  public static emitPreModifierSteps({
     schema,
     target,
-  }: EmitPreModifierStepsArgs): PreModifierStep[] {
-    return schema.preModifierCalls.flatMap((call): PreModifierStep[] => {
-      if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE) {
-        const coercion = this._emitCoercion?.({ schema, target: target });
-        return coercion === undefined ? [] : [{ coercion }];
-      }
-      return [
-        {
-          shortCircuitCondition: emitMethodCall({
-            table: this.shortCircuitConditions,
-            call,
-            target,
-            emitterName: this.name,
-          }),
-        },
-      ];
+  }: EmitPreModifierStepsArgs): EmittedPreModifierStep[] {
+    return schema.preModifierCalls.flatMap((call) => {
+      const step = emitMethodCall({
+        table: this.preModifierSteps,
+        call,
+        schema,
+        target,
+        schemaTarget: target,
+        // A pre-modifier runs before a composite declares its locals.
+        compositeLocals: undefined,
+        emitterName: this.name,
+      });
+      return step === undefined ? [] : [step];
     });
   }
 
   /**
-   * `.coerce()`'s conversion of `value`, chained onto `schema`, as
-   * statements replacing it before its type check. A primitive's emitter
-   * has it, writing its conversion (`./utils/coercions.ts`), and a literal's,
-   * writing the one of its value's primitive. An emitter without it keeps
-   * the identity, as `@pvl/schema`'s base `_coerceInput` is, which an
-   * object, an array and an enum keep, and emits nothing.
+   * The parts of `schema.postModifierCalls`, in chain order, each written by
+   * the method of its name in `postModifierSteps`: their checks, as
+   * statements at `target`, each reporting at its `issuePath` as the base
+   * check does, and `.transform()`'s call at `schemaTarget`, set apart, as
+   * its Frame runs it after the checks and only if none failed, as
+   * `@pvl/schema` tags it. A method writing nothing, as `.passthrough()`,
+   * is left out.
    *
    * ```ts
-   * StringSchemaEmitter._emitCoercion({ schema, value: 'field0' }) // 'field0 = String(field0);'
-   * ObjectSchemaEmitter._emitCoercion                              // undefined
+   * StringSchemaEmitter.emitPostModifierSteps({ schema: <pvl.string().min(3).max(20)>, target: { value: 'field0', path, issuePath }, schemaTarget: <the same>, compositeLocals: undefined })
+   * // { postModifierChecks: ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}', 'if (field0.length > 20) { … }'], transform: undefined }
+   * StringSchemaEmitter.emitPostModifierSteps({ schema: <pvl.string().transform(trim)>, … })
+   * // { postModifierChecks: [], transform: 'field0 = this.arg0.call(undefined, field0 as never);' }
    * ```
    */
-  public static _emitCoercion?(args: EmitCoercionArgs): EmittedCoercion;
-
-  /**
-   * The checks of `schema.postModifierCalls` at `target`, in chain order, as
-   * statements, each reporting at its `issuePath` as the base check does: a
-   * value one of them fails pushes its Issue. An emitter whose post-modifiers
-   * read its composite's `locals` instead of its value, as an object's
-   * `.strict()` reads its keys, overrides it.
-   *
-   * ```ts
-   * StringSchemaEmitter._emitPostModifierChecks({ schema: <pvl.string().min(3).max(20)>, target: { value: 'field0', path, issuePath }, compositeLocals: undefined })
-   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}', 'if (field0.length > 20) {\n  issues.push({ code: "TOO_BIG", … });\n}']
-   * ```
-   */
-  public static _emitPostModifierChecks({
+  public static emitPostModifierSteps({
     schema,
-    target,
-  }: EmitPostModifierChecksArgs): EmittedCheck[] {
-    return schema.postModifierCalls.map((call) =>
-      emitMethodCall({ table: this.postModifierChecks, call, target, emitterName: this.name }),
-    );
+    ...input
+  }: EmitPostModifierStepsArgs): Pick<SchemaParts, 'postModifierChecks' | 'transform'> {
+    const steps = schema.postModifierCalls.flatMap((call) => {
+      const step = emitMethodCall({
+        table: this.postModifierSteps,
+        call,
+        schema,
+        ...input,
+        emitterName: this.name,
+      });
+      return step === undefined ? [] : [step];
+    });
+    return {
+      postModifierChecks: steps.flatMap((step) => ('check' in step ? [step.check] : [])),
+      // A chain holds at most one `.transform()`, always last (ADR-0016).
+      transform: steps.flatMap((step) => ('transform' in step ? [step.transform] : [])).at(0),
+    };
   }
-
-  /**
-   * The call of `schema`'s `.transform()` at `target`, which replaces its
-   * value: `undefined` when it has none.
-   * `ChainableSchemaEmitter` has it, as it adds `.transform()`.
-   */
-  public static _emitTransform?(args: EmitTransformArgs): EmittedTransform | undefined;
 
   /**
    * The TypeScript type of each parameter of `call`, a method chained onto
@@ -438,7 +431,7 @@ export abstract class Emitter {
       types: this._spellTypes({ schema }),
       // A transformed Schema exposes neither, as its value needn't have them (ADR-0016).
       shapeOrElementProperty:
-        schema.transformCall === undefined
+        schema.getTransformFunction() === undefined
           ? (this._emitShapeProperty?.({ schema, className }) ??
             this._emitElementProperty?.({ schema, className }))
           : undefined,
@@ -481,23 +474,21 @@ export abstract class Emitter {
    * Whether this emitter compiles the Schema method `name`: one of its
    * tables holds a method of that name, its own or one spread from the
    * emitter it extends. Only own keys are read, so a name every object has
-   * (`toString`, `__proto__`) is never one. An emitter that emits a method
-   * through a hook or calls it itself, rather than dispatching it from a
-   * table, overrides it to name that method too.
+   * (`toString`, `__proto__`) is never one.
    *
    * ```ts
    * StringSchemaEmitter.compilesMethod({ name: 'min' })            // true
    * StringSchemaEmitter.compilesMethod({ name: 'optional' })       // true: spread from ChainableSchemaEmitter
-   * StringSchemaEmitter.compilesMethod({ name: 'refine' })         // true: spread from ChainableSchemaEmitter
-   * StringSchemaEmitter.compilesMethod({ name: 'coerce' })         // true: named by ChainableSchemaEmitter's own
+   * StringSchemaEmitter.compilesMethod({ name: 'transform' })      // true: spread from ChainableSchemaEmitter
+   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })           // true: ChainableSchemaEmitter's identity
+   * ObjectSchemaEmitter.compilesMethod({ name: 'passthrough' })    // true: writing nothing
    * StringSchemaEmitter.compilesMethod({ name: '_emitBaseCheck' }) // false: a hook, held in no table
    * BooleanSchemaEmitter.compilesMethod({ name: 'length' })        // false
    * ```
    */
   public static compilesMethod({ name }: CompilesMethodArgs): boolean {
     return (
-      Object.hasOwn(this.shortCircuitConditions, name) ||
-      Object.hasOwn(this.postModifierChecks, name)
+      Object.hasOwn(this.preModifierSteps, name) || Object.hasOwn(this.postModifierSteps, name)
     );
   }
 }
