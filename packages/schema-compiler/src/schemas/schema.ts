@@ -8,7 +8,11 @@
 // the subclass and imports every one, so this module imports none: a subclass
 // extends `Schema` as its module loads, so an import back would run it before
 // `Schema` exists (ADR-0034).
-import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
+import {
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
+  PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES,
+  type PvlFactoryName,
+} from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
@@ -17,8 +21,8 @@ import type { Module } from '../module.js';
 import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { ChainedRuntimeArgument } from '../runtimeArgument/types.js';
 import { readFunctionArgument } from '../runtimeArgument/utils.js';
-import { PRE_MODIFIER_NAMES } from './consts.js';
-import type { SchemaModifierCall, SchemaOptions } from './types.js';
+import type { SchemaModifierCall } from './types/modifierCall.js';
+import type { SchemaOptions } from './types/schemaOptions.js';
 import { createUnsupportedSchemaDiagnostic, findUncompilableCallDiagnostic } from './utils.js';
 
 /** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`), always at the root. */
@@ -98,12 +102,12 @@ export abstract class Schema {
 
   /** Its pre-modifiers, in chain order: they run before the type check (ADR-0010). */
   public get preModifierCalls(): ReadonlyArray<SchemaModifierCall> {
-    return this.calls.filter((call) => PRE_MODIFIER_NAMES.has(call.name));
+    return this.calls.filter((call) => PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES.has(call.name));
   }
 
   /** Its post-modifiers, in chain order, its `.transform()` included, last: they run after the type check (ADR-0010). */
   public get postModifierCalls(): ReadonlyArray<SchemaModifierCall> {
-    return this.calls.filter((call) => !PRE_MODIFIER_NAMES.has(call.name));
+    return this.calls.filter((call) => !PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES.has(call.name));
   }
 
   /**

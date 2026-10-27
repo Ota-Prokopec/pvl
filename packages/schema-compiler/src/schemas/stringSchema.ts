@@ -3,7 +3,7 @@
 import { StringSchemaEmitter } from '../emitters/stringSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { SchemaOptions } from './types.js';
+import type { SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.string()` as read from source. It reads no argument, so any it is

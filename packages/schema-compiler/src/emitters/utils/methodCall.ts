@@ -2,7 +2,10 @@
 // (ADR-0033): its arguments as that method takes them, and the method
 // looked up in the table of the kind of step it writes.
 import type { Schema } from '../../schemas/schema.js';
-import type { SchemaModifierCall, SchemaModifierCallArgument } from '../../schemas/types.js';
+import type {
+  SchemaModifierCall,
+  SchemaModifierCallArgument,
+} from '../../schemas/types/modifierCall.js';
 import type {
   EmitterMethodInput,
   EmitterMethodStep,

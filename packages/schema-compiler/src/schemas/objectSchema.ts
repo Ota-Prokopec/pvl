@@ -4,17 +4,16 @@ import { GenericAst } from '../ast/genericAst.js';
 import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
-import { PVL_FACTORY_NAMES_ENUM, PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
-import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts/unknownKeys.js';
+import {
+  PVL_FACTORY_NAMES_ENUM,
+  PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
+  PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES,
+} from '@pvl/schema';
 import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from '../enums.js';
 import { Schema } from './schema.js';
-import type {
-  ObjectField,
-  ObjectSchemaOptions,
-  ReadFactoryArgs,
-  SchemaModifierCall,
-  SchemaOptions,
-} from './types.js';
+import type { SchemaModifierCall } from './types/modifierCall.js';
+import type { ReadFactoryArgs } from './types/schemaClass.js';
+import type { ObjectField, ObjectSchemaOptions, SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.object(shape)` as read from source, holding its fields in shape
@@ -123,14 +122,14 @@ export class ObjectSchema extends Schema {
   public get readsUnknownKeysAfterStrict(): boolean {
     return this.postModifierCalls.some(
       (call) =>
-        !UNKNOWN_KEYS_METHOD_NAMES.has(call.name) &&
+        !PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES.has(call.name) &&
         call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
     );
   }
 
   /** The last of `.strict()` and `.passthrough()` chained onto it, which wins; `undefined` with neither. */
   private findUnknownKeysCall(): SchemaModifierCall | undefined {
-    return [...this.calls].reverse().find((call) => UNKNOWN_KEYS_METHOD_NAMES.has(call.name));
+    return [...this.calls].reverse().find((call) => PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES.has(call.name));
   }
 
   /**

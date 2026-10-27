@@ -4,7 +4,7 @@ import type { PvlFactoryName } from '@pvl/schema';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Emitter } from '../emitters/emitter.js';
-import type { SchemaModifierCall } from './types.js';
+import type { SchemaModifierCall } from './types/modifierCall.js';
 
 /** What {@link createUnsupportedSchemaDiagnostic} reports: a Schema's factory, the line it is written on, and its Module's file. */
 export type CreateUnsupportedSchemaDiagnosticArgs = {

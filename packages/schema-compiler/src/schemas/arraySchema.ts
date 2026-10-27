@@ -5,7 +5,8 @@ import type { PvlFactoryCall } from '../ast/types.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { ArraySchemaOptions, ReadFactoryArgs, SchemaOptions } from './types.js';
+import type { ReadFactoryArgs } from './types/schemaClass.js';
+import type { ArraySchemaOptions, SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.array(element)` as read from source, holding its element's Schema.

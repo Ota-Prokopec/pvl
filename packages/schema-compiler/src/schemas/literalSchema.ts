@@ -9,7 +9,7 @@ import { UnresolvedNodeException } from '../exceptions/index.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { LiteralSchemaOptions, SchemaOptions } from './types.js';
+import type { LiteralSchemaOptions, SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.literal(value)` as read from source, holding its value.

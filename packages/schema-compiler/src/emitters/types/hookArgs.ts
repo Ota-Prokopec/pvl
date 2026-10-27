@@ -1,7 +1,7 @@
 // What each hook of `Emitter` that a subclass overrides takes: the Schema it
 // emits or spells for, and the target, call or class name it reads.
 import type { Schema } from '../../schemas/schema.js';
-import type { SchemaModifierCall } from '../../schemas/types.js';
+import type { SchemaModifierCall } from '../../schemas/types/modifierCall.js';
 import type { Scope } from '../../scope.js';
 import type { CheckingTarget } from './schemaParts.js';
 

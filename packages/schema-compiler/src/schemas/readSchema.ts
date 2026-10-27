@@ -28,7 +28,8 @@ import { NumberSchema } from './numberSchema.js';
 import { ObjectSchema } from './objectSchema.js';
 import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { Schema } from './schema.js';
-import type { SchemaClass, SchemaModifierCall, SchemaModifierCallArgument } from './types.js';
+import type { SchemaModifierCall, SchemaModifierCallArgument } from './types/modifierCall.js';
+import type { SchemaClass } from './types/schemaClass.js';
 import { StringSchema } from './stringSchema.js';
 import { UnionSchema } from './unionSchema.js';
 

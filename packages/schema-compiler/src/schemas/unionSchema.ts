@@ -6,7 +6,8 @@ import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { ReadFactoryArgs, SchemaOptions, UnionSchemaOptions } from './types.js';
+import type { ReadFactoryArgs } from './types/schemaClass.js';
+import type { SchemaOptions, UnionSchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.union(members)` as read from source, holding its members' Schemas.

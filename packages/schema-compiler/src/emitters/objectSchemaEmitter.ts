@@ -12,7 +12,7 @@ import {
   type ObjectInterpretedSchema,
 } from '@pvl/schema';
 import type { ObjectSchema } from '../schemas/objectSchema.js';
-import type { ObjectField } from '../schemas/types.js';
+import type { ObjectField } from '../schemas/types/schemaOptions.js';
 import type { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';

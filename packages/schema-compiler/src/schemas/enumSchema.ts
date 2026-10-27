@@ -9,7 +9,7 @@ import { UnresolvedNodeException } from '../exceptions/index.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { EnumSchemaOptions, SchemaOptions } from './types.js';
+import type { EnumSchemaOptions, SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.enum(members)` as read from source, holding its members.

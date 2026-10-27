@@ -1,7 +1,7 @@
 // How a spelled type is widened by the Modifiers chained onto its Schema.
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { UNDEFINEDNESS } from '../enums.js';
-import type { SchemaModifierCall } from '../schemas/types.js';
+import type { SchemaModifierCall } from '../schemas/types/modifierCall.js';
 import type { SpelledType } from './types.js';
 
 /**

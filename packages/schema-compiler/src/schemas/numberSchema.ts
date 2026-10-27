@@ -3,7 +3,7 @@
 import { NumberSchemaEmitter } from '../emitters/numberSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
 import { Schema } from './schema.js';
-import type { SchemaOptions } from './types.js';
+import type { SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.number()` as read from source. It reads no argument, so any it is
