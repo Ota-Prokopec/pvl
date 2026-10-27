@@ -3,6 +3,7 @@ import { argsTypeAboveFunction } from '../src/eslint/rules/argsTypeAboveFunction
 import { barrelExportsOnly } from '../src/eslint/rules/barrelExportsOnly.ts';
 import { classFileName } from '../src/eslint/rules/classFileName.ts';
 import { constantShape } from '../src/eslint/rules/constantShape.ts';
+import { declarationsFileOrFolder } from '../src/eslint/rules/declarationsFileOrFolder.ts';
 import { enumShape } from '../src/eslint/rules/enumShape.ts';
 import { noImportAlias } from '../src/eslint/rules/noImportAlias.ts';
 import { noInlineEnumValue } from '../src/eslint/rules/noInlineEnumValue.ts';
@@ -223,6 +224,10 @@ typescriptTester.run('enum-shape', enumShape, {
       filename: path.join(typesRoot, 'packages/other/src/enums.ts'),
     },
     {
+      code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
+      filename: path.join(typesRoot, 'packages/other/src/enums/roles.ts'),
+    },
+    {
       code: 'export const OPTIONS = { depth: 1, name: foo() } as const;',
       filename: path.join(typesRoot, 'packages/other/src/options.ts'),
     },
@@ -237,6 +242,11 @@ typescriptTester.run('enum-shape', enumShape, {
     {
       code: "const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;\nexport { SYSTEM_ROLE };",
       filename: path.join(typesRoot, 'packages/other/src/roles.ts'),
+      errors: [{ messageId: 'file' }],
+    },
+    {
+      code: "export const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;",
+      filename: path.join(typesRoot, 'packages/other/src/enums/users/roles.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
@@ -260,6 +270,10 @@ typescriptTester.run('constant-shape', constantShape, {
       code: "export const VENDOR = '@pvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/consts.ts'),
     },
+    {
+      code: "export const VENDOR = '@pvl/schema' as const;",
+      filename: path.join(typesRoot, 'packages/other/src/consts/vendor.ts'),
+    },
   ],
   invalid: [
     { code: "const vendor = '@pvl/schema' as const;", errors: [{ messageId: 'name' }] },
@@ -273,6 +287,43 @@ typescriptTester.run('constant-shape', constantShape, {
       code: "const VENDOR = '@pvl/schema' as const;\nexport { VENDOR };",
       filename: path.join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
+    },
+    {
+      code: "export const VENDOR = '@pvl/schema' as const;",
+      filename: path.join(typesRoot, 'packages/other/src/consts/schema/vendor.ts'),
+      errors: [{ messageId: 'file' }],
+    },
+  ],
+});
+
+const declarationsRoot = createFixture({
+  'src/consts.ts': '',
+  'src/consts/vendor.ts': '',
+  'src/enums/roles.ts': '',
+  'src/types.ts': '',
+  'src/emitters/consts.ts': '',
+});
+const bothError = (kind: string): { messageId: 'both'; data: Record<string, string> } => {
+  return { messageId: 'both', data: { kind, directory: path.join(declarationsRoot, 'src') } };
+};
+
+typescriptTester.run('declarations-file-or-folder', declarationsFileOrFolder, {
+  valid: [
+    { code: '', filename: path.join(declarationsRoot, 'src/enums/roles.ts') },
+    { code: '', filename: path.join(declarationsRoot, 'src/types.ts') },
+    { code: '', filename: path.join(declarationsRoot, 'src/emitters/consts.ts') },
+    { code: '', filename: path.join(declarationsRoot, 'src/schema.ts') },
+  ],
+  invalid: [
+    {
+      code: '',
+      filename: path.join(declarationsRoot, 'src/consts.ts'),
+      errors: [bothError('consts')],
+    },
+    {
+      code: '',
+      filename: path.join(declarationsRoot, 'src/consts/vendor.ts'),
+      errors: [bothError('consts')],
     },
   ],
 });

@@ -2,7 +2,6 @@
 // under, `pvl.compile(...)` markers and what is chained onto them, and a
 // `pvl.<factory>(…)` call chain split into its links. Built on GenericAst.
 import { Node, type CallExpression, type SourceFile } from 'ts-morph';
-import { PVL_PACKAGE_SPECIFIER } from '../consts.js';
 import { UnknownPvlMethodException, UnresolvedNodeException } from '../exceptions/index.js';
 import {
   GenericAst,
@@ -12,7 +11,7 @@ import {
 import type { CallChain, PvlFactoryCall } from './types.js';
 import { PVL_OBJECT_PROPERTY_NAMES_ENUM } from '@pvl/schema';
 import type { CompileMarkerAllowedPropertyName } from './enums.js';
-import { COMPILE_MARKER_ALLOWED_PROPERTY_NAMES } from './consts.js';
+import { COMPILE_MARKER_ALLOWED_PROPERTY_NAMES, PVL_PACKAGE_SPECIFIER } from './consts.js';
 import { isPvlObjectPropertyName, isPvlSchemaMethodName } from './utils.js';
 
 /**

@@ -4,7 +4,7 @@
 // hook.
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { NUMBER_ARGUMENT_MESSAGES } from './consts.js';
+import { NUMBER_ARGUMENT_MESSAGES } from './consts/argumentMessages.js';
 import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
 import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
@@ -18,7 +18,7 @@ import { emitCheck, emitTypeCheck } from './utils/emittedText.js';
 import { js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
-import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 
 /** `.min(0)` → `field0 < 0`, reporting `TOO_SMALL`. */
 const min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
@@ -79,9 +79,9 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
   } satisfies PostModifierCheckTable;
 
   public static override readonly parameterTypes: ParameterTypesOf<NumberInterpretedSchema> = {
-    min: ['number', ISSUE_OPTIONS_TYPE],
-    max: ['number', ISSUE_OPTIONS_TYPE],
-    int: [ISSUE_OPTIONS_TYPE],
+    min: ['number', CHECK_OPTIONS_TYPE_STRING],
+    max: ['number', CHECK_OPTIONS_TYPE_STRING],
+    int: [CHECK_OPTIONS_TYPE_STRING],
   };
 
   public static override readonly argumentMessages = NUMBER_ARGUMENT_MESSAGES;

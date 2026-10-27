@@ -1,8 +1,8 @@
 import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -76,7 +76,7 @@ export class NumberInterpretedSchema<
    * quantity.validate(0); // { issues: [{ code: 'TOO_SMALL', message: 'order at least one' }] }
    * ```
    */
-  min(minValue: number, options?: IssueEditableProps): this {
+  min(minValue: number, options?: CheckOptions): this {
     return this._withPostModifier<number, number>({
       fn: (value, path) => {
         return value >= minValue
@@ -106,7 +106,7 @@ export class NumberInterpretedSchema<
    * percentage.validate(101); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(maxValue: number, options?: IssueEditableProps): this {
+  max(maxValue: number, options?: CheckOptions): this {
     return this._withPostModifier<number, number>({
       fn: (value, path) => {
         return value <= maxValue
@@ -138,7 +138,7 @@ export class NumberInterpretedSchema<
    * pageSize.validate(25.5); // { issues: [{ code: 'NOT_INTEGER', ... }] }
    * ```
    */
-  int(options?: IssueEditableProps): this {
+  int(options?: CheckOptions): this {
     return this._withPostModifier<number, number>({
       fn: (value, path) => {
         return Number.isInteger(value)

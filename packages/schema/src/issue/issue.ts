@@ -114,15 +114,14 @@ export class Issue implements StandardSchemaV1.Issue {
  */
 export type IssueProps = Pick<Issue, 'code' | 'message' | 'path'>;
 /**
- * The options a Modifier that reports an {@link Issue} takes: a custom
- * `message` replacing the check's default.
+ * The part of an {@link Issue} a check's options can edit: its `message`,
+ * replacing the check's default.
  *
  * @example
  * ```ts
- * import { pvl, type IssueEditableProps } from '@pvl/schema';
+ * import type { IssueEditableProps } from '@pvl/schema';
  *
- * const options: IssueEditableProps = { message: 'must be at least 3 characters' };
- * pvl.string().min(3, options);
+ * const edited: IssueEditableProps = { message: 'must be at least 3 characters' };
  * ```
  */
 export type IssueEditableProps = Partial<Pick<IssueProps, 'message'>>;

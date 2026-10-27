@@ -8,7 +8,7 @@
 import {
   ISSUE_CODE,
   OBJECT_SCHEMA_ISSUE_MESSAGE,
-  type IssueEditableProps,
+  type CheckOptions,
   type ObjectInterpretedSchema,
 } from '@pvl/schema';
 import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
@@ -40,7 +40,8 @@ import { composeBlock, js } from './utils/js.js';
 import { emitMethodCall } from './utils/methodCall.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
-import { ISSUE_OPTIONS_TYPE, UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
+import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts/unknownKeys.js';
+import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import type { Scope } from '../scope.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { UNDEFINEDNESS, UNKNOWN_KEYS_MODE } from '../enums.js';
@@ -91,7 +92,7 @@ const emitIsUndeclaredKey = (declaredKeys: ReadonlyArray<string>): string => {
  */
 const emitUnrecognizedKeyIssue = (
   path: string,
-  options: IssueEditableProps | RuntimeArgument | undefined,
+  options: CheckOptions | RuntimeArgument | undefined,
 ): EmittedIssue => {
   return emitConstraintIssue({
     code: ISSUE_CODE.UNRECOGNIZED_KEY,
@@ -316,7 +317,7 @@ const emitUnknownKeysCopy = ({
 
 export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
   public static override readonly parameterTypes: ParameterTypesOf<PvlAnyObjectSchema> = {
-    strict: [ISSUE_OPTIONS_TYPE],
+    strict: [CHECK_OPTIONS_TYPE_STRING],
     passthrough: [],
   };
 

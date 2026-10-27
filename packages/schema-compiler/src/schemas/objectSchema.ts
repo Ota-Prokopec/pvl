@@ -4,7 +4,7 @@ import { GenericAst } from '../ast/genericAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM, PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
-import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts.js';
+import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts/unknownKeys.js';
 import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from '../enums.js';
 import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
 import type { SchemaModifierCall } from './schemaTypes.js';

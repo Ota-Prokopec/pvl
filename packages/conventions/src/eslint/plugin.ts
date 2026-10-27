@@ -7,6 +7,7 @@ import { argsTypeAboveFunction } from './rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from './rules/barrelExportsOnly.ts';
 import { classFileName } from './rules/classFileName.ts';
 import { constantShape } from './rules/constantShape.ts';
+import { declarationsFileOrFolder } from './rules/declarationsFileOrFolder.ts';
 import { entryHasAgentsMd } from './rules/entryHasAgentsMd.ts';
 import { enumShape } from './rules/enumShape.ts';
 import { envFileNames } from './rules/envFileNames.ts';
@@ -30,6 +31,7 @@ const plugin = {
     'barrel-exports-only': barrelExportsOnly,
     'class-file-name': classFileName,
     'constant-shape': constantShape,
+    'declarations-file-or-folder': declarationsFileOrFolder,
     'entry-has-agents-md': entryHasAgentsMd,
     'enum-shape': enumShape,
     'env-file-names': envFileNames,

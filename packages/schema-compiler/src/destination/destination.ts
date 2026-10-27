@@ -3,7 +3,7 @@
 import * as path from 'node:path';
 import { defaultConfig } from '../config/defaultConfig.js';
 import type { PvlConfig } from '../config/types.js';
-import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from '../consts.js';
+import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from './consts.js';
 import { createAbsolutePathWithRelative, type AbsolutePathWithRelative } from '../path.js';
 
 /**

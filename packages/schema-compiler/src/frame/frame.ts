@@ -14,7 +14,8 @@
 // (`../issue.ts`), the pre-modifiers' guards, the transform's gate, and the
 // handoff of its output.
 import { VENDOR } from '@pvl/schema';
-import { STANDALONE_BRAND_NAME, STANDALONE_MARKER_TYPE_NAME } from '../consts.js';
+import { STANDALONE_BRAND_NAME } from '../consts/generatedModule.js';
+import { STANDALONE_MARKER_TYPE_NAME } from './consts.js';
 import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {

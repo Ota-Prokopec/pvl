@@ -58,6 +58,10 @@ _Avoid_: Rule, validator, assertion.
 An extra, user-supplied predicate attached to a Schema that a value must satisfy in addition to the Schema's base shape. A Refinement only accepts or rejects a value — it never changes it (contrast Transform). It is attached by `.refine()`, a Shared Modifier.
 _Avoid_: Custom validator, constraint.
 
+**Check Options**:
+The options a check takes as its last argument, a check being any step that reports an Issue of its own: a Constraint, a Refinement or `object`'s `.strict()` ([ADR-0019](./docs/adr/0019-factories-take-no-options.md)). Today they hold only `message`, which replaces the check's default message, so they are the Issue's editable part (`IssueEditableProps`), but they are named after the check that takes them, not after the Issue. In code, `CheckOptions` (`packages/schema/src/types.ts`). A Compiled Schema's constructor types Check Options passed as a Runtime Argument with `CHECK_OPTIONS_TYPE_STRING` (`src/emitters/consts/checkOptions.ts`), which `tests/check-options-type.test.ts` type-checks against `CheckOptions`.
+_Avoid_: Issue options, Modifier options.
+
 **Coercion**:
 An explicit, opt-in conversion of an input value to a Schema's target type _before_ that value is checked against the Schema (e.g. the string `"5"` becomes the number `5`, which is then validated as a number). It is opted into by `.coerce()`, a Shared Modifier.
 _Avoid_: Cast, Transform.

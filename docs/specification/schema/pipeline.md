@@ -38,7 +38,7 @@ pvl.object({ extra: pvl.string() }).passthrough();
 
 ## Custom messages only on Modifiers that report an `Issue`
 
-No factory and no schema constructor takes options; every type-check message is a fixed default ([ADR-0019](../../adr/0019-factories-take-no-options.md)). A trailing `{ message }` (`IssueEditableProps`) exists only on the Modifiers that report an `Issue` of their own — the Constraints, `.refine()` and `object`'s `.strict()` — and is the only custom-message mechanism; there is no global error map in v1.
+No factory and no schema constructor takes options; every type-check message is a fixed default ([ADR-0019](../../adr/0019-factories-take-no-options.md)). A trailing `{ message }` (`CheckOptions`) exists only on the Modifiers that report an `Issue` of their own — the Constraints, `.refine()` and `object`'s `.strict()` — and is the only custom-message mechanism; there is no global error map in v1.
 
 ```ts
 pvl.string().min(3, { message: 'must be at least 3 characters' });

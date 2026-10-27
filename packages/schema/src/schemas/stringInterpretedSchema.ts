@@ -1,8 +1,8 @@
 import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -72,7 +72,7 @@ export class StringInterpretedSchema<
    * password.validate('hunter2'); // { issues: [{ code: 'TOO_SMALL', message: 'too short' }] }
    * ```
    */
-  min(minLength: number, options?: IssueEditableProps): this {
+  min(minLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length >= minLength
@@ -102,7 +102,7 @@ export class StringInterpretedSchema<
    * tweet.validate('x'.repeat(281)); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(maxLength: number, options?: IssueEditableProps): this {
+  max(maxLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length <= maxLength
@@ -133,7 +133,7 @@ export class StringInterpretedSchema<
    * countryCode.validate('CZE'); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(exactLength: number, options?: IssueEditableProps): this {
+  length(exactLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length === exactLength

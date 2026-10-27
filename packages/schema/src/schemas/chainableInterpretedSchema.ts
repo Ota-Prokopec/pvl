@@ -1,7 +1,7 @@
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
-import type { RetypedSchema } from '../types.js';
+import type { CheckOptions, RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';
 import type { Schema, StandaloneMarkerOf } from './schema.js';
 
@@ -118,13 +118,13 @@ export abstract class ChainableInterpretedSchema<
   // `.optional()`, since a short-circuited value skips it, which is harmless.
   refine(
     predicate: (value: Output) => boolean,
-    issueProps?: IssueEditableProps,
+    options?: CheckOptions,
   ): RetypedSchema<this, Input, Output> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
         return predicate(value)
           ? null
-          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] };
+          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, options?.message)] };
       },
     }) as unknown as RetypedSchema<this, Input, Output>;
   }

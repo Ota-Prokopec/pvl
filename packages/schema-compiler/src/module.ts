@@ -20,7 +20,7 @@ import {
   STANDALONE_BRAND_IMPORT,
   STANDALONE_BRAND_NAME,
   TYPE_ALIAS_IMPORT,
-} from './consts.js';
+} from './consts/generatedModule.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { Destination } from './destination/destination.js';
 import {

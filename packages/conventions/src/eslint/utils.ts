@@ -10,6 +10,19 @@ export const isUpperSnakeCase = (name: string): boolean => {
   return /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/.test(name);
 };
 
+/**
+ * The directory whose `kind` declarations (`consts`, `enums`, `types`)
+ * `filename` holds: its own for a `<kind>.ts`, its parent's for a file
+ * directly inside a `<kind>/` folder, else `undefined`.
+ */
+export const findDeclarationsOwner = (filename: string, kind: string): string | undefined => {
+  const directory = path.dirname(filename);
+  if (path.basename(filename) === `${kind}.ts`) {
+    return directory;
+  }
+  return path.basename(directory) === kind ? path.dirname(directory) : undefined;
+};
+
 /** The `name` in the nearest `package.json` above `filename`, or `undefined` when none is found. */
 export const findPackageName = (filename: string): string | undefined => {
   let directory = path.dirname(filename);

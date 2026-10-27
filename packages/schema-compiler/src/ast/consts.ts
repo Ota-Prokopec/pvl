@@ -14,3 +14,6 @@ export const PVL_OBJECT_PROPERTY_NAMES: ReadonlySet<string> = new Set(
 export const PVL_SCHEMA_METHOD_NAMES: ReadonlySet<string> = new Set(
   Object.values(PVL_SCHEMA_METHOD_NAME_ENUM),
 );
+
+/** The Module Specifier `pvl` is imported from. */
+export const PVL_PACKAGE_SPECIFIER = '@pvl/schema' as const;

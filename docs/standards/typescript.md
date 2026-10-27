@@ -84,6 +84,7 @@ record/
 └── record.ts   // imports them, declares none of its own
 ```
 
+- **A file holding declarations of more than one meaning becomes a folder** of the same name (`types/`, `enums/`, `consts/`, no barrel), with one file per meaning, named after it (`emitters/consts/checkOptions.ts`), which modules import by its own path. `pnpm lint` checks where each form may sit.
 - **A module declares no type, enum or constant of its own**, even one only it uses: the directory's file exports it, and the module imports it.
 - **The directory is the one holding the modules that use the declaration.** A declaration used in several directories goes in the file of their nearest common directory, up to `src/` for one used across the package.
 - **Two declarations stay beside what they describe:** an enum's value union (`ValueOfEnum<typeof X>`) sits under its enum in `enums.ts`, and a function's `Args` type sits above the function, where `pnpm lint` places it.

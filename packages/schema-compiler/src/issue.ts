@@ -6,8 +6,8 @@
 // post-modifiers behind.
 import {
   replaceEmptyIssueMessage,
+  type CheckOptions,
   type IssueCode,
-  type IssueEditableProps,
   type IssueProps,
 } from '@pvl/schema';
 import type { EmittedIssue } from './emitters/types/emittedText.js';
@@ -76,8 +76,8 @@ export type EmitConstraintIssueArgs = {
   code: IssueCode;
   /** The Issue's path, as an expression. */
   path: string;
-  /** The Issue options of the method that reports it: as written, a Runtime Argument, or none. */
-  options: IssueEditableProps | RuntimeArgument | undefined;
+  /** The options of the check that reports it: as written, a Runtime Argument, or none. */
+  options: CheckOptions | RuntimeArgument | undefined;
   /** Its default message, as an expression (`emitDefaultMessage`). */
   defaultMessage: string;
 };

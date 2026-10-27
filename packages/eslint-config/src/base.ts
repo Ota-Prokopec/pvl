@@ -82,6 +82,7 @@ export const config: Linter.Config[] = defineConfig(
       '@repo/conventions/no-inline-enum-value': 'error',
       '@repo/conventions/enum-shape': 'error',
       '@repo/conventions/constant-shape': 'error',
+      '@repo/conventions/declarations-file-or-folder': 'error',
       '@repo/conventions/args-type-above-function': 'error',
       '@repo/conventions/no-local-functions': 'error',
       '@repo/conventions/class-file-name': 'error',

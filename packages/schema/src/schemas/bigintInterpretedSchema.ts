@@ -1,8 +1,8 @@
 import { coerceToBigint } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -77,7 +77,7 @@ export class BigintInterpretedSchema<
    * positive.validate(0n); // { issues: [{ code: 'TOO_SMALL', ... }] }
    * ```
    */
-  min(minValue: bigint, options?: IssueEditableProps): this {
+  min(minValue: bigint, options?: CheckOptions): this {
     return this._withPostModifier<bigint, bigint>({
       fn: (value, path) => {
         return value >= minValue
@@ -108,7 +108,7 @@ export class BigintInterpretedSchema<
    * int64.validate(9223372036854775808n); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(maxValue: bigint, options?: IssueEditableProps): this {
+  max(maxValue: bigint, options?: CheckOptions): this {
     return this._withPostModifier<bigint, bigint>({
       fn: (value, path) => {
         return value <= maxValue

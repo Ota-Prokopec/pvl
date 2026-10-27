@@ -4,7 +4,7 @@
 // hook.
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, type BigintInterpretedSchema, ISSUE_CODE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
-import { BIGINT_ARGUMENT_MESSAGES } from './consts.js';
+import { BIGINT_ARGUMENT_MESSAGES } from './consts/argumentMessages.js';
 import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
 import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
@@ -18,7 +18,7 @@ import { emitCheck, emitTypeCheck } from './utils/emittedText.js';
 import { js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
-import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 
 /** `.min(0n)` → `field0 < 0n`, reporting `TOO_SMALL`. */
 const min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
@@ -63,8 +63,8 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
   } satisfies PostModifierCheckTable;
 
   public static override readonly parameterTypes: ParameterTypesOf<BigintInterpretedSchema> = {
-    min: ['bigint', ISSUE_OPTIONS_TYPE],
-    max: ['bigint', ISSUE_OPTIONS_TYPE],
+    min: ['bigint', CHECK_OPTIONS_TYPE_STRING],
+    max: ['bigint', CHECK_OPTIONS_TYPE_STRING],
   };
 
   public static override readonly argumentMessages = BIGINT_ARGUMENT_MESSAGES;

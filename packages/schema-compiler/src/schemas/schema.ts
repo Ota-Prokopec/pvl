@@ -17,7 +17,7 @@ import type { Emitter } from '../emitters/emitter.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
 import { readFunctionArgument } from '../emitters/utils/arguments.js';
-import { PRE_MODIFIER_NAMES } from '../consts.js';
+import { PRE_MODIFIER_NAMES } from './consts.js';
 import type { PvlFactoryName } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';

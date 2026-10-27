@@ -1,8 +1,8 @@
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Modifier } from '../modifiers/modifiers.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { assignObjectProperty, unknownKeysOfObject } from '../utils.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema, StandaloneMarker } from './schema.js';
@@ -122,7 +122,7 @@ type WithUnknownKeys<Output> = Output extends object ? Output & Record<string, u
 // module is in the barrel, and it is internal-only.
 const unknownKeysStrictModifier = (
   declaredKeys: ReadonlySet<string>,
-  options?: IssueEditableProps,
+  options?: CheckOptions,
 ): Modifier<unknown, unknown> => ({
   shape: unknownKeysStrictModifier,
   fn: (value, path): Result<unknown> | null => {
@@ -280,7 +280,7 @@ export class ObjectInterpretedSchema<
    * // { issues: [{ code: 'UNRECOGNIZED_KEY', path: ['prot'], ... }] }
    * ```
    */
-  strict(options?: IssueEditableProps): this {
+  strict(options?: CheckOptions): this {
     return this._withKeptUnknownKeys()._withPostModifier(
       unknownKeysStrictModifier(this._shapeKeys, options),
     );

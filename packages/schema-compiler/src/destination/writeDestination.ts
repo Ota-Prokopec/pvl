@@ -5,7 +5,7 @@ import {
   GENERATED_MARKER_FILE_NAME,
   GENERATED_MARKER_TEXT,
   GITIGNORE_FILE_NAME,
-} from '../consts.js';
+} from './consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { MirroredFile } from '../module.js';
 import { errorMessage, statOrUndefined } from '../utils.js';

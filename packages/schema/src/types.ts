@@ -3,7 +3,7 @@
 // It is in the barrel, so that plumbing is tagged `@internal`.
 import type { ValueOfEnum } from '@repo/types';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { Issue } from './issue/issue.js';
+import type { Issue, IssueEditableProps } from './issue/issue.js';
 import type { ChainableInterpretedSchema } from './schemas/chainableInterpretedSchema.js';
 import type { InterpretedSchema } from './schemas/interpretedSchema.js';
 import type { Schema, StandaloneMarkerOf } from './schemas/schema.js';
@@ -34,6 +34,21 @@ export type InferInput<TSchema extends StandardSchemaV1> = StandardSchemaV1.Infe
  * ```
  */
 export type InferOutput<TSchema extends StandardSchemaV1> = StandardSchemaV1.InferOutput<TSchema>;
+
+/**
+ * The options a check takes as its last argument, a Constraint, a Refinement
+ * or `object`'s `.strict()`: what of the Issue it reports to edit, a custom
+ * `message` replacing the check's default.
+ *
+ * @example
+ * ```ts
+ * import { pvl, type CheckOptions } from '@pvl/schema';
+ *
+ * const options: CheckOptions = { message: 'must be at least 3 characters' };
+ * pvl.string().min(3, options);
+ * ```
+ */
+export type CheckOptions = IssueEditableProps;
 
 /**
  * What the pre-modifiers hand on to `_checkType` and the post-modifiers: the

@@ -1,5 +1,5 @@
 import * as fsPromises from 'node:fs/promises';
-import { GENERATED_MARKER_FILE_NAME } from '../consts.js';
+import { GENERATED_MARKER_FILE_NAME } from './consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 

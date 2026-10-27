@@ -1,5 +1,4 @@
-// The constants the Emitters use: the types they spell for a Modifier, and
-// each Emitter's `argumentMessages`, which its checks read too, so a check
+// Each Emitter's `argumentMessages`, which its checks read too, so a check
 // and the constructor building a Runtime Argument's message share one.
 import {
   ARRAY_SCHEMA_ISSUE_MESSAGE,
@@ -11,12 +10,7 @@ import {
   type NumberInterpretedSchema,
   type StringInterpretedSchema,
 } from '@pvl/schema';
-import { UNDEFINEDNESS } from '../enums.js';
-import type { SpelledType } from '../schemas/schemaTypes.js';
-import type { ArgumentMessagesOf } from './types/methodTables.js';
-
-/** The Input of a coerced Schema, which takes any value. */
-export const UNKNOWN_TYPE: SpelledType = { text: 'unknown', undefinedness: UNDEFINEDNESS.ALWAYS };
+import type { ArgumentMessagesOf } from '../types/methodTables.js';
 
 /** `StringSchemaEmitter.argumentMessages`: the default messages of `.min()`, `.max()` and `.length()`, naming their bound. */
 export const STRING_ARGUMENT_MESSAGES = {

@@ -1,7 +1,7 @@
 import { ISSUE_CODE } from '../issue/enums.js';
-import { Issue, type IssueEditableProps } from '../issue/issue.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema, StandaloneMarker } from './schema.js';
 
@@ -139,7 +139,7 @@ export class ArrayInterpretedSchema<
    * tags.validate([]); // { issues: [{ code: 'TOO_SMALL', message: 'pick at least one tag' }] }
    * ```
    */
-  min(minLength: number, options?: IssueEditableProps): this {
+  min(minLength: number, options?: CheckOptions): this {
     return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
       fn: (value, path) => {
         return value.length >= minLength
@@ -169,7 +169,7 @@ export class ArrayInterpretedSchema<
    * tags.validate(['a', 'b', 'c', 'd', 'e', 'f']); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(maxLength: number, options?: IssueEditableProps): this {
+  max(maxLength: number, options?: CheckOptions): this {
     return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
       fn: (value, path) => {
         return value.length <= maxLength
@@ -200,7 +200,7 @@ export class ArrayInterpretedSchema<
    * rgb.validate([12, 34]); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(exactLength: number, options?: IssueEditableProps): this {
+  length(exactLength: number, options?: CheckOptions): this {
     return this._withPostModifier<ReadonlyArray<unknown>, ReadonlyArray<unknown>>({
       fn: (value, path) => {
         return value.length === exactLength

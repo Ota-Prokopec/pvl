@@ -8,10 +8,10 @@
 // schema's emitter extends it, as every schema extends
 // `ChainableInterpretedSchema`.
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
-import { ISSUE_OPTIONS_TYPE } from '../consts.js';
+import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import { UNDEFINEDNESS } from '../enums.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { UNKNOWN_TYPE } from './consts.js';
+import { UNKNOWN_SPELLED_TYPE } from './consts/spelledTypes.js';
 import { Emitter } from './emitter.js';
 import type {
   CompilesMethodArgs,
@@ -104,7 +104,7 @@ export class ChainableSchemaEmitter extends Emitter {
     const transformFunction = schema.getTransformFunction();
     if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE) {
       const { output } = this._spellTypes({ schema, before: call });
-      return [`(value: ${output.text}) => boolean`, ISSUE_OPTIONS_TYPE];
+      return [`(value: ${output.text}) => boolean`, CHECK_OPTIONS_TYPE_STRING];
     }
     // A chain holds at most one `.transform()`, which `getTransformFunction` reads.
     if (
@@ -138,7 +138,7 @@ export class ChainableSchemaEmitter extends Emitter {
     const calls = schema.findCallsBefore(before);
     return {
       input: calls.some((call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE)
-        ? UNKNOWN_TYPE
+        ? UNKNOWN_SPELLED_TYPE
         : widenType(input, calls),
       // A `.transform()` is chained last, so after any `before`.
       output:

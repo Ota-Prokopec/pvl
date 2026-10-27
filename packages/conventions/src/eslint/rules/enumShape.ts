@@ -1,11 +1,11 @@
 /**
  * Rule: an enum (an `as const` object literal whose every value is a string or
  * number literal) has an UPPER_SNAKE_CASE name and UPPER_SNAKE_CASE keys, and
- * when exported lives in an `enums.ts`.
+ * when exported lives in an `enums.ts` or a file directly inside an `enums/`
+ * folder.
  */
-import * as path from 'node:path';
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
-import { createRule, isUpperSnakeCase } from '../utils.ts';
+import { createRule, findDeclarationsOwner, isUpperSnakeCase } from '../utils.ts';
 
 const isNumberOrStringLiteral = (node: TSESTree.Node): boolean => {
   if (node.type === AST_NODE_TYPES.UnaryExpression && node.operator === '-') {
@@ -70,12 +70,12 @@ export const enumShape = createRule({
     type: 'suggestion',
     docs: {
       description:
-        'An enum (an `as const` object literal of string or number literals) has an UPPER_SNAKE_CASE name and UPPER_SNAKE_CASE keys, and when exported lives in an `enums.ts`.',
+        'An enum (an `as const` object literal of string or number literals) has an UPPER_SNAKE_CASE name and UPPER_SNAKE_CASE keys, and when exported lives in an `enums.ts` or a file directly inside an `enums/` folder.',
     },
     messages: {
       name: 'Name the enum `{{name}}` in UPPER_SNAKE_CASE.',
       key: 'Name the enum key `{{key}}` in UPPER_SNAKE_CASE. Only its value may follow an external format.',
-      file: 'Move the exported enum `{{name}}` into an `enums.ts` file.',
+      file: 'Move the exported enum `{{name}}` into an `enums.ts` file, or a file directly inside an `enums/` folder.',
     },
     schema: [],
   },
@@ -117,7 +117,7 @@ export const enumShape = createRule({
         }
       },
       'Program:exit': (): void => {
-        if (path.basename(context.filename) === 'enums.ts') {
+        if (findDeclarationsOwner(context.filename, 'enums') !== undefined) {
           return;
         }
         for (const name of exported) {

@@ -12,11 +12,12 @@ import type { PvlFactoryCall, SchemaCall } from '../ast/types.js';
 import { BaseException, UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import {
+  PVL_OBJECT_PROPERTY_NAMES_ENUM,
+  PVL_SCHEMA_METHOD_NAME_ENUM,
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
   PVL_FACTORY_NAMES_ENUM,
   type PvlFactoryName,
 } from '@pvl/schema';
-import { COMPILE_METHOD_NAME, STANDALONE_METHOD_NAME } from '../consts.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
 import { ArraySchema } from './arraySchema.js';
@@ -236,7 +237,7 @@ const readExpression = (
   const { factory, methods } = PvlAst.readCallChain(expression, args.pvlImportLocalNames, followed);
   const chainedMethods = [...methods, ...outerMethods];
   const [argument] = factory.call.getArguments();
-  if (factory.methodName === COMPILE_METHOD_NAME && argument !== undefined) {
+  if (factory.methodName === PVL_OBJECT_PROPERTY_NAMES_ENUM.COMPILE && argument !== undefined) {
     return readExpression(args, argument, factory.followed, chainedMethods);
   }
   if (!isSchemaFactory(factory.methodName)) {
@@ -253,7 +254,7 @@ const readExpression = (
   // chain, wherever it is written: `pvl.compile(x.standalone())` and
   // `pvl.compile(x).standalone()` read the same.
   const calls = chainedMethods
-    .filter((method) => method.methodName !== STANDALONE_METHOD_NAME)
+    .filter((method) => method.methodName !== PVL_SCHEMA_METHOD_NAME_ENUM.STANDALONE)
     .map((method) => readMethodCall(method, args.runtimeArguments));
   return buildSchema({
     module: args.module,
@@ -263,7 +264,9 @@ const readExpression = (
     transformCall: calls.find(
       (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
     ),
-    isStandalone: chainedMethods.some((method) => method.methodName === STANDALONE_METHOD_NAME),
+    isStandalone: chainedMethods.some(
+      (method) => method.methodName === PVL_SCHEMA_METHOD_NAME_ENUM.STANDALONE,
+    ),
   });
 };
 

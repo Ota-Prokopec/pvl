@@ -14,8 +14,8 @@ import type { CheckingTarget } from './schemaParts.js';
  * written, or a Runtime Argument its Compiled Schema evaluates.
  *
  * ```ts
- * EmitterArgs<[minLength: number, options?: IssueEditableProps]>
- * // [minLength: number | RuntimeArgument, options?: IssueEditableProps | RuntimeArgument]
+ * EmitterArgs<[minLength: number, options?: CheckOptions]>
+ * // [minLength: number | RuntimeArgument, options?: CheckOptions | RuntimeArgument]
  * ```
  */
 export type EmitterArgs<TParameters extends ReadonlyArray<unknown>> = {
@@ -32,7 +32,7 @@ export type EmitterArgs<TParameters extends ReadonlyArray<unknown>> = {
  *
  * ```ts
  * EmitterMethodOf<StringInterpretedSchema['min']>
- * // (input: { target: CheckingTarget; args: [minLength: number | RuntimeArgument, options?: IssueEditableProps | RuntimeArgument] }) => EmittedCheck
+ * // (input: { target: CheckingTarget; args: [minLength: number | RuntimeArgument, options?: CheckOptions | RuntimeArgument] }) => EmittedCheck
  * EmitterMethodOf<ChainableInterpretedSchema['optional'], EmittedShortCircuitCondition> // (input: { target: CheckingTarget; args: [] }) => EmittedShortCircuitCondition
  * ```
  */
@@ -74,7 +74,7 @@ export type PostModifierCheckTable = EmitterMethodTable<EmittedCheck>;
  * ```ts
  * ParameterTypesOf<StringInterpretedSchema>
  * // { min?: readonly [string, string]; max?: …; length?: …; … }
- * const parameterTypes: ParameterTypesOf<StringInterpretedSchema> = { min: ['number', ISSUE_OPTIONS_TYPE] };
+ * const parameterTypes: ParameterTypesOf<StringInterpretedSchema> = { min: ['number', CHECK_OPTIONS_TYPE_STRING] };
  * ```
  */
 export type ParameterTypesOf<TSchema> = {
