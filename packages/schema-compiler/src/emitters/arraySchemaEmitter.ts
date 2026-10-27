@@ -32,7 +32,7 @@ import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import type { Scope } from '../scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';
-import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
 /**

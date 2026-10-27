@@ -1,24 +1,20 @@
 // `pvl.object(shape)`: a composite of named fields, each a Schema of its
 // own read from the shape, compiled by ObjectSchemaEmitter.
 import { GenericAst } from '../ast/genericAst.js';
+import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ObjectSchemaEmitter } from '../emitters/objectSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM, PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { UNKNOWN_KEYS_METHOD_NAMES } from '../consts/unknownKeys.js';
 import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
-import type { SchemaModifierCall } from './schemaTypes.js';
-
-/** One field of an object Schema. */
-export type ObjectField = {
-  key: string;
-  schema: Schema;
-};
-
-/** What an ObjectSchema holds besides what every Schema does. */
-export type ObjectSchemaOptions = SchemaOptions & {
-  shape: ReadonlyArray<ObjectField>;
-};
+import { Schema } from './schema.js';
+import type {
+  ObjectField,
+  ObjectSchemaOptions,
+  ReadFactoryArgs,
+  SchemaModifierCall,
+  SchemaOptions,
+} from './types.js';
 
 /**
  * A `pvl.object(shape)` as read from source, holding its fields in shape
@@ -54,7 +50,7 @@ export class ObjectSchema extends Schema {
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ObjectSchema {
     const fieldSchemaByKey = GenericAst.readObject(
-      Schema.readArgument(link),
+      PvlAst.readArgument(link),
       readNested,
       link.followed,
     );

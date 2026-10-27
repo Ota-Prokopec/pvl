@@ -2,7 +2,7 @@
 // Schema's type with, which read nothing of the Frame itself: the grouping
 // of its pre-modifiers' parts, a composite's statements behind its base
 // check, and the type a Compiled Schema is cast up to.
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
+import type { SchemaTypes } from '../spelledType/types.js';
 import type { EmittedCheck } from '../emitters/types/emittedText.js';
 import type {
   CheckingTarget,

@@ -33,8 +33,8 @@ import {
   emitNoNewIssuesCondition,
   emitRootIssuePath,
 } from '../issue.js';
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type { RuntimeArgumentParameter } from '../schemas/runtimeArgument/types.js';
+import type { SchemaTypes } from '../spelledType/types.js';
+import type { RuntimeArgumentParameter } from '../runtimeArgument/types.js';
 import type { CompiledSchema } from '../emitters/types/compiledSchema.js';
 import type { CheckingTarget, SchemaParts } from '../emitters/types/schemaParts.js';
 import type { EmittedStandaloneProperty } from '../emitters/types/standaloneProperties.js';

@@ -2,7 +2,8 @@
 // BigintSchemaEmitter.
 import { BigintSchemaEmitter } from '../emitters/bigintSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
-import { Schema, type SchemaOptions } from './schema.js';
+import { Schema } from './schema.js';
+import type { SchemaOptions } from './types.js';
 
 /**
  * A `pvl.bigint()` as read from source. It reads no argument, so any it is

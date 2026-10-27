@@ -9,13 +9,13 @@
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import { UNDEFINEDNESS } from '../enums.js';
-import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import { UNKNOWN_SPELLED_TYPE } from './consts/spelledTypes.js';
+import type { SchemaTypes } from '../spelledType/types.js';
+import { UNKNOWN_SPELLED_TYPE } from '../spelledType/consts.js';
 import { Emitter } from './emitter.js';
 import type { SpellParameterTypesArgs, SpellTypesArgs } from './types/hookArgs.js';
 import type { PostModifierStepTable, PreModifierStepTable } from './types/methodTables.js';
 import { nullable, optional, refine, transform } from './utils/sharedModifiers.js';
-import { widenType } from './utils/spelledType.js';
+import { widenType } from '../spelledType/spelledType.js';
 
 export class ChainableSchemaEmitter extends Emitter {
   public static override readonly preModifierSteps = {

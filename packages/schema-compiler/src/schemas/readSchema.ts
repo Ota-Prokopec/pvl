@@ -8,7 +8,7 @@
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import { PvlAst } from '../ast/pvlAst.js';
-import type { PvlFactoryCall, SchemaCall } from '../ast/types.js';
+import type { SchemaCall } from '../ast/types.js';
 import { BaseException, UnresolvedNodeException } from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import {
@@ -26,26 +26,11 @@ import { EnumSchema } from './enumSchema.js';
 import { LiteralSchema } from './literalSchema.js';
 import { NumberSchema } from './numberSchema.js';
 import { ObjectSchema } from './objectSchema.js';
-import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
-import type { ReadFactoryArgs, Schema, SchemaOptions } from './schema.js';
-import type { SchemaModifierCall, SchemaModifierCallArgument } from './schemaTypes.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import type { Schema } from './schema.js';
+import type { SchemaClass, SchemaModifierCall, SchemaModifierCallArgument } from './types.js';
 import { StringSchema } from './stringSchema.js';
 import { UnionSchema } from './unionSchema.js';
-
-/** A Schema subclass, as `readSchema` picks one by the factory it reads. */
-type SchemaClass = {
-  /** The `pvl.*` factory it reads. */
-  readonly factory: PvlFactoryName;
-  /**
-   * Reads the argument of `link`, its factory call, and returns how its
-   * Schema is built from what every Schema holds, which is read after the
-   * argument.
-   */
-  readFactoryArgument: (
-    link: PvlFactoryCall,
-    args: ReadFactoryArgs,
-  ) => (options: SchemaOptions) => Schema;
-};
 
 /** Every Schema subclass, by the `pvl.*` factory it reads, which is the subclass's own `factory`. */
 const SCHEMA_CLASS_BY_FACTORY = {

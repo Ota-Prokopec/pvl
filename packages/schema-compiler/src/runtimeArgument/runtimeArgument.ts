@@ -2,10 +2,9 @@
 // statically, which a Compiled Schema evaluates once, where it is written,
 // rather than reading it at compile time (ADR-0030).
 import type { Node } from 'ts-morph';
-import { js } from '../../emitters/utils/js.js';
-import { emitMessageAroundValue } from '../../issue.js';
-import type { Schema } from '../schema.js';
-import type { SchemaModifierCall } from '../schemaTypes.js';
+import { js } from '../emitters/utils/js.js';
+import { emitMessageAroundValue } from '../issue.js';
+import type { Schema } from '../schemas/schema.js';
 import type { RuntimeArgumentParameter } from './types.js';
 
 /** What {@link RuntimeArgument.getArgumentParameters} reads a Compiled Schema's Runtime Arguments for: its Schema, and, at the root, the hoisted `const`s holding them; `undefined` for a nested class, which is passed its parent's fields. */
@@ -111,7 +110,7 @@ export class RuntimeArgument {
     hoistedNameByExpression,
   }: GetArgumentParametersArgs): RuntimeArgumentParameter[] {
     const isRoot = hoistedNameByExpression !== undefined; // because `hoistedNameByExpression` is a composite variable only for composite schemas (for root schemas)
-    return RuntimeArgument.findChainedArguments({ schema })
+    return [...schema.findChainedRuntimeArguments()]
       .sort((left, right) => left.argument.index - right.argument.index)
       .map(({ argument, owner, call, position }) => {
         const { emitter } = owner;
@@ -144,33 +143,5 @@ export class RuntimeArgument {
               : undefined,
         };
       });
-  }
-
-  /**
-   * Every Runtime Argument of the methods chained onto `schema` and onto
-   * every Schema nested in it, its own first, each with the Schema (`owner`)
-   * and the call it is passed to and its position among the call's arguments.
-   *
-   * ```ts
-   * RuntimeArgument.findChainedArguments({ schema: <pvl.string().max(max)> })
-   * // [{ argument: <max>, owner: <pvl.string().max(max)>, call: <.max(max)>, position: 0 }]
-   * ```
-   */
-  private static findChainedArguments({ schema }: { schema: Schema }): Array<{
-    argument: RuntimeArgument;
-    owner: Schema;
-    call: SchemaModifierCall;
-    position: number;
-  }> {
-    return [
-      ...schema.calls.flatMap((call) =>
-        (call.args ?? []).flatMap((argument, position) =>
-          argument instanceof RuntimeArgument ? [{ argument, owner: schema, call, position }] : [],
-        ),
-      ),
-      ...schema
-        .findChildren()
-        .flatMap((child) => RuntimeArgument.findChainedArguments({ schema: child })),
-    ];
   }
 }

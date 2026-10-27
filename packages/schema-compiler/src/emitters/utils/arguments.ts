@@ -1,10 +1,10 @@
 // How a method's argument is read in the emitted code: a literal written as
 // one, a Runtime Argument off the Compiled Schema's instance, and a function
-// the user passed, checked to be the Runtime Argument it always is, called
-// with no `this`.
+// the user passed called with no `this`.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import type { AnyFunction } from '@repo/types';
-import { RuntimeArgument } from '../../schemas/runtimeArgument/runtimeArgument.js';
+import { RuntimeArgument } from '../../runtimeArgument/runtimeArgument.js';
+import { readFunctionArgument } from '../../runtimeArgument/utils.js';
 import { js } from './js.js';
 import { emitLiteral } from './literal.js';
 
@@ -39,23 +39,4 @@ export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): 
  */
 export const emitFunctionCall = (fn: RuntimeArgument | AnyFunction, value: string): string => {
   return js`${readFunctionArgument(fn).emitReading()}.call(undefined, ${value} as never)`;
-};
-
-/**
- * A function the user passed a method, `.refine()`'s predicate or
- * `.transform()`'s function, as read from its call, checked to be the
- * Runtime Argument it always is, as it is never a literal; anything else is
- * a bug in the compiler, never a user error, which throws.
- *
- * ```ts
- * readFunctionArgument(<the 1st Runtime Argument>) // <the 1st Runtime Argument>
- * readFunctionArgument((value) => value > 0)      // throws: a function is never read as a literal
- * readFunctionArgument(undefined)                 // throws: a spread argument has no position
- * ```
- */
-export const readFunctionArgument = (fn: unknown): RuntimeArgument => {
-  if (!(fn instanceof RuntimeArgument)) {
-    throw new Error(`A function passed a method is always a Runtime Argument, not ${String(fn)}.`);
-  }
-  return fn;
 };

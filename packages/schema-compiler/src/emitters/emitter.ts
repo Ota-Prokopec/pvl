@@ -18,7 +18,7 @@
 // schema's to its tables and overrides the `_` hooks. What reads nothing of
 // the emitter it is called on is a function in `./utils/`.
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
 import { UNDEFINEDNESS } from '../enums.js';
 import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
@@ -44,7 +44,7 @@ import type {
   SchemaParts,
 } from './types/schemaParts.js';
 import type { EmittedStandaloneProperty } from './types/standaloneProperties.js';
-import { RuntimeArgument } from '../schemas/runtimeArgument/runtimeArgument.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import { js } from './utils/js.js';
 import { emitMethodCall } from './utils/methodCall.js';
 

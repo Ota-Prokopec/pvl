@@ -11,9 +11,10 @@ import {
   type CheckOptions,
   type ObjectInterpretedSchema,
 } from '@pvl/schema';
-import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
-import type { RuntimeArgument } from '../schemas/runtimeArgument/runtimeArgument.js';
-import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import type { ObjectSchema } from '../schemas/objectSchema.js';
+import type { ObjectField } from '../schemas/types.js';
+import type { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './types/emittedText.js';
 import type {

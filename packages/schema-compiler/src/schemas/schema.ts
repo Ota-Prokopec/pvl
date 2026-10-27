@@ -8,21 +8,18 @@
 // the subclass and imports every one, so this module imports none: a subclass
 // extends `Schema` as its module loads, so an import back would run it before
 // `Schema` exists (ADR-0034).
+import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
 import type { Node } from 'ts-morph';
-import type { FollowedConsts } from '../ast/genericAst.js';
-import type { PvlFactoryCall } from '../ast/types.js';
-import { UnresolvedNodeException } from '../exceptions/index.js';
-import { Diagnostic } from '../diagnostics/diagnostic.js';
-import type { Emitter } from '../emitters/emitter.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
-import { readFunctionArgument } from '../emitters/utils/arguments.js';
-import { PRE_MODIFIER_NAMES } from './consts.js';
-import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
-import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
-import type { SchemaModifierCall } from './schemaTypes.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import type { ChainedRuntimeArgument } from '../runtimeArgument/types.js';
+import { readFunctionArgument } from '../runtimeArgument/utils.js';
+import { PRE_MODIFIER_NAMES } from './consts.js';
+import type { SchemaModifierCall, SchemaOptions } from './types.js';
+import { createUnsupportedSchemaDiagnostic, findUncompilableCallDiagnostic } from './utils.js';
 
 /** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`), always at the root. */
 export type CompileSchemaArgs = Omit<
@@ -30,26 +27,6 @@ export type CompileSchemaArgs = Omit<
   'schema' | 'hoistedNameByExpression'
 > & {
   hoistedNameByExpression: NonNullable<EmitCompiledSchemaArgs['hoistedNameByExpression']>;
-};
-
-/** What every Schema holds, whichever factory built it. */
-export type SchemaOptions = {
-  /** The Module it is written in. */
-  module: Module;
-  /** The expression it is read from. */
-  expression: Node;
-  /** The 1-based line its factory call is written on. */
-  line: number;
-  /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` included, last. */
-  calls: ReadonlyArray<SchemaModifierCall>;
-  /** Whether `.standalone()` is chained onto it. */
-  isStandalone: boolean;
-};
-
-/** What a subclass's `readFactoryArgument` reads its factory's argument with. */
-export type ReadFactoryArgs = {
-  /** Reads a Schema nested in this one: a field, an element or a member. */
-  readNested: (expression: Node, followed: FollowedConsts) => Schema;
 };
 
 /**
@@ -212,19 +189,14 @@ export abstract class Schema {
    * ```
    */
   public findUncompilableDiagnostics(): Diagnostic[] {
-    const { subclassEmitter } = this;
+    const { subclassEmitter, factory, line } = this;
+    const file = this.module.path.absolutePath;
     if (subclassEmitter === undefined) {
-      return [
-        new Diagnostic({
-          code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-          message: `The \`pvl.${this.factory}()\` on line ${String(this.line)} can't be compiled yet.`,
-          file: this.module.path.absolutePath,
-        }),
-      ];
+      return [createUnsupportedSchemaDiagnostic({ factory, line, file })];
     }
     return [
       ...this.calls.flatMap(
-        (call) => this.findUncompilableCallDiagnostic(subclassEmitter, call) ?? [],
+        (call) => findUncompilableCallDiagnostic({ emitter: subclassEmitter, call, file }) ?? [],
       ),
       ...this.findChildren().flatMap((child) => child.findUncompilableDiagnostics()),
     ];
@@ -261,70 +233,24 @@ export abstract class Schema {
 
   /**
    * The Runtime Arguments of the methods chained onto it and onto every
-   * Schema nested in it, at any depth, its own first.
+   * Schema nested in it, at any depth, its own first, each with the Schema
+   * (`owner`) and the call it is passed to and its position among the
+   * call's arguments.
    *
    * ```ts
-   * <pvl.object({ name: pvl.string().max(max) }).strict(options)>.findRuntimeArguments() // [<options>, <max>]
-   * <pvl.string().max(3)>.findRuntimeArguments()                                       // []
+   * <pvl.object({ name: pvl.string().max(max) }).strict(options)>.findChainedRuntimeArguments()
+   * // [{ argument: <options>, owner: <pvl.object(…)>, call: <.strict(options)>, position: 0 }, { argument: <max>, owner: <pvl.string().max(max)>, call: <.max(max)>, position: 0 }]
+   * <pvl.string().max(3)>.findChainedRuntimeArguments() // []
    * ```
    */
-  public findRuntimeArguments(): ReadonlyArray<RuntimeArgument> {
+  public findChainedRuntimeArguments(): ReadonlyArray<ChainedRuntimeArgument> {
     return [
       ...this.calls.flatMap((call) =>
-        (call.args ?? []).filter((argument) => argument instanceof RuntimeArgument),
+        (call.args ?? []).flatMap((argument, position) =>
+          argument instanceof RuntimeArgument ? [{ argument, owner: this, call, position }] : [],
+        ),
       ),
-      ...this.findChildren().flatMap((child) => child.findRuntimeArguments()),
+      ...this.findChildren().flatMap((child) => child.findChainedRuntimeArguments()),
     ];
-  }
-
-  /**
-   * The argument of `link`, the factory call, which every factory but the
-   * primitives needs. Throws an UnresolvedNodeException at the call when there
-   * is none.
-   *
-   * ```ts
-   * Schema.readArgument(<pvl.array(pvl.string())>) // <pvl.string()>
-   * Schema.readArgument(<pvl.array()>)             // throws
-   * ```
-   */
-  protected static readArgument({ call }: PvlFactoryCall): Node {
-    const [argument] = call.getArguments();
-    if (argument === undefined) {
-      throw new UnresolvedNodeException(call);
-    }
-    return argument;
-  }
-
-  /**
-   * The diagnostic for a method chained onto it, if it can't be compiled:
-   * `emitter` has no method for it, or one of its arguments is spread.
-   *
-   * ```ts
-   * .min(3) on a string                  // undefined
-   * .min(MIN_FROM_IMPORT) on a string    // undefined: a Runtime Argument
-   * .optional() on the root object       // undefined
-   * .refine(isOk) on a string            // undefined: a Runtime Argument
-   * .strict() on a string                // UNSUPPORTED_SCHEMA: an object's method
-   * .min(...limits) on a string          // COMPILE_ARGUMENT_UNRESOLVABLE
-   * ```
-   */
-  private findUncompilableCallDiagnostic(
-    emitter: typeof Emitter,
-    call: SchemaModifierCall,
-  ): Diagnostic | undefined {
-    if (!emitter.compilesMethod({ name: call.name })) {
-      return new Diagnostic({
-        code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-        message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet.`,
-        file: this.module.path.absolutePath,
-      });
-    }
-    return call.args === undefined
-      ? new Diagnostic({
-          code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-          message: `An argument of \`.${call.name}()\` on line ${String(call.line)} is spread, so it has no fixed position for the Compiled Schema to pass it at.`,
-          file: this.module.path.absolutePath,
-        })
-      : undefined;
   }
 }

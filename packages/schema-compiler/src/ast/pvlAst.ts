@@ -214,4 +214,22 @@ export class PvlAst {
     }
     return { ...chain, methods: [...chain.methods, { call, methodName }] };
   }
+
+  /**
+   * The argument of `link`, a factory call, which every factory but the
+   * primitives needs. Throws an UnresolvedNodeException at the call when
+   * there is none.
+   *
+   * ```ts
+   * PvlAst.readArgument(<pvl.array(pvl.string())>) // <pvl.string()>
+   * PvlAst.readArgument(<pvl.array()>)             // throws UnresolvedNodeException(<pvl.array()>)
+   * ```
+   */
+  public static readArgument({ call }: PvlFactoryCall): Node {
+    const [argument] = call.getArguments();
+    if (argument === undefined) {
+      throw new UnresolvedNodeException(call);
+    }
+    return argument;
+  }
 }

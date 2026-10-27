@@ -1,6 +1,18 @@
-// The types of a Runtime Argument: how its Compiled Schema's constructor
-// takes it, which `RuntimeArgument.getArgumentParameters` reads and the
-// Frame writes the class from.
+// The types of a Runtime Argument: where it is chained, as
+// `Schema.findChainedRuntimeArguments` finds it, and how its Compiled Schema's
+// constructor takes it, which `RuntimeArgument.getArgumentParameters` reads
+// and the Frame writes the class from.
+import type { Schema } from '../schemas/schema.js';
+import type { SchemaModifierCall } from '../schemas/types.js';
+import type { RuntimeArgument } from './runtimeArgument.js';
+
+/** A Runtime Argument with where it is chained: the Schema (`owner`) and the call it is passed to, and its position among the call's arguments. */
+export type ChainedRuntimeArgument = {
+  argument: RuntimeArgument;
+  owner: Schema;
+  call: SchemaModifierCall;
+  position: number;
+};
 
 /** A Runtime Argument as its Compiled Schema's constructor takes it. */
 export type RuntimeArgumentParameter = {

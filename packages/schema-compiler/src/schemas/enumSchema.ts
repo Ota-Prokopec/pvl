@@ -3,16 +3,13 @@
 import type { EnumMember } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
+import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { UnresolvedNodeException } from '../exceptions/index.js';
 import { EnumSchemaEmitter } from '../emitters/enumSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
-import { Schema, type SchemaOptions } from './schema.js';
-
-/** What an EnumSchema holds besides what every Schema does. */
-export type EnumSchemaOptions = SchemaOptions & {
-  members: ReadonlyArray<EnumMember>;
-};
+import { Schema } from './schema.js';
+import type { EnumSchemaOptions, SchemaOptions } from './types.js';
 
 /**
  * A `pvl.enum(members)` as read from source, holding its members.
@@ -43,7 +40,7 @@ export class EnumSchema extends Schema {
    * non-empty string array or object of strings and numbers.
    */
   public static readFactoryArgument(link: PvlFactoryCall): (options: SchemaOptions) => EnumSchema {
-    const members = EnumSchema.readMembers(Schema.readArgument(link), link.followed);
+    const members = EnumSchema.readMembers(PvlAst.readArgument(link), link.followed);
     return (options: SchemaOptions): EnumSchema => new EnumSchema({ ...options, members });
   }
 

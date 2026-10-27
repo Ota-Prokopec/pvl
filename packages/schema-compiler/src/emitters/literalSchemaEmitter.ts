@@ -23,7 +23,7 @@ import { emitTypeCheck } from './utils/emittedText.js';
 import { js } from './utils/js.js';
 import { emitLiteral, spellLiteralType } from './utils/literal.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
+import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
 import { UNDEFINEDNESS } from '../enums.js';
 
 /**

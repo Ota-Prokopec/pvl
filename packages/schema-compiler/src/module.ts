@@ -398,8 +398,8 @@ export class Module {
       ...new Set(
         schemas.flatMap((schema) =>
           schema
-            .findRuntimeArguments()
-            .map(({ expression }) => expression)
+            .findChainedRuntimeArguments()
+            .map(({ argument }) => argument.expression)
             .filter((expression) => !Module.isWithin(expression, schema.expression)),
         ),
       ),

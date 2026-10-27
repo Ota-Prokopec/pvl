@@ -3,16 +3,13 @@
 import type { PossibleLiteralValue } from '@pvl/schema';
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
+import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { UnresolvedNodeException } from '../exceptions/index.js';
 import { LiteralSchemaEmitter } from '../emitters/literalSchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
-import { Schema, type SchemaOptions } from './schema.js';
-
-/** What a LiteralSchema holds besides what every Schema does. */
-export type LiteralSchemaOptions = SchemaOptions & {
-  value: PossibleLiteralValue;
-};
+import { Schema } from './schema.js';
+import type { LiteralSchemaOptions, SchemaOptions } from './types.js';
 
 /**
  * A `pvl.literal(value)` as read from source, holding its value.
@@ -45,7 +42,7 @@ export class LiteralSchema extends Schema {
   public static readFactoryArgument(
     link: PvlFactoryCall,
   ): (options: SchemaOptions) => LiteralSchema {
-    const value = LiteralSchema.readValue(Schema.readArgument(link), link.followed);
+    const value = LiteralSchema.readValue(PvlAst.readArgument(link), link.followed);
     return (options: SchemaOptions): LiteralSchema => new LiteralSchema({ ...options, value });
   }
 

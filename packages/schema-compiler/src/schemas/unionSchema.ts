@@ -2,14 +2,11 @@
 // read from its argument. It has no Emitter yet, so it is reported as
 // UNSUPPORTED_SCHEMA wherever it is written.
 import { GenericAst } from '../ast/genericAst.js';
+import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
-
-/** What a UnionSchema holds besides what every Schema does. */
-export type UnionSchemaOptions = SchemaOptions & {
-  members: ReadonlyArray<Schema>;
-};
+import { Schema } from './schema.js';
+import type { ReadFactoryArgs, SchemaOptions, UnionSchemaOptions } from './types.js';
 
 /**
  * A `pvl.union(members)` as read from source, holding its members' Schemas.
@@ -45,7 +42,7 @@ export class UnionSchema extends Schema {
     link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => UnionSchema {
-    const members = GenericAst.readArray(Schema.readArgument(link), readNested, link.followed);
+    const members = GenericAst.readArray(PvlAst.readArgument(link), readNested, link.followed);
     return (options: SchemaOptions): UnionSchema => new UnionSchema({ ...options, members });
   }
 

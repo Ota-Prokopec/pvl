@@ -1,14 +1,11 @@
 // `pvl.array(element)`: a composite whose elements each match one Schema,
 // read from its argument, compiled by ArraySchemaEmitter.
+import { PvlAst } from '../ast/pvlAst.js';
 import type { PvlFactoryCall } from '../ast/types.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
 import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
-
-/** What an ArraySchema holds besides what every Schema does. */
-export type ArraySchemaOptions = SchemaOptions & {
-  element: Schema;
-};
+import { Schema } from './schema.js';
+import type { ArraySchemaOptions, ReadFactoryArgs, SchemaOptions } from './types.js';
 
 /**
  * A `pvl.array(element)` as read from source, holding its element's Schema.
@@ -41,7 +38,7 @@ export class ArraySchema extends Schema {
     link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ArraySchema {
-    const element = readNested(Schema.readArgument(link), link.followed);
+    const element = readNested(PvlAst.readArgument(link), link.followed);
     return (options: SchemaOptions): ArraySchema => new ArraySchema({ ...options, element });
   }
 

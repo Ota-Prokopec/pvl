@@ -13,7 +13,7 @@ import {
 } from '@pvl/schema';
 import type { EmittedIssue } from './emitters/types/emittedText.js';
 import { js } from './emitters/utils/js.js';
-import { RuntimeArgument } from './schemas/runtimeArgument/runtimeArgument.js';
+import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
 
 // Stands in for a value only known at runtime while a default message is
 // rendered, so the message's text around it can be split off and spelled in
