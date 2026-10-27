@@ -20,7 +20,7 @@ import type {
   SpellTypesArgs,
 } from './types/hookArgs.js';
 import type { PostModifierCheckTable, ShortCircuitConditionTable } from './types/methodTables.js';
-import type { TransformParts } from './types/schemaParts.js';
+import type { EmittedTransform } from './types/emittedText.js';
 import { emitFunctionCall } from './utils/arguments.js';
 import { emitTransform } from './utils/emittedText.js';
 import { js } from './utils/js.js';
@@ -58,30 +58,25 @@ export class ChainableSchemaEmitter extends Emitter {
   }
 
   /**
-   * `.transform(fn)` → `field0 = this.arg0.call(undefined, field0 as never);`,
-   * which the Frame runs only when nothing failed, behind the count of
-   * Issues taken before `schema`'s checks, named after the value.
+   * `.transform(fn)` → `field0 = this.arg0.call(undefined, field0 as never);`.
    *
    * ```ts
    * StringSchemaEmitter._emitTransform({ schema: <pvl.string().transform(trim)>, target: { value: 'field0', path, issuePath } })
-   * // { issueCount: 'field0IssueCount', statement: 'field0 = this.arg0.call(undefined, field0 as never);' }
+   * // 'field0 = this.arg0.call(undefined, field0 as never);'
    * StringSchemaEmitter._emitTransform({ schema: <pvl.string()>, target }) // undefined
    * ```
    */
   public static override _emitTransform({
     schema,
     target: { value },
-  }: EmitTransformArgs): TransformParts | undefined {
+  }: EmitTransformArgs): EmittedTransform | undefined {
     const transformFunction = schema.getTransformFunction();
     if (transformFunction === undefined) {
       return undefined;
     }
-    return {
-      issueCount: `${value}IssueCount`,
-      statement: emitTransform({
-        statement: js`${value} = ${emitFunctionCall(transformFunction, value)};`,
-      }),
-    };
+    return emitTransform({
+      statement: js`${value} = ${emitFunctionCall(transformFunction, value)};`,
+    });
   }
 
   /**

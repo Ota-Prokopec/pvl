@@ -40,3 +40,5 @@ The emitted output is byte-identical, so the inline snapshots don't change.
 - **The Frame tracks which locals the parts read.** Rejected: `CompositeLocals` would turn back into mutable state, and an object reads its path into `.strict()`'s target whether or not `.strict()` is chained, so every object would declare it.
 - **The Emitter declares `path1` among its own declarations.** Rejected: the Frame's `issueCount1` sits between `path1` and the Emitter's declarations, so the emitted output would change.
 - **Emitters as instances of an abstract class, so `_emitBaseCheck` is `abstract`.** Rejected for now: every Emitter is a class of static methods, which chained-method dispatch reads by name, so instances would change dispatch too, a decision of its own.
+
+> Amended: the Frame also names the Issue counts its Gates compare with, after the value itself (`issueCountBeforeField0Validation`, `issueCountBeforeField0ChildrenValidation`), so neither `.transform()`'s part nor a composite's locals carry one. `_emitTransform` returns the call alone, and `Scope` no longer numbers an `issueCount`.

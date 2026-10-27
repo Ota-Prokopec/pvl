@@ -185,7 +185,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
             } else {
               const path1 = path;
-              const issueCount1 = issues.length;
+              const issueCountBeforeValueChildrenValidation = issues.length;
               const input1 = value as Record<string, unknown>;
 
               // name
@@ -215,7 +215,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               if (field1 !== undefined || Object.hasOwn(input1, "age")) {
                 output1["age"] = field1;
               }
-              if (issues.length === issueCount1) {
+              if (issues.length === issueCountBeforeValueChildrenValidation) {
                 for (const key of Object.keys(input1)) {
                   if (key !== "name" && key !== "age") {
                     issues.push({ code: "UNRECOGNIZED_KEY", message: (this.arg3?.message ?? \`Unrecognized key "\${key}"\`) || "Invalid type", path: [...path1, key] });
@@ -508,7 +508,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             issues.push({ code: "INVALID_TYPE", message: "Expected array", path: path.length > 0 ? path : undefined });
           } else {
             const path1 = path;
-            const issueCount1 = issues.length;
+            const issueCountBeforeValueChildrenValidation = issues.length;
             const output1: unknown[] = [];
             for (let index1 = 0; index1 < value.length; index1++) {
               const element1: unknown = value[index1];
@@ -519,7 +519,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               }
               output1.push(element1);
             }
-            if (issues.length === issueCount1) {
+            if (issues.length === issueCountBeforeValueChildrenValidation) {
               if (output1.length > 3) {
                 issues.push({ code: "TOO_BIG", message: "Array must contain at most 3 element(s)", path: path.length > 0 ? path : undefined });
               }
@@ -553,7 +553,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
           } else {
             const path1 = path;
-            const issueCount1 = issues.length;
+            const issueCountBeforeValueChildrenValidation = issues.length;
             const input1 = value as Record<string, unknown>;
 
             // age
@@ -568,7 +568,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             if (field0 !== undefined || Object.hasOwn(input1, "age")) {
               output1["age"] = field0;
             }
-            if (issues.length === issueCount1) {
+            if (issues.length === issueCountBeforeValueChildrenValidation) {
               for (const key of Object.keys(input1)) {
                 if (key !== "age") {
                   issues.push({ code: "UNRECOGNIZED_KEY", message: \`Unrecognized key "\${key}"\`, path: [...path1, key] });
@@ -637,7 +637,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               issues.push({ code: "INVALID_TYPE", message: "Expected array", path: [...path1, "lines"] });
             } else {
               const path2 = [...path1, "lines"];
-              const issueCount2 = issues.length;
+              const issueCountBeforeField0ChildrenValidation = issues.length;
               const output2: unknown[] = [];
               for (let index2 = 0; index2 < field0.length; index2++) {
                 let element2: unknown = field0[index2];
@@ -645,7 +645,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
                   issues.push({ code: "INVALID_TYPE", message: "Expected object", path: [...path2, index2] });
                 } else {
                   const path3 = [...path2, index2];
-                  const issueCount3 = issues.length;
+                  const issueCountBeforeElement2ChildrenValidation = issues.length;
                   const input3 = element2 as Record<string, unknown>;
 
                   // sku
@@ -656,7 +656,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
                   const output3: Record<string, unknown> = {};
                   output3["sku"] = field1;
-                  if (issues.length === issueCount3) {
+                  if (issues.length === issueCountBeforeElement2ChildrenValidation) {
                     for (const key of Object.keys(input3)) {
                       if (key !== "sku") {
                         issues.push({ code: "UNRECOGNIZED_KEY", message: \`Unrecognized key "\${key}"\`, path: [...path3, key] });
@@ -667,7 +667,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
                 }
                 output2.push(element2);
               }
-              if (issues.length === issueCount2) {
+              if (issues.length === issueCountBeforeField0ChildrenValidation) {
                 if (output2.length < 1) {
                   issues.push({ code: "TOO_SMALL", message: "Array must contain at least 1 element(s)", path: [...path1, "lines"] });
                 }
@@ -961,7 +961,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
         _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
-          const valueIssueCount = issues.length;
+          const issueCountBeforeValueValidation = issues.length;
           if (!((value === undefined))) {
             value = String(value);
             if (typeof value !== "string") {
@@ -972,7 +972,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               }
             }
           }
-          if (issues.length === valueIssueCount) {
+          if (issues.length === issueCountBeforeValueValidation) {
             value = this.arg1.call(undefined, value as never);
           }
           return issues.length > 0 ? { issues } : { value };
@@ -1002,7 +1002,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             issues.push({ code: "INVALID_TYPE", message: "Expected array", path: path.length > 0 ? path : undefined });
           } else {
             const path1 = path;
-            const issueCount1 = issues.length;
+            const issueCountBeforeValueChildrenValidation = issues.length;
             const output1: unknown[] = [];
             for (let index1 = 0; index1 < value.length; index1++) {
               let element1: unknown = value[index1];
@@ -1014,7 +1014,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
               }
               output1.push(element1);
             }
-            if (issues.length === issueCount1) {
+            if (issues.length === issueCountBeforeValueChildrenValidation) {
               if (!this.arg0.call(undefined, output1 as never)) {
                 issues.push({ code: "CUSTOM", message: "Invalid type", path: path.length > 0 ? path : undefined });
               }
@@ -1358,7 +1358,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
         _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
-          const valueIssueCount = issues.length;
+          const issueCountBeforeValueValidation = issues.length;
           if (typeof value !== "object" || value === null || Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected object", path: path.length > 0 ? path : undefined });
           } else {
@@ -1375,7 +1375,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             output1["name"] = field0;
             value = output1;
           }
-          if (issues.length === valueIssueCount) {
+          if (issues.length === issueCountBeforeValueValidation) {
             value = this.arg0.call(undefined, value as never);
           }
           return issues.length > 0 ? { issues } : { value };
@@ -1401,7 +1401,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
 
         _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
           const issues: PvlIssue[] = [];
-          const valueIssueCount = issues.length;
+          const issueCountBeforeValueValidation = issues.length;
           if (!Array.isArray(value)) {
             issues.push({ code: "INVALID_TYPE", message: "Expected array", path: path.length > 0 ? path : undefined });
           } else {
@@ -1416,7 +1416,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
             }
             value = output1;
           }
-          if (issues.length === valueIssueCount) {
+          if (issues.length === issueCountBeforeValueValidation) {
             value = this.arg0.call(undefined, value as never);
           }
           return issues.length > 0 ? { issues } : { value };

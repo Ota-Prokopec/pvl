@@ -25,7 +25,7 @@ import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
 import type { SchemaEmitter } from './schemaEmitter.js';
 import type { CompiledSchema, EmitCompiledSchemaArgs } from './types/compiledSchema.js';
-import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
+import type { EmittedCheck, EmittedCoercion, EmittedTransform } from './types/emittedText.js';
 import type {
   CompilesMethodArgs,
   EmitCoercionArgs,
@@ -43,7 +43,6 @@ import type {
   PreModifierStep,
   SchemaCompositeParts,
   SchemaParts,
-  TransformParts,
 } from './types/schemaParts.js';
 import type { EmittedElementProperty, EmittedShapeProperty } from './types/standaloneProperties.js';
 import { composeCompiledSchema } from './utils/compiledSchema.js';
@@ -303,10 +302,10 @@ export abstract class Emitter {
 
   /**
    * The call of `schema`'s `.transform()` at `target`, which replaces its
-   * value, and the local its gate reads: `undefined` when it has none.
+   * value: `undefined` when it has none.
    * `ChainableSchemaEmitter` has it, as it adds `.transform()`.
    */
-  public static _emitTransform?(args: EmitTransformArgs): TransformParts | undefined;
+  public static _emitTransform?(args: EmitTransformArgs): EmittedTransform | undefined;
 
   /**
    * The TypeScript type of each parameter of `call`, a method chained onto

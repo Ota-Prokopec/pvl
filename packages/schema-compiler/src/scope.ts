@@ -13,7 +13,7 @@ import type { CompositeLocalVariableNames } from './emitters/types/schemaParts.j
  * const scope = new Scope();
  * scope.nextField()           // 'field0'
  * scope.nextField()           // 'field1'
- * scope.nextCompositeLocals() // { input: 'input1', output: 'output1', …, path: 'path1', issueCount: 'issueCount1' }: the first composite's, the root's when it is one
+ * scope.nextCompositeLocals() // { input: 'input1', output: 'output1', …, path: 'path1' }: the first composite's, the root's when it is one
  * ```
  */
 export class Scope {
@@ -33,8 +33,8 @@ export class Scope {
    * its number: `input1`, `path1`, …, then `input2`, `path2`, …
    *
    * ```ts
-   * scope.nextCompositeLocals() // { input: 'input1', output: 'output1', index: 'index1', element: 'element1', path: 'path1', issueCount: 'issueCount1' }
-   * scope.nextCompositeLocals() // { input: 'input2', …, issueCount: 'issueCount2' }
+   * scope.nextCompositeLocals() // { input: 'input1', output: 'output1', index: 'index1', element: 'element1', path: 'path1' }
+   * scope.nextCompositeLocals() // { input: 'input2', …, path: 'path2' }
    * ```
    */
   public nextCompositeLocals(): CompositeLocalVariableNames {
@@ -46,7 +46,6 @@ export class Scope {
       index: `index${suffix}`,
       element: `element${suffix}`,
       path: `path${suffix}`,
-      issueCount: `issueCount${suffix}`,
     };
   }
 }

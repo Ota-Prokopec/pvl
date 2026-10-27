@@ -16,7 +16,12 @@
 import { VENDOR } from '@pvl/schema';
 import { STANDALONE_BRAND_NAME } from '../consts/generatedModule.js';
 import { STANDALONE_MARKER_TYPE_NAME } from './consts.js';
-import { emitNoNewIssuesCondition, emitRootIssuePath } from '../issue.js';
+import {
+  emitIssueCountBeforeValueChildrenValidationName,
+  emitIssueCountBeforeValueValidationName,
+  emitNoNewIssuesCondition,
+  emitRootIssuePath,
+} from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
 import type {
   EmittedCheck,
@@ -226,12 +231,13 @@ export class Frame {
       return guardedChecks;
     }
     // A transform runs after a short-circuit too, but only once nothing failed.
+    const issueCount = emitIssueCountBeforeValueValidationName(target.value);
     return [
-      js`const ${transform.issueCount} = issues.length;`,
+      js`const ${issueCount} = issues.length;`,
       guardedChecks,
       composeBlock({
-        head: `if (${emitNoNewIssuesCondition(transform.issueCount)})`,
-        body: transform.statement,
+        head: `if (${emitNoNewIssuesCondition(issueCount)})`,
+        body: transform,
       }),
     ].join('\n');
   }
@@ -496,10 +502,11 @@ export class Frame {
    *
    * A post-modifier runs only once the type check has (ADR-0010), and a
    * composite's type check includes its children, so a composite's
-   * post-modifiers run inside `if (issues.length === issueCount1)`: an
-   * unchanged Issue count means no child added an Issue. It compares with
-   * the count taken before the children, which is declared here, along with
-   * the gate, as one `issues` array may already hold the parent's Issues.
+   * post-modifiers are gated on the count of Issues taken before its
+   * children (`if (issues.length === issueCountBeforeField0ChildrenValidation)`):
+   * an unchanged count means no child added an Issue. The count is named
+   * after the composite's value and declared here, along with the Gate, as
+   * one `issues` array may already hold the parent's Issues.
    * The path local is there to report Issues under the composite, and only
    * checks push Issues, never a declaration or an output statement, so it
    * is declared when the composite has any: its children's, whose paths
@@ -509,7 +516,7 @@ export class Frame {
    *
    * ```ts
    * Frame.composeCompositeStatements({ target: <field0 at [...path1, "tags"]>, postModifierChecks: ['if (field0.length < 1) { … }'], composite: <the composite parts of pvl.array(pvl.string()) at field0, locals ending in 2> })
-   * // ['const path2 = [...path1, "tags"];', 'const issueCount2 = issues.length;', 'const output2: unknown[] = [];', 'for (…) { … }', 'if (issues.length === issueCount2) {\n  if (output2.length < 1) { … }\n}', 'field0 = output2;']
+   * // ['const path2 = [...path1, "tags"];', 'const issueCountBeforeField0ChildrenValidation = issues.length;', 'const output2: unknown[] = [];', 'for (…) { … }', 'if (issues.length === issueCountBeforeField0ChildrenValidation) {\n  if (output2.length < 1) { … }\n}', 'field0 = output2;']
    * Frame.composeCompositeStatements({ target: Frame.rootCheckingTarget, postModifierChecks: [], composite: <the composite parts of pvl.object({}) at the root, locals ending in 1> })
    * // ['const input1 = value as Record<string, unknown>;', '', 'const output1: Record<string, unknown> = {};', 'value = output1;']
    * ```
@@ -521,9 +528,10 @@ export class Frame {
   }: ComposeCompositeStatementsArgs): string[] {
     const hasPostModifierChecks = postModifierChecks.length > 0;
     const readsPath = childChecks.length > 0 || hasPostModifierChecks;
+    const issueCount = emitIssueCountBeforeValueChildrenValidationName(target.value);
     return [
       ...(readsPath ? [js`const ${locals.path} = ${target.path};`] : []),
-      ...(hasPostModifierChecks ? [js`const ${locals.issueCount} = issues.length;`] : []),
+      ...(hasPostModifierChecks ? [js`const ${issueCount} = issues.length;`] : []),
       ...declarations,
       ...(setsChildrenApart
         ? ['', ...childChecks.flatMap((childCheck) => [childCheck, ''])]
@@ -532,7 +540,7 @@ export class Frame {
       ...(hasPostModifierChecks
         ? [
             composeBlock({
-              head: `if (${emitNoNewIssuesCondition(locals.issueCount)})`,
+              head: `if (${emitNoNewIssuesCondition(issueCount)})`,
               body: postModifierChecks.join('\n'),
             }),
           ]

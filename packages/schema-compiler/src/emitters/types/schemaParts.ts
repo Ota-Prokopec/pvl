@@ -31,8 +31,6 @@ export type CompositeLocalVariableNames = {
   element: string;
   /** Its path, which its children's paths extend: `path1`. */
   path: string;
-  /** The count of Issues taken before its children, which its post-modifiers are gated behind: `issueCount1`. */
-  issueCount: string;
 };
 
 /**
@@ -78,24 +76,8 @@ export type SchemaParts = {
   postModifierChecks: EmittedCheck[];
   /** What a composite adds; `undefined` for any other Schema. */
   composite?: SchemaCompositeParts;
-  /** Its `.transform()`, which runs once every other check has, unless one of them reported an Issue, and after a short-circuit too; `undefined` when it has none. */
-  transform?: TransformParts;
-};
-
-/**
- * A Schema's `.transform()`, which replaces its value once its checks have
- * run, and the local holding the count of Issues taken before them, which
- * it is gated behind. A chain holds at most one, always last.
- *
- * ```ts
- * <the transform of pvl.string().transform(trim) at field0>
- * // { issueCount: 'field0IssueCount', statement: 'field0 = this.arg0.call(undefined, field0 as never);' }
- * ```
- */
-export type TransformParts = {
-  /** The count of Issues taken before its checks: `field0IssueCount`. */
-  issueCount: string;
-  statement: EmittedTransform;
+  /** Its `.transform()`'s call, which replaces its value once its checks have run, and which its Frame gates; `undefined` when it has none. A chain holds at most one, always last. */
+  transform?: EmittedTransform;
 };
 
 /** A Modifier method input: what an emitter method reads, the value it checks and its paths, each as an expression. Every Schema is checked at one: the root at `Frame.rootCheckingTarget`, a nested one at the target its parent builds from its own locals (`CompositeLocalVariableNames`). */

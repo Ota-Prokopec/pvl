@@ -2,8 +2,9 @@
 // pushes onto `issues`, its message as a literal, as the field a Compiled
 // Schema's constructor builds a message naming a Runtime Argument into, or as
 // a template literal built around the default message's text, the Issue path
-// of an Issue at the root, and the condition a `Frame` gates a composite's
-// post-modifiers behind.
+// of an Issue at the root, and the Gates a `Frame` places: the names of the
+// Issue counts they compare with, and their condition.
+import { upperFirst } from 'lodash-es';
 import {
   replaceEmptyIssueMessage,
   type CheckOptions,
@@ -177,12 +178,38 @@ export const emitRootIssuePath = (pathVariableName: string): string => {
 };
 
 /**
- * The condition under which no Issue was added since `issueCount`, the
- * local holding the count of Issues taken before a composite's children:
- * every child passed.
+ * The name of the local holding the count of Issues taken before `value`'s
+ * validation, which its transform's Gate compares with. It is named after
+ * the value, which is unique in its Compiled Schema, so no two clash.
  *
  * ```ts
- * emitNoNewIssuesCondition('issueCount1') // 'issues.length === issueCount1'
+ * emitIssueCountBeforeValueValidationName('field0') // 'issueCountBeforeField0Validation'
+ * ```
+ */
+export const emitIssueCountBeforeValueValidationName = (value: string): string => {
+  return js`issueCountBefore${upperFirst(value)}Validation`;
+};
+
+/**
+ * The name of the local holding the count of Issues taken before the
+ * validation of `value`'s children, which its post-modifiers' Gate compares
+ * with. It is named after the composite's value, as its transform's is,
+ * with a suffix of its own, so the two never clash.
+ *
+ * ```ts
+ * emitIssueCountBeforeValueChildrenValidationName('field0') // 'issueCountBeforeField0ChildrenValidation'
+ * ```
+ */
+export const emitIssueCountBeforeValueChildrenValidationName = (value: string): string => {
+  return js`issueCountBefore${upperFirst(value)}ChildrenValidation`;
+};
+
+/**
+ * A Gate's condition: no Issue was added since the count of Issues held in
+ * `issueCountVariableName` was taken.
+ *
+ * ```ts
+ * emitNoNewIssuesCondition('issueCountBeforeField0Validation') // 'issues.length === issueCountBeforeField0Validation'
  * ```
  */
 export const emitNoNewIssuesCondition = (issueCountVariableName: string): string => {
