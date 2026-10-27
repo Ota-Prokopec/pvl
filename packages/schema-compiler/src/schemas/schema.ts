@@ -21,7 +21,7 @@ import { PRE_MODIFIER_NAMES } from './consts.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module.js';
-import { RuntimeArgument } from './runtimeArgument.js';
+import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
 import type { SchemaModifierCall } from './schemaTypes.js';
 
 /** What a Schema is compiled with: its class's name, and where its `pvl.compile(...)` call is (see `EmitCompiledSchemaArgs`), always at the root. */

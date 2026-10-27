@@ -26,7 +26,7 @@ import { EnumSchema } from './enumSchema.js';
 import { LiteralSchema } from './literalSchema.js';
 import { NumberSchema } from './numberSchema.js';
 import { ObjectSchema } from './objectSchema.js';
-import { RuntimeArgument } from './runtimeArgument.js';
+import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
 import type { ReadFactoryArgs, Schema, SchemaOptions } from './schema.js';
 import type { SchemaModifierCall, SchemaModifierCallArgument } from './schemaTypes.js';
 import { StringSchema } from './stringSchema.js';

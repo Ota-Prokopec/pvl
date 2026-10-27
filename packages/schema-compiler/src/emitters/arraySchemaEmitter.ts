@@ -23,7 +23,7 @@ import type {
   CompositeLocalVariableNames,
   SchemaCompositeParts,
 } from './types/schemaParts.js';
-import type { EmittedElementProperty } from './types/standaloneProperties.js';
+import type { EmittedStandaloneProperty } from './types/standaloneProperties.js';
 import { emitArgument } from './utils/arguments.js';
 import { emitCheck, emitTypeCheck, emitVariableDeclaration } from './utils/emittedText.js';
 import { composeBlock, js } from './utils/js.js';
@@ -222,13 +222,13 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
    * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0' })
    * // undefined
    * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0' })
-   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' } }
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }
    * ```
    */
   protected static override _emitElementProperty({
     schema: { element },
     className,
-  }: EmitElementPropertyArgs<ArraySchema>): EmittedElementProperty | undefined {
+  }: EmitElementPropertyArgs<ArraySchema>): EmittedStandaloneProperty | undefined {
     if (!element.isStandalone) {
       return undefined;
     }
@@ -238,11 +238,9 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     });
     return {
       type: js`{ readonly element: ${elementSchema.type} }`,
-      composed: {
-        declaration: js`readonly element: ${elementSchema.type};`,
-        // A plain template: `js` would strip the multi-line class's indentation.
-        statement: `this.element = ${elementSchema.expression};`,
-      },
+      declaration: js`readonly element: ${elementSchema.type};`,
+      // A plain template: `js` would strip the multi-line class's indentation.
+      statement: `this.element = ${elementSchema.expression};`,
     };
   }
 }

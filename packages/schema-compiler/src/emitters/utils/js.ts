@@ -1,7 +1,9 @@
 // How emitted text is templated and indented. A fragment of a fixed shape,
 // whose slots each hold a one-line expression, is written in a `js`
 // template, as `js` would misindent a multi-line one; a block wrapping any
-// statements is written with `composeBlock`, which indents them.
+// statements is written with `composeBlock`, which indents them; and a
+// multi-line expression written on an indented line is lined up with it by
+// `indentContinuationLines`.
 import dedent from 'dedent';
 
 /**
@@ -18,6 +20,21 @@ import dedent from 'dedent';
  * ```
  */
 export const js = dedent.withOptions({ escapeSpecialCharacters: false });
+
+/**
+ * `text` with every line indented by `indentation`. An empty line stays
+ * empty, so no line ends in whitespace.
+ *
+ * ```ts
+ * indentLines('run();\n\nstop();', '  ') // '  run();\n\n  stop();'
+ * ```
+ */
+const indentLines = (text: string, indentation: string): string => {
+  return text
+    .split('\n')
+    .map((line) => (line === '' ? line : `${indentation}${line}`))
+    .join('\n');
+};
 
 /** What {@link composeBlock} writes a block from: what precedes its braces, and the statements they wrap. */
 type ComposeBlockArgs = {
@@ -37,9 +54,22 @@ type ComposeBlockArgs = {
  * ```
  */
 export const composeBlock = ({ head, body }: ComposeBlockArgs): string => {
-  const indentedBody = body
-    .split('\n')
-    .map((line) => (line === '' ? line : `  ${line}`))
-    .join('\n');
-  return `${head} {\n${indentedBody}\n}`;
+  return `${head} {\n${indentLines(body, '  ')}\n}`;
+};
+
+/**
+ * `text` with every line after its first indented by `indentation`, so a
+ * multi-line expression written where a line is indented lines up with it.
+ * An empty line stays empty.
+ *
+ * ```ts
+ * indentContinuationLines('class A {\n  m() {}\n}', '    ') // 'class A {\n      m() {}\n    }'
+ * indentContinuationLines('a', '    ')                      // 'a'
+ * ```
+ */
+export const indentContinuationLines = (text: string, indentation: string): string => {
+  const firstLineBreakIndex = text.indexOf('\n');
+  return firstLineBreakIndex === -1
+    ? text
+    : `${text.slice(0, firstLineBreakIndex + 1)}${indentLines(text.slice(firstLineBreakIndex + 1), indentation)}`;
 };

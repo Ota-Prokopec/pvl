@@ -2,7 +2,7 @@
 // emitter method reads: the Schema it is chained onto, its targets, its
 // composite's locals, and the arguments of the method it mirrors, each read
 // as written or a Runtime Argument.
-import type { RuntimeArgument } from '../../schemas/runtimeArgument.js';
+import type { RuntimeArgument } from '../../schemas/runtimeArgument/runtimeArgument.js';
 import type { Schema } from '../../schemas/schema.js';
 import type {
   CheckingTarget,

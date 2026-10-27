@@ -43,8 +43,8 @@ import type {
   SchemaCompositeParts,
   SchemaParts,
 } from './types/schemaParts.js';
-import type { EmittedElementProperty, EmittedShapeProperty } from './types/standaloneProperties.js';
-import { composeCompiledSchema } from './utils/compiledSchema.js';
+import type { EmittedStandaloneProperty } from './types/standaloneProperties.js';
+import { RuntimeArgument } from '../schemas/runtimeArgument/runtimeArgument.js';
 import { js } from './utils/js.js';
 import { emitMethodCall } from './utils/methodCall.js';
 
@@ -205,12 +205,12 @@ export abstract class Emitter {
    * ```ts
    * StringSchemaEmitter._emitShapeProperty // undefined: nothing to expose
    * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ age: pvl.number() })>, … })
-   * // { type: '{ readonly shape: {} }', composed: { declaration: 'readonly shape: {} = {};', statement: undefined } }
+   * // { type: '{ readonly shape: {} }', declaration: 'readonly shape: {} = {};', statement: undefined }
    * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ name: pvl.string().standalone() })>, className: 'PvlCompiledSchema0' })
-   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', composed: { declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' } }
+   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' }
    * ```
    */
-  protected static _emitShapeProperty?(args: EmitShapePropertyArgs): EmittedShapeProperty;
+  protected static _emitShapeProperty?(args: EmitShapePropertyArgs): EmittedStandaloneProperty;
 
   /**
    * What a compiled array exposes besides validating, its `element`: the
@@ -224,12 +224,12 @@ export abstract class Emitter {
    * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0' })
    * // undefined
    * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0' })
-   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', composed: { declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' } }
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }
    * ```
    */
   protected static _emitElementProperty?(
     args: EmitElementPropertyArgs,
-  ): EmittedElementProperty | undefined;
+  ): EmittedStandaloneProperty | undefined;
 
   /**
    * The parts of `schema.preModifierCalls` at `target`, in chain order, each
@@ -388,14 +388,15 @@ export abstract class Emitter {
    * nested Schema is checked where its parent reads it, then returns the
    * Issues, or the value its checks accepted. Its `Input` and `Output` types
    * are spelled here, its parts are emitted at `Frame.rootCheckingTarget`,
-   * and `composeCompiledSchema` has the Frame compose the expression from
-   * them. A composite's also exposes its `shape` or marked
-   * `element` (`_emitShapeProperty`, `_emitElementProperty`, ADR-0036,
-   * ADR-0039).
+   * and the Frame composes the expression from them, with its Runtime
+   * Arguments (`RuntimeArgument.getArgumentParameters`). A composite's also
+   * exposes its `shape` or marked `element` (`_emitShapeProperty`,
+   * `_emitElementProperty`, ADR-0036, ADR-0039).
    *
    * At the root, its Runtime Arguments are passed in the order they are
    * written, each as written or by the name of the `const` it is hoisted
-   * into (`hoistedNameByExpression`), and the class's lines after its
+   * into (`hoistedNameByExpression`), the class is generic in the type
+   * parameter of each `.transform()`'s output, and its lines after its
    * first are indented by `indentation`.
    *
    * ```ts
@@ -423,14 +424,16 @@ export abstract class Emitter {
    */
   public static emitCompiledSchema(
     this: SchemaEmitter,
-    args: EmitCompiledSchemaArgs,
+    { schema, className, indentation, hoistedNameByExpression }: EmitCompiledSchemaArgs,
   ): CompiledSchema {
-    const { schema, className } = args;
-    return composeCompiledSchema({
-      ...args,
+    return Frame.composeSchema({
+      className,
       types: this._spellTypes({ schema }),
+      isStandalone: schema.isStandalone,
+      indentation,
+      runtimeArguments: RuntimeArgument.getArgumentParameters({ schema, hoistedNameByExpression }),
       // A transformed Schema exposes neither, as its value needn't have them (ADR-0016).
-      shapeOrElementProperty:
+      standaloneProperty:
         schema.getTransformFunction() === undefined
           ? (this._emitShapeProperty?.({ schema, className }) ??
             this._emitElementProperty?.({ schema, className }))

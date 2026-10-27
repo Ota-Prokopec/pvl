@@ -12,7 +12,7 @@ import {
   type ObjectInterpretedSchema,
 } from '@pvl/schema';
 import type { ObjectField, ObjectSchema } from '../schemas/objectSchema.js';
-import type { RuntimeArgument } from '../schemas/runtimeArgument.js';
+import type { RuntimeArgument } from '../schemas/runtimeArgument/runtimeArgument.js';
 import type { SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
 import type { EmittedCheck, EmittedIssue, EmittedOutputStatement } from './types/emittedText.js';
@@ -31,7 +31,7 @@ import type {
   EmittedPostModifierStep,
   SchemaCompositeParts,
 } from './types/schemaParts.js';
-import type { EmittedShapeProperty } from './types/standaloneProperties.js';
+import type { EmittedStandaloneProperty } from './types/standaloneProperties.js';
 import {
   emitCheck,
   emitOutputStatement,
@@ -459,15 +459,15 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
    *
    * ```ts
    * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ name: pvl.string().standalone(), age: pvl.number() })>, className: 'PvlCompiledSchema0' })
-   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', composed: { declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' } }
+   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' }
    * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ age: pvl.number() })>, … })
-   * // { type: '{ readonly shape: {} }', composed: { declaration: 'readonly shape: {} = {};', statement: undefined } }
+   * // { type: '{ readonly shape: {} }', declaration: 'readonly shape: {} = {};', statement: undefined }
    * ```
    */
   protected static override _emitShapeProperty({
     schema,
     className,
-  }: EmitShapePropertyArgs<ObjectSchema>): EmittedShapeProperty {
+  }: EmitShapePropertyArgs<ObjectSchema>): EmittedStandaloneProperty {
     const standaloneKeys = schema.shape.flatMap(({ key, schema: fieldSchema }, index) =>
       fieldSchema.isStandalone
         ? [
@@ -484,25 +484,24 @@ export class ObjectSchemaEmitter extends ChainableSchemaEmitter {
     if (standaloneKeys.length === 0) {
       return {
         type: '{ readonly shape: {} }',
-        composed: { declaration: 'readonly shape: {} = {};', statement: undefined },
+        declaration: 'readonly shape: {} = {};',
+        statement: undefined,
       };
     }
     const shapeType = js`{ ${standaloneKeys.map(({ key, type }) => js`readonly ${formatKey(key)}: ${type}`).join('; ')} }`;
     return {
       type: js`{ readonly shape: ${shapeType} }`,
-      composed: {
-        declaration: js`readonly shape: ${shapeType};`,
-        statement: `${composeBlock({
-          head: 'this.shape =',
-          body: standaloneKeys
-            .map(({ key, expression }) => {
-              const keyLiteral = JSON.stringify(key);
-              // A plain template: `js` would strip the multi-line class's indentation.
-              return `${key === '__proto__' ? `[${keyLiteral}]` : keyLiteral}: ${expression},`;
-            })
-            .join('\n'),
-        })};`,
-      },
+      declaration: js`readonly shape: ${shapeType};`,
+      statement: `${composeBlock({
+        head: 'this.shape =',
+        body: standaloneKeys
+          .map(({ key, expression }) => {
+            const keyLiteral = JSON.stringify(key);
+            // A plain template: `js` would strip the multi-line class's indentation.
+            return `${key === '__proto__' ? `[${keyLiteral}]` : keyLiteral}: ${expression},`;
+          })
+          .join('\n'),
+      })};`,
     };
   }
 }

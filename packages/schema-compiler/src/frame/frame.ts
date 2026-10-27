@@ -12,60 +12,33 @@
 // Frame writes no check of its own, only the JavaScript fragments it places:
 // a composite's path and Issue-count locals, the gate behind them
 // (`../issue.ts`), the pre-modifiers' guards, the transform's gate, and the
-// handoff of its output.
+// handoff of its output. The helpers reading nothing of the Frame itself
+// are in `./utils.ts`.
 import { VENDOR } from '@pvl/schema';
 import { STANDALONE_BRAND_NAME } from '../consts/generatedModule.js';
-import { STANDALONE_MARKER_TYPE_NAME } from './consts.js';
 import {
-  emitIssueCountBeforeValueChildrenValidationName,
+  STANDALONE_MARKER_TYPE_NAME,
+  VALIDATE_PARAMETERS,
+  VALIDATE_PATH_PARAMETER_NAME,
+  VALIDATE_RETURN_STATEMENT,
+  VALIDATE_VALUE_PARAMETER_NAME,
+} from './consts.js';
+import {
+  composeCompositeStatements,
+  groupPreModifierSteps,
+  spellCompiledSchemaType,
+} from './utils.js';
+import {
   emitIssueCountBeforeValueValidationName,
   emitNoNewIssuesCondition,
   emitRootIssuePath,
 } from '../issue.js';
 import type { SchemaTypes } from '../schemas/schemaTypes.js';
-import type {
-  EmittedCheck,
-  EmittedCoercion,
-  EmittedShortCircuitCondition,
-} from '../emitters/types/emittedText.js';
-import type {
-  CheckingTarget,
-  EmittedPreModifierStep,
-  SchemaCompositeParts,
-  SchemaParts,
-} from '../emitters/types/schemaParts.js';
-import { composeBlock, js } from '../emitters/utils/js.js';
-
-/** A Runtime Argument as its Compiled Schema's constructor takes it. */
-export type RuntimeArgumentParameter = {
-  /** The field holding its value, which the checks read: `arg0`. */
-  fieldName: string;
-  /** The type of the parameter it is passed as: `number`. */
-  type: string;
-  /** What is passed for it where the `pvl.compile(...)` call was: the argument as written, or the hoisted `const` holding it. */
-  passedExpression: string;
-  /** The field holding the default message naming it, which the constructor builds once: its name (`arg0Message`) and the message's expression, in terms of the parameter. `undefined` when no default message names it. */
-  messageField: { fieldName: string; expression: string } | undefined;
-  /** The type parameter its type names, which the root's class is generic in: `TArg0Output` for a `.transform()`'s function, `undefined` otherwise. */
-  typeParameter: string | undefined;
-};
-
-/** How a Compiled Schema's class holds its `shape` or `element`, when its constructor builds it. */
-export type ComposedShapeOrElement = {
-  /** The field declaring it: `readonly shape: { … };`. */
-  declaration: string;
-  /** The constructor's statement building it, `undefined` when the declaration initializes it. */
-  statement: string | undefined;
-};
-
-/** What {@link Frame.spellCompiledSchemaType} spells a Compiled Schema's type from. */
-export type SpellCompiledSchemaTypeArgs = {
-  types: SchemaTypes;
-  /** Whether it is marked `.standalone()`. */
-  isStandalone: boolean;
-  /** The type of its `shape` or `element`, as it exposes it: `{ readonly shape: {} }`. */
-  shapeOrElementType: string | undefined;
-};
+import type { RuntimeArgumentParameter } from '../schemas/runtimeArgument/types.js';
+import type { CompiledSchema } from '../emitters/types/compiledSchema.js';
+import type { CheckingTarget, SchemaParts } from '../emitters/types/schemaParts.js';
+import type { EmittedStandaloneProperty } from '../emitters/types/standaloneProperties.js';
+import { composeBlock, indentContinuationLines, js } from '../emitters/utils/js.js';
 
 /** What {@link Frame.composeChecks} composes: one Schema's parts, emitted at its target. */
 export type ComposeChecksArgs = {
@@ -79,59 +52,23 @@ export type ComposeSchemaArgs = {
   className: string;
   /** The Schema's `Input` and `Output` types, the `PvlSchema` type arguments the class implements. */
   types: SchemaTypes;
-  /** The type it is cast up to, `PvlSchema<…>` with its marker and its `shape` or `element` (`Frame.spellCompiledSchemaType`). */
-  compiledSchemaType: string;
-  /** Whether it is marked `.standalone()`, which its `_standalone` reports. */
+  /** Whether it is marked `.standalone()`, which its `_standalone` reports and its type carries the Standalone marker for. */
   isStandalone: boolean;
-  /** The type parameters it is generic in, which its `types` and its Runtime Arguments' may name: `.transform()`'s output, `TArg0Output`. Only a root's: a nested class is written inside the root, where they are in scope. */
-  typeParameters: ReadonlyArray<string>;
   /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
   indentation: string;
-  /** Its Runtime Arguments, in the order its constructor takes them. */
+  /** Its Runtime Arguments, in the order its constructor takes them. The class is generic in the type parameters they name (`.transform()`'s output, `TArg0Output`), which only a root's do: a nested class is written inside the root, where they are in scope. */
   runtimeArguments: ReadonlyArray<RuntimeArgumentParameter>;
-  /** How it holds its `shape` or `element`, `undefined` when it has neither. */
-  composedShapeOrElement: ComposedShapeOrElement | undefined;
+  /** Its `shape` or marked `element`, `undefined` when it exposes neither. */
+  standaloneProperty: EmittedStandaloneProperty | undefined;
   /** The Schema's parts, emitted at `Frame.rootCheckingTarget`. */
   parts: SchemaParts;
 };
-
-/** What {@link Frame.groupPreModifierSteps} groups: a Schema's pre-modifiers' parts. */
-export type GroupPreModifierStepsArgs = {
-  steps: ReadonlyArray<EmittedPreModifierStep>;
-};
-
-/** A Schema's pre-modifier step as grouped: a conversion, which replaces the value before what follows it, or the conditions chained one after another, whose one guard what follows runs behind. */
-export type GroupedPreModifierStep =
-  { coercion: EmittedCoercion } | { conditions: EmittedShortCircuitCondition[] };
 
 /** What {@link Frame.createNestedCheckingTarget} creates a nested Schema's target from: its value and its path, as expressions. */
 export type CreateNestedCheckingTargetArgs = {
   value: string;
   path: string;
 };
-
-/** What {@link Frame.composeCompositeStatements} composes: a composite's parts, besides its base check and its pre-modifiers' parts, at its target. */
-export type ComposeCompositeStatementsArgs = {
-  target: CheckingTarget;
-  postModifierChecks: ReadonlyArray<EmittedCheck>;
-  composite: SchemaCompositeParts;
-};
-
-// The names of a Compiled Schema's `_validate` parameters, which the root is
-// checked at: the value, and the path its Issues are reported at.
-const VALIDATE_VALUE_PARAMETER_NAME = 'value' as const;
-const VALIDATE_PATH_PARAMETER_NAME = 'path' as const;
-
-// `_validate`'s parameter list, as the `Schema` type declares it.
-const VALIDATE_PARAMETERS =
-  `${VALIDATE_VALUE_PARAMETER_NAME}: unknown, ${VALIDATE_PATH_PARAMETER_NAME}: ReadonlyArray<PropertyKey>` as const;
-
-// `_validate`'s closing return, its Result: the Issues its checks collected,
-// when there are any, or else its value parameter, which a composite's checks
-// replaced with the output they built. The shorthand names the Result's
-// `value` key after that parameter.
-const VALIDATE_RETURN_STATEMENT =
-  `return issues.length > 0 ? { issues } : { ${VALIDATE_VALUE_PARAMETER_NAME} };` as const;
 
 /**
  * Where a Schema's checks are composed: pure functions of the parts its
@@ -207,7 +144,7 @@ export class Frame {
     const statements =
       composite === undefined
         ? postModifierChecks
-        : Frame.composeCompositeStatements({ target, postModifierChecks, composite });
+        : composeCompositeStatements({ target, postModifierChecks, composite });
 
     const checks =
       statements.length === 0
@@ -217,7 +154,7 @@ export class Frame {
             body: statements.join('\n'),
           });
 
-    const guardedChecks = Frame.groupPreModifierSteps({ steps: preModifierSteps }).reduceRight(
+    const guardedChecks = groupPreModifierSteps({ steps: preModifierSteps }).reduceRight(
       (body, step) =>
         'coercion' in step
           ? [step.coercion, body].join('\n')
@@ -263,75 +200,15 @@ export class Frame {
   }
 
   /**
-   * `steps`, a Schema's pre-modifiers' parts, in chain order, as ADR-0010
-   * runs them: a conversion replaces the value before what follows it, and
-   * conditions chained one after another are grouped, to share one guard,
-   * as any one of them holding skips the rest. `composeChecks` wraps the
-   * checks in them.
-   *
-   * ```ts
-   * Frame.groupPreModifierSteps({ steps: [{ shortCircuitCondition: 'field0 === null' }, { shortCircuitCondition: 'field0 === undefined' }] })
-   * // [{ conditions: ['field0 === null', 'field0 === undefined'] }]
-   * Frame.groupPreModifierSteps({ steps: [{ coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }] })
-   * // [{ coercion: 'field0 = String(field0);' }, { conditions: ['field0 === undefined'] }]
-   * ```
-   */
-  private static groupPreModifierSteps({
-    steps,
-  }: GroupPreModifierStepsArgs): GroupedPreModifierStep[] {
-    const [step] = steps;
-    if (step === undefined) {
-      return [];
-    }
-    if ('coercion' in step) {
-      return [step, ...Frame.groupPreModifierSteps({ steps: steps.slice(1) })];
-    }
-    const coercionIndex = steps.findIndex((nextStep) => 'coercion' in nextStep);
-    const conditionCount = coercionIndex === -1 ? steps.length : coercionIndex;
-    const conditions = steps
-      .slice(0, conditionCount)
-      .flatMap((conditionStep) =>
-        'shortCircuitCondition' in conditionStep ? [conditionStep.shortCircuitCondition] : [],
-      );
-    return [{ conditions }, ...Frame.groupPreModifierSteps({ steps: steps.slice(conditionCount) })];
-  }
-
-  /**
-   * The type a Compiled Schema is cast up to, as `pvl.compile()` types it:
-   * `PvlSchema` of its types, with the Standalone marker when it is marked,
-   * and its `shape` or `element` when it has one.
-   *
-   * ```ts
-   * Frame.spellCompiledSchemaType({ types: <string, string>, isStandalone: true, shapeOrElementType: undefined })
-   * // 'PvlSchema<string, string> & PvlStandaloneMarker'
-   * Frame.spellCompiledSchemaType({ types: <{ name: string }, { name: string }>, isStandalone: false, shapeOrElementType: '{ readonly shape: {} }' })
-   * // 'PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} }'
-   * ```
-   */
-  public static spellCompiledSchemaType({
-    types: {
-      input: { text: input },
-      output: { text: output },
-    },
-    isStandalone,
-    shapeOrElementType,
-  }: SpellCompiledSchemaTypeArgs): string {
-    return [
-      `PvlSchema<${input}, ${output}>`,
-      ...(isStandalone ? [STANDALONE_MARKER_TYPE_NAME] : []),
-      ...(shapeOrElementType === undefined ? [] : [shapeOrElementType]),
-    ].join(' & ');
-  }
-
-  /**
-   * The Compiled Schema, as the expression its `pvl.compile(...)` call is
-   * replaced by: an instance of a class expression implementing `PvlSchema`
-   * (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to `compiledSchemaType`, so it
-   * types as `pvl.compile()` does. Its constructor, when it has Runtime
-   * Arguments, takes each one's value, which is passed where the call was,
-   * evaluated there once (ADR-0030), and builds each default message naming
-   * one into a field of its own, once. It then builds its `shape` or
-   * marked `element` (ADR-0036, ADR-0039). Its
+   * The Compiled Schema: the expression its `pvl.compile(...)` call is
+   * replaced by, and the type it is cast up to (`spellCompiledSchemaType`).
+   * The expression is an instance of a class expression implementing
+   * `PvlSchema` (see `COMPILED_SCHEMA_IMPORT`) on its own, cast up to that
+   * type, so it types as `pvl.compile()` does. Its constructor, when it has
+   * Runtime Arguments, takes each one's value, which is passed where the
+   * call was, evaluated there once (ADR-0030), and builds each default
+   * message naming one into a field of its own, once. It then builds its
+   * `shape` or marked `element` (ADR-0036, ADR-0039). Its
    * `_validate` collects its Issues, runs the checks `composeChecks`
    * composes from `parts` at `Frame.rootCheckingTarget`, and then returns
    * its Result, and its `validate` and `"~standard"` call it. Its
@@ -340,7 +217,8 @@ export class Frame {
    * argument is written as it is.
    *
    * ```ts
-   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, compiledSchemaType: 'PvlSchema<string, string>', isStandalone: false, typeParameters: [], indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }], shapeOrElement: undefined, parts: <the parts of pvl.string().max(max) at the root> })
+   * Frame.composeSchema({ className: 'PvlCompiledSchema0', types: { input: { text: 'string', undefinedness: 'NEVER' }, output: <the same> }, isStandalone: false, indentation: '', runtimeArguments: [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }], standaloneProperty: undefined, parts: <the parts of pvl.string().max(max) at the root> })
+   * // { type: 'PvlSchema<string, string>', expression:
    * // (new (class PvlCompiledSchema0 implements PvlSchema<string, string> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
    * //   readonly _standalone: boolean = false;
@@ -368,7 +246,7 @@ export class Frame {
    * //   standalone(): this & PvlStandaloneMarker {
    * //     return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
    * //   }
-   * // })(max) as PvlSchema<string, string>)
+   * // })(max) as PvlSchema<string, string>) }
    * ```
    */
   // The cast is an upcast, as the class implements `PvlSchema`: it keeps the
@@ -383,27 +261,29 @@ export class Frame {
   // is no unused private member.
   public static composeSchema({
     className,
-    types: {
-      input: { text: input },
-      output: { text: output },
-    },
-    compiledSchemaType,
+    types,
     isStandalone,
-    typeParameters,
     indentation,
     runtimeArguments,
-    composedShapeOrElement,
+    standaloneProperty,
     parts,
-  }: ComposeSchemaArgs): string {
+  }: ComposeSchemaArgs): CompiledSchema {
+    const {
+      input: { text: input },
+      output: { text: output },
+    } = types;
+    const compiledSchemaType = spellCompiledSchemaType({
+      types,
+      isStandalone,
+      shapeOrElementType: standaloneProperty?.type,
+    });
     const messageFields = runtimeArguments.flatMap(({ messageField }) =>
       messageField === undefined ? [] : [messageField],
     );
     const constructorHead = `constructor(${runtimeArguments.map(({ fieldName, type }) => `readonly ${fieldName}: ${type}`).join(', ')})`;
     const constructorStatements = [
       ...messageFields.map(({ fieldName, expression }) => `this.${fieldName} = ${expression};`),
-      ...(composedShapeOrElement?.statement === undefined
-        ? []
-        : [composedShapeOrElement.statement]),
+      ...(standaloneProperty?.statement === undefined ? [] : [standaloneProperty.statement]),
     ];
 
     const members = [
@@ -414,7 +294,7 @@ export class Frame {
         ...(isStandalone ? [`declare readonly [${STANDALONE_BRAND_NAME}]: true;`] : []),
         `readonly _standalone: boolean = ${String(isStandalone)};`,
       ].join('\n'),
-      ...(composedShapeOrElement === undefined ? [] : [composedShapeOrElement.declaration]),
+      ...(standaloneProperty === undefined ? [] : [standaloneProperty.declaration]),
       ...(messageFields.length > 0
         ? [messageFields.map(({ fieldName }) => `readonly ${fieldName}: string;`).join('\n')]
         : []),
@@ -447,7 +327,7 @@ export class Frame {
         body: `return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & ${STANDALONE_MARKER_TYPE_NAME};`,
       }),
     ];
-    const classExpression = Frame.indentContinuationLines(
+    const classExpression = indentContinuationLines(
       composeBlock({
         head: `class ${className} implements PvlSchema<${input}, ${output}>`,
         body: members.join('\n\n'),
@@ -457,9 +337,16 @@ export class Frame {
     const passedExpressions = runtimeArguments
       .map(({ passedExpression }) => passedExpression)
       .join(', ');
+    // In the order their Runtime Arguments are numbered.
+    const typeParameters = runtimeArguments.flatMap(({ typeParameter }) =>
+      typeParameter === undefined ? [] : [typeParameter],
+    );
 
     if (typeParameters.length === 0) {
-      return `(new (${classExpression})(${passedExpressions}) as ${compiledSchemaType})`;
+      return {
+        expression: `(new (${classExpression})(${passedExpressions}) as ${compiledSchemaType})`,
+        type: compiledSchemaType,
+      };
     }
     // A generic arrow function, whose type parameters TypeScript infers from
     // the arguments it is passed, as it infers a `.transform()`'s `NewOutput`;
@@ -469,83 +356,9 @@ export class Frame {
       .map(({ fieldName, type }) => `${fieldName}: ${type}`)
       .join(', ');
     const parameterNames = runtimeArguments.map(({ fieldName }) => fieldName).join(', ');
-    return `(<${typeParameters.join(', ')},>(${arrowParameters}): ${compiledSchemaType} => new (${classExpression})(${parameterNames}))(${passedExpressions})`;
-  }
-
-  /**
-   * `text` with every line after its first indented by `indentation`, so a
-   * multi-line expression written where a line is indented lines up with it.
-   * An empty line stays empty.
-   *
-   * ```ts
-   * Frame.indentContinuationLines('class A {\n  m() {}\n}', '    ')
-   * // 'class A {\n      m() {}\n    }'
-   * ```
-   */
-  private static indentContinuationLines(text: string, indentation: string): string {
-    return text
-      .split('\n')
-      .map((line, index) => (index === 0 || line === '' ? line : `${indentation}${line}`))
-      .join('\n');
-  }
-
-  /**
-   * What a composite runs once its type check (base check) has passed, as
-   * statements: the Frame's own locals, then its declarations, its
-   * children's checks, its output statements, its post-modifiers' checks
-   * behind their gate, which read the output its checks built, as the
-   * interpreted path's post-modifiers read `_checkType`'s, and the handoff
-   * of its output. Its children's checks
-   * are set apart by a blank line before, between and after them when the
-   * composite asks for it (`setsChildrenApart`), as an object does for its
-   * fields, so the blank lines are the Frame's formatting, never a part.
-   *
-   * A post-modifier runs only once the type check has (ADR-0010), and a
-   * composite's type check includes its children, so a composite's
-   * post-modifiers are gated on the count of Issues taken before its
-   * children (`if (issues.length === issueCountBeforeField0ChildrenValidation)`):
-   * an unchanged count means no child added an Issue. The count is named
-   * after the composite's value and declared here, along with the Gate, as
-   * one `issues` array may already hold the parent's Issues.
-   * The path local is there to report Issues under the composite, and only
-   * checks push Issues, never a declaration or an output statement, so it
-   * is declared when the composite has any: its children's, whose paths
-   * extend it, or its post-modifiers', as `.strict()` reports an unknown
-   * key at `[...path1, key]`. The output is put back on the value its parent
-   * reads, or on `_validate`'s own `value` at the root.
-   *
-   * ```ts
-   * Frame.composeCompositeStatements({ target: <field0 at [...path1, "tags"]>, postModifierChecks: ['if (field0.length < 1) { … }'], composite: <the composite parts of pvl.array(pvl.string()) at field0, locals ending in 2> })
-   * // ['const path2 = [...path1, "tags"];', 'const issueCountBeforeField0ChildrenValidation = issues.length;', 'const output2: unknown[] = [];', 'for (…) { … }', 'if (issues.length === issueCountBeforeField0ChildrenValidation) {\n  if (output2.length < 1) { … }\n}', 'field0 = output2;']
-   * Frame.composeCompositeStatements({ target: Frame.rootCheckingTarget, postModifierChecks: [], composite: <the composite parts of pvl.object({}) at the root, locals ending in 1> })
-   * // ['const input1 = value as Record<string, unknown>;', '', 'const output1: Record<string, unknown> = {};', 'value = output1;']
-   * ```
-   */
-  private static composeCompositeStatements({
-    target,
-    postModifierChecks,
-    composite: { locals, declarations, childChecks, setsChildrenApart, outputStatements },
-  }: ComposeCompositeStatementsArgs): string[] {
-    const hasPostModifierChecks = postModifierChecks.length > 0;
-    const readsPath = childChecks.length > 0 || hasPostModifierChecks;
-    const issueCount = emitIssueCountBeforeValueChildrenValidationName(target.value);
-    return [
-      ...(readsPath ? [js`const ${locals.path} = ${target.path};`] : []),
-      ...(hasPostModifierChecks ? [js`const ${issueCount} = issues.length;`] : []),
-      ...declarations,
-      ...(setsChildrenApart
-        ? ['', ...childChecks.flatMap((childCheck) => [childCheck, ''])]
-        : childChecks),
-      ...outputStatements,
-      ...(hasPostModifierChecks
-        ? [
-            composeBlock({
-              head: `if (${emitNoNewIssuesCondition(issueCount)})`,
-              body: postModifierChecks.join('\n'),
-            }),
-          ]
-        : []),
-      js`${target.value} = ${locals.output};`,
-    ];
+    return {
+      expression: `(<${typeParameters.join(', ')},>(${arrowParameters}): ${compiledSchemaType} => new (${classExpression})(${parameterNames}))(${passedExpressions})`,
+      type: compiledSchemaType,
+    };
   }
 }

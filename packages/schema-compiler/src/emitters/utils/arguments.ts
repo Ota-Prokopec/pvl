@@ -4,7 +4,7 @@
 // with no `this`.
 import type { PossibleLiteralValue } from '@pvl/schema';
 import type { AnyFunction } from '@repo/types';
-import { RuntimeArgument } from '../../schemas/runtimeArgument.js';
+import { RuntimeArgument } from '../../schemas/runtimeArgument/runtimeArgument.js';
 import { js } from './js.js';
 import { emitLiteral } from './literal.js';
 

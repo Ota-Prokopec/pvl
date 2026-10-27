@@ -3,7 +3,7 @@
 // admits `undefined`.
 import type { StaticValue } from '../ast/genericAst.js';
 import type { Undefinedness } from '../enums.js';
-import type { RuntimeArgument } from './runtimeArgument.js';
+import type { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
 
 /** One argument of a method chained onto a Schema: read as written, or a Runtime Argument its Compiled Schema evaluates. */
 export type SchemaModifierCallArgument = StaticValue | RuntimeArgument;

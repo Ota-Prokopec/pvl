@@ -2,11 +2,11 @@
 // statically, which a Compiled Schema evaluates once, where it is written,
 // rather than reading it at compile time (ADR-0030).
 import type { Node } from 'ts-morph';
-import type { RuntimeArgumentParameter } from '../frame/frame.js';
-import { js } from '../emitters/utils/js.js';
-import { emitMessageAroundValue } from '../issue.js';
-import type { Schema } from './schema.js';
-import type { SchemaModifierCall } from './schemaTypes.js';
+import { js } from '../../emitters/utils/js.js';
+import { emitMessageAroundValue } from '../../issue.js';
+import type { Schema } from '../schema.js';
+import type { SchemaModifierCall } from '../schemaTypes.js';
+import type { RuntimeArgumentParameter } from './types.js';
 
 /** What {@link RuntimeArgument.getArgumentParameters} reads a Compiled Schema's Runtime Arguments for: its Schema, and, at the root, the hoisted `const`s holding them; `undefined` for a nested class, which is passed its parent's fields. */
 type GetArgumentParametersArgs = {
@@ -93,21 +93,24 @@ export class RuntimeArgument {
    * argument as written or its hoisted `const` at the root, its parent's
    * field in a nested class; when it is a method's first argument, the
    * default message naming it (`argumentMessages`); and, when it is a
-   * `.transform()`'s function, the type parameter its return type is
-   * inferred as. Throws for a parameter with no type, which is a bug in an
-   * emitter, never a user error.
+   * `.transform()`'s function at the root, the type parameter its return
+   * type is inferred as. Throws for a parameter with no type, which is a
+   * bug in an emitter, never a user error.
    *
    * ```ts
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, hoistedNameByExpression: new Map() })
    * // [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }]
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: new Map() })
+   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'trim', messageField: undefined, typeParameter: 'TArg0Output' }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: undefined })
-   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'this.arg0', messageField: undefined, typeParameter: 'TArg0Output' }]
+   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'this.arg0', messageField: undefined, typeParameter: undefined }]
    * ```
    */
   public static getArgumentParameters({
     schema,
     hoistedNameByExpression,
   }: GetArgumentParametersArgs): RuntimeArgumentParameter[] {
+    const isRoot = hoistedNameByExpression !== undefined; // because `hoistedNameByExpression` is a composite variable only for composite schemas (for root schemas)
     return RuntimeArgument.findChainedArguments({ schema })
       .sort((left, right) => left.argument.index - right.argument.index)
       .map(({ argument, owner, call, position }) => {
@@ -134,8 +137,9 @@ export class RuntimeArgument {
                   fieldName: argument.messageFieldName,
                   expression: emitMessageAroundValue(messageOf, argument.fieldName),
                 },
+          // Only the root's class is generic: a nested one is written inside it.
           typeParameter:
-            argument === owner.getTransformFunction()
+            isRoot && argument === owner.getTransformFunction()
               ? argument.outputTypeParameterName
               : undefined,
         };
