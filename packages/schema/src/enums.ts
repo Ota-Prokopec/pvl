@@ -1,4 +1,5 @@
-import { omit } from 'lodash-es';
+import type { ValueOfEnum } from '@repo/types';
+import { omit, pick } from 'lodash-es';
 import type {
   PvlObjectPropertyName,
   PvlFactoryName,
@@ -80,15 +81,74 @@ export const PVL_SCHEMA_METHOD_NAME_ENUM = omit(
   readonly [Name in PvlSchemaMethodName as Uppercase<Name>]: Name;
 };
 
+// A method whose body calls `_withPreModifier` goes in the pre-modifiers'
+// enum, every other Modifier in the post-modifiers' one (ADR-0010).
+
 /**
- * Every {@link PvlSchemaModifierMethodName}, valued by its name on the Schema.
+ * Every pre-modifier, which runs before the type check, valued by its name
+ * on the Schema.
  *
  * @internal
  */
-export const PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM = omit(
+export const PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES_ENUM = pick(
   PVL_SCHEMA_METHOD_NAME_ENUM,
-  'VALIDATE',
-  'STANDALONE',
-) satisfies {
+  'OPTIONAL',
+  'NULLABLE',
+  'COERCE',
+);
+
+/** @internal */
+export type PvlSchemaPreModifierMethodName = ValueOfEnum<
+  typeof PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES_ENUM
+>;
+
+/**
+ * Every post-modifier, which runs once the type check has passed, valued by
+ * its name on the Schema. No name is in both enums.
+ *
+ * @internal
+ */
+export const PVL_SCHEMA_POST_MODIFIER_METHOD_NAMES_ENUM = pick(
+  PVL_SCHEMA_METHOD_NAME_ENUM,
+  'MIN',
+  'MAX',
+  'LENGTH',
+  'INT',
+  'STRICT',
+  'PASSTHROUGH',
+  'REFINE',
+  'TRANSFORM',
+) satisfies Readonly<Record<string, PvlSchemaModifierMethodName>> & {
+  readonly [Key in keyof typeof PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES_ENUM]?: never;
+};
+
+/** @internal */
+export type PvlSchemaPostModifierMethodName = ValueOfEnum<
+  typeof PVL_SCHEMA_POST_MODIFIER_METHOD_NAMES_ENUM
+>;
+
+/**
+ * Every {@link PvlSchemaModifierMethodName}, valued by its name on the
+ * Schema: the pre- and the post-modifiers, which the `satisfies` proves
+ * cover every Modifier.
+ *
+ * @internal
+ */
+export const PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM = {
+  ...PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES_ENUM,
+  ...PVL_SCHEMA_POST_MODIFIER_METHOD_NAMES_ENUM,
+} satisfies {
   readonly [Name in PvlSchemaModifierMethodName as Uppercase<Name>]: Name;
 };
+
+/**
+ * The post-modifiers setting how an object treats the keys its shape
+ * doesn't declare, valued by their name on the Schema.
+ *
+ * @internal
+ */
+export const PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES_ENUM = pick(
+  PVL_SCHEMA_POST_MODIFIER_METHOD_NAMES_ENUM,
+  'STRICT',
+  'PASSTHROUGH',
+);
