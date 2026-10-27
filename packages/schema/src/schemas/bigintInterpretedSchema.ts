@@ -2,7 +2,7 @@ import { coerceToBigint } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
 import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -126,9 +126,29 @@ export class BigintInterpretedSchema<
     });
   }
 
-  /** @internal */
-  override _coerceInput(value: unknown): unknown {
-    return coerceToBigint(value);
+  /**
+   * Converts a string or a number with `BigInt()` before the type check, so
+   * `'42'` can satisfy this schema. A value `BigInt()` refuses, such as
+   * `'12.5'`, is left as it is for the type check to reject, as is any other
+   * value. Constraints always run after the type check, so chaining it after
+   * them is fine.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const id = pvl.bigint().min(1n).coerce();
+   *
+   * id.validate('42'); // { value: 42n }
+   * id.validate('12.5'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * ```
+   */
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: coerceToBigint(value) };
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

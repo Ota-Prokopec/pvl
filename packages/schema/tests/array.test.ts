@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import fc from 'fast-check';
 import { pvl, type Issue } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
@@ -127,12 +127,8 @@ describe('pvl.array()', () => {
       expect(result.value).toBe(3);
     });
 
-    it('leaves the value unchanged once .coerce(), having no array-specific conversion', () => {
-      const schema = pvl.array(pvl.string()).coerce();
-      const accepted = schema.validate(['a']);
-      assertSuccess(accepted);
-      expect(accepted.value).toEqual(['a']);
-      expect(schema.validate('["a"]').issues).toBeDefined();
+    it('has no .coerce(), having no array-specific conversion', () => {
+      expectTypeOf(pvl.array(pvl.string())).not.toHaveProperty('coerce');
     });
 
     it('keeps .optional() through a constraint chained after it', () => {

@@ -1,9 +1,9 @@
 // The code the Shared Modifiers of `ChainableInterpretedSchema` compile to,
-// written in `utils/sharedModifiers.ts`: `.optional()`, `.nullable()` and
-// `.coerce()`, the identity here, which a primitive's emitter overrides with
-// its conversion, held in its `preModifierSteps` table, and `.refine()` and
-// `.transform()`, which call the user's own functions, held in its
-// `postModifierSteps` table. It also spells the types they widen. Every
+// written in `utils/sharedModifiers.ts`: `.optional()` and `.nullable()`,
+// held in its `preModifierSteps` table, and `.refine()` and `.transform()`,
+// which call the user's own functions, held in its `postModifierSteps`
+// table. It also spells the types they widen, and the Input `unknown` a
+// primitive's or a literal's `.coerce()`, a Local Modifier, makes it. Every
 // schema's emitter extends it, as every schema extends
 // `ChainableInterpretedSchema`.
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
@@ -14,7 +14,7 @@ import { UNKNOWN_SPELLED_TYPE } from './consts/spelledTypes.js';
 import { Emitter } from './emitter.js';
 import type { SpellParameterTypesArgs, SpellTypesArgs } from './types/hookArgs.js';
 import type { PostModifierStepTable, PreModifierStepTable } from './types/methodTables.js';
-import { coerce, nullable, optional, refine, transform } from './utils/sharedModifiers.js';
+import { nullable, optional, refine, transform } from './utils/sharedModifiers.js';
 import { widenType } from './utils/spelledType.js';
 
 export class ChainableSchemaEmitter extends Emitter {
@@ -22,7 +22,6 @@ export class ChainableSchemaEmitter extends Emitter {
     ...Emitter.preModifierSteps,
     optional,
     nullable,
-    coerce,
   } satisfies PreModifierStepTable;
 
   public static override readonly postModifierSteps = {

@@ -1,9 +1,8 @@
 // The code the Shared Modifiers held in `ChainableSchemaEmitter`'s tables
 // compile to: `.optional()` and `.nullable()`, each writing the condition
 // under which a value short-circuits, since a value it accepts skips every
-// later check, `.coerce()`, the identity a primitive's emitter overrides
-// with its conversion, `.refine()`, which calls the user's own predicate,
-// and `.transform()`, which calls the user's own function.
+// later check, `.refine()`, which calls the user's own predicate, and
+// `.transform()`, which calls the user's own function.
 import { ISSUE_CODE, replaceEmptyIssueMessage, type ChainableInterpretedSchema } from '@pvl/schema';
 import { emitConstraintIssue } from '../../issue.js';
 import type { EmitterMethodOf } from '../types/methodTables.js';
@@ -27,16 +26,6 @@ export const nullable: EmitterMethodOf<
 > = ({ target: { value } }) => ({
   shortCircuitCondition: emitShortCircuitCondition({ acceptsWhen: js`${value} === null` }),
 });
-
-/**
- * `.coerce()` → nothing: the identity, as `@pvl/schema`'s base
- * `_coerceInput` is, which an object, an array and an enum keep. A
- * primitive's emitter and a literal's override it with their conversion.
- */
-export const coerce: EmitterMethodOf<
-  ChainableInterpretedSchema['coerce'],
-  EmittedPreModifierStep | undefined
-> = () => undefined;
 
 /**
  * `.refine(isOk)` → `!this.arg0.call(undefined, field0 as never)`, reporting

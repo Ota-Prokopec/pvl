@@ -156,9 +156,9 @@ interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends Interpr
  *
  * Unknown keys are stripped by default, so the output holds the declared keys
  * only; `.strict()` reports them as issues instead and `.passthrough()` keeps
- * them. `.coerce()` is inherited but does nothing here — there is no
- * unambiguous way to read an object out of a non-object. A field that needs
- * coercion opts into it on its own schema.
+ * them. There is no `.coerce()`: there is no unambiguous way to read an
+ * object out of a non-object. A field that needs coercion opts into it on
+ * its own schema.
  *
  * Every modifier hands back an object schema rather than the base `ChainableInterpretedSchema`,
  * so a modified object schema is still something `pvl.compile()` accepts,

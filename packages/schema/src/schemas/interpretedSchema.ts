@@ -219,16 +219,6 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   //TODO: Rename `_checkType` to `_baseCheck`
 
   /**
-   * The `.coerce()` conversion for this schema type. The base is identity —
-   * a schema type with no unambiguous conversion target leaves it that way.
-   *
-   * @internal
-   */
-  _coerceInput(value: unknown): unknown {
-    return value;
-  }
-
-  /**
    * A copy of this schema with the same prototype and fields, so a subclass
    * can re-point one of its own fields without dropping a chained modifier.
    *

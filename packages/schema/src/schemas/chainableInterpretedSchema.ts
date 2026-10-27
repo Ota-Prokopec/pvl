@@ -168,35 +168,4 @@ export abstract class ChainableInterpretedSchema<
       },
     }) as unknown as Schema<Input, NewOutput> & StandaloneMarkerOf<this>;
   }
-
-  /**
-   * Converts the raw input to this schema's type before the type check, so
-   * `'42'` can satisfy a number schema. Only the primitives and `literal`
-   * have a conversion; on `object`, `array`, `union` and `enum` there is no
-   * unambiguous target type, so this is a no-op and a wrong-shaped value is
-   * still rejected.
-   *
-   * It runs where it is chained among `.optional()` and `.nullable()`:
-   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
-   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
-   * Constraints always run after the type check, so chaining it after them is
-   * fine.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const port = pvl.number().int().min(1).coerce();
-   *
-   * port.validate('8080'); // { value: 8080 }
-   * port.validate('nope'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
-   * ```
-   */
-  coerce(): RetypedSchema<this, unknown, Output> {
-    return this._withPreModifier<unknown, unknown>({
-      fn: (value) => {
-        return { value: this._coerceInput(value) };
-      },
-    }) as unknown as RetypedSchema<this, unknown, Output>;
-  }
 }

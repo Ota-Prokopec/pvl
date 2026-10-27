@@ -110,8 +110,8 @@ export abstract class Emitter {
    * The pre-modifiers this emitter compiles, each writing its step, by the
    * name of the method it mirrors: the condition a value short-circuits
    * under, or the conversion replacing it. `ChainableSchemaEmitter` adds
-   * `.optional()`, `.nullable()` and `.coerce()`, the identity, which a
-   * primitive's emitter overrides with its conversion.
+   * `.optional()` and `.nullable()`, and a primitive's emitter and a
+   * literal's their `.coerce()`.
    */
   public static readonly preModifierSteps: PreModifierStepTable = {};
 
@@ -236,12 +236,12 @@ export abstract class Emitter {
    * written by the method of its name in `preModifierSteps`: a
    * short-circuit condition, which a value a pre-modifier accepts holds
    * for, skipping every check after it, or `.coerce()`'s conversion, which
-   * replaces the value, left out where it is the identity.
+   * replaces the value. A method writing nothing is left out.
    *
    * ```ts
    * StringSchemaEmitter.emitPreModifierSteps({ schema: <pvl.string().nullable().coerce().optional()>, target: { value: 'field0', path, issuePath } })
    * // [{ shortCircuitCondition: 'field0 === null' }, { coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }]
-   * ObjectSchemaEmitter.emitPreModifierSteps({ schema: <pvl.object({}).coerce()>, target }) // []
+   * ObjectSchemaEmitter.emitPreModifierSteps({ schema: <pvl.object({})>, target }) // []
    * ```
    */
   public static emitPreModifierSteps({
@@ -480,7 +480,7 @@ export abstract class Emitter {
    * StringSchemaEmitter.compilesMethod({ name: 'min' })            // true
    * StringSchemaEmitter.compilesMethod({ name: 'optional' })       // true: spread from ChainableSchemaEmitter
    * StringSchemaEmitter.compilesMethod({ name: 'transform' })      // true: spread from ChainableSchemaEmitter
-   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })           // true: ChainableSchemaEmitter's identity
+   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })           // false: an enum has no `.coerce()`
    * ObjectSchemaEmitter.compilesMethod({ name: 'passthrough' })    // true: writing nothing
    * StringSchemaEmitter.compilesMethod({ name: '_emitBaseCheck' }) // false: a hook, held in no table
    * BooleanSchemaEmitter.compilesMethod({ name: 'length' })        // false

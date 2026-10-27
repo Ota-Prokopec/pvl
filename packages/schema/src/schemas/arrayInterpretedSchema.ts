@@ -57,8 +57,8 @@ interface ArrayInterpretedSchemaKind<
  * The length constraints are checks on the array itself. They run, in the
  * order chained, only once every element has passed, so they never report
  * alongside element issues; between themselves they all report rather than
- * stopping at the first. `.coerce()` is inherited but does nothing here —
- * there is no unambiguous way to read an array out of a non-array.
+ * stopping at the first. There is no `.coerce()`: there is no unambiguous
+ * way to read an array out of a non-array.
  *
  * Every modifier hands back an array schema rather than the base `ChainableInterpretedSchema`,
  * so a modified array schema is still something `pvl.compile()` accepts and

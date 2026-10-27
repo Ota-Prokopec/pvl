@@ -62,9 +62,9 @@ interface EnumInterpretedSchemaKind<Source extends EnumSource> extends Interpret
  * `pvl.enum(source)`. Membership is a `Set` lookup, so the check stays O(1)
  * however large the set is.
  *
- * `.coerce()` is inherited but does nothing here: a source may mix string and
- * number members, so there is no single target type to convert an input to.
- * Convert before calling `.validate()` if you need that.
+ * There is no `.coerce()`: a source may mix string and number members, so
+ * there is no single target type to convert an input to. Convert before
+ * calling `.validate()` if you need that.
  *
  * @example
  * ```ts

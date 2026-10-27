@@ -53,7 +53,7 @@ export type EmitterMethodStep = EmittedPreModifierStep | EmittedPostModifierStep
  * EmitterMethodOf<StringInterpretedSchema['min']>
  * // (input: { schema: never; target: CheckingTarget; …; args: [minLength: number | RuntimeArgument, options?: CheckOptions | RuntimeArgument] }) => EmittedPostModifierStep
  * EmitterMethodOf<ChainableInterpretedSchema['optional'], EmittedPreModifierStep> // (input: { …; args: [] }) => EmittedPreModifierStep
- * EmitterMethodOf<ChainableInterpretedSchema['coerce'], EmittedPreModifierStep, LiteralSchema> // (input: { schema: LiteralSchema; …; args: [] }) => EmittedPreModifierStep
+ * EmitterMethodOf<LiteralInterpretedSchema<PossibleLiteralValue>['coerce'], EmittedPreModifierStep, LiteralSchema> // (input: { schema: LiteralSchema; …; args: [] }) => EmittedPreModifierStep
  * ```
  */
 export type EmitterMethodOf<

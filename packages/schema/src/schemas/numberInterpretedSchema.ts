@@ -2,7 +2,7 @@ import { coerceToNumber } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
 import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -156,9 +156,29 @@ export class NumberInterpretedSchema<
     });
   }
 
-  /** @internal */
-  override _coerceInput(value: unknown): unknown {
-    return coerceToNumber(value);
+  /**
+   * Converts a string or a boolean with `Number()` before the type check, so
+   * `'42'` can satisfy this schema. Any other value is left as it is, and a
+   * string that isn't a number becomes `NaN`, which the type check rejects.
+   * Constraints always run after the type check, so chaining it after them is
+   * fine.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const port = pvl.number().int().min(1).coerce();
+   *
+   * port.validate('8080'); // { value: 8080 }
+   * port.validate('nope'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * ```
+   */
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: coerceToNumber(value) };
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

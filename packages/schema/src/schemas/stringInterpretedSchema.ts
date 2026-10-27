@@ -2,7 +2,7 @@ import { coerceToString } from '../coercions.js';
 import { ISSUE_CODE } from '../issue/enums.js';
 import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { CheckOptions, InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -151,9 +151,32 @@ export class StringInterpretedSchema<
     });
   }
 
-  /** @internal */
-  override _coerceInput(value: unknown): unknown {
-    return coerceToString(value);
+  /**
+   * Converts the raw input with `String()` before the type check, so any
+   * value can satisfy this schema: `42` becomes `'42'`.
+   *
+   * It runs where it is chained among `.optional()` and `.nullable()`:
+   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
+   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
+   * Constraints always run after the type check, so chaining it after them is
+   * fine.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const pin = pvl.string().length(4).coerce();
+   *
+   * pin.validate(1234); // { value: '1234' }
+   * pin.validate(12); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
+   * ```
+   */
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: coerceToString(value) };
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

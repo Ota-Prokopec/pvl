@@ -4,7 +4,8 @@
 import {
   ISSUE_CODE,
   LITERAL_SCHEMA_ISSUE_MESSAGE,
-  type ChainableInterpretedSchema,
+  type LiteralInterpretedSchema,
+  type PossibleLiteralValue,
 } from '@pvl/schema';
 import type { LiteralSchema } from '../schemas/literalSchema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
@@ -35,11 +36,11 @@ import { UNDEFINEDNESS } from '../enums.js';
  * ```
  */
 const coerce: EmitterMethodOf<
-  ChainableInterpretedSchema['coerce'],
+  LiteralInterpretedSchema<PossibleLiteralValue>['coerce'],
   EmittedPreModifierStep,
   LiteralSchema
 > = ({ schema, target: { value } }) => {
-  // By the type of its value, as `LiteralInterpretedSchema._coerceInput` picks it.
+  // By the type of its value, as `LiteralInterpretedSchema.coerce` picks it.
   switch (typeof schema.value) {
     case 'string':
       return { coercion: emitCoerceToString(value) };
