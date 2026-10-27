@@ -4,10 +4,10 @@
 // hook.
 import { ISSUE_CODE, NUMBER_SCHEMA_ISSUE_MESSAGE, type NumberInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { NUMBER_ARGUMENT_MESSAGES } from './consts.js';
 import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
 import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
-  ArgumentMessagesOf,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -31,7 +31,7 @@ const min: EmitterMethodOf<NumberInterpretedSchema['min']> = ({
       code: ISSUE_CODE.TOO_SMALL,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.min, minValue),
+      defaultMessage: emitDefaultMessage(NUMBER_ARGUMENT_MESSAGES.min, minValue),
     }),
   });
 
@@ -46,7 +46,7 @@ const max: EmitterMethodOf<NumberInterpretedSchema['max']> = ({
       code: ISSUE_CODE.TOO_BIG,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(NumberSchemaEmitter.argumentMessages.max, maxValue),
+      defaultMessage: emitDefaultMessage(NUMBER_ARGUMENT_MESSAGES.max, maxValue),
     }),
   });
 
@@ -84,10 +84,7 @@ export class NumberSchemaEmitter extends ChainableSchemaEmitter {
     int: [ISSUE_OPTIONS_TYPE],
   };
 
-  public static override readonly argumentMessages = {
-    min: NUMBER_SCHEMA_ISSUE_MESSAGE.min,
-    max: NUMBER_SCHEMA_ISSUE_MESSAGE.max,
-  } satisfies ArgumentMessagesOf<NumberInterpretedSchema>;
+  public static override readonly argumentMessages = NUMBER_ARGUMENT_MESSAGES;
 
   /** `typeof field0 !== "number" || Number.isNaN(field0)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {

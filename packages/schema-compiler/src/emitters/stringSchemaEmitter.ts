@@ -4,10 +4,10 @@
 // hook.
 import { ISSUE_CODE, STRING_SCHEMA_ISSUE_MESSAGE, type StringInterpretedSchema } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { STRING_ARGUMENT_MESSAGES } from './consts.js';
 import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
 import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
-  ArgumentMessagesOf,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -31,7 +31,7 @@ const min: EmitterMethodOf<StringInterpretedSchema['min']> = ({
       code: ISSUE_CODE.TOO_SMALL,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, minLength),
+      defaultMessage: emitDefaultMessage(STRING_ARGUMENT_MESSAGES.min, minLength),
     }),
   });
 
@@ -46,7 +46,7 @@ const max: EmitterMethodOf<StringInterpretedSchema['max']> = ({
       code: ISSUE_CODE.TOO_BIG,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.max, maxLength),
+      defaultMessage: emitDefaultMessage(STRING_ARGUMENT_MESSAGES.max, maxLength),
     }),
   });
 
@@ -61,7 +61,7 @@ const length: EmitterMethodOf<StringInterpretedSchema['length']> = ({
       code: ISSUE_CODE.INVALID_LENGTH,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(StringSchemaEmitter.argumentMessages.length, exactLength),
+      defaultMessage: emitDefaultMessage(STRING_ARGUMENT_MESSAGES.length, exactLength),
     }),
   });
 
@@ -84,11 +84,7 @@ export class StringSchemaEmitter extends ChainableSchemaEmitter {
     length: ['number', ISSUE_OPTIONS_TYPE],
   };
 
-  public static override readonly argumentMessages = {
-    min: STRING_SCHEMA_ISSUE_MESSAGE.min,
-    max: STRING_SCHEMA_ISSUE_MESSAGE.max,
-    length: STRING_SCHEMA_ISSUE_MESSAGE.length,
-  } satisfies ArgumentMessagesOf<StringInterpretedSchema>;
+  public static override readonly argumentMessages = STRING_ARGUMENT_MESSAGES;
 
   /**
    * ```ts

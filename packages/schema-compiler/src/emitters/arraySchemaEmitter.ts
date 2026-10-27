@@ -6,6 +6,7 @@
 import { ARRAY_SCHEMA_ISSUE_MESSAGE, ISSUE_CODE, type ArrayInterpretedSchema } from '@pvl/schema';
 import type { Schema } from '../schemas/schema.js';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { ARRAY_ARGUMENT_MESSAGES } from './consts.js';
 import type { EmittedCheck } from './types/emittedText.js';
 import type {
   EmitElementPropertyArgs,
@@ -13,7 +14,6 @@ import type {
   SpellTypesArgs,
 } from './types/hookArgs.js';
 import type {
-  ArgumentMessagesOf,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -105,7 +105,7 @@ const min: EmitterMethodOf<ArrayInterpretedSchema['min']> = ({
       code: ISSUE_CODE.TOO_SMALL,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.min, minLength),
+      defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.min, minLength),
     }),
   });
 
@@ -120,7 +120,7 @@ const max: EmitterMethodOf<ArrayInterpretedSchema['max']> = ({
       code: ISSUE_CODE.TOO_BIG,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.max, maxLength),
+      defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.max, maxLength),
     }),
   });
 
@@ -135,7 +135,7 @@ const length: EmitterMethodOf<ArrayInterpretedSchema['length']> = ({
       code: ISSUE_CODE.INVALID_LENGTH,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(ArraySchemaEmitter.argumentMessages.length, exactLength),
+      defaultMessage: emitDefaultMessage(ARRAY_ARGUMENT_MESSAGES.length, exactLength),
     }),
   });
 
@@ -153,11 +153,7 @@ export class ArraySchemaEmitter extends ChainableSchemaEmitter {
     length: ['number', ISSUE_OPTIONS_TYPE],
   };
 
-  public static override readonly argumentMessages = {
-    min: ARRAY_SCHEMA_ISSUE_MESSAGE.min,
-    max: ARRAY_SCHEMA_ISSUE_MESSAGE.max,
-    length: ARRAY_SCHEMA_ISSUE_MESSAGE.length,
-  } satisfies ArgumentMessagesOf<ArrayInterpretedSchema>;
+  public static override readonly argumentMessages = ARRAY_ARGUMENT_MESSAGES;
 
   /** `!Array.isArray(value)`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {

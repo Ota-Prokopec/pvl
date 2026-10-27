@@ -4,10 +4,10 @@
 // hook.
 import { BIGINT_SCHEMA_ISSUE_MESSAGE, type BigintInterpretedSchema, ISSUE_CODE } from '@pvl/schema';
 import { ChainableSchemaEmitter } from './chainableSchemaEmitter.js';
+import { BIGINT_ARGUMENT_MESSAGES } from './consts.js';
 import type { EmittedCheck, EmittedCoercion } from './types/emittedText.js';
 import type { EmitCoercionArgs } from './types/hookArgs.js';
 import type {
-  ArgumentMessagesOf,
   EmitterMethodOf,
   ParameterTypesOf,
   PostModifierCheckTable,
@@ -31,7 +31,7 @@ const min: EmitterMethodOf<BigintInterpretedSchema['min']> = ({
       code: ISSUE_CODE.TOO_SMALL,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.min, minValue),
+      defaultMessage: emitDefaultMessage(BIGINT_ARGUMENT_MESSAGES.min, minValue),
     }),
   });
 
@@ -46,7 +46,7 @@ const max: EmitterMethodOf<BigintInterpretedSchema['max']> = ({
       code: ISSUE_CODE.TOO_BIG,
       path: issuePath,
       options,
-      defaultMessage: emitDefaultMessage(BigintSchemaEmitter.argumentMessages.max, maxValue),
+      defaultMessage: emitDefaultMessage(BIGINT_ARGUMENT_MESSAGES.max, maxValue),
     }),
   });
 
@@ -67,10 +67,7 @@ export class BigintSchemaEmitter extends ChainableSchemaEmitter {
     max: ['bigint', ISSUE_OPTIONS_TYPE],
   };
 
-  public static override readonly argumentMessages = {
-    min: BIGINT_SCHEMA_ISSUE_MESSAGE.min,
-    max: BIGINT_SCHEMA_ISSUE_MESSAGE.max,
-  } satisfies ArgumentMessagesOf<BigintInterpretedSchema>;
+  public static override readonly argumentMessages = BIGINT_ARGUMENT_MESSAGES;
 
   /** `typeof field0 !== "bigint"`, reporting `INVALID_TYPE`. */
   public static _emitBaseCheck({ target: { value, issuePath } }: EmitBaseCheckArgs): EmittedCheck {
