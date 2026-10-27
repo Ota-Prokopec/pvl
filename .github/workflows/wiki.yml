@@ -1,12 +1,13 @@
 # Publishes docs/wiki/ to the GitHub wiki on every push to main that changes
-# it (ADR-0037). The wiki becomes exactly that folder, so a page edited in the
-# wiki itself is overwritten: change it here, through a PR (docs/agents/wiki.md).
+# it or this workflow (ADR-0037). The wiki becomes exactly that folder, so a
+# page edited in the wiki itself is overwritten: change it here, through a PR
+# (docs/agents/wiki.md).
 name: Wiki
 
 on:
   push:
     branches: [main]
-    paths: [docs/wiki/**]
+    paths: [docs/wiki/**, .github/workflows/wiki.yml]
   workflow_dispatch:
 
 concurrency:
