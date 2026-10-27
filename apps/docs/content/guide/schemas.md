@@ -145,7 +145,7 @@ Or an array of string literals, for an ad hoc set that does not warrant one:
 const size = pvl.enum(['small', 'medium', 'large']);
 ```
 
-Membership is a `Set` lookup rather than a scan, so the check stays O(1) however large the set is. `.coerce()` is inherited but does nothing here: an enum object may mix string and number members, so there is no single target type to convert an input to.
+Membership is a `Set` lookup rather than a scan, so the check stays O(1) however large the set is. There is no `.coerce()`: an enum object may mix string and number members, so there is no single target type to convert an input to.
 
 ## `array`
 
@@ -172,7 +172,7 @@ const result = tags.validate(['a', 2, 3]);
 
 The length constraints above are checks on the array itself, so they run only once every element has passed: an array with a failing element reports the element issues, never a length issue alongside them.
 
-`.coerce()` is inherited but does nothing: there is no unambiguous way to read an array out of a non-array, so a value that is not one is rejected rather than guessed at.
+There is no `.coerce()`: there is no unambiguous way to read an array out of a non-array, so a value that is not one is rejected rather than guessed at. An item that needs coercion opts into it on its own schema.
 
 ### Reaching the item schema with `element`
 
@@ -259,7 +259,7 @@ tagged
   .validate({ id: 'a', meta: 1 }); // passes
 ```
 
-`.coerce()` is inherited but does nothing on an object: there is no unambiguous way to read an object out of a non-object. A field that needs coercion opts into it on its own schema.
+There is no `.coerce()` on an object: there is no unambiguous way to read an object out of a non-object. A field that needs coercion opts into it on its own schema.
 
 ### Reaching a field schema with `shape`
 
@@ -322,13 +322,13 @@ id.validate(true);
 // ] }
 ```
 
-Each member is validated at the same path as the union itself — a member is an alternative, not a nested field, so no path segment is appended the way `object` and `array` append a key or index. `.coerce()` is inherited but does nothing: the members may be unrelated types, so there is no single conversion target.
+Each member is validated at the same path as the union itself — a member is an alternative, not a nested field, so no path segment is appended the way `object` and `array` append a key or index. There is no `.coerce()`: the members may be unrelated types, so there is no single conversion target. A member that needs coercion opts into it on its own schema.
 
 ## Modifiers
 
-This section documents the **shared** modifiers — the five below. `object`'s `.strict()` and `.passthrough()` are modifiers too, but they belong to `object` alone and are documented [with it](#unknown-keys).
+This section documents the **shared** modifiers — `.optional()`, `.nullable()`, `.refine()` and `.transform()` — and `.coerce()`, which only the four primitives and `literal` have. `object`'s `.strict()` and `.passthrough()` are modifiers too, but they belong to `object` alone and are documented [with it](#unknown-keys).
 
-These five are on **every** schema, primitive or composite, because they are orthogonal to what a schema's own shape check does.
+The four shared ones are on **every** schema, primitive or composite, because they are orthogonal to what a schema's own shape check does.
 
 **Modifiers run in the order you chain them**, on either side of the schema's type check: `.optional()`, `.nullable()` and `.coerce()` run before it, the constraints, `.refine()`, `.strict()`/`.passthrough()` and `.transform()` after it. So where you chain one can change what a schema does — see [`.coerce()`](#coerce). `object`'s `.strict()`/`.passthrough()` are the exception: they set the mode for the whole schema ([unknown keys](#unknown-keys)).
 
@@ -431,7 +431,7 @@ pvl.string().coerce().optional().validate(undefined); // { value: 'undefined' }
 pvl.string().optional().coerce().validate(undefined); // { value: undefined }
 ```
 
-Only the four primitives and `literal` have a conversion. On `object`, `array`, `union` and `enum` there is no unambiguous target type, so `.coerce()` is a no-op — it is available for uniformity, not because it does something there.
+Only the four primitives and `literal` have `.coerce()`. On `object`, `array`, `union` and `enum` there is no unambiguous target type, so they have none: a field, an item or a member that needs coercion opts into it on its own schema.
 
 | Schema    | `.coerce()` accepts           | Via                                  |
 | --------- | ----------------------------- | ------------------------------------ |

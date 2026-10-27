@@ -43,11 +43,11 @@ A chainable method on a Chainable Schema that returns a new Schema with one more
 _Avoid_: Combinator, wrapper.
 
 **Shared Modifier**:
-A Modifier every Chainable Schema offers, primitive or composite: `.optional()`, `.nullable()`, `.coerce()`, `.refine()` and `.transform()`. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
+A Modifier every Chainable Schema offers, primitive or composite: `.optional()`, `.nullable()`, `.refine()` and `.transform()`. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
 _Avoid_: Common modifier, base modifier, global modifier.
 
 **Local Modifier**:
-A Modifier only one kind of Schema offers, such as `string`'s `.min()` or `object`'s `.strict()`. What separates it from a Shared Modifier is reach, not importance. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md).
+A Modifier a Schema defines on its own class, so not every Chainable Schema offers it, such as `.min()`, `.coerce()` or `object`'s `.strict()`. What separates it from a Shared Modifier is reach, not importance. See [ADR-0006](./docs/adr/0006-chained-instance-method-api-via-shared-base-schema-class.md) and [ADR-0041](./docs/adr/0041-coerce-is-a-local-modifier-of-the-primitives-and-literal.md).
 _Avoid_: Specific modifier, per-type modifier.
 
 **Constraint**:
@@ -63,7 +63,7 @@ The options a check takes as its last argument, a check being any step that repo
 _Avoid_: Issue options, Modifier options.
 
 **Coercion**:
-An explicit, opt-in conversion of an input value to a Schema's target type _before_ that value is checked against the Schema (e.g. the string `"5"` becomes the number `5`, which is then validated as a number). It is opted into by `.coerce()`, a Shared Modifier.
+An explicit, opt-in conversion of an input value to a Schema's target type _before_ that value is checked against the Schema (e.g. the string `"5"` becomes the number `5`, which is then validated as a number). It is opted into by `.coerce()`, a Local Modifier of the four primitives and `literal`, the Schemas with one target type to convert to ([ADR-0041](./docs/adr/0041-coerce-is-a-local-modifier-of-the-primitives-and-literal.md)).
 _Avoid_: Cast, Transform.
 
 **Transform**:
