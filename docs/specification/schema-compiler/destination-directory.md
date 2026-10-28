@@ -52,7 +52,7 @@ export type OptionalNameInput = PvlInferInput<typeof optionalName>;
 export type OptionalNameOutput = PvlInferOutput<typeof optionalName>;
 ```
 
-An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s), whether marked or not. A Schema built by a function, imported, or exported only through `export { … }` gets no alias. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
+An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s, into an Imported Schema's file too), whether marked or not, so `export const admin = user.optional()` gets aliases when `user` is imported ([ADR-0043](../../adr/0043-the-compiler-follows-a-const-into-another-file-and-a-runtime-argument-there-is-an-error.md)). Every module's exported Schemas are read before any module is compiled, so which ones get aliases doesn't depend on the order modules compile in. A Schema built by a function, or exported only through `export { … }`, an imported one re-exported that way included, gets no alias. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
 
 ### Writing it
 

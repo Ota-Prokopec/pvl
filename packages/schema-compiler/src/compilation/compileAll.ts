@@ -1,5 +1,6 @@
 // Compiles every scanned module into the Destination Directory's files
 // (ADR-0005): `Module.compile` handles each module.
+import { PvlAst } from '../ast/pvlAst.js';
 import type { MirroredFile, MirroredPath } from '../module/types.js';
 import type { ScannedPath } from '../scanner/types.js';
 import type { ModuleCompilation } from '../schemas/readSchema.js';
@@ -33,12 +34,22 @@ export const compileAll = ({ compilations, withTypes }: CompileAllArgs): Mirrore
     modules.map(({ path, mirroredPath }) => [path.absolutePath, mirroredPath]),
   );
 
-  const mirroredModules: MirroredFile[] = compilations.map(({ module, schemas }) =>
-    module.compile({
-      schemas,
-      mirroredPathByScannedPath,
-      withTypes,
-    }),
+  // Read before any module compiles: compiling one replaces its
+  // `pvl.compile(...)` calls, which another module's export may follow (ADR-0043).
+  const typedCompilations = compilations.map((compilation) => ({
+    ...compilation,
+    exportedSchemaNames: withTypes
+      ? PvlAst.findExportedSchemaNames(compilation.module.moduleFile)
+      : [],
+  }));
+
+  const mirroredModules: MirroredFile[] = typedCompilations.map(
+    ({ module, schemas, exportedSchemaNames }) =>
+      module.compile({
+        schemas,
+        mirroredPathByScannedPath,
+        exportedSchemaNames,
+      }),
   );
 
   return mirroredModules.sort((first, second) =>
