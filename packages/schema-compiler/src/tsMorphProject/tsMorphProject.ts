@@ -2,7 +2,7 @@
 // application's tsconfig.
 import * as path from 'node:path';
 import { Project, ts } from 'ts-morph';
-import { errorMessage } from '../utils.js';
+import { errorMessage } from '../errorMessage.js';
 import {
   BUNDLER_COMPILER_OPTIONS,
   NO_INPUTS_FOUND_ERROR_CODE,

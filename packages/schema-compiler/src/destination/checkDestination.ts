@@ -1,7 +1,10 @@
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { statOrUndefined } from '../utils.js';
-import { createDestinationUnwritableDiagnostic, isReplaceableDirectory } from './utils.js';
+import {
+  createDestinationUnwritableDiagnostic,
+  isReplaceableDirectory,
+  statOrUndefined,
+} from './utils.js';
 
 /**
  * Checks, without writing anything, that writing the Destination Directory at

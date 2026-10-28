@@ -8,36 +8,12 @@ import type { PvlConfigOverrides } from '../config/types.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { isErrorInDiagnostics, promoteAllDiagnostics } from '../diagnostics/utils.js';
 import { compileAll } from './compileAll.js';
-import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
 import { Precheck } from '../precheck/precheck.js';
 import { Scanner } from '../scanner.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
 import type { CompilationOutput } from './types.js';
-
-/**
- * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
- * matches the Destination Directory or anything inside it, so the compiler
- * would scan its own output.
- *
- * ```ts
- * // include: ['src/**\/*.ts'], destination: 'src/compiled'
- * createDestinationInsideIncludeDiagnostic(destination, 'src/**\/*.ts') // DESTINATION_INSIDE_INCLUDE
- * ```
- */
-const createDestinationInsideIncludeDiagnostic = (
-  destination: Destination,
-  pattern: string,
-): Diagnostic => {
-  return new Diagnostic({
-    code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-    message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
-    file: destination.absolutePath,
-  });
-};
 
 /**
  * Whether `diagnostics` stop the run before anything is written: any error
@@ -158,9 +134,10 @@ const runCompilationWithoutPromoting = async ({
 
   // What the destination and `include` raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
-    ...findPatternsMatchingPath(rawSettings.include, destination.relativePath.pathFromBase).map(
-      (pattern) => createDestinationInsideIncludeDiagnostic(destination, pattern),
-    ),
+    ...Scanner.findPatternsMatchingPath(
+      rawSettings.include,
+      destination.relativePath.pathFromBase,
+    ).map((pattern) => Scanner.createDestinationInsideIncludeDiagnostic(destination, pattern)),
     ...destinationDiagnostics,
     ...(scannedFilePaths.length === 0
       ? [Scanner.createNoInputFilesDiagnostic(rawSettings.include)]

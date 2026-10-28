@@ -2,6 +2,7 @@
 // nothing scanned is ever imported or executed.
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
+import { minimatch } from 'minimatch';
 import type { Project } from 'ts-morph';
 import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
@@ -116,6 +117,48 @@ export class Scanner {
     return new Diagnostic({
       code: DIAGNOSTIC_CODE.NO_INPUT_FILES,
       message: `include matched no file: ${include.map((pattern) => `\`${pattern}\``).join(', ')}.`,
+    });
+  }
+
+  /**
+   * The glob `patterns` that match `relativePath` or could match anything inside
+   * it, in their given order. Both are POSIX-separated and relative to the same
+   * base; each pattern is normalized first, so `./src/**` and `src/**` agree.
+   *
+   * ```ts
+   * Scanner.findPatternsMatchingPath(['src/**\/*.ts', 'lib/*.ts'], 'src/compiled') // ['src/**\/*.ts']
+   * Scanner.findPatternsMatchingPath(['../shared/**'], '../shared/out')           // ['../shared/**']
+   * Scanner.findPatternsMatchingPath(['src/schemas/**\/*.ts'], '.pvl')             // []
+   * ```
+   */
+  public static findPatternsMatchingPath(
+    patterns: ReadonlyArray<string>,
+    relativePath: string,
+  ): string[] {
+    // `partial`: the pattern matches `relativePath` or could match something inside it.
+    return patterns.filter((pattern) =>
+      minimatch(relativePath, path.posix.normalize(pattern), { partial: true }),
+    );
+  }
+
+  /**
+   * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
+   * matches the Destination Directory or anything inside it, so the compiler
+   * would scan its own output.
+   *
+   * ```ts
+   * // include: ['src/**\/*.ts'], destination: 'src/compiled'
+   * Scanner.createDestinationInsideIncludeDiagnostic(destination, 'src/**\/*.ts') // DESTINATION_INSIDE_INCLUDE
+   * ```
+   */
+  public static createDestinationInsideIncludeDiagnostic(
+    destination: Destination,
+    pattern: string,
+  ): Diagnostic {
+    return new Diagnostic({
+      code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
+      message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+      file: destination.absolutePath,
     });
   }
 }

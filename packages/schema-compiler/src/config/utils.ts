@@ -2,9 +2,27 @@
 import type { Issue } from '@pvl/schema';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { errorMessage } from '../utils.js';
+import { errorMessage } from '../errorMessage.js';
 import { pvlConfigFilePayloadSchema } from './configValidationSchemas.js';
 import type { PvlConfigFilePayload } from './types.js';
+
+/**
+ * A copy of `record` without the keys set to `undefined`, which means "not set", so a
+ * caller can pass every optional value through whether or not it was given.
+ *
+ * ```ts
+ * definedOnlyKeys({ destination: 'out', rootDir: undefined }) // { destination: 'out' }
+ * definedOnlyKeys({ withTypes: false })                       // { withTypes: false }: only `undefined` is dropped
+ * definedOnlyKeys({ include: undefined })                     // {}
+ * ```
+ */
+export const definedOnlyKeys = <T extends object>(
+  record: T,
+): { [K in keyof T]?: Exclude<T[K], undefined> } => {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as {
+    [K in keyof T]?: Exclude<T[K], undefined>;
+  };
+};
 
 export const isMissingFileError = (error: unknown): boolean => {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';

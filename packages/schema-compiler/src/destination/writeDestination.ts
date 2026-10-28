@@ -8,9 +8,9 @@ import {
 } from './consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { MirroredFile } from '../module/types.js';
-import { errorMessage, statOrUndefined } from '../utils.js';
+import { errorMessage } from '../errorMessage.js';
 import type { Destination } from './destination.js';
-import { createDestinationUnwritableDiagnostic } from './utils.js';
+import { createDestinationUnwritableDiagnostic, statOrUndefined } from './utils.js';
 
 /**
  * Writes the Destination Directory in one move: every mirrored file, the

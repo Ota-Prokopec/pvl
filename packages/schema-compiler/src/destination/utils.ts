@@ -3,6 +3,24 @@ import { GENERATED_MARKER_FILE_NAME } from './consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 
+/**
+ * What `stat` says about `filePath`, or `undefined` when nothing is there (or it can't be read).
+ *
+ * ```ts
+ * await statOrUndefined('/repo')        // Stats: a directory
+ * await statOrUndefined('/repo/absent') // undefined
+ * ```
+ */
+export const statOrUndefined = async (
+  filePath: string,
+): Promise<Awaited<ReturnType<typeof fsPromises.stat>> | undefined> => {
+  try {
+    return await fsPromises.stat(filePath);
+  } catch {
+    return undefined;
+  }
+};
+
 export const createDestinationUnwritableDiagnostic = (
   destinationPath: string,
   reason: string,

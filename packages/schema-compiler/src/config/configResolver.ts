@@ -5,13 +5,14 @@ import * as path from 'node:path';
 import { Destination } from '../destination/destination.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { definedOnlyKeys, errorMessage } from '../utils.js';
+import { errorMessage } from '../errorMessage.js';
 import { pvlConfigSchema } from './configValidationSchemas.js';
 import { CONFIG_FILE_NAME } from './consts.js';
 import { defaultConfig } from './defaultConfig.js';
 import type { PvlConfig, PvlConfigFilePayload, PvlConfigOverrides } from './types.js';
 import {
   createConfigFileUnreadableDiagnostic,
+  definedOnlyKeys,
   getInvalidConfigDiagnostics,
   isMissingFileError,
   parseSettingsFile,
