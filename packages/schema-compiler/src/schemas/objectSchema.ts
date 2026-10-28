@@ -9,7 +9,7 @@ import {
   PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM,
   PVL_SCHEMA_UNKNOWN_KEYS_METHOD_NAMES,
 } from '@pvl/schema';
-import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from '../enums.js';
+import { UNKNOWN_KEYS_MODE, type UnknownKeysMode } from './enums.js';
 import { Schema } from './schema.js';
 import type { SchemaModifierCall } from './types/modifierCall.js';
 import type { ReadFactoryArgs } from './types/schemaClass.js';

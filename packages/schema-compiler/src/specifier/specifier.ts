@@ -3,20 +3,7 @@
 // written in a scanned module is spelled from its mirrored module's location.
 import * as path from 'node:path';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
-import { stripFileExtension, toPosixPath, type AbsolutePath } from './path.js';
-
-/** Extensions a module specifier may spell out, which a rewritten one keeps. */
-const MODULE_SPECIFIER_EXTENSIONS: ReadonlySet<string> = new Set([
-  '.js',
-  '.jsx',
-  '.mjs',
-  '.cjs',
-  '.ts',
-  '.tsx',
-  '.mts',
-  '.cts',
-  '.json',
-]);
+import { stripFileExtension, toPosixPath, type AbsolutePath } from '../path.js';
 
 /** What a module specifier reaches, resolved from where it was written. */
 export type SpecifierTarget =

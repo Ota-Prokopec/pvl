@@ -21,7 +21,7 @@ import {
   STANDALONE_BRAND_NAME,
   TYPE_ALIAS_IMPORT,
 } from './consts/generatedModule.js';
-import { SPECIFIER_TARGET_KIND } from './enums.js';
+import { SPECIFIER_TARGET_KIND } from './specifier/enums.js';
 import type { Destination } from './destination/destination.js';
 import {
   createAbsolutePathWithRelative,
@@ -30,7 +30,7 @@ import {
 } from './path.js';
 import type { Schema } from './schemas/schema.js';
 import type { ScannedPath } from './scanner.js';
-import { Specifier, type SpecifierTarget } from './specifier.js';
+import { Specifier, type SpecifierTarget } from './specifier/specifier.js';
 import { TsMorphProject } from './tsMorphProject.js';
 
 /**

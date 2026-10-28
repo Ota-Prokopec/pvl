@@ -45,7 +45,8 @@ import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import type { Scope } from '../scope.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
-import { UNDEFINEDNESS, UNKNOWN_KEYS_MODE } from '../enums.js';
+import { UNDEFINEDNESS } from '../spelledType/enums.js';
+import { UNKNOWN_KEYS_MODE } from '../schemas/enums.js';
 
 // A key that reads bare in a comment or a type.
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;

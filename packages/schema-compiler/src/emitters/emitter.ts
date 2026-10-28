@@ -19,7 +19,7 @@
 // the emitter it is called on is a function in `./utils/`.
 import type { Schema } from '../schemas/schema.js';
 import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
-import { UNDEFINEDNESS } from '../enums.js';
+import { UNDEFINEDNESS } from '../spelledType/enums.js';
 import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
 import type { SchemaEmitter } from './schemaEmitter.js';

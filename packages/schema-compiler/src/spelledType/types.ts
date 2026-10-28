@@ -1,7 +1,7 @@
 // A Schema's `Input` and `Output` types spelled as TypeScript, each with
 // whether it admits `undefined`, as an Emitter spells them and a Frame
 // writes them into a Compiled Schema's type.
-import type { Undefinedness } from '../enums.js';
+import type { Undefinedness } from './enums.js';
 
 /**
  * A type spelled as TypeScript, and whether it admits `undefined`, which

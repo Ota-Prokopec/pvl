@@ -25,7 +25,7 @@ export const NODE_ENV = {
 export type NodeEnv = ValueOfEnum<typeof NODE_ENV>;
 ```
 
-Every enum, even one only a single module uses, is exported from its directory's `enums.ts`, with its value union under it, never declared in a module or in a `consts.ts`. [typescript.md](../standards/typescript.md#where-types-enums-and-constants-live) says which directory. An internal-only enum goes in an `enums.ts` the barrel leaves out, so its `export *` doesn't publish it: one inside a directory the barrel leaves out (`src/modifiers/enums.ts` in `@pvl/schema`), or one beside the barrel when the package's public enums sit in an `enums.ts` of their own directory, which the barrel re-exports (`src/enums.ts` in `@pvl/schema-compiler`, whose public ones are in `src/diagnostics/enums.ts`).
+Every enum, even one only a single module uses, is exported from its directory's `enums.ts`, with its value union under it, never declared in a module or in a `consts.ts`. [typescript.md](../standards/typescript.md#where-types-enums-and-constants-live) says which directory. An internal-only enum goes in an `enums.ts` the barrel leaves out, so its `export *` doesn't publish it: one inside a directory the barrel leaves out (`src/modifiers/enums.ts` in `@pvl/schema`, `src/schemas/enums.ts` in `@pvl/schema-compiler`, whose public ones are in `src/diagnostics/enums.ts`), or one beside the barrel when the package's public enums sit in an `enums.ts` of their own directory, which the barrel re-exports.
 
 `ValueOfEnum` also reads a literal array's elements, which is what `pvl.enum(['A', 'B'])` needs: a readonly tuple's `T[keyof T]` would include `length` and every array method.
 

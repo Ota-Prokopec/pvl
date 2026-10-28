@@ -8,7 +8,7 @@
 // `ChainableInterpretedSchema`.
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
-import { UNDEFINEDNESS } from '../enums.js';
+import { UNDEFINEDNESS } from '../spelledType/enums.js';
 import type { SchemaTypes } from '../spelledType/types.js';
 import { UNKNOWN_SPELLED_TYPE } from '../spelledType/consts.js';
 import { Emitter } from './emitter.js';

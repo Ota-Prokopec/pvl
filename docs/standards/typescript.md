@@ -86,7 +86,7 @@ record/
 
 - **A file holding declarations of more than one meaning becomes a folder** of the same name (`types/`, `enums/`, `consts/`, no barrel), with one file per meaning, named after it (`emitters/consts/checkOptions.ts`), which modules import by its own path. `pnpm lint` checks where each form may sit.
 - **A module declares no type, enum or constant of its own**, even one only it uses: the directory's file exports it, and the module imports it.
-- **The directory is the one holding the modules that use the declaration.** A declaration used in several directories goes in the file of their nearest common directory, up to `src/` for one used across the package.
+- **The directory is the one that owns what the declaration describes, not the one that uses it most.** A `USER_ROLE` enum goes in `user/enums.ts` even when `auth/` and `billing/` read it more often than `user/` does. In the compiler, `UNDEFINEDNESS` describes a spelled type, so it sits in `spelledType/enums.ts`, although `emitters/` imports it from more files. Only a declaration that no one directory owns goes in the file of its users' nearest common directory, up to `src/` for one used across the package.
 - **Two declarations stay beside what they describe:** an enum's value union (`ValueOfEnum<typeof X>`) sits under its enum in `enums.ts`, and a function's `Args` type sits above the function, where `pnpm lint` places it.
 
 [enums-and-constants.md](../specification/enums-and-constants.md) says how to declare an enum or a constant, and where an internal-only one goes when its directory's file is published.

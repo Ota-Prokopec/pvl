@@ -6,7 +6,7 @@ import { Project, ts } from 'ts-morph';
 import { Diagnostic } from './diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import type { AbsolutePath } from './path.js';
-import { Specifier } from './specifier.js';
+import { Specifier } from './specifier/specifier.js';
 
 /** The project the mirror reads into, or why the application's tsconfig stops it from being built. */
 export type CreateTsMorphProjectPayload =

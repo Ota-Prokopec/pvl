@@ -10,7 +10,7 @@ import { js } from './utils/js.js';
 import { emitLiteral, spellLiteralType } from './utils/literal.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
 import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
-import { UNDEFINEDNESS } from '../enums.js';
+import { UNDEFINEDNESS } from '../spelledType/enums.js';
 
 export class EnumSchemaEmitter extends ChainableSchemaEmitter {
   /**
