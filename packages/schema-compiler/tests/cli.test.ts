@@ -258,6 +258,16 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'out'],
   },
   {
+    code: DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA,
+    files: {
+      'src/shared/name.ts': schemaFile('export const name = pvl.string().max(LIMIT);'),
+      'src/schemas/user.ts': schemaFile(
+        "import { name } from '../shared/name.js';\nexport const user = pvl.compile(name);",
+      ),
+    },
+    argv: ['--destination', 'out'],
+  },
+  {
     code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
     files: {
       'src/schemas/user.ts': schemaFile(

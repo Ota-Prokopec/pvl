@@ -6,10 +6,10 @@ import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Emitter } from '../emitters/emitter.js';
 import type { SchemaModifierCall } from './types/modifierCall.js';
 
-/** What {@link createUnsupportedSchemaDiagnostic} reports: a Schema's factory, the line it is written on, and its Module's file. */
+/** What {@link createUnsupportedSchemaDiagnostic} reports: a Schema's factory, where it is written, and its Module's file. */
 export type CreateUnsupportedSchemaDiagnosticArgs = {
   factory: PvlFactoryName;
-  line: number;
+  location: string;
   file: string;
 };
 
@@ -17,17 +17,17 @@ export type CreateUnsupportedSchemaDiagnosticArgs = {
  * The UNSUPPORTED_SCHEMA diagnostic of a Schema with no Emitter yet.
  *
  * ```ts
- * createUnsupportedSchemaDiagnostic({ factory: 'union', line: 3, file }) // UNSUPPORTED_SCHEMA: 'The `pvl.union()` on line 3 can't be compiled yet.'
+ * createUnsupportedSchemaDiagnostic({ factory: 'union', location: 'line 3', file }) // UNSUPPORTED_SCHEMA: 'The `pvl.union()` on line 3 can't be compiled yet.'
  * ```
  */
 export const createUnsupportedSchemaDiagnostic = ({
   factory,
-  line,
+  location,
   file,
 }: CreateUnsupportedSchemaDiagnosticArgs): Diagnostic => {
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-    message: `The \`pvl.${factory}()\` on line ${String(line)} can't be compiled yet.`,
+    message: `The \`pvl.${factory}()\` on ${location} can't be compiled yet.`,
     file,
   });
 };
@@ -61,14 +61,14 @@ export const findUncompilableCallDiagnostic = ({
   if (!emitter.compilesMethod({ name: call.name })) {
     return new Diagnostic({
       code: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-      message: `\`.${call.name}()\` on line ${String(call.line)} can't be compiled yet.`,
+      message: `\`.${call.name}()\` on ${call.location} can't be compiled yet.`,
       file,
     });
   }
   return call.args === undefined
     ? new Diagnostic({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-        message: `An argument of \`.${call.name}()\` on line ${String(call.line)} is spread, so it has no fixed position for the Compiled Schema to pass it at.`,
+        message: `An argument of \`.${call.name}()\` on ${call.location} is spread, so it has no fixed position for the Compiled Schema to pass it at.`,
         file,
       })
     : undefined;

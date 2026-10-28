@@ -1,6 +1,6 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
-// reading literals as values, whether a file parses and exports anything,
+// of the same file or imported, reading literals as values, whether a file parses and exports anything,
 // which of its statements run code, and where its module specifiers are
 // written. Nothing is imported or executed.
 import {
@@ -231,19 +231,22 @@ export class GenericAst {
    * that `const`'s initializer, through any number of `const`s, plus the
    * `const`s followed to get there. Parentheses and `as` are seen through
    * (`unwrap`). An identifier is followed only when it names a top-level
-   * `const` of `node`'s own file in its scope (`findTopLevelConst`): any
-   * other identifier, one shadowing such a `const` included, throws
-   * UnresolvedNodeException, and a `const` that is reached again while it is
-   * being followed, or while its value is being read (`followed`), throws
-   * ConstCycleException.
+   * `const` in its scope, of `node`'s own file or imported from another
+   * (`findTopLevelConst`): any other identifier, one shadowing such a
+   * `const` included, throws UnresolvedNodeException, with a hint when it
+   * imports a default-exported expression (`findImportHint`), and a `const`
+   * that is reached again while it is being followed, or while its value is
+   * being read (`followed`), throws ConstCycleException, in whichever file.
    *
    * ```ts
    * // const MIN = 3; const LIMIT = (MIN);
    * GenericAst.followConst(<LIMIT>)            // { node: <3>, followed: {<LIMIT = (MIN)>, <MIN = 3>} }
    * GenericAst.followConst(<'a'>)              // { node: <'a'>, followed: {} }: no const to follow
    * GenericAst.followConst(<pvl.string()>)     // { node: <pvl.string()>, followed: {} }: only identifiers are followed
-   * // import { user } from './user.js'; let limit = 3;
-   * GenericAst.followConst(<user>)             // throws UnresolvedNodeException(<user>): an import
+   * // import { user } from './user.js', where `export const user = pvl.string();`
+   * GenericAst.followConst(<user>)             // { node: <pvl.string()>, followed: {<user = pvl.string()>} }
+   * // import user from './user.js', where `export default pvl.string();`; let limit = 3;
+   * GenericAst.followConst(<user>)             // throws UnresolvedNodeException(<user>), with a hint: a default-exported expression
    * GenericAst.followConst(<limit>)            // throws UnresolvedNodeException(<limit>): a `let`
    * // const MIN = 3; (MIN: number) => MIN;
    * GenericAst.followConst(<MIN>)              // throws UnresolvedNodeException(<MIN>): `MIN` is the parameter
@@ -262,7 +265,7 @@ export class GenericAst {
     const declaration = GenericAst.findTopLevelConst(unwrappedNode);
     const initializer = declaration?.getInitializer();
     if (declaration === undefined || initializer === undefined) {
-      throw new UnresolvedNodeException(unwrappedNode);
+      throw new UnresolvedNodeException(unwrappedNode, GenericAst.findImportHint(unwrappedNode));
     }
 
     if (followed.has(declaration)) {
@@ -273,12 +276,42 @@ export class GenericAst {
   }
 
   /**
-   * The declaration `identifier` names when it is a top-level `const` of
-   * `identifier`'s own file, found by binding the name in its scope, so a
-   * parameter or a local that shadows the `const` is not it; `undefined`
-   * for any other binding. In a shorthand property, `{ age }`, the name is
-   * bound as the value it reads. Names are bound only, and no type is
-   * checked ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)).
+   * A hint for how to write `node` so it reads, when it imports a Schema in
+   * a way that can't be followed: a default-exported expression, which no
+   * `const` holds, or a property of a namespace import, which is no name of
+   * its own (ADR-0043); `undefined` for anything else.
+   *
+   * ```ts
+   * // import user from './user.js', where `export default pvl.string();`
+   * GenericAst.findImportHint(<user>)         // 'A default export can be followed when it names a `const`: …'
+   * // import * as schemas from './schemas.js';
+   * GenericAst.findImportHint(<schemas.user>) // "Import the Schema by its name instead: `import { user } from './schemas.js'`."
+   * GenericAst.findImportHint(<makeSchema()>) // undefined
+   * ```
+   */
+  public static findImportHint(node: Node): string | undefined {
+    if (Node.isIdentifier(node) && Node.isExportAssignment(GenericAst.findBoundDeclaration(node))) {
+      return 'A default export can be followed when it names a `const`: `const schema = pvl.object(…); export default schema;`.';
+    }
+    if (!Node.isPropertyAccessExpression(node)) {
+      return undefined;
+    }
+    const [namespaceImport] = node.getExpression().getSymbol()?.getDeclarations() ?? [];
+    if (!Node.isNamespaceImport(namespaceImport)) {
+      return undefined;
+    }
+    const moduleSpecifier = namespaceImport
+      .getFirstAncestorByKindOrThrow(SyntaxKind.ImportDeclaration)
+      .getModuleSpecifierValue();
+    return `Import the Schema by its name instead: \`import { ${node.getName()} } from '${moduleSpecifier}'\`.`;
+  }
+
+  /**
+   * The declaration `identifier` names when it is a top-level `const`, of
+   * `identifier`'s own file or imported from another (`findBoundDeclaration`);
+   * `undefined` for any other binding, a parameter or a local that shadows
+   * the `const` included. Names are bound only, and no type is checked
+   * ([ADR-0024](../../../../docs/adr/0024-the-compiler-checks-syntax-not-types.md)).
    *
    * ```ts
    * // const MIN = 3;
@@ -286,22 +319,40 @@ export class GenericAst {
    * GenericAst.findTopLevelConst(<age>), in `({ age })`           // <age = …>, with `const age = …`
    * GenericAst.findTopLevelConst(<MIN>), in `(MIN: number) => MIN` // undefined: the parameter
    * GenericAst.findTopLevelConst(<MIN>), in `{ const MIN = 5; MIN }` // undefined: a block-scoped `const`
-   * // import { user } from './user.js'; let limit = 3;
-   * GenericAst.findTopLevelConst(<user>)                         // undefined: an import
+   * // import { user } from './user.js', where `export const user = …`; let limit = 3;
+   * GenericAst.findTopLevelConst(<user>)                         // <user = …>, in user.ts
    * GenericAst.findTopLevelConst(<limit>)                        // undefined: a `let`
    * ```
    */
   private static findTopLevelConst(identifier: Identifier): VariableDeclaration | undefined {
+    const declaration = GenericAst.findBoundDeclaration(identifier);
+    return Node.isVariableDeclaration(declaration) &&
+      GenericAst.isTopLevelConstIn(declaration, declaration.getSourceFile())
+      ? declaration
+      : undefined;
+  }
+
+  /**
+   * The declaration `identifier` is bound to in its scope, through any
+   * import, re-export (`export { user } from`, `export * from`) or default
+   * export to the one it names in its own file. In a shorthand property,
+   * `{ age }`, the name is bound as the value it reads.
+   *
+   * ```ts
+   * // const MIN = 3;
+   * GenericAst.findBoundDeclaration(<MIN>)  // <MIN = 3>
+   * // import { user as u } from './schemas.js', a barrel holding `export * from './user.js'`
+   * GenericAst.findBoundDeclaration(<u>)    // <user = …>, in user.ts
+   * // import user from './user.js', where `export default pvl.string();`
+   * GenericAst.findBoundDeclaration(<user>) // <export default pvl.string();>
+   * ```
+   */
+  private static findBoundDeclaration(identifier: Identifier): Node | undefined {
     const identifierParent = identifier.getParent();
     const symbol = Node.isShorthandPropertyAssignment(identifierParent)
       ? identifierParent.getValueSymbol()
       : identifier.getSymbol();
-
-    const declaration = symbol?.getValueDeclaration();
-    return Node.isVariableDeclaration(declaration) &&
-      GenericAst.isTopLevelConstIn(declaration, identifier.getSourceFile())
-      ? declaration
-      : undefined;
+    return (symbol?.isAlias() === true ? symbol.getAliasedSymbol() : symbol)?.getValueDeclaration();
   }
 
   /**

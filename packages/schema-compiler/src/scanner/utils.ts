@@ -72,14 +72,14 @@ export const createNoInputFilesDiagnostic = (include: ReadonlyArray<string>): Di
  *
  * ```ts
  * createSymlinkSkippedDiagnostic('/repo/src/schemas/linked.ts')
- * // → SYMLINK_SKIPPED: This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled.
+ * // → SYMLINK_SKIPPED: This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled. …
  * ```
  */
 export const createSymlinkSkippedDiagnostic = (symlinkPath: string): Diagnostic => {
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
     message:
-      "This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled.",
+      "This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled. A Schema it exports can still be nested in a scanned file's, through an import.",
     file: symlinkPath,
   });
 };

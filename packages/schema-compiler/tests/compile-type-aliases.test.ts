@@ -72,6 +72,23 @@ describe('runCompilation(): type aliases', () => {
     `);
   });
 
+  it('gives an exported const built from an Imported Schema its aliases too', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/shared/user.ts': schemaFile('export const user = pvl.object({ name: pvl.string() });'),
+      'src/schemas/admin.ts': schemaFile(
+        "import { user } from '../shared/user.js';\nexport const admin = user.optional();",
+      ),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics).toEqual([]);
+    expect(await readFixtureFile(root, '.pvl/schemas/admin.ts')).toContain(
+      'export type AdminInput = PvlInferInput<typeof admin>;',
+    );
+  });
+
   it('types each alias as the interpreted Schema infers, so a .transform() gives Input and Output apart', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),

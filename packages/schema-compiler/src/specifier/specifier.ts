@@ -65,7 +65,7 @@ export class Specifier {
    * Specifier.fromRelativePath('../lib/helpers.js').moduleSpecifierAsString // '../lib/helpers.js'
    * ```
    */
-  private static fromRelativePath(relativePath: string): Specifier {
+  public static fromRelativePath(relativePath: string): Specifier {
     const posixRelativePath = toPosixPath(relativePath);
     return new Specifier(
       posixRelativePath.startsWith('.') ? posixRelativePath : `./${posixRelativePath}`,

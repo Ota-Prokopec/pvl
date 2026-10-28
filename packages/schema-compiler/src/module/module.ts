@@ -3,7 +3,7 @@
 // place, module specifiers rewritten to reach the right files from there.
 // `Precheck` checks it before that.
 import * as path from 'node:path';
-import type { Project, SourceFile } from 'ts-morph';
+import type { Node, Project, SourceFile } from 'ts-morph';
 import { GenericAst } from '../ast/genericAst.js';
 import { PvlAst } from '../ast/pvlAst.js';
 import type { Destination } from '../destination/destination.js';
@@ -136,6 +136,30 @@ export class Module {
       relativePath: this.path.relativePath.pathFromBase,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
+  }
+
+  /**
+   * Where `node` is, as a diagnostic on this module names it: its line, and
+   * also its file when that is another one, which a followed import reads
+   * from, named as a module specifier written here would name it (ADR-0043).
+   *
+   * ```ts
+   * // /repo/src/schemas/team.ts
+   * team.spellLocation(<pvl.string()>)                             // 'line 3'
+   * team.spellLocation(<pvl.string()>), in /repo/src/shared/user.ts // 'line 2 of ../shared/user.ts'
+   * ```
+   */
+  public spellLocation(node: Node): string {
+    const line = `line ${String(node.getStartLineNumber())}`;
+    const nodeFile = node.getSourceFile();
+    if (nodeFile === this.moduleFile) {
+      return line;
+    }
+    const relativePath = path.relative(
+      path.dirname(this.path.absolutePath),
+      nodeFile.getFilePath(),
+    );
+    return `${line} of ${Specifier.fromRelativePath(relativePath).moduleSpecifierAsString}`;
   }
 
   /**

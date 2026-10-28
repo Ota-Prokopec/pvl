@@ -11,6 +11,7 @@ import {
   diagnosticCodes,
   expectFailure,
   listFixtureFiles,
+  schemaFile,
   readFixtureFile,
 } from './helpers.js';
 
@@ -452,19 +453,24 @@ describe('runCompilation(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe('previous output');
   });
 
-  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument not written in the file, or a spread method argument', async () => {
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument no const holds, imported or not, or a spread method argument', async () => {
     const schemaFilePath = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/fallback.ts':
+        "import { pvl } from '@pvl/schema';\n\nexport default pvl.string();\n",
       [schemaFilePath]: [
         "import { pvl } from '@pvl/schema';",
         "import { user } from './user.js';",
+        "import * as schemas from './user.js';",
+        "import fallback from './fallback.js';",
         '',
         'const makeSchema = () => pvl.object({});',
         'const limits = [3] as const;',
         "const options = { message: 'too long' };",
-        'export const imported = pvl.compile(user);',
+        'export const defaultExpression = pvl.compile(fallback);',
+        'export const namespaced = pvl.compile(schemas.user);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
         'export const spreadArgument = pvl.compile(pvl.array(pvl.string()).max(...limits));',
@@ -477,11 +483,37 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 5 }, () => ({
+      Array.from({ length: 6 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
         file: path.join(root, schemaFilePath),
       })),
     );
+  });
+
+  it('RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: an Imported Schema passes a Runtime Argument written in its own file, reported on the compiling one', async () => {
+    const schemaFilePath = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/shared/user.ts': [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'const isNice = (name: string): boolean => name.length > 0;',
+        'export const user = pvl.object({ name: pvl.string().refine(isNice) });',
+        '',
+      ].join('\n'),
+      [schemaFilePath]: schemaFile(
+        "import { user } from '../shared/user.js';\nexport const team = pvl.compile(pvl.object({ user }));",
+      ),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(payload, [
+      {
+        code: DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA,
+        file: path.join(root, schemaFilePath),
+      },
+    ]);
   });
 
   it('COMPILE_ARGUMENT_UNRESOLVABLE: a factory argument naming what shadows a top-level const', async () => {

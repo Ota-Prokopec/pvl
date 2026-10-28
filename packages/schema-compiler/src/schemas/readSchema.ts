@@ -9,7 +9,11 @@ import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
 import { PvlAst } from '../ast/pvlAst.js';
 import type { SchemaCall } from '../ast/types.js';
-import { BaseException, UnresolvedNodeException } from '../exceptions/index.js';
+import {
+  BaseException,
+  ImportedRuntimeArgumentException,
+  UnresolvedNodeException,
+} from '../exceptions/index.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import {
   PVL_OBJECT_PROPERTY_NAMES_ENUM,
@@ -41,9 +45,11 @@ export type ModuleCompilation = {
  * - COMPILE_RESULT_MODIFIED: something is chained onto the result
  *   (`pvl.compile(user).optional()`).
  * - COMPILE_ARGUMENT_UNRESOLVABLE: the argument can't be read statically, as
- *   when it is imported, built by a function or spread.
+ *   when it is built by a function, spread, or a default-exported expression.
  * - COMPILE_ARGUMENT_CYCLE: the argument follows a `const` that refers back
- *   to itself.
+ *   to itself, in whichever file.
+ * - RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: a Schema it follows into another
+ *   file passes a Runtime Argument written there (ADR-0043).
  * - UNSUPPORTED_SCHEMA: a method `@pvl/schema` doesn't have is called in
  *   it, on `pvl` or on a Schema, which ends the reading, so only the first
  *   one is reported (ADR-0038).
@@ -54,9 +60,8 @@ export type ModuleCompilation = {
  * ```ts
  * // /repo/src/schemas/user.ts
  * import { pvl } from '@pvl/schema';
- * import { address } from './address.js';
  * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
- * export const home = pvl.compile(address);
+ * export const home = pvl.compile(makeAddress());
  * findMarkedToCompileSchemas(<user.ts>)
  * // { module: <user.ts>, schemas: [<ObjectSchema>], diagnostics: [COMPILE_ARGUMENT_UNRESOLVABLE] }
  * ```
@@ -86,7 +91,7 @@ export const findMarkedToCompileSchemas = (module: Module): ModuleCompilation =>
     }
 
     // The whole call, which the Schema is read through and which compiling replaces.
-    const schemaPayload = readSchema({ module, expression: call, pvlImportLocalNames });
+    const schemaPayload = readSchema({ module, expression: call });
 
     if ('diagnostic' in schemaPayload) {
       diagnostics.push(schemaPayload.diagnostic);
@@ -109,17 +114,17 @@ export type ReadSchemaArgs = {
   module: Module;
   /** A `pvl.*` call chain, a `const` holding one, or a `pvl.compile(...)` call, which is read through. */
   expression: Node;
-  /** The Local Names `pvl` is imported under from `@pvl/schema`. */
-  pvlImportLocalNames: ReadonlySet<string>;
 };
 
 /**
  * The Schema `expression` holds, as the subclass of its factory, or the
  * error its reading stopped at, on its Module's file, as the diagnostic the
- * BaseException thrown names: COMPILE_ARGUMENT_UNRESOLVABLE naming the
- * first node that can't be read statically, COMPILE_ARGUMENT_CYCLE naming a
- * `const` that reaches itself, or UNSUPPORTED_SCHEMA naming the first
- * method `@pvl/schema` doesn't have. Only a call chain or a factory's
+ * BaseException thrown names, where its node is (`Module.spellLocation`):
+ * COMPILE_ARGUMENT_UNRESOLVABLE naming the first node that can't be read
+ * statically, COMPILE_ARGUMENT_CYCLE naming a `const` that reaches itself,
+ * UNSUPPORTED_SCHEMA naming the first method `@pvl/schema` doesn't have, or
+ * RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA naming a Runtime Argument written in
+ * another file. Only a call chain or a factory's
  * argument can fail to read: a method's argument that isn't a literal is a
  * Runtime Argument, and a spread one is reported by
  * `Schema.findUncompilableDiagnostics` once the Schema is read, so it never
@@ -133,8 +138,10 @@ export type ReadSchemaArgs = {
  * readSchema({ expression: <pvl.object({ name: pvl.string() })>, … }) // { schema: <ObjectSchema> }: not marked, still read
  * // export const getName = (max: number) => pvl.compile(pvl.string().max(max));
  * readSchema({ expression: <pvl.compile(…)>, … }) // { schema: <StringSchema with calls [max(<Runtime Argument max>)]> }
- * // export const home = pvl.compile(importedAddress);
- * readSchema({ expression: <pvl.compile(importedAddress)>, … })    // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
+ * // import { address } from './address.js', where `export const address = pvl.object({ … });`
+ * readSchema({ expression: <pvl.compile(address)>, … })            // { schema: <ObjectSchema> }, read in address.ts
+ * // export const home = pvl.compile(makeAddress());
+ * readSchema({ expression: <pvl.compile(makeAddress())>, … })      // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }
  * // export const tags = pvl.compile(pvl.array('a').max(...limits));
  * readSchema({ expression: <pvl.compile(…)>, … })                  // { diagnostic: COMPILE_ARGUMENT_UNRESOLVABLE }, at <'a'>
  * // const user = pvl.object({ friend: user });
@@ -155,7 +162,7 @@ export const readSchema = (
     return {
       diagnostic: new Diagnostic({
         code: error.errorCode,
-        message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be compiled: ${error.message}`,
+        message: `The Schema on line ${String(args.expression.getStartLineNumber())} can't be compiled: on ${args.module.spellLocation(error.node)}, ${error.message}`,
         file: args.module.path.absolutePath,
       }),
     };
@@ -177,8 +184,10 @@ type ReadingArgs = ReadSchemaArgs & {
  * its Runtime Arguments are numbered in: the factory's argument, with every
  * Schema nested in it, then the methods chained onto the call. Throws an
  * UnresolvedNodeException at the first node that can't be read, a
- * ConstCycleException at a `const` that reaches itself, or an
- * UnknownPvlMethodException at the first method `@pvl/schema` doesn't have.
+ * ConstCycleException at a `const` that reaches itself, an
+ * UnknownPvlMethodException at the first method `@pvl/schema` doesn't have,
+ * or an ImportedRuntimeArgumentException at a Runtime Argument written in
+ * another file than its Module (ADR-0043).
  *
  * ```ts
  * readExpression(args, <pvl.string().min(3)>)       // <StringSchema with calls [min(3)]>
@@ -199,7 +208,7 @@ const readExpression = (
   followed?: FollowedConsts,
   outerMethods: ReadonlyArray<SchemaCall> = [],
 ): Schema => {
-  const { factory, methods } = PvlAst.readCallChain(expression, args.pvlImportLocalNames, followed);
+  const { factory, methods } = PvlAst.readCallChain(expression, followed);
   const chainedMethods = [...methods, ...outerMethods];
   const [argument] = factory.call.getArguments();
   if (factory.methodName === PVL_OBJECT_PROPERTY_NAMES_ENUM.COMPILE && argument !== undefined) {
@@ -220,11 +229,11 @@ const readExpression = (
   // `pvl.compile(x).standalone()` read the same.
   const calls = chainedMethods
     .filter((method) => method.methodName !== PVL_SCHEMA_METHOD_NAME_ENUM.STANDALONE)
-    .map((method) => readMethodCall(method, args.runtimeArguments));
+    .map((method) => readMethodCall(method, args));
   return buildSchema({
     module: args.module,
     expression: args.expression,
-    line: factory.call.getStartLineNumber(),
+    location: args.module.spellLocation(factory.call),
     calls,
     isStandalone: chainedMethods.some(
       (method) => method.methodName === PVL_SCHEMA_METHOD_NAME_ENUM.STANDALONE,
@@ -248,21 +257,29 @@ const isSchemaFactory = (methodName: string): methodName is PvlFactoryName =>
 /**
  * `method`, a method chained onto a Schema, with its arguments read (see
  * `readMethodArguments`), each Runtime Argument added to
- * `runtimeArguments`.
+ * `args.runtimeArguments`.
  *
  * ```ts
- * readMethodCall(<.min(3)>, [])   // { name: 'min', args: [3], line: 1 }
- * readMethodCall(<.min(min)>, []) // { name: 'min', args: [<Runtime Argument min>], line: 1 }
+ * readMethodCall(<.min(3)>, args)   // { name: 'min', args: [3], location: 'line 1' }
+ * readMethodCall(<.min(min)>, args) // { name: 'min', args: [<Runtime Argument min>], location: 'line 1' }
  * ```
  */
 const readMethodCall = (
   { call, methodName }: SchemaCall,
-  runtimeArguments: RuntimeArgument[],
+  { module, runtimeArguments }: ReadingArgs,
 ): SchemaModifierCall => ({
   name: methodName,
-  args: readMethodArguments(call.getArguments(), runtimeArguments),
-  line: call.getStartLineNumber(),
+  args: readMethodArguments({ methodName, args: call.getArguments(), module, runtimeArguments }),
+  location: module.spellLocation(call),
 });
+
+/** What {@link readMethodArguments} reads: a method's arguments, the method's name, the Module whose Schema chains it, and the Runtime Arguments read so far. */
+type ReadMethodArgumentsArgs = {
+  methodName: string;
+  args: ReadonlyArray<Node>;
+  module: Module;
+  runtimeArguments: RuntimeArgument[];
+};
 
 /**
  * A method's arguments, each read as the literal it is written as
@@ -271,19 +288,25 @@ const readMethodCall = (
  * never followed, so one is read where it is written, as the interpreted
  * path reads it (ADR-0030). `undefined` when one is spread (`...limits`,
  * or `{ ...options }` written in place), as it has no fixed position.
- * Never throws for an argument it can't read.
+ * Never throws for an argument it can't read, unless it is written in
+ * another file than `module`, which a followed import reached: it would be
+ * evaluated there, so it throws an ImportedRuntimeArgumentException
+ * (ADR-0043).
  *
  * ```ts
- * readMethodArguments([<3>, <{ message: 'short' }>], []) // [3, { message: 'short' }]
- * readMethodArguments([<MIN>], [])                       // [<Runtime Argument MIN>], with `const MIN = 3`
- * readMethodArguments([<min>, <options>], [])            // [<Runtime Argument min>, <Runtime Argument options>], with parameters `min` and `options`
- * readMethodArguments([<...limits>], [])                 // undefined
+ * readMethodArguments({ args: [<3>, <{ message: 'short' }>], … }) // [3, { message: 'short' }]
+ * readMethodArguments({ args: [<MIN>], … })                       // [<Runtime Argument MIN>], with `const MIN = 3`
+ * readMethodArguments({ args: [<min>, <options>], … })            // [<Runtime Argument min>, <Runtime Argument options>], with parameters `min` and `options`
+ * readMethodArguments({ args: [<...limits>], … })                 // undefined
+ * readMethodArguments({ args: [<LIMIT>], … }), in another file    // throws ImportedRuntimeArgumentException
  * ```
  */
-const readMethodArguments = (
-  args: ReadonlyArray<Node>,
-  runtimeArguments: RuntimeArgument[],
-): SchemaModifierCallArgument[] | undefined => {
+const readMethodArguments = ({
+  methodName,
+  args,
+  module,
+  runtimeArguments,
+}: ReadMethodArgumentsArgs): SchemaModifierCallArgument[] | undefined => {
   if (args.some((argument) => GenericAst.isSpread(argument))) {
     return undefined;
   }
@@ -293,6 +316,9 @@ const readMethodArguments = (
     } catch (error) {
       if (!(error instanceof UnresolvedNodeException)) {
         throw error;
+      }
+      if (argument.getSourceFile() !== module.moduleFile) {
+        throw new ImportedRuntimeArgumentException(argument, methodName);
       }
       const runtimeArgument = new RuntimeArgument(argument, runtimeArguments.length);
       runtimeArguments.push(runtimeArgument);

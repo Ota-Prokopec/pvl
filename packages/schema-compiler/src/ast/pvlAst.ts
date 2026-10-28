@@ -179,8 +179,9 @@ export class PvlAst {
 
   /**
    * The call chain `expression` holds, read from the outside in and
-   * following `const`s: `<receiver>.<methodName>(…)` is the factory when
-   * `receiver` is `pvl`, and otherwise a method chained onto the receiver's
+   * following `const`s, into another file too: `<receiver>.<methodName>(…)`
+   * is the factory when `receiver` is `pvl` under a Local Name of the file
+   * it is written in, and otherwise a method chained onto the receiver's
    * chain. Each method name is narrowed to the one `@pvl/schema` gives it,
    * `pvl`'s for the factory and a Schema's for a chained method, and one it
    * doesn't have throws UnknownPvlMethodException at its call. A chained
@@ -188,22 +189,21 @@ export class PvlAst {
    * that can't be read is what is reported.
    *
    * ```ts
-   * // pvlImportLocalNames: {'pvl'}
-   * PvlAst.readCallChain(<pvl.string().min(3)>, names) // { factory: string(), methods: [min(3)] }
-   * PvlAst.readCallChain(<user>, names)                // the chain `const user = …` holds
-   * PvlAst.readCallChain(<makeSchema()>, names)        // throws UnresolvedNodeException
-   * PvlAst.readCallChain(<z.string()>, names)          // throws UnresolvedNodeException at <z>
-   * PvlAst.readCallChain(<pvl.foo()>, names)           // throws UnknownPvlMethodException at <pvl.foo()>
-   * PvlAst.readCallChain(<pvl.string().foo()>, names)  // throws UnknownPvlMethodException at <….foo()>
-   * PvlAst.readCallChain(<z.string().foo()>, names)    // throws UnresolvedNodeException at <z>: the receiver is read first
+   * // import { pvl } from '@pvl/schema';
+   * PvlAst.readCallChain(<pvl.string().min(3)>) // { factory: string(), methods: [min(3)] }
+   * PvlAst.readCallChain(<user>)                // the chain `const user = …` holds, imported or not
+   * PvlAst.readCallChain(<makeSchema()>)        // throws UnresolvedNodeException
+   * PvlAst.readCallChain(<schemas.user>)        // throws UnresolvedNodeException, with a hint when `schemas` is a namespace import
+   * PvlAst.readCallChain(<z.string()>)          // throws UnresolvedNodeException at <z>
+   * PvlAst.readCallChain(<pvl.foo()>)           // throws UnknownPvlMethodException at <pvl.foo()>
+   * PvlAst.readCallChain(<pvl.string().foo()>)  // throws UnknownPvlMethodException at <….foo()>
+   * PvlAst.readCallChain(<z.string().foo()>)    // throws UnresolvedNodeException at <z>: the receiver is read first
    * ```
    */
-  public static readCallChain(
-    expression: Node,
-    pvlImportLocalNames: ReadonlySet<string>,
-    followed: FollowedConsts = new Set(),
-  ): CallChain {
+  public static readCallChain(expression: Node, followed: FollowedConsts = new Set()): CallChain {
     const { node, followed: reading } = GenericAst.followConst(expression, followed);
+    // A followed import leaves `node` in another file, which may import `pvl` under other names.
+    const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(node.getSourceFile());
     const directPvlCall = PvlAst.asDirectPvlCall(node, pvlImportLocalNames);
 
     if (directPvlCall !== undefined) {
@@ -215,11 +215,11 @@ export class PvlAst {
 
     const propertyAccessCall = GenericAst.asPropertyAccessCall(node);
     if (propertyAccessCall === undefined) {
-      throw new UnresolvedNodeException(node);
+      throw new UnresolvedNodeException(node, GenericAst.findImportHint(node));
     }
 
     const { call, receiver, methodName } = propertyAccessCall;
-    const chain = PvlAst.readCallChain(receiver, pvlImportLocalNames, reading);
+    const chain = PvlAst.readCallChain(receiver, reading);
     if (!isPvlSchemaMethodName(methodName)) {
       throw new UnknownPvlMethodException(call);
     }
@@ -247,8 +247,8 @@ export class PvlAst {
   /**
    * The names of `sourceFile`'s exported Schemas, in declaration order: each
    * `export const` whose value is a `pvl.*` call chain, read statically,
-   * following `const`s, marked to compile or not. A function, an import or a
-   * `.validate()` result is no Schema here.
+   * following `const`s, imported ones too, marked to compile or not. A
+   * function or a `.validate()` result is no Schema here.
    *
    * ```ts
    * const name = pvl.string();
@@ -259,8 +259,6 @@ export class PvlAst {
    * ```
    */
   public static findExportedSchemaNames(sourceFile: SourceFile): string[] {
-    const pvlImportLocalNames = PvlAst.findPvlImportLocalNames(sourceFile);
-
     return sourceFile
       .getVariableStatements()
       .filter(
@@ -269,7 +267,7 @@ export class PvlAst {
           statement.getDeclarationKind() === VariableDeclarationKind.Const,
       )
       .flatMap((statement) => statement.getDeclarations())
-      .filter((declaration) => PvlAst.holdsSchema(declaration, pvlImportLocalNames))
+      .filter((declaration) => PvlAst.holdsSchema(declaration))
       .map((declaration) => declaration.getName());
   }
 
@@ -280,23 +278,20 @@ export class PvlAst {
    *
    * ```ts
    * const user = pvl.object({ … });      // true
-   * const user = base.optional();        // true, with `const base = pvl.string()`
+   * const user = base.optional();        // true, with `const base = pvl.string()`, imported or not
    * const result = user.validate(input); // false: a Result
    * const getUser = () => pvl.string();  // false: a function
    * const { shape } = user;              // false: destructuring
    * const name = pvl.string().foo();     // false: `@pvl/schema` has no `foo`
    * ```
    */
-  private static holdsSchema(
-    declaration: VariableDeclaration,
-    pvlImportLocalNames: ReadonlySet<string>,
-  ): boolean {
+  private static holdsSchema(declaration: VariableDeclaration): boolean {
     const initializer = declaration.getInitializer();
     if (initializer === undefined || !Node.isIdentifier(declaration.getNameNode())) {
       return false;
     }
     try {
-      return PvlAst.readCallChain(initializer, pvlImportLocalNames).methods.every(
+      return PvlAst.readCallChain(initializer).methods.every(
         ({ methodName }) => methodName !== PVL_SCHEMA_PROPERTY_NAMES_ENUM.VALIDATE,
       );
     } catch (error) {

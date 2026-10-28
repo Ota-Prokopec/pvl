@@ -11,8 +11,8 @@ export type SchemaOptions = {
   module: Module;
   /** The expression it is read from. */
   expression: Node;
-  /** The 1-based line its factory call is written on. */
-  line: number;
+  /** Where its factory call is written, as its Module's diagnostics name it (`Module.spellLocation`). */
+  location: string;
   /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` included, last. */
   calls: ReadonlyArray<SchemaModifierCall>;
   /** Whether `.standalone()` is chained onto it. */
