@@ -32,18 +32,17 @@ export type RewriteSpecifierArgs = RebaseSpecifierArgs & {
  * spelling already reaches the right file.
  *
  * ```ts
- * new Specifier('../lib/helpers.js').isRelative()           // true
- * Specifier.fromRelativePath('schemas/user.js').value       // './schemas/user.js'
- * new Specifier('@pvl/schema').rewrite({ target: { kind: SPECIFIER_TARGET_KIND.UNRESOLVED }, … }).value // '@pvl/schema'
+ * new Specifier('../lib/helpers.js').isPath() // true
+ * new Specifier('@pvl/schema').rewrite({ target: { kind: SPECIFIER_TARGET_KIND.UNRESOLVED }, … }).moduleSpecifierAsString // '@pvl/schema'
  * ```
  */
 export class Specifier {
-  /** The module specifier, as written. */
-  public readonly value: string;
+  /** The module specifier as a string: a relative or absolute path, an alias or a package name. */
+  public readonly moduleSpecifierAsString: string;
 
-  /** A `Specifier` of `value`, as written. */
-  public constructor(value: string) {
-    this.value = value;
+  /** A `Specifier` holding `moduleSpecifierAsString`. */
+  public constructor(moduleSpecifierAsString: string) {
+    this.moduleSpecifierAsString = moduleSpecifierAsString;
   }
 
   /**
@@ -52,11 +51,11 @@ export class Specifier {
    * a package name.
    *
    * ```ts
-   * Specifier.fromRelativePath('schemas/user.js').value   // './schemas/user.js'
-   * Specifier.fromRelativePath('../lib/helpers.js').value // '../lib/helpers.js'
+   * Specifier.fromRelativePath('schemas/user.js').moduleSpecifierAsString   // './schemas/user.js'
+   * Specifier.fromRelativePath('../lib/helpers.js').moduleSpecifierAsString // '../lib/helpers.js'
    * ```
    */
-  public static fromRelativePath(relativePath: string): Specifier {
+  private static fromRelativePath(relativePath: string): Specifier {
     const posixRelativePath = toPosixPath(relativePath);
     return new Specifier(
       posixRelativePath.startsWith('.') ? posixRelativePath : `./${posixRelativePath}`,
@@ -73,8 +72,11 @@ export class Specifier {
    * new Specifier('@/schemas/user').isRelative() // false: an alias or a package
    * ```
    */
-  public isRelative(): boolean {
-    return this.value.startsWith('./') || this.value.startsWith('../');
+  private isRelative(): boolean {
+    return (
+      this.moduleSpecifierAsString.startsWith('./') ||
+      this.moduleSpecifierAsString.startsWith('../')
+    );
   }
 
   /**
@@ -90,7 +92,7 @@ export class Specifier {
    * ```
    */
   public isPath(): boolean {
-    return this.isRelative() || path.isAbsolute(this.value);
+    return this.isRelative() || path.isAbsolute(this.moduleSpecifierAsString);
   }
 
   /**
@@ -102,15 +104,15 @@ export class Specifier {
    * `/repo/.pvl/schemas`:
    *
    * ```ts
-   * new Specifier('../lib/helpers.js').rebase(…).value // '../../src/lib/helpers.js'
-   * new Specifier('./tags').rebase(…).value            // '../../src/schemas/tags'
+   * new Specifier('../lib/helpers.js').rebase(…).moduleSpecifierAsString // '../../src/lib/helpers.js'
+   * new Specifier('./tags').rebase(…).moduleSpecifierAsString            // '../../src/schemas/tags'
    * ```
    */
-  public rebase({ importerPath, outputDirectory }: RebaseSpecifierArgs): Specifier {
+  private rebase({ importerPath, outputDirectory }: RebaseSpecifierArgs): Specifier {
     return Specifier.fromRelativePath(
       path.relative(
         outputDirectory.absolutePath,
-        path.resolve(path.dirname(importerPath.absolutePath), this.value),
+        path.resolve(path.dirname(importerPath.absolutePath), this.moduleSpecifierAsString),
       ),
     );
   }
@@ -123,13 +125,13 @@ export class Specifier {
    * With `outputDirectory` `/repo/.pvl/schemas`:
    *
    * ```ts
-   * new Specifier('@/schemas/user.js').toRelative({ targetPath: '/repo/.pvl/schemas/user.ts', … }).value // './user.js'
-   * new Specifier('@/lib/helpers').toRelative({ targetPath: '/repo/src/lib/helpers.ts', … }).value      // '../../src/lib/helpers'
-   * new Specifier('@/data.json').toRelative({ targetPath: '/repo/src/data.json', … }).value             // '../../src/data.json'
+   * new Specifier('@/schemas/user.js').toRelative({ targetPath: '/repo/.pvl/schemas/user.ts', … }).moduleSpecifierAsString // './user.js'
+   * new Specifier('@/lib/helpers').toRelative({ targetPath: '/repo/src/lib/helpers.ts', … }).moduleSpecifierAsString      // '../../src/lib/helpers'
+   * new Specifier('@/data.json').toRelative({ targetPath: '/repo/src/data.json', … }).moduleSpecifierAsString             // '../../src/data.json'
    * ```
    */
-  public toRelative({ targetPath, outputDirectory }: ToRelativeSpecifierArgs): Specifier {
-    const originalExtension = path.extname(this.value);
+  private toRelative({ targetPath, outputDirectory }: ToRelativeSpecifierArgs): Specifier {
+    const originalExtension = path.extname(this.moduleSpecifierAsString);
     const spelledExtension = MODULE_SPECIFIER_EXTENSIONS.has(originalExtension)
       ? originalExtension
       : '';
@@ -160,31 +162,31 @@ export class Specifier {
    * ```
    */
   public rewrite({ target, importerPath, outputDirectory }: RewriteSpecifierArgs): Specifier {
-    // A relative path to a scanned file already reaches its mirrored module:
-    // the mirror reproduces the Root Directory's layout, so both ends moved
-    // together.
-    if (target.kind === SPECIFIER_TARGET_KIND.MIRRORED && this.isRelative()) {
-      return this;
-    }
+    switch (target.kind) {
+      // A relative path already reaches the mirrored module: the mirror
+      // reproduces the Root Directory's layout, so both ends moved together.
+      // An alias or an absolute path names the original instead, so it
+      // becomes a relative path to the mirrored module, keeping its extension
+      // spelling.
+      case SPECIFIER_TARGET_KIND.MIRRORED:
+        return this.isRelative()
+          ? this
+          : this.toRelative({ targetPath: target.path, outputDirectory });
 
-    // A path to anything unscanned points back to the original file. It is
-    // rewritten from the path as written rather than from the resolved file,
-    // so it keeps its spelling, and one that resolves to nothing still points
-    // where it did.
-    if (target.kind !== SPECIFIER_TARGET_KIND.MIRRORED && this.isPath()) {
-      return this.rebase({ importerPath, outputDirectory });
-    }
+      // A path points back to the original file. It is rewritten from the
+      // path as written rather than from the resolved file, so it keeps its
+      // spelling. An alias becomes a relative path to the file it resolves
+      // to, keeping its extension spelling.
+      case SPECIFIER_TARGET_KIND.REPOSITORY:
+        return this.isPath()
+          ? this.rebase({ importerPath, outputDirectory })
+          : this.toRelative({ targetPath: target.path, outputDirectory });
 
-    // A package, or an alias that resolves to nothing, reads the same from
-    // anywhere, so it is kept as written.
-    if (target.kind === SPECIFIER_TARGET_KIND.UNRESOLVED) {
-      return this;
+      // A path that resolves to nothing is rebased all the same, so it still
+      // points where it did. A package, or an alias that resolves to nothing,
+      // reads the same from anywhere, so it is kept as written.
+      case SPECIFIER_TARGET_KIND.UNRESOLVED:
+        return this.isPath() ? this.rebase({ importerPath, outputDirectory }) : this;
     }
-
-    // What's left names the original location without a relative path: an
-    // alias that resolves to a file, or an absolute path to a scanned file.
-    // Each becomes a relative path to the target, keeping its extension
-    // spelling.
-    return this.toRelative({ targetPath: target.path, outputDirectory });
   }
 }

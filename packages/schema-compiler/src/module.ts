@@ -581,8 +581,8 @@ export class Module {
         outputDirectory,
       });
 
-      if (rewritten.value !== specifier.value) {
-        literal.setLiteralValue(rewritten.value);
+      if (rewritten.moduleSpecifierAsString !== specifier.moduleSpecifierAsString) {
+        literal.setLiteralValue(rewritten.moduleSpecifierAsString);
       }
     }
   }

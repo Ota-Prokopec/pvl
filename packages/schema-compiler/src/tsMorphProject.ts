@@ -169,7 +169,7 @@ export class TsMorphProject {
     // Resolve the way the application's build does: tsconfig `paths` first,
     // then relative paths and `node_modules`.
     const { resolvedModule } = ts.resolveModuleName(
-      specifier.value,
+      specifier.moduleSpecifierAsString,
       importerPath,
       compilerOptions,
       ts.sys,
@@ -195,7 +195,7 @@ export class TsMorphProject {
       // `resolvedFileName` is TypeScript's (`ts.resolveModuleName`, which
       // ts-morph re-exports), and absolute, as `importerPath` is.
       const resolvedPackage = ts.resolveModuleName(
-        specifier.value,
+        specifier.moduleSpecifierAsString,
         importerPath,
         { ...compilerOptions, paths: undefined },
         ts.sys,
