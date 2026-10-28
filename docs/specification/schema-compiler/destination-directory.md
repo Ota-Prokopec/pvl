@@ -52,7 +52,15 @@ The mirror has the source's layout, so an application swaps an alias rather than
 "paths": { "@/*": ["./src/*"] }
 ```
 
-A bundler alias works the same way. No alias can redirect a relative import (`'./schemas/user.js'`), so a schema imported that way keeps loading its source. A bundler plugin that redirects resolution of every scanned file, relative imports included, is the planned way around that.
+A bundler alias works the same way. No alias can redirect a relative import (`'./schemas/user.js'`), so a schema imported that way keeps loading its source. A bundler plugin that redirects resolution of every scanned file, relative imports included, in production builds only, is the planned way around that.
+
+Development runs the Interpreted Schemas, so there is no watch mode ([ADR-0045](../../adr/0045-there-is-no-watch-mode-because-development-runs-the-interpreted-schemas.md)): `pvl compile` is a build step, wired in ahead of the build so production always ships a fresh mirror:
+
+```jsonc
+"scripts": { "build": "pvl compile && tsc" }
+```
+
+CI runs `pvl compile`, then the typecheck and tests under the production alias, so the compiled code that ships is tested.
 
 ## Where it lands
 

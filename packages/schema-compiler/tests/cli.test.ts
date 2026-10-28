@@ -70,7 +70,6 @@ describe('pvl compile: settings from flags', () => {
         include: ['config/*.ts'],
         rootDir: 'config',
         destination: 'config',
-        watch: false,
       }),
       'schemas/a.ts': SCHEMA_FILE,
       'more/b.ts': SCHEMA_FILE,
@@ -85,14 +84,12 @@ describe('pvl compile: settings from flags', () => {
       '.',
       '--destination',
       'flag',
-      '--watch',
     ]);
 
     expect(payload.settings).toEqual({
       include: ['schemas/*.ts', 'more/*.ts'],
       rootDir: '.',
       destination: 'flag',
-      watch: true,
     });
   });
 
@@ -108,7 +105,6 @@ describe('pvl compile: settings from flags', () => {
       include: ['src/schemas/**/*.ts'],
       rootDir: 'src',
       destination: 'out',
-      watch: false,
     });
   });
 
@@ -187,6 +183,15 @@ describe('pvl compile: output', () => {
     expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
   });
 
+  it('exits non-zero on --watch, as there is no watch mode', async () => {
+    const root = await createFixture({});
+
+    const { exitCode, stderr } = await run(root, ['compile', '--watch']);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*watch/);
+  });
+
   it('--help prints usage on stdout and exits zero', async () => {
     const root = await createFixture({});
 
@@ -196,6 +201,7 @@ describe('pvl compile: output', () => {
     expect(stdout).toContain('--destination');
     expect(stdout).toContain('--root-dir');
     expect(stdout).not.toContain('with-types');
+    expect(stdout).not.toContain('--watch');
   });
 
   it('exits non-zero without a command', async () => {

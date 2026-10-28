@@ -20,7 +20,6 @@ export const runCompile = async (
       include: flags.include,
       rootDir: flags.rootDir,
       destination: flags.destination,
-      watch: flags.watch,
     },
     strict: flags.strict,
   });

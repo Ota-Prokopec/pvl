@@ -24,8 +24,6 @@ export type PvlConfig = {
   rootDir: string;
   /** The Destination Directory's path; unset means the default `.pvl` directory. */
   destination: string | undefined;
-  /** Whether to recompile on every change. */
-  watch: boolean;
 };
 
 /**

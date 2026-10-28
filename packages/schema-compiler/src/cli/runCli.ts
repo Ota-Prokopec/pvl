@@ -44,10 +44,6 @@ export const runCli = async (
             type: 'string',
             description: 'The Destination Directory to write (default: .pvl)',
           },
-          watch: {
-            type: 'boolean',
-            description: 'Recompile on every change',
-          },
           strict: {
             type: 'boolean',
             default: false,

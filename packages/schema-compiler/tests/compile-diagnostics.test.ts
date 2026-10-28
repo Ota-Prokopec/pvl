@@ -84,6 +84,21 @@ describe('runCompilation(): diagnostics', () => {
     expect(await listFixtureFiles(root, 'out')).toBe(undefined);
   });
 
+  it('INVALID_CONFIG: watch, as there is no watch mode', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({ watch: true }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.INVALID_CONFIG, file: path.join(root, 'pvlconfig.json') },
+    ]);
+    expect(payload.diagnostics[0]?.message).toContain('watch');
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
   it('INVALID_CONFIG: a config file that is not an object', async () => {
     const root = await createFixture({
       'pvlconfig.json': '[]',

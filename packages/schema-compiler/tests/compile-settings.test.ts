@@ -20,7 +20,6 @@ describe('runCompilation(): settings', () => {
       include: ['src/schemas/**/*.ts'],
       rootDir: 'src',
       destination: undefined,
-      watch: false,
     });
   });
 
@@ -31,7 +30,6 @@ describe('runCompilation(): settings', () => {
         include: ['schemas/*.ts'],
         rootDir: 'schemas',
         destination: 'out',
-        watch: true,
       }),
       'schemas/user.ts': SCHEMA_FILE,
     });
@@ -42,7 +40,6 @@ describe('runCompilation(): settings', () => {
       include: ['schemas/*.ts'],
       rootDir: 'schemas',
       destination: 'out',
-      watch: true,
     });
   });
 
@@ -65,7 +62,6 @@ describe('runCompilation(): settings', () => {
       include: ['schemas/*.ts'],
       rootDir: 'schemas',
       destination: 'from-override',
-      watch: false,
     });
     expect(await readFixtureFile(root, 'from-override/user.ts')).toContain('@generated');
     expect(await listFixtureFiles(root, 'from-config')).toBe(undefined);

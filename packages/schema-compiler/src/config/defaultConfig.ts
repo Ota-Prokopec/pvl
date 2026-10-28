@@ -7,6 +7,5 @@ import type { PvlConfig } from './types.js';
 export const defaultConfig = {
   include: ['src/schemas/**/*.ts'],
   rootDir: 'src',
-  watch: false,
   destination: '.pvl',
 } satisfies PvlConfig;
