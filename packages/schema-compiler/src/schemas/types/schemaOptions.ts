@@ -1,7 +1,7 @@
 // What every Schema holds, and what each subclass holds besides.
 import type { EnumMember, PossibleLiteralValue } from '@pvl/schema';
 import type { Node } from 'ts-morph';
-import type { Module } from '../../module.js';
+import type { Module } from '../../module/module.js';
 import type { Schema } from '../schema.js';
 import type { SchemaModifierCall } from './modifierCall.js';
 

@@ -5,7 +5,7 @@ import { Node, ts, type Statement } from 'ts-morph';
 import { GenericAst } from './ast/genericAst.js';
 import { DIAGNOSTIC_CODE } from './diagnostics/enums.js';
 import { Diagnostic } from './diagnostics/diagnostic.js';
-import type { Module } from './module.js';
+import type { Module } from './module/module.js';
 import { findMarkedToCompileSchemas, type ModuleCompilation } from './schemas/readSchema.js';
 
 export type PrecheckModulesArgs = {

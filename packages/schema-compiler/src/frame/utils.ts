@@ -14,7 +14,7 @@ import {
   emitIssueCountBeforeValueChildrenValidationName,
   emitNoNewIssuesCondition,
 } from '../issue.js';
-import { STANDALONE_MARKER_TYPE_NAME } from './consts.js';
+import { SCHEMA_TYPE_NAME, STANDALONE_MARKER_TYPE_NAME } from './consts.js';
 import type { GroupedPreModifierStep } from './types.js';
 
 /** What {@link groupPreModifierSteps} groups: a Schema's pre-modifiers' parts. */
@@ -150,7 +150,7 @@ export const spellCompiledSchemaType = ({
   shapeOrElementType,
 }: SpellCompiledSchemaTypeArgs): string => {
   return [
-    `PvlSchema<${input}, ${output}>`,
+    `${SCHEMA_TYPE_NAME}<${input}, ${output}>`,
     ...(isStandalone ? [STANDALONE_MARKER_TYPE_NAME] : []),
     ...(shapeOrElementType === undefined ? [] : [shapeOrElementType]),
   ].join(' & ');

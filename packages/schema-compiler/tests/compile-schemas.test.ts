@@ -65,7 +65,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} });
-
       export type UserInput = PvlInferInput<typeof user>;
       export type UserOutput = PvlInferOutput<typeof user>;
       "
@@ -287,7 +286,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })(MAX) as PvlSchema<string, string>);
-
       export type NameInput = PvlInferInput<typeof name>;
       export type NameOutput = PvlInferOutput<typeof name>;
       "
@@ -461,7 +459,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })(pvlArg0, min) as PvlSchema<string, string>);
-
       export type BaseInput = PvlInferInput<typeof base>;
       export type BaseOutput = PvlInferOutput<typeof base>;
       export type UserInput = PvlInferInput<typeof user>;
@@ -584,7 +581,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<{ age?: number | undefined }, { age?: number | undefined }> & { readonly shape: {} });
-
       export type TagsInput = PvlInferInput<typeof tags>;
       export type TagsOutput = PvlInferOutput<typeof tags>;
       export type PersonInput = PvlInferInput<typeof person>;
@@ -686,7 +682,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<{ lines: ({ sku: string })[] }, { lines: ({ sku: string })[] }> & { readonly shape: {} });
-
       export type OrderInput = PvlInferInput<typeof order>;
       export type OrderOutput = PvlInferOutput<typeof order>;
       "
@@ -736,7 +731,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<string, string>);
-
       export type CodeInput = PvlInferInput<typeof code>;
       export type CodeOutput = PvlInferOutput<typeof code>;
       "
@@ -811,7 +805,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<"ADMIN" | "USER", "ADMIN" | "USER">);
-
       export type KindInput = PvlInferInput<typeof kind>;
       export type KindOutput = PvlInferOutput<typeof kind>;
       export type RoleInput = PvlInferInput<typeof role>;
@@ -907,7 +900,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })() as PvlSchema<(number)[] | null | undefined, (number)[] | null | undefined>);
-
       export type CodeInput = PvlInferInput<typeof code>;
       export type CodeOutput = PvlInferOutput<typeof code>;
       export type ScoresInput = PvlInferInput<typeof scores>;
@@ -1028,7 +1020,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })((value) => value.length > 0) as PvlSchema<(unknown)[], (number)[]>);
-
       export type NameInput = PvlInferInput<typeof name>;
       export type NameOutput = PvlInferOutput<typeof name>;
       export type TagsInput = PvlInferInput<typeof tags>;
@@ -1426,7 +1417,6 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })(arg0))((value) => value.length);
-
       export type NameInput = PvlInferInput<typeof name>;
       export type NameOutput = PvlInferOutput<typeof name>;
       export type CountInput = PvlInferInput<typeof count>;

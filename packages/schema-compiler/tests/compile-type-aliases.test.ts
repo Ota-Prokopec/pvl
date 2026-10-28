@@ -64,7 +64,6 @@ describe('runCompilation(): type aliases', () => {
       export const result = userSchema.validate({});
       export const unknownMethod = name.foo();
       export { name as nameSchema };
-
       export type UserSchemaInput = PvlInferInput<typeof userSchema>;
       export type UserSchemaOutput = PvlInferOutput<typeof userSchema>;
       export type OptionalNameInput = PvlInferInput<typeof optionalName>;

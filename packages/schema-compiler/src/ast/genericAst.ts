@@ -1,7 +1,7 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
-// reading literals as values, and whether a file exports anything. Nothing is
-// imported or executed.
+// reading literals as values, whether a file exports anything, and where its
+// module specifiers are written. Nothing is imported or executed.
 import {
   Node,
   SyntaxKind,
@@ -11,6 +11,7 @@ import {
   type PrefixUnaryExpression,
   type PropertyAccessExpression,
   type SourceFile,
+  type StringLiteral,
   type VariableDeclaration,
 } from 'ts-morph';
 import { ConstCycleException, UnresolvedNodeException } from '../exceptions/index.js';
@@ -230,15 +231,94 @@ export class GenericAst {
       : identifier.getSymbol();
 
     const declaration = symbol?.getValueDeclaration();
-    if (!Node.isVariableDeclaration(declaration)) {
-      return undefined;
-    }
-
-    const variableStatement = declaration.getVariableStatement();
-    return variableStatement?.getDeclarationKind() === VariableDeclarationKind.Const &&
-      variableStatement.getParent() === identifier.getSourceFile()
+    return Node.isVariableDeclaration(declaration) &&
+      GenericAst.isTopLevelConstIn(declaration, identifier.getSourceFile())
       ? declaration
       : undefined;
+  }
+
+  /**
+   * The top-level `const` declarator of `node`'s file that `node` is written
+   * in, at any depth; `undefined` when it is in none.
+   *
+   * ```ts
+   * // const base = pvl.string().max(getMax());
+   * GenericAst.findEnclosingTopLevelConst(<getMax()>) // <base = pvl.string().max(getMax())>
+   * // let limit = getMax();
+   * GenericAst.findEnclosingTopLevelConst(<getMax()>) // undefined: a `let`
+   * // const getUser = () => { const limit = getMax(); … };
+   * GenericAst.findEnclosingTopLevelConst(<getMax()>) // <getUser = …>: `limit` is block-scoped
+   * ```
+   */
+  public static findEnclosingTopLevelConst(node: Node): VariableDeclaration | undefined {
+    return node.getFirstAncestor(
+      (ancestor): ancestor is VariableDeclaration =>
+        Node.isVariableDeclaration(ancestor) &&
+        GenericAst.isTopLevelConstIn(ancestor, node.getSourceFile()),
+    );
+  }
+
+  /** Whether `declaration` is a `const` declared at the top level of `sourceFile`. */
+  private static isTopLevelConstIn(
+    declaration: VariableDeclaration,
+    sourceFile: SourceFile,
+  ): boolean {
+    const variableStatement = declaration.getVariableStatement();
+    return (
+      variableStatement?.getDeclarationKind() === VariableDeclarationKind.Const &&
+      variableStatement.getParent() === sourceFile
+    );
+  }
+
+  /** Whether `node` lies within `container`'s text, `container` itself included. */
+  public static isWithin(node: Node, container: Node): boolean {
+    return container.getStart() <= node.getStart() && node.getEnd() <= container.getEnd();
+  }
+
+  /**
+   * Every string literal in `sourceFile` that names a module, in any form a
+   * module can be named in, each as written.
+   *
+   * ```ts
+   * import { user } from './user.js';                 // './user.js'
+   * import './setup.js';                              // './setup.js'
+   * export { trim } from '../lib/helpers.js';         // '../lib/helpers.js'
+   * const heavy = () => import('./heavy.js');         // './heavy.js'
+   * import fs = require('../lib/fs.js');              // '../lib/fs.js'
+   * type Options = import('../lib/types.js').Options; // '../lib/types.js'
+   * import(`./locales/${lang}.js`);                   // left out: computed, not a literal
+   * export { user };                                  // left out: names no module
+   * ```
+   */
+  public static findModuleSpecifierLiterals(sourceFile: SourceFile): StringLiteral[] {
+    const declarationModuleSpecifiers = [
+      ...sourceFile.getImportDeclarations(),
+      ...sourceFile.getExportDeclarations(),
+    ].flatMap((declaration) => declaration.getModuleSpecifier() ?? []);
+
+    const dynamicImportModuleSpecifiers = sourceFile
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .filter((call) => call.getExpression().getKind() === SyntaxKind.ImportKeyword)
+      .flatMap((call) => call.getArguments().slice(0, 1))
+      .filter((argument) => Node.isStringLiteral(argument));
+
+    const requireModuleSpecifiers = sourceFile
+      .getDescendantsOfKind(SyntaxKind.ExternalModuleReference)
+      .map((moduleReference) => moduleReference.getExpression())
+      .filter((expression) => Node.isStringLiteral(expression));
+
+    const importTypeModuleSpecifiers = sourceFile
+      .getDescendantsOfKind(SyntaxKind.ImportType)
+      .map((importType) => importType.getArgument())
+      .flatMap((argument) => (Node.isLiteralTypeNode(argument) ? [argument.getLiteral()] : []))
+      .filter((literal) => Node.isStringLiteral(literal));
+
+    return [
+      ...declarationModuleSpecifiers,
+      ...dynamicImportModuleSpecifiers,
+      ...requireModuleSpecifiers,
+      ...importTypeModuleSpecifiers,
+    ];
   }
 
   /**

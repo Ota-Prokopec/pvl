@@ -17,7 +17,7 @@ import type { Node } from 'ts-morph';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
-import type { Module } from '../module.js';
+import type { Module } from '../module/module.js';
 import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { ChainedRuntimeArgument } from '../runtimeArgument/types.js';
 import { readFunctionArgument } from '../runtimeArgument/utils.js';

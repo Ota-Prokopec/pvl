@@ -7,7 +7,7 @@ import {
   GITIGNORE_FILE_NAME,
 } from './consts.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import type { MirroredFile } from '../module.js';
+import type { MirroredFile } from '../module/types.js';
 import { errorMessage, statOrUndefined } from '../utils.js';
 import type { Destination } from './destination.js';
 import { createDestinationUnwritableDiagnostic } from './utils.js';

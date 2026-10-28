@@ -18,7 +18,7 @@ import {
   type PvlFactoryName,
 } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import type { Module } from '../module.js';
+import type { Module } from '../module/module.js';
 import { ArraySchema } from './arraySchema.js';
 import { BigintSchema } from './bigintSchema.js';
 import { BooleanSchema } from './booleanSchema.js';

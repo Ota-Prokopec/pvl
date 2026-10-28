@@ -15,9 +15,14 @@
 // handoff of its output. The helpers reading nothing of the Frame itself
 // are in `./utils.ts`.
 import { VENDOR } from '@pvl/schema';
-import { STANDALONE_BRAND_NAME } from '../consts/generatedModule.js';
 import {
+  ISSUE_CLASS_NAME,
+  RESULT_TYPE_NAME,
+  SCHEMA_BRAND_NAME,
+  SCHEMA_TYPE_NAME,
+  STANDALONE_BRAND_NAME,
   STANDALONE_MARKER_TYPE_NAME,
+  STANDARD_SCHEMA_PROPS_TYPE_NAME,
   VALIDATE_PARAMETERS,
   VALIDATE_PATH_PARAMETER_NAME,
   VALIDATE_RETURN_STATEMENT,
@@ -288,7 +293,7 @@ export class Frame {
 
     const members = [
       [
-        'declare readonly [PVL_SCHEMA_BRAND]: true;',
+        `declare readonly [${SCHEMA_BRAND_NAME}]: true;`,
         // The marker `pvl.compile()` types a marked Schema with, as the
         // brand the Schema type requires, type-only.
         ...(isStandalone ? [`declare readonly [${STANDALONE_BRAND_NAME}]: true;`] : []),
@@ -304,18 +309,18 @@ export class Frame {
           ? [`${constructorHead} {}`]
           : [composeBlock({ head: constructorHead, body: constructorStatements.join('\n') })]),
       composeBlock({
-        head: `get "~standard"(): PvlStandardSchemaProps<${input}, ${output}>`,
+        head: `get "~standard"(): ${STANDARD_SCHEMA_PROPS_TYPE_NAME}<${input}, ${output}>`,
         // `types` as the interpreted path writes it: a phantom, `undefined` at runtime.
         body: `return { version: 1, vendor: ${JSON.stringify(VENDOR)}, types: undefined, validate: (${VALIDATE_VALUE_PARAMETER_NAME}: unknown) => this.validate(${VALIDATE_VALUE_PARAMETER_NAME}) };`,
       }),
       composeBlock({
-        head: `validate(${VALIDATE_VALUE_PARAMETER_NAME}: unknown): PvlResult<${output}>`,
-        body: `return this._validate(${VALIDATE_VALUE_PARAMETER_NAME}, []) as PvlResult<${output}>;`,
+        head: `validate(${VALIDATE_VALUE_PARAMETER_NAME}: unknown): ${RESULT_TYPE_NAME}<${output}>`,
+        body: `return this._validate(${VALIDATE_VALUE_PARAMETER_NAME}, []) as ${RESULT_TYPE_NAME}<${output}>;`,
       }),
       composeBlock({
-        head: `_validate(${VALIDATE_PARAMETERS}): PvlResult<unknown>`,
+        head: `_validate(${VALIDATE_PARAMETERS}): ${RESULT_TYPE_NAME}<unknown>`,
         body: [
-          'const issues: PvlIssue[] = [];',
+          `const issues: ${ISSUE_CLASS_NAME}[] = [];`,
           Frame.composeChecks({ target: Frame.rootCheckingTarget, parts }),
           VALIDATE_RETURN_STATEMENT,
         ].join('\n'),
@@ -329,7 +334,7 @@ export class Frame {
     ];
     const classExpression = indentContinuationLines(
       composeBlock({
-        head: `class ${className} implements PvlSchema<${input}, ${output}>`,
+        head: `class ${className} implements ${SCHEMA_TYPE_NAME}<${input}, ${output}>`,
         body: members.join('\n\n'),
       }),
       indentation,

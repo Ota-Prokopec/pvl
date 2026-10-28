@@ -187,7 +187,6 @@ const runCompilationWithoutPromoting = async ({
   }
 
   const mirroredFiles = compileAll({
-    tsMorphProject,
     compilations,
     withTypes: rawSettings.withTypes,
   });

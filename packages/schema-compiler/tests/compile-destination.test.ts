@@ -61,7 +61,6 @@ describe('runCompilation(): writing the Destination Directory', () => {
       import type { InferInput as PvlInferInput, InferOutput as PvlInferOutput } from '@pvl/schema';
 
       export const order = pvl.object({ customer: user });
-
       export type OrderInput = PvlInferInput<typeof order>;
       export type OrderOutput = PvlInferOutput<typeof order>;
       "
@@ -125,7 +124,6 @@ describe('runCompilation(): writing the Destination Directory', () => {
       export const loadHeavy = () => import('../../src/lib/heavy.js');
       export const loadLocale = (lang: string) => import(\`../lib/\${lang}.js\`);
       export const user = pvl.object({ name: nonEmpty(pvl.string()) });
-
       export type UserInput = PvlInferInput<typeof user>;
       export type UserOutput = PvlInferOutput<typeof user>;
       "
@@ -161,7 +159,6 @@ describe('runCompilation(): writing the Destination Directory', () => {
       import type { InferInput as PvlInferInput, InferOutput as PvlInferOutput } from '@pvl/schema';
 
       export const order = pvl.object({ customer: user, label: pvl.literal(label), missing });
-
       export type OrderInput = PvlInferInput<typeof order>;
       export type OrderOutput = PvlInferOutput<typeof order>;
       "
@@ -200,7 +197,6 @@ describe('runCompilation(): writing the Destination Directory', () => {
       import type { InferInput as PvlInferInput, InferOutput as PvlInferOutput } from '@pvl/schema';
 
       export const order = pvl.object({ customer: user, label: pvl.literal(label), missing });
-
       export type OrderInput = PvlInferInput<typeof order>;
       export type OrderOutput = PvlInferOutput<typeof order>;
       "
