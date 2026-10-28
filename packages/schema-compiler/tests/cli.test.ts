@@ -13,6 +13,7 @@ import {
   createFixture,
   diagnosticCodes,
   type FixtureFiles,
+  listFixtureFiles,
   readFixtureFile,
   schemaFile,
 } from './helpers.js';
@@ -69,7 +70,6 @@ describe('pvl compile: settings from flags', () => {
         include: ['config/*.ts'],
         rootDir: 'config',
         destination: 'config',
-        withTypes: true,
         watch: false,
       }),
       'schemas/a.ts': SCHEMA_FILE,
@@ -85,7 +85,6 @@ describe('pvl compile: settings from flags', () => {
       '.',
       '--destination',
       'flag',
-      '--no-with-types',
       '--watch',
     ]);
 
@@ -93,14 +92,13 @@ describe('pvl compile: settings from flags', () => {
       include: ['schemas/*.ts', 'more/*.ts'],
       rootDir: '.',
       destination: 'flag',
-      withTypes: false,
       watch: true,
     });
   });
 
   it('leaves a setting no flag names to the config file, then the defaults', async () => {
     const root = await createFixture({
-      'pvlconfig.json': configJson({ destination: 'out', withTypes: false }),
+      'pvlconfig.json': configJson({ destination: 'out' }),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
@@ -110,7 +108,6 @@ describe('pvl compile: settings from flags', () => {
       include: ['src/schemas/**/*.ts'],
       rootDir: 'src',
       destination: 'out',
-      withTypes: false,
       watch: false,
     });
   });
@@ -180,6 +177,16 @@ describe('pvl compile: output', () => {
     expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*destinaton/);
   });
 
+  it.each(['--with-types', '--no-with-types'])('exits non-zero on the removed %s', async (flag) => {
+    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+    const { exitCode, stderr } = await run(root, ['compile', flag]);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*with-types/);
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
   it('--help prints usage on stdout and exits zero', async () => {
     const root = await createFixture({});
 
@@ -188,6 +195,7 @@ describe('pvl compile: output', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('--destination');
     expect(stdout).toContain('--root-dir');
+    expect(stdout).not.toContain('with-types');
   });
 
   it('exits non-zero without a command', async () => {

@@ -49,7 +49,7 @@ describe('runCompilation(): diagnostics', () => {
 
   it('INVALID_CONFIG: one diagnostic per failing setting, naming its path', async () => {
     const root = await createFixture({
-      'pvlconfig.json': configJson({ include: 'src/**/*.ts', rootDir: 1, withTypes: 'yes' }),
+      'pvlconfig.json': configJson({ include: 'src/**/*.ts', rootDir: 1, destination: true }),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
@@ -63,12 +63,15 @@ describe('runCompilation(): diagnostics', () => {
     ]);
     expect(payload.diagnostics[0]?.message).toContain('include');
     expect(payload.diagnostics[1]?.message).toContain('rootDir');
-    expect(payload.diagnostics[2]?.message).toContain('withTypes');
+    expect(payload.diagnostics[2]?.message).toContain('destination');
   });
 
-  it('INVALID_CONFIG: an unknown key, so a typo is reported', async () => {
+  it.each([
+    { key: 'destinaton', reason: 'a typo' },
+    { key: 'withTypes', reason: 'a removed setting' },
+  ])('INVALID_CONFIG: an unknown key, so $reason is reported', async ({ key }) => {
     const root = await createFixture({
-      'pvlconfig.json': configJson({ destinaton: 'out' }),
+      'pvlconfig.json': configJson({ destination: 'out', [key]: true }),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
@@ -77,7 +80,7 @@ describe('runCompilation(): diagnostics', () => {
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.INVALID_CONFIG, file: path.join(root, 'pvlconfig.json') },
     ]);
-    expect(payload.diagnostics[0]?.message).toContain('destinaton');
+    expect(payload.diagnostics[0]?.message).toContain(key);
     expect(await listFixtureFiles(root, 'out')).toBe(undefined);
   });
 

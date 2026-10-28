@@ -1,7 +1,8 @@
 // The benchmark's Schemas, from simplest to most complex. `pvl compile`
 // mirrors them into `.pvl/schemas/benchmark.ts`: the inline-everything
-// variant (V1) the runners measure against two hand-split ones in `src/variants/`.
-import { pvl } from '@pvl/schema';
+// variant (V1) the runners measure against two hand-split ones in `src/variants/`,
+// which are typed by each Schema's `Input` and `Output` declared here.
+import { pvl, type InferInput, type InferOutput } from '@pvl/schema';
 
 export const flat = pvl.compile(
   pvl.object({
@@ -202,3 +203,18 @@ export const complex = pvl.compile(order);
 export const huge = pvl.compile(
   pvl.object({ o1: order, o2: order, o3: order, o4: order, o5: order, o6: order }),
 );
+
+export type FlatInput = InferInput<typeof flat>;
+export type FlatOutput = InferOutput<typeof flat>;
+export type NestedInput = InferInput<typeof nested>;
+export type NestedOutput = InferOutput<typeof nested>;
+export type ListInput = InferInput<typeof list>;
+export type ListOutput = InferOutput<typeof list>;
+export type ReusedInput = InferInput<typeof reused>;
+export type ReusedOutput = InferOutput<typeof reused>;
+export type WideInput = InferInput<typeof wide>;
+export type WideOutput = InferOutput<typeof wide>;
+export type ComplexInput = InferInput<typeof complex>;
+export type ComplexOutput = InferOutput<typeof complex>;
+export type HugeInput = InferInput<typeof huge>;
+export type HugeOutput = InferOutput<typeof huge>;

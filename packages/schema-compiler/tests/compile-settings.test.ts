@@ -20,7 +20,6 @@ describe('runCompilation(): settings', () => {
       include: ['src/schemas/**/*.ts'],
       rootDir: 'src',
       destination: undefined,
-      withTypes: true,
       watch: false,
     });
   });
@@ -32,7 +31,6 @@ describe('runCompilation(): settings', () => {
         include: ['schemas/*.ts'],
         rootDir: 'schemas',
         destination: 'out',
-        withTypes: false,
         watch: true,
       }),
       'schemas/user.ts': SCHEMA_FILE,
@@ -44,7 +42,6 @@ describe('runCompilation(): settings', () => {
       include: ['schemas/*.ts'],
       rootDir: 'schemas',
       destination: 'out',
-      withTypes: false,
       watch: true,
     });
   });
@@ -55,21 +52,19 @@ describe('runCompilation(): settings', () => {
         include: ['schemas/*.ts'],
         rootDir: '.',
         destination: 'from-config',
-        withTypes: false,
       }),
       'schemas/user.ts': SCHEMA_FILE,
     });
 
     const payload = await runCompilation({
       cwd: root,
-      overrides: { rootDir: 'schemas', destination: 'from-override', withTypes: true },
+      overrides: { rootDir: 'schemas', destination: 'from-override' },
     });
 
     expect(payload.settings).toEqual({
       include: ['schemas/*.ts'],
       rootDir: 'schemas',
       destination: 'from-override',
-      withTypes: true,
       watch: false,
     });
     expect(await readFixtureFile(root, 'from-override/user.ts')).toContain('@generated');

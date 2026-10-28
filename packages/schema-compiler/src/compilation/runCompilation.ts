@@ -191,10 +191,7 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
-  const mirroredFiles = compileAll({
-    compilations,
-    withTypes: rawSettings.withTypes,
-  });
+  const mirroredFiles = compileAll({ compilations });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });

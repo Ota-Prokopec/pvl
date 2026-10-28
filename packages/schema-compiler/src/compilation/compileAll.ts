@@ -7,8 +7,6 @@ import type { ModuleCompilation } from '../schemas/readSchema.js';
 export type CompileAllArgs = {
   /** One per scanned module, compiled only once the run raised no error. */
   compilations: ReadonlyArray<ModuleCompilation>;
-  /** Whether each mirrored module ends with its exported Schemas' type aliases (the `withTypes` setting). */
-  withTypes: boolean;
 };
 
 /**
@@ -19,12 +17,12 @@ export type CompileAllArgs = {
  *
  * ```ts
  * // /repo/src/schemas/user.ts, /repo/src/schemas/order.ts scanned; rootDir /repo/src
- * compileAll({ compilations: [<user.ts>, <order.ts>], withTypes: true })
+ * compileAll({ compilations: [<user.ts>, <order.ts>] })
  * // [{ relativePath: 'schemas/order.ts', … },
  * //  { relativePath: 'schemas/user.ts', … }]
  * ```
  */
-export const compileAll = ({ compilations, withTypes }: CompileAllArgs): MirroredFile[] => {
+export const compileAll = ({ compilations }: CompileAllArgs): MirroredFile[] => {
   const modules = compilations.map(({ module }) => module);
 
   // Lets a rewritten import that points at another scanned file point at that
@@ -33,13 +31,8 @@ export const compileAll = ({ compilations, withTypes }: CompileAllArgs): Mirrore
     modules.map(({ path, mirroredPath }) => [path.absolutePath, mirroredPath]),
   );
 
-  const mirroredModules: MirroredFile[] = compilations.map(
-    ({ module, schemas, exportedSchemaNames }) =>
-      module.compile({
-        schemas,
-        mirroredPathByScannedPath,
-        exportedSchemaNames: withTypes ? exportedSchemaNames : [],
-      }),
+  const mirroredModules: MirroredFile[] = compilations.map(({ module, schemas }) =>
+    module.compile({ schemas, mirroredPathByScannedPath }),
   );
 
   return mirroredModules.sort((first, second) =>

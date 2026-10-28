@@ -28,27 +28,19 @@ import type { Schema } from './schema.js';
 import type { SchemaModifierCall, SchemaModifierCallArgument } from './types/modifierCall.js';
 import type { SchemaClass } from './types/schemaClass.js';
 
-/** A parsed scanned module with its `pvl.compile(...)` calls and exported Schemas read, ready to be compiled in place. */
+/** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
 export type ModuleCompilation = {
   module: Module;
   /** Its Marked-to-Compile Schemas that compile. */
   schemas: Schema[];
-  /**
-   * The names of its exported Schemas (`PvlAst.findExportedSchemaNames`),
-   * which it ends with type aliases for under the `withTypes` setting. Read
-   * with its calls, before any module compiles: compiling one replaces its
-   * `pvl.compile(...)` calls, which another module's export may follow
-   * (ADR-0043).
-   */
-  exportedSchemaNames: string[];
   /** The errors of its `pvl.compile(...)` calls that don't. */
   diagnostics: Diagnostic[];
 };
 
 /**
  * Finds every Marked-to-Compile Schema in `module`, one per
- * `pvl.compile(...)` call, and the names of its exported Schemas, keeping
- * the ones that compile and reporting each one that doesn't with its errors:
+ * `pvl.compile(...)` call, keeping the ones that compile and reporting each
+ * one that doesn't with its errors:
  *
  * - COMPILE_RESULT_MODIFIED: something is chained onto the result
  *   (`pvl.compile(user).optional()`).
@@ -71,7 +63,7 @@ export type ModuleCompilation = {
  * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
  * export const home = pvl.compile(makeAddress());
  * findMarkedToCompileSchemas(<user.ts>)
- * // { module: <user.ts>, schemas: [<ObjectSchema>], exportedSchemaNames: ['user'], diagnostics: [COMPILE_ARGUMENT_UNRESOLVABLE] }
+ * // { module: <user.ts>, schemas: [<ObjectSchema>], diagnostics: [COMPILE_ARGUMENT_UNRESOLVABLE] }
  * ```
  *
  * A module that doesn't import `pvl` from `@pvl/schema` has no call to read.
@@ -115,7 +107,6 @@ export const findMarkedToCompileSchemas = (module: Module): ModuleCompilation =>
   return {
     module,
     schemas,
-    exportedSchemaNames: PvlAst.findExportedSchemaNames(module.moduleFile),
     diagnostics,
   };
 };

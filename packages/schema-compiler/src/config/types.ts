@@ -24,8 +24,6 @@ export type PvlConfig = {
   rootDir: string;
   /** The Destination Directory's path; unset means the default `.pvl` directory. */
   destination: string | undefined;
-  /** Whether to generate a type alias for each Schema's input and output. */
-  withTypes: boolean;
   /** Whether to recompile on every change. */
   watch: boolean;
 };
@@ -37,7 +35,7 @@ export type PvlConfig = {
  * ```ts
  * import type { PvlConfigFilePayload } from '@pvl/schema-compiler';
  *
- * const file: PvlConfigFilePayload = { include: ['src/schemas/**\/*.ts'], withTypes: false };
+ * const file: PvlConfigFilePayload = { include: ['src/schemas/**\/*.ts'], destination: 'out' };
  * ```
  */
 export type PvlConfigFilePayload = InferOutput<typeof pvlConfigFilePayloadSchema>;

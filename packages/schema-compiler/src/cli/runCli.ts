@@ -44,10 +44,6 @@ export const runCli = async (
             type: 'string',
             description: 'The Destination Directory to write (default: .pvl)',
           },
-          'with-types': {
-            type: 'boolean',
-            description: "Generate each exported Schema's Input and Output type aliases",
-          },
           watch: {
             type: 'boolean',
             description: 'Recompile on every change',

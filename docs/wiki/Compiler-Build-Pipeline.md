@@ -98,10 +98,7 @@ flowchart TD
     EMIT --> REP["the class expression replaces<br/>the pvl.compile(...) call in the text"]
     REP --> IMP["add a type-only import of<br/>Schema, Issue, Result… from @pvl/schema"]
     IMP --> SPEC["rewrite module specifiers so they<br/>still resolve from the mirror"]
-    SPEC --> TA{"withTypes?"}
-    TA -- yes --> ALIAS["append NameInput / NameOutput<br/>type aliases per exported Schema"]
-    TA -- no --> OUT["the mirrored file's text"]
-    ALIAS --> OUT
+    SPEC --> OUT["the mirrored file's text"]
 ```
 
 Only the outermost `pvl.compile(...)` is replaced: one nested inside another's argument is compiled into it. A file with no `pvl.compile(...)` is copied with only its module specifiers rewritten.

@@ -10,7 +10,6 @@ const CONFIG_KEYS = {
   include: true,
   rootDir: true,
   destination: true,
-  withTypes: true,
   watch: true,
 } as const satisfies Record<keyof PvlConfigFilePayload, true>;
 
@@ -50,11 +49,6 @@ describe('json-schema.json', () => {
             "description": "Whether \`pvl compile\` keeps running and recompiles on every change.",
             "type": "boolean",
           },
-          "withTypes": {
-            "default": true,
-            "description": "Whether to generate each exported Schema's Input and Output type aliases.",
-            "type": "boolean",
-          },
         },
         "title": "pvlconfig.json",
         "type": "object",
@@ -70,11 +64,10 @@ describe('json-schema.json', () => {
   });
 
   it('has the defaults the compiler runs with', () => {
-    const { include, rootDir, withTypes, watch } = configJsonSchema.properties;
-    expect([include.default, rootDir.default, withTypes.default, watch.default]).toEqual([
+    const { include, rootDir, watch } = configJsonSchema.properties;
+    expect([include.default, rootDir.default, watch.default]).toEqual([
       defaultConfig.include,
       defaultConfig.rootDir,
-      defaultConfig.withTypes,
       defaultConfig.watch,
     ]);
   });

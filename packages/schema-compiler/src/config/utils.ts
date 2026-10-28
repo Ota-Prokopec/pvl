@@ -12,7 +12,7 @@ import type { PvlConfigFilePayload } from './types.js';
  *
  * ```ts
  * definedOnlyKeys({ destination: 'out', rootDir: undefined }) // { destination: 'out' }
- * definedOnlyKeys({ withTypes: false })                       // { withTypes: false }: only `undefined` is dropped
+ * definedOnlyKeys({ destination: '' })                        // { destination: '' }: only `undefined` is dropped
  * definedOnlyKeys({ include: undefined })                     // {}
  * ```
  */

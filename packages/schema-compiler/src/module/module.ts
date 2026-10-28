@@ -21,10 +21,9 @@ import {
   COMPILED_SCHEMA_IMPORT,
   GENERATED_HEADER,
   STANDALONE_BRAND_IMPORT,
-  TYPE_ALIAS_IMPORT,
 } from './consts.js';
 import type { MirroredFile, MirroredPath, TextEdit } from './types.js';
-import { findLineIndentation, renderTypeAliases } from './utils.js';
+import { findLineIndentation } from './utils.js';
 
 /** A scanned file, the project it is read into, and the directories that place it in the mirror. */
 type ModuleOptions = {
@@ -42,8 +41,6 @@ type CompileModuleArgs = {
   schemas: ReadonlyArray<Schema>;
   /** Lets an import of another scanned file point at that file's mirror instead. */
   mirroredPathByScannedPath: ReadonlyMap<ScannedPath, MirroredPath>;
-  /** The exported Schemas the module ends with type aliases for (`PvlAst.findExportedSchemaNames`), none without the `withTypes` setting. */
-  exportedSchemaNames: ReadonlyArray<string>;
 };
 
 /**
@@ -100,34 +97,25 @@ export class Module {
    * Turns the module into its mirrored file by editing its source file in
    * place: replaces its `pvl.compile(...)` calls with straight-line code,
    * points its module specifiers at the right files from the mirrored
-   * location, appends the type aliases of `exportedSchemaNames`, then
-   * prepends the `@generated` header.
+   * location, then prepends the `@generated` header. It adds no export of
+   * its own: the mirrored module exports exactly what its source does
+   * (ADR-0046).
    *
    * ```ts
    * // /repo/src/schemas/user.ts, mirrored to /repo/.pvl/schemas/user.ts
    * import { pvl } from '@pvl/schema';
    * import { tags } from '../lib/tags.js';
    * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
-   * // module.compile({ …, exportedSchemaNames: ['user'] })
+   * // module.compile({ … })
    * // → { relativePath: 'schemas/user.ts', text: '<@generated header>\n…' }, where
-   * //   '../lib/tags.js' becomes '../../src/lib/tags.js', `pvl.compile(...)`
-   * //   becomes an instance of its emitted Compiled Schema class, and the
-   * //   module ends with `export type UserInput = …;` and `export type UserOutput = …;`
+   * //   '../lib/tags.js' becomes '../../src/lib/tags.js', and `pvl.compile(...)`
+   * //   becomes an instance of its emitted Compiled Schema class
    * ```
    */
-  public compile({
-    schemas,
-    mirroredPathByScannedPath,
-    exportedSchemaNames,
-  }: CompileModuleArgs): MirroredFile {
+  public compile({ schemas, mirroredPathByScannedPath }: CompileModuleArgs): MirroredFile {
     this.compileSchemas(schemas);
 
     this.rewriteSpecifiers(mirroredPathByScannedPath);
-
-    if (exportedSchemaNames.length > 0) {
-      this.insertAfterImports(TYPE_ALIAS_IMPORT);
-      this.moduleFile.addStatements(renderTypeAliases(exportedSchemaNames));
-    }
 
     return {
       relativePath: this.path.relativePath.pathFromBase,
@@ -272,9 +260,9 @@ export class Module {
    * ```ts
    * // import { pvl } from '@pvl/schema';
    * // export const user = pvl.string();
-   * module.insertAfterImports(TYPE_ALIAS_IMPORT)
+   * module.insertAfterImports(STANDALONE_BRAND_IMPORT)
    * // import { pvl } from '@pvl/schema';
-   * // import type { InferInput as PvlInferInput, … } from '@pvl/schema';
+   * // import type { STANDALONE_BRAND as PVL_STANDALONE_BRAND } from '@pvl/schema';
    * // export const user = pvl.string();
    * ```
    */
