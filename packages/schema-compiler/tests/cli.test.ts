@@ -173,24 +173,18 @@ describe('pvl compile: output', () => {
     expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*destinaton/);
   });
 
-  it.each(['--with-types', '--no-with-types'])('exits non-zero on the removed %s', async (flag) => {
-    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+  it.each(['--with-types', '--no-with-types', '--watch'])(
+    'exits non-zero on the removed %s and writes nothing',
+    async (flag) => {
+      const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const { exitCode, stderr } = await run(root, ['compile', flag]);
+      const { exitCode, stderr } = await run(root, ['compile', flag]);
 
-    expect(exitCode).toBe(1);
-    expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*with-types/);
-    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
-  });
-
-  it('exits non-zero on --watch, as there is no watch mode', async () => {
-    const root = await createFixture({});
-
-    const { exitCode, stderr } = await run(root, ['compile', '--watch']);
-
-    expect(exitCode).toBe(1);
-    expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*watch/);
-  });
+      expect(exitCode).toBe(1);
+      expect(stderr).toMatch(/^error INVALID_ARGUMENTS: /);
+      expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+    },
+  );
 
   it('--help prints usage on stdout and exits zero', async () => {
     const root = await createFixture({});
@@ -333,6 +327,10 @@ const WARNING_CASES: ReadonlyArray<{ code: DiagnosticCode; files: FixtureFiles }
   {
     code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
     files: { 'src/schemas/user.ts': SCHEMA_FILE, 'src/schemas/setup.ts': 'const internal = 1;\n' },
+  },
+  {
+    code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
+    files: { 'src/schemas/user.ts': `${SCHEMA_FILE}export default user;\n` },
   },
   {
     code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,

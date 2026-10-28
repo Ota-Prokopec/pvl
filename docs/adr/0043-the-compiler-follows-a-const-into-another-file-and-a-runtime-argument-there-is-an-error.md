@@ -8,6 +8,8 @@
 - Every diagnostic stays on the file being compiled, the one holding the `pvl.compile(...)` call, and names a line in another file with that file's path relative to it (`line 2 of ../shared/user.ts`). Every BaseException therefore carries the node it is thrown at (`offendingNode`), and the catch spells where it is ([ADR-0037](./0037-the-compilers-expected-failures-are-base-exceptions-naming-their-diagnostic.md)).
 - An exported `const` built from an Imported Schema (`export const admin = user.optional()`) now counts as a Schema, so it gets its Type Aliases too.
 
+> Superseded in part by [ADR-0046](./0046-a-mirrored-module-exports-exactly-what-its-source-exports.md): the Type Aliases are removed, so no `export const` gets them.
+
 ## Why a Runtime Argument in the other file is an error
 
 [ADR-0030](./0030-a-method-argument-the-compiler-cant-read-is-a-runtime-argument-evaluated-once-where-it-is-written.md) evaluates a Runtime Argument once, where it is written, as the interpreted path does, and copies it into the Compiled Schema as written. Inlined into another file, that text names the bindings of the file it was written in: `LIMIT` in `.max(LIMIT)` doesn't exist in the file being compiled, or names something else there. A function passed to `.refine()` or `.transform()` is always one, so an Imported Schema using them can't be inlined. Its user moves the Schema into the file being compiled, or compiles it in its own file and nests it in a Schema that isn't compiled. A Runtime Argument chained onto an Imported Schema in the file being compiled is written there, so it is passed as any other.

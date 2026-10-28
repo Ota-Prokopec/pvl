@@ -1,8 +1,9 @@
 // The checks `Precheck` runs on each scanned module, each the diagnostics
 // one kind of problem raises, read from the module alone.
+import type { Statement } from 'ts-morph';
 import { GenericAst } from '../ast/genericAst.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
+import { DIAGNOSTIC_CODE, type DiagnosticCode } from '../diagnostics/enums.js';
 import type { Module } from '../module/module.js';
 import { isOutsideBase } from '../path/path.js';
 
@@ -54,10 +55,45 @@ export const findOutsideRootDirectoryDiagnostics = ({ path: modulePath }: Module
     : [];
 };
 
+export type FindStatementDiagnosticsArgs = {
+  module: Module;
+  /** Whether a top-level statement raises the diagnostic. */
+  isRaisedBy: (statement: Statement) => boolean;
+  code: DiagnosticCode;
+  /** The message for the statement starting on line `line`. */
+  createMessage: (line: number) => string;
+};
+
+/**
+ * A `code` diagnostic per top-level statement of the module that
+ * `isRaisedBy` matches, its message made from the statement's line.
+ */
+const findStatementDiagnostics = ({
+  module: {
+    path: { absolutePath },
+    moduleFile,
+  },
+  isRaisedBy,
+  code,
+  createMessage,
+}: FindStatementDiagnosticsArgs): Diagnostic[] => {
+  return moduleFile
+    .getStatements()
+    .filter((statement) => isRaisedBy(statement))
+    .map(
+      (statement) =>
+        new Diagnostic({
+          code,
+          message: createMessage(statement.getStartLineNumber()),
+          file: absolutePath,
+        }),
+    );
+};
+
 /**
  * A DEFAULT_EXPORT warning per top-level statement that exports a default
- * (`GenericAst.isDefaultExport`). It is mirrored as written, but a Schema
- * should be exported under a name.
+ * (`GenericAst.isDefaultExport`), in any scanned file, whatever it exports.
+ * It is mirrored as written.
  *
  * ```ts
  * export default pvl.string();               // DEFAULT_EXPORT
@@ -66,21 +102,14 @@ export const findOutsideRootDirectoryDiagnostics = ({ path: modulePath }: Module
  * export { default as legacy } from './legacy.js'; // fine: exported under a name
  * ```
  */
-export const findDefaultExportDiagnostics = ({
-  path: { absolutePath },
-  moduleFile,
-}: Module): Diagnostic[] => {
-  return moduleFile
-    .getStatements()
-    .filter((statement) => GenericAst.isDefaultExport(statement))
-    .map(
-      (statement) =>
-        new Diagnostic({
-          code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
-          message: `The statement on line ${String(statement.getStartLineNumber())} exports a default. Export it under a name instead.`,
-          file: absolutePath,
-        }),
-    );
+export const findDefaultExportDiagnostics = (module: Module): Diagnostic[] => {
+  return findStatementDiagnostics({
+    module,
+    isRaisedBy: (statement) => GenericAst.isDefaultExport(statement),
+    code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
+    createMessage: (line) =>
+      `The statement on line ${String(line)} exports a default. Export it under a name instead.`,
+  });
 };
 
 /**
@@ -109,19 +138,12 @@ export const findExportsNothingDiagnostics = ({
  * (`GenericAst.isSideEffectStatement`), such as `console.log('loaded');`,
  * which runs again wherever the mirror is loaded.
  */
-export const findSideEffectDiagnostics = ({
-  path: { absolutePath },
-  moduleFile,
-}: Module): Diagnostic[] => {
-  return moduleFile
-    .getStatements()
-    .filter((statement) => GenericAst.isSideEffectStatement(statement))
-    .map(
-      (statement) =>
-        new Diagnostic({
-          code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
-          message: `The top-level statement on line ${String(statement.getStartLineNumber())} is copied into the mirror, so it runs again wherever the mirrored module is loaded.`,
-          file: absolutePath,
-        }),
-    );
+export const findSideEffectDiagnostics = (module: Module): Diagnostic[] => {
+  return findStatementDiagnostics({
+    module,
+    isRaisedBy: (statement) => GenericAst.isSideEffectStatement(statement),
+    code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
+    createMessage: (line) =>
+      `The top-level statement on line ${String(line)} is copied into the mirror, so it runs again wherever the mirrored module is loaded.`,
+  });
 };

@@ -2,8 +2,8 @@
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
 // of the same file or imported, reading literals as values, whether a file
 // parses and exports anything, which of its statements export a default or
-// run code, and where
-// its module specifiers are written. Nothing is imported or executed.
+// run code, and where its module specifiers are written. Nothing is imported
+// or executed.
 import {
   Node,
   SyntaxKind,
@@ -147,12 +147,10 @@ export class GenericAst {
       return true;
     }
     if (Node.isExportDeclaration(statement)) {
-      return statement
-        .getNamedExports()
-        .some(
-          (exportSpecifier) =>
-            (exportSpecifier.getAliasNode()?.getText() ?? exportSpecifier.getName()) === 'default',
-        );
+      return statement.getNamedExports().some((exportSpecifier) => {
+        const exportedName = exportSpecifier.getAliasNode()?.getText() ?? exportSpecifier.getName();
+        return exportedName === 'default';
+      });
     }
     return Node.isExportable(statement) && statement.isDefaultExport();
   }

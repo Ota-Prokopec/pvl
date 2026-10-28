@@ -142,8 +142,8 @@ plus a `.pvl-generated` marker so a later run knows it may replace the folder.
 ## Source
 
 - [`cli/runCli.ts`](../../packages/schema-compiler/src/cli/runCli.ts), [`compilation/runCompilation.ts`](../../packages/schema-compiler/src/compilation/runCompilation.ts), [`compilation/compileAll.ts`](../../packages/schema-compiler/src/compilation/compileAll.ts)
-- [`config/configResolver.ts`](../../packages/schema-compiler/src/config/configResolver.ts), [`scanner.ts`](../../packages/schema-compiler/src/scanner.ts), [`tsMorphProject.ts`](../../packages/schema-compiler/src/tsMorphProject.ts)
-- [`precheck.ts`](../../packages/schema-compiler/src/precheck.ts), [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts), [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts), [`schemas/runtimeArgument.ts`](../../packages/schema-compiler/src/schemas/runtimeArgument.ts)
+- [`config/configResolver.ts`](../../packages/schema-compiler/src/config/configResolver.ts), [`scanner/scanner.ts`](../../packages/schema-compiler/src/scanner/scanner.ts), [`tsMorphProject/tsMorphProject.ts`](../../packages/schema-compiler/src/tsMorphProject/tsMorphProject.ts)
+- [`precheck/precheck.ts`](../../packages/schema-compiler/src/precheck/precheck.ts), [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts), [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts), [`runtimeArgument/runtimeArgument.ts`](../../packages/schema-compiler/src/runtimeArgument/runtimeArgument.ts)
 - [`ast/pvlAst.ts`](../../packages/schema-compiler/src/ast/pvlAst.ts), [`ast/genericAst.ts`](../../packages/schema-compiler/src/ast/genericAst.ts)
 - [`module/module.ts`](../../packages/schema-compiler/src/module/module.ts), [`destination/destinationWriter.ts`](../../packages/schema-compiler/src/destination/destinationWriter.ts)
 
