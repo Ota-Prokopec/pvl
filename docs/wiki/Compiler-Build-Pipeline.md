@@ -35,7 +35,7 @@ flowchart TD
     MOD --> PC["Precheck.precheckModules<br/>(next graph)"]
     PC --> ERR{"any error?<br/>(or any warning with --strict)"}
     ERR -- yes --> NOWRITE["print the Diagnostics, exit 1,<br/>write nothing"]
-    ERR -- no --> CA["compileAll<br/>Module.compile for each file,<br/>plus the index.ts barrel"]
+    ERR -- no --> CA["compileAll<br/>Module.compile for each file"]
     CA --> WD["DestinationWriter.writeDestination<br/>into .pvl.pvl-tmp, then swapped in"]
     WD --> DONE["exit 0"]
 ```
@@ -137,7 +137,7 @@ export const username = (new (class PvlCompiledSchema0 implements PvlSchema<stri
 })() as PvlSchema<string, string>);
 ```
 
-plus `.pvl/index.ts`, re-exporting every mirrored file, and a `.pvl-generated` marker so a later run knows it may replace the folder.
+plus a `.pvl-generated` marker so a later run knows it may replace the folder.
 
 ## Source
 
@@ -145,6 +145,6 @@ plus `.pvl/index.ts`, re-exporting every mirrored file, and a `.pvl-generated` m
 - [`config/configResolver.ts`](../../packages/schema-compiler/src/config/configResolver.ts), [`scanner.ts`](../../packages/schema-compiler/src/scanner.ts), [`tsMorphProject.ts`](../../packages/schema-compiler/src/tsMorphProject.ts)
 - [`precheck.ts`](../../packages/schema-compiler/src/precheck.ts), [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts), [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts), [`schemas/runtimeArgument.ts`](../../packages/schema-compiler/src/schemas/runtimeArgument.ts)
 - [`ast/pvlAst.ts`](../../packages/schema-compiler/src/ast/pvlAst.ts), [`ast/genericAst.ts`](../../packages/schema-compiler/src/ast/genericAst.ts)
-- [`module.ts`](../../packages/schema-compiler/src/module.ts), [`barrel.ts`](../../packages/schema-compiler/src/barrel.ts), [`destination/destinationWriter.ts`](../../packages/schema-compiler/src/destination/destinationWriter.ts)
+- [`module/module.ts`](../../packages/schema-compiler/src/module/module.ts), [`destination/destinationWriter.ts`](../../packages/schema-compiler/src/destination/destinationWriter.ts)
 
 Further reading: [compilation.md](../specification/schema-compiler/compilation.md), [configuration-and-cli.md](../specification/schema-compiler/configuration-and-cli.md), [destination-directory.md](../specification/schema-compiler/destination-directory.md), [ADR-0002](../adr/0002-static-ast-compilation-via-ts-morph.md), [ADR-0005](../adr/0005-compiler-emits-a-destination-directory-and-rewrites-nothing.md).

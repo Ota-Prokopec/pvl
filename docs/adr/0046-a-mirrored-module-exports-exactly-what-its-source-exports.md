@@ -16,4 +16,6 @@
 
 - The `<Name>Input` and `<Name>Output` Type Aliases each mirrored module ended with are removed, with the type-only `InferInput`/`InferOutput` import they needed and the reading of exported Schemas only they used. Code importing one typechecked under the production alias and failed in development. This supersedes [ADR-0036](./0036-type-aliases-read-the-mirrored-binding-through-typeof.md).
 - The `withTypes` setting is removed: `"withTypes"` in `pvlconfig.json` is an unknown key (`INVALID_CONFIG`), and `--with-types`/`--no-with-types` an unknown flag (`INVALID_ARGUMENTS`).
+- The generated barrel, `<destination>/index.ts` re-exporting every mirrored module, is removed: an import of it had no counterpart in the source. A `<rootDir>/index.ts` the application wrote is mirrored like any other file. `DUPLICATE_EXPORT`, which existed only to keep the generated barrel unambiguous, goes with it, so two files exporting the same name are no longer rejected.
+- `DEFAULT_EXPORT` becomes a warning. A default export is mirrored as written, a `pvl.compile(...)` in it compiled, so the rule holds, but a Schema should be exported under a name. `--strict` still makes it an error.
 - A future feature that would add an importable name to the mirror is checked against this rule.

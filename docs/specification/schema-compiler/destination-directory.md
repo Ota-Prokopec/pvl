@@ -10,7 +10,7 @@ The compiler writes a single **`Destination Directory`** and modifies nothing el
 
 The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror, which carries ordinary interpreted schemas too, though a Compiled Schema imports only its types ([ADR-0029](../../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md)).
 
-Each mirrored module is its source's code under a `@generated` header, with each `pvl.compile(...)` call replaced by its Compiled Schema ([code-generation.md](./code-generation.md#each-compiled-schema-is-a-class-expression-implementing-schema)), a Runtime Argument in a `const` such a call follows hoisted (below), and module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`). Nothing else changes: a mirrored module exports exactly what its source exports, its declared types included, and adds no export of its own ([ADR-0046](../../adr/0046-a-mirrored-module-exports-exactly-what-its-source-exports.md)). Module specifiers are rewritten as follows:
+Each mirrored module is its source's code under a `@generated` header, with each `pvl.compile(...)` call replaced by its Compiled Schema ([code-generation.md](./code-generation.md#each-compiled-schema-is-a-class-expression-implementing-schema)), a Runtime Argument in a `const` such a call follows hoisted (below), and module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`). Nothing else changes: a mirrored module exports exactly what its source exports, its declared types included, and adds no export of its own ([ADR-0046](../../adr/0046-a-mirrored-module-exports-exactly-what-its-source-exports.md)). The mirror holds no file the source lacks: with no `<rootDir>/index.ts`, it has no `index.ts`, and one the application wrote is mirrored like any other scanned file. A default export (`export default`, `export =`, `export { x as default }`) is mirrored as written, a `pvl.compile(...)` in it compiled, but is the `DEFAULT_EXPORT` warning, one per statement: a Schema should be exported under a name. Module specifiers are rewritten as follows:
 
 - **A relative import of a scanned file** stays as written: the layout is the same, so it already reaches the mirrored file.
 - **A relative import of anything else** (an unscanned helper, a `.json` file) is rewritten to reach the original file from the mirrored module's directory.
@@ -30,12 +30,6 @@ export const first = 1;
 const pvlArg0 = getMax();
 export const base = pvl.string().max(pvlArg0);
 ```
-
-### No generated barrel
-
-The compiler never generates a barrel. When the Root Directory has no `index.ts`, the Destination Directory has none either: the mirror holds exactly the source's files at the source's paths, so an import of a Compiled Schema is the import of its interpreted Schema with only the alias target swapped. A barrel that existed only in the mirror would be an import with no interpreted counterpart, and the two versions would no longer be the same.
-
-A `<rootDir>/index.ts` the application wrote is mirrored like any other scanned file. Its module specifiers follow the rules above, and each keeps the extension it was written with, or its lack of one, so it resolves under whatever module resolution the application uses. An ambiguous `export *` in it is TypeScript's error, reported wherever the mirror is typechecked.
 
 ### Writing it
 

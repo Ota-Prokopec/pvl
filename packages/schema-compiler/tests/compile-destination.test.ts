@@ -19,6 +19,9 @@ import {
 // What the runtime test reads off a mirrored module and the source it mirrors.
 type OrderModule = { order: Pick<Schema<unknown>, 'validate'> };
 
+// What the default-export runtime test reads off a mirrored module and its source.
+type DefaultModule = { default: Pick<Schema<unknown>, 'validate'> };
+
 // A scanned file importing another, so the runtime test crosses a module boundary.
 const ORDER_FILE = [
   "import { pvl } from '@pvl/schema';",
@@ -103,6 +106,27 @@ describe('runCompilation(): writing the Destination Directory', () => {
       { customer: {}, total: 'x' },
     ]) {
       expect(mirrored.order.validate(value)).toEqual(source.order.validate(value));
+    }
+  });
+
+  it('mirrors a default export intact, compiling a pvl.compile(...) inside it, so the mirrored default imports and validates as its source does', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts':
+        "import { pvl } from '@pvl/schema';\n\nexport default pvl.compile(pvl.object({ name: pvl.string() }));\n",
+    });
+    await linkSchemaPackage(root);
+
+    const payload = await runCompilation({ cwd: root });
+    const source = (await import(path.join(root, 'src/schemas/user.ts'))) as DefaultModule;
+    const mirrored = (await import(path.join(root, '.pvl/schemas/user.ts'))) as DefaultModule;
+
+    expect(diagnosticCodes(payload)).toEqual([DIAGNOSTIC_CODE.DEFAULT_EXPORT]);
+    expect(await readFixtureFile(root, '.pvl/schemas/user.ts')).toMatch(
+      /^export default \(new \(class PvlCompiledSchema0 /m,
+    );
+    for (const value of [{ name: 'Ada' }, { name: 1 }]) {
+      expect(mirrored.default.validate(value)).toEqual(source.default.validate(value));
     }
   });
 

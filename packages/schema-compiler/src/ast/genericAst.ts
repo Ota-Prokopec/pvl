@@ -1,7 +1,8 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
 // of the same file or imported, reading literals as values, whether a file
-// parses and exports anything, which of its statements run code, and where
+// parses and exports anything, which of its statements export a default or
+// run code, and where
 // its module specifiers are written. Nothing is imported or executed.
 import {
   Node,
@@ -126,6 +127,34 @@ export class GenericAst {
           Node.isExportAssignment(statement) ||
           (Node.isExportable(statement) && statement.hasExportKeyword()),
       );
+  }
+
+  /**
+   * Whether a top-level statement exports a default, in any of its forms:
+   *
+   * ```ts
+   * export default user;                    // true
+   * export = user;                          // true
+   * export default class Registry {}        // true
+   * export { user as default };             // true
+   * export { default } from './legacy.js';  // true
+   * export { default as legacy } from './legacy.js'; // false: named `legacy`
+   * export * from './user.js';              // false: `export *` skips defaults
+   * ```
+   */
+  public static isDefaultExport(statement: Statement): boolean {
+    if (Node.isExportAssignment(statement)) {
+      return true;
+    }
+    if (Node.isExportDeclaration(statement)) {
+      return statement
+        .getNamedExports()
+        .some(
+          (exportSpecifier) =>
+            (exportSpecifier.getAliasNode()?.getText() ?? exportSpecifier.getName()) === 'default',
+        );
+    }
+    return Node.isExportable(statement) && statement.isDefaultExport();
   }
 
   /**

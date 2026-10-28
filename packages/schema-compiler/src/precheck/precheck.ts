@@ -5,6 +5,7 @@
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { Module } from '../module/module.js';
 import {
+  findDefaultExportDiagnostics,
   findExportsNothingDiagnostics,
   findOutsideRootDirectoryDiagnostics,
   findParseFailureDiagnostics,
@@ -60,6 +61,7 @@ export class Precheck {
 
     return [
       ...outsideRootDirectoryDiagnostics,
+      ...findDefaultExportDiagnostics(module),
       ...findExportsNothingDiagnostics(module),
       ...findSideEffectDiagnostics(module),
     ];

@@ -55,6 +55,35 @@ export const findOutsideRootDirectoryDiagnostics = ({ path: modulePath }: Module
 };
 
 /**
+ * A DEFAULT_EXPORT warning per top-level statement that exports a default
+ * (`GenericAst.isDefaultExport`). It is mirrored as written, but a Schema
+ * should be exported under a name.
+ *
+ * ```ts
+ * export default pvl.string();               // DEFAULT_EXPORT
+ * export { user as default };                // DEFAULT_EXPORT
+ * export = user;                             // DEFAULT_EXPORT
+ * export { default as legacy } from './legacy.js'; // fine: exported under a name
+ * ```
+ */
+export const findDefaultExportDiagnostics = ({
+  path: { absolutePath },
+  moduleFile,
+}: Module): Diagnostic[] => {
+  return moduleFile
+    .getStatements()
+    .filter((statement) => GenericAst.isDefaultExport(statement))
+    .map(
+      (statement) =>
+        new Diagnostic({
+          code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
+          message: `The statement on line ${String(statement.getStartLineNumber())} exports a default. Export it under a name instead.`,
+          file: absolutePath,
+        }),
+    );
+};
+
+/**
  * A FILE_EXPORTS_NOTHING warning when the module has no export, so nothing
  * in it can be imported from its mirrored module (`const internal = 1;`
  * alone).

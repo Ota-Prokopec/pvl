@@ -37,6 +37,8 @@ export const DIAGNOSTIC_CODE = {
   PARSE_FAILED: 'PARSE_FAILED',
   /** A scanned file isn't under `rootDir`, so it has no place in the mirror. */
   FILE_OUTSIDE_ROOT_DIR: 'FILE_OUTSIDE_ROOT_DIR',
+  /** A scanned file has a default export (`export default`, `export =`, `export { x as default }`), which a Schema should not be exported as: export it under a name (a warning, one per statement). */
+  DEFAULT_EXPORT: 'DEFAULT_EXPORT',
   /** A side-effecting top-level statement was copied, so it runs again wherever the mirror is loaded (a warning). */
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
