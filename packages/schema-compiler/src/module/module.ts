@@ -19,7 +19,6 @@ import type { Schema } from '../schemas/schema.js';
 import { SPECIFIER_TARGET_KIND } from '../specifier/enums.js';
 import { Specifier } from '../specifier/specifier.js';
 import type { SpecifierTarget } from '../specifier/types.js';
-import { TsMorphProject } from '../tsMorphProject.js';
 import {
   COMPILED_SCHEMA_CLASS_NAME_PREFIX,
   COMPILED_SCHEMA_IMPORT,
@@ -305,18 +304,17 @@ export class Module {
     // Keyed by `string`, so the resolved file's plain path is looked up as it is.
     mirroredPathByScannedPath: ReadonlyMap<string, MirroredPath>,
   ): SpecifierTarget {
-    const moduleFile = TsMorphProject.resolveModuleFile(
-      this.moduleFile.getProject(),
-      specifier,
-      this.path.absolutePath,
-    );
-    if (moduleFile === undefined || moduleFile.isPackage) {
+    const applicationFile = specifier.resolveApplicationFile({
+      importerPath: this.path,
+      compilerOptions: this.moduleFile.getProject().getCompilerOptions(),
+    });
+    if (applicationFile === undefined) {
       return { kind: SPECIFIER_TARGET_KIND.UNRESOLVED };
     }
 
-    const mirroredPath = mirroredPathByScannedPath.get(moduleFile.absolutePath);
+    const mirroredPath = mirroredPathByScannedPath.get(applicationFile.absolutePath);
     return mirroredPath === undefined
-      ? { kind: SPECIFIER_TARGET_KIND.REPOSITORY, path: moduleFile }
+      ? { kind: SPECIFIER_TARGET_KIND.REPOSITORY, path: applicationFile }
       : { kind: SPECIFIER_TARGET_KIND.MIRRORED, path: { absolutePath: mirroredPath } };
   }
 }

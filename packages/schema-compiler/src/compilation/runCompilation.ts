@@ -12,7 +12,7 @@ import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { findPatternsMatchingPath } from '../utils.js';
-import { TsMorphProject } from '../tsMorphProject.js';
+import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
 import { Precheck } from '../precheck/precheck.js';
 import { Scanner } from '../scanner.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';

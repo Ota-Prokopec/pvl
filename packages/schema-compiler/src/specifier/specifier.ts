@@ -1,7 +1,9 @@
 // A module specifier, and every way the mirror reads and respells it: what
-// kind of specifier it is, the one a relative path is named by, and how one
-// written in a scanned module is spelled from its mirrored module's location.
+// kind of specifier it is, the application file it resolves to, the one a
+// relative path is named by, and how one written in a scanned module is
+// spelled from its mirrored module's location.
 import * as path from 'node:path';
+import { ts } from 'ts-morph';
 import { MODULE_SPECIFIER_EXTENSIONS } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { SpecifierTarget } from './types.js';
@@ -19,6 +21,13 @@ export type ToRelativeSpecifierArgs = {
   targetPath: AbsolutePath;
   /** The directory it is spelled from. */
   outputDirectory: AbsolutePath;
+};
+
+export type ResolveApplicationFileArgs = {
+  /** The file the module specifier is written in. */
+  importerPath: AbsolutePath;
+  /** The compiler options it resolves under: the application's tsconfig, `paths` included. */
+  compilerOptions: ts.CompilerOptions;
 };
 
 export type RewriteSpecifierArgs = RebaseSpecifierArgs & {
@@ -93,6 +102,70 @@ export class Specifier {
    */
   public isPath(): boolean {
     return this.isRelative() || path.isAbsolute(this.moduleSpecifierAsString);
+  }
+
+  /**
+   * The module TypeScript resolves this module specifier, written in the
+   * file `importerPath`, to under `compilerOptions`: tsconfig `paths` first,
+   * then relative paths and `node_modules`. `undefined` when it resolves to none.
+   *
+   * ```ts
+   * new Specifier('./user.js').resolveModule(…)    // { resolvedFileName: '/repo/src/schemas/user.ts', isExternalLibraryImport: false, … }
+   * new Specifier('@pvl/schema').resolveModule(…)  // { resolvedFileName: '/repo/node_modules/@pvl/schema/dist/index.d.ts', isExternalLibraryImport: true, … }
+   * new Specifier('./missing.js').resolveModule(…) // undefined
+   * ```
+   */
+  private resolveModule({
+    importerPath,
+    compilerOptions,
+  }: ResolveApplicationFileArgs): ts.ResolvedModuleFull | undefined {
+    return ts.resolveModuleName(
+      this.moduleSpecifierAsString,
+      importerPath.absolutePath,
+      compilerOptions,
+      ts.sys,
+    ).resolvedModule;
+  }
+
+  /**
+   * The application file this module specifier, written in the file
+   * `importerPath`, resolves to, the way the application's build resolves
+   * it, or `undefined` when it resolves to a package or to no file. A bare
+   * module specifier that `node_modules` holds is a package even when
+   * tsconfig `paths` maps it to a local file, as a workspace package mapped
+   * to its source often is, so the mirror keeps it as written.
+   *
+   * With `importerPath` `/repo/src/schemas/order.ts` and tsconfig `paths`
+   * `{ "@/*": ["./src/*"], "@pvl/schema": ["./packages/schema/src/index.ts"] }`:
+   *
+   * ```ts
+   * new Specifier('./user.js').resolveApplicationFile(…)         // { absolutePath: '/repo/src/schemas/user.ts' }
+   * new Specifier('../lib/helpers.js').resolveApplicationFile(…) // { absolutePath: '/repo/src/lib/helpers.ts' }
+   * new Specifier('@/lib/helpers').resolveApplicationFile(…)     // { absolutePath: '/repo/src/lib/helpers.ts' }: through `paths`
+   * new Specifier('@pvl/schema').resolveApplicationFile(…)       // undefined: `node_modules` holds it, which wins over `paths`
+   * new Specifier('./missing.js').resolveApplicationFile(…)      // undefined
+   * ```
+   */
+  public resolveApplicationFile({
+    importerPath,
+    compilerOptions,
+  }: ResolveApplicationFileArgs): AbsolutePath | undefined {
+    // `paths` set aside, a bare module specifier resolves only through `node_modules`.
+    if (
+      !this.isPath() &&
+      this.resolveModule({
+        importerPath,
+        compilerOptions: { ...compilerOptions, paths: undefined },
+      })?.isExternalLibraryImport === true
+    ) {
+      return undefined;
+    }
+
+    const resolvedModule = this.resolveModule({ importerPath, compilerOptions });
+    // Normalised by `path.resolve` to the platform's form, which the mirror's paths are keyed by.
+    return resolvedModule === undefined || resolvedModule.isExternalLibraryImport === true
+      ? undefined
+      : { absolutePath: path.resolve(resolvedModule.resolvedFileName) };
   }
 
   /**

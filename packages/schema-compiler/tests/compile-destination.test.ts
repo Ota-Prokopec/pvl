@@ -304,6 +304,40 @@ describe('runCompilation(): writing the Destination Directory', () => {
     );
   });
 
+  it('keeps a package import that tsconfig paths also map when the tsconfig resolves as node10', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      // node10 reads only `main` and `types`, so on its own it finds no file
+      // in a package that declares its entry only through `exports`.
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: {
+          moduleResolution: 'node10',
+          paths: { '@ws/pkg': ['./packages/pkg/src/index.ts'] },
+        },
+      }),
+      'packages/pkg/src/index.ts': 'export const tag = 1;\n',
+      'node_modules/@ws/pkg/package.json': JSON.stringify({
+        name: '@ws/pkg',
+        exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
+      }),
+      'node_modules/@ws/pkg/dist/index.d.ts': 'export declare const tag: number;\n',
+      'src/schemas/user.ts': [
+        "import { pvl } from '@pvl/schema';",
+        "import { tag } from '@ws/pkg';",
+        '',
+        'export const user = pvl.object({ name: pvl.string() });',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics).toEqual([]);
+    expect(await readFixtureFile(root, '.pvl/schemas/user.ts')).toContain(
+      "import { tag } from '@ws/pkg';",
+    );
+  });
+
   it('never scans the directories a failed run left beside the destination', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({ include: ['**/*.ts'], rootDir: '.', destination: 'gen' }),
