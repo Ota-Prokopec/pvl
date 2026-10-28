@@ -48,10 +48,6 @@ export const runCli = async (
             type: 'boolean',
             description: "Generate each exported Schema's Input and Output type aliases",
           },
-          watch: {
-            type: 'boolean',
-            description: 'Recompile on every change',
-          },
           strict: {
             type: 'boolean',
             default: false,

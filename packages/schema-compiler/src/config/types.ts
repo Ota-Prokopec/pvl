@@ -26,8 +26,6 @@ export type PvlConfig = {
   destination: string | undefined;
   /** Whether to generate a type alias for each Schema's input and output. */
   withTypes: boolean;
-  /** Whether to recompile on every change. */
-  watch: boolean;
 };
 
 /**

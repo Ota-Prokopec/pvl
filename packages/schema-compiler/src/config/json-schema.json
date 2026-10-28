@@ -29,11 +29,6 @@
       "description": "Whether to generate each exported Schema's Input and Output type aliases.",
       "type": "boolean",
       "default": true
-    },
-    "watch": {
-      "description": "Whether `pvl compile` keeps running and recompiles on every change.",
-      "type": "boolean",
-      "default": false
     }
   },
   "additionalProperties": false

@@ -11,7 +11,6 @@ const CONFIG_KEYS = {
   rootDir: true,
   destination: true,
   withTypes: true,
-  watch: true,
 } as const satisfies Record<keyof PvlConfigFilePayload, true>;
 
 describe('json-schema.json', () => {
@@ -45,11 +44,6 @@ describe('json-schema.json', () => {
             "description": "The source root the Destination Directory mirrors, relative to this file: a scanned file at <rootDir>/schemas/user.ts is mirrored to <destination>/schemas/user.ts. Every scanned file must sit under it.",
             "type": "string",
           },
-          "watch": {
-            "default": false,
-            "description": "Whether \`pvl compile\` keeps running and recompiles on every change.",
-            "type": "boolean",
-          },
           "withTypes": {
             "default": true,
             "description": "Whether to generate each exported Schema's Input and Output type aliases.",
@@ -70,12 +64,11 @@ describe('json-schema.json', () => {
   });
 
   it('has the defaults the compiler runs with', () => {
-    const { include, rootDir, withTypes, watch } = configJsonSchema.properties;
-    expect([include.default, rootDir.default, withTypes.default, watch.default]).toEqual([
+    const { include, rootDir, withTypes } = configJsonSchema.properties;
+    expect([include.default, rootDir.default, withTypes.default]).toEqual([
       defaultConfig.include,
       defaultConfig.rootDir,
       defaultConfig.withTypes,
-      defaultConfig.watch,
     ]);
   });
 });

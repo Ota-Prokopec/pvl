@@ -87,7 +87,6 @@ export const resolveConfig = async ({
     rootDir: givenOverrides.rootDir ?? config.rootDir ?? defaultConfig.rootDir,
     destination: givenOverrides.destination ?? config.destination,
     withTypes: givenOverrides.withTypes ?? config.withTypes ?? defaultConfig.withTypes,
-    watch: givenOverrides.watch ?? config.watch ?? defaultConfig.watch,
   };
 
   return {

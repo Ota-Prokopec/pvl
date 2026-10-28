@@ -21,7 +21,6 @@ describe('runCompilation(): settings', () => {
       rootDir: 'src',
       destination: undefined,
       withTypes: true,
-      watch: false,
     });
   });
 
@@ -33,7 +32,6 @@ describe('runCompilation(): settings', () => {
         rootDir: 'schemas',
         destination: 'out',
         withTypes: false,
-        watch: true,
       }),
       'schemas/user.ts': SCHEMA_FILE,
     });
@@ -45,7 +43,6 @@ describe('runCompilation(): settings', () => {
       rootDir: 'schemas',
       destination: 'out',
       withTypes: false,
-      watch: true,
     });
   });
 
@@ -70,7 +67,6 @@ describe('runCompilation(): settings', () => {
       rootDir: 'schemas',
       destination: 'from-override',
       withTypes: true,
-      watch: false,
     });
     expect(await readFixtureFile(root, 'from-override/user.ts')).toContain('@generated');
     expect(await listFixtureFiles(root, 'from-config')).toBe(undefined);

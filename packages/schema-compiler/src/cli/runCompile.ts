@@ -21,7 +21,6 @@ export const runCompile = async (
       rootDir: flags.rootDir,
       destination: flags.destination,
       withTypes: flags.withTypes,
-      watch: flags.watch,
     },
     strict: flags.strict,
   });

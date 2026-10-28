@@ -5,7 +5,6 @@ export const pvlConfigSchema = pvl.object({
   rootDir: pvl.string().optional(),
   destination: pvl.string().optional(),
   withTypes: pvl.boolean().optional(),
-  watch: pvl.boolean().optional(),
 });
 
 export const pvlConfigFilePayloadSchema = pvl
@@ -15,6 +14,5 @@ export const pvlConfigFilePayloadSchema = pvl
     rootDir: pvl.string().optional(),
     destination: pvl.string().optional(),
     withTypes: pvl.boolean().optional(),
-    watch: pvl.boolean().optional(),
   })
   .strict();

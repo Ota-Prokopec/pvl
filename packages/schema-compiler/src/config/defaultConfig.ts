@@ -8,6 +8,5 @@ export const defaultConfig = {
   include: ['src/schemas/**/*.ts'],
   rootDir: 'src',
   withTypes: true,
-  watch: false,
   destination: '.pvl',
 } satisfies PvlConfig;

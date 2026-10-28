@@ -4,7 +4,7 @@ How a user drives `@pvl/schema-compiler`. Read this before you change `pvlconfig
 
 ## `pvlconfig.json`
 
-`pvlconfig.json` carries `$schema`, `include` (default `["src/schemas/**/*.ts"]`), `rootDir` (default `"src"`: the source root the Destination Directory mirrors), `destination` (a directory, default `.pvl`), `withTypes` (default `true`: give each exported Schema its `Input` and `Output` type aliases, [destination-directory.md](./destination-directory.md#type-aliases)) and `watch` (default `false`). Every key is optional, and an unknown key is an error, so a typo is reported rather than ignored. Its own schema is `configSchema`, defined with `@pvl/schema`. The shipped JSON Schema is written by hand in `src/config/json-schema.json`, copied to `dist/json-schema.json` at build time and exported as `@pvl/schema-compiler/json-schema`, so a change to `configSchema` needs the same change there. The two can drift; `tests/json-schema.test.ts` fails when their keys or defaults differ. Point `$schema` at `./node_modules/@pvl/schema-compiler/dist/json-schema.json` for autocomplete.
+`pvlconfig.json` carries `$schema`, `include` (default `["src/schemas/**/*.ts"]`), `rootDir` (default `"src"`: the source root the Destination Directory mirrors), `destination` (a directory, default `.pvl`) and `withTypes` (default `true`: give each exported Schema its `Input` and `Output` type aliases, [destination-directory.md](./destination-directory.md#type-aliases)). Every key is optional, and an unknown key is an error, so a typo is reported rather than ignored. Its own schema is `configSchema`, defined with `@pvl/schema`. The shipped JSON Schema is written by hand in `src/config/json-schema.json`, copied to `dist/json-schema.json` at build time and exported as `@pvl/schema-compiler/json-schema`, so a change to `configSchema` needs the same change there. The two can drift; `tests/json-schema.test.ts` fails when their keys or defaults differ. Point `$schema` at `./node_modules/@pvl/schema-compiler/dist/json-schema.json` for autocomplete.
 
 `node_modules` and the destination path are always excluded from `include`, so the compiler can't read its own output. A symlink `include` matches is never followed, whether it points to a file, a directory or nothing: it isn't mirrored, and gets `SYMLINK_SKIPPED`. Nor is a file a pattern reaches through a symlinked directory, as one naming it (`src/linked/*.ts`) does, or `src/**/*` one level in: nothing under it is scanned, and the symlink gets one `SYMLINK_SKIPPED` ([ADR-0044](../../adr/0044-include-never-follows-a-symlink-and-warns-on-it.md)).
 
@@ -14,7 +14,7 @@ Every relative path (`include`, `rootDir`, `destination`, and the same settings 
 
 ## `pvl compile`
 
-The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--include <glob...>`, `--root-dir <path>`, `--destination <path>`, `--with-types`/`--no-with-types`, `--watch`), plus:
+The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--include <glob...>`, `--root-dir <path>`, `--destination <path>`, `--with-types`/`--no-with-types`), plus:
 
 | Flag              | Effect                                                                                           |
 | ----------------- | ------------------------------------------------------------------------------------------------ |
@@ -24,7 +24,7 @@ The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--inc
 
 Precedence is flags, then the config file, then defaults. A run with no config file at all is valid as long as at least one setting is passed as a flag; with neither, it fails with `NO_CONFIG`.
 
-Without `--json`, each diagnostic is printed to stderr as `<severity> <code>: <message> (<file>)`, the severity in lower case, and the written path to stdout. A one-shot run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
+Without `--json`, each diagnostic is printed to stderr as `<severity> <code>: <message> (<file>)`, the severity in lower case, and the written path to stdout. A run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
 
 The programmatic entry point is `runCompilation({ cwd, configPath, overrides, strict })` from `@pvl/schema-compiler`; the CLI is a thin wrapper over it, and a bundler plugin would be another.
 
