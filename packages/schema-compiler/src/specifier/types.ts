@@ -1,6 +1,6 @@
 // What a module specifier reaches, as `Module` resolves it and
 // `Specifier.rewrite` respells it toward.
-import type { AbsolutePath } from '../path.js';
+import type { AbsolutePath } from '../path/types.js';
 import type { SPECIFIER_TARGET_KIND } from './enums.js';
 
 /** What a module specifier reaches, resolved from where it was written. */

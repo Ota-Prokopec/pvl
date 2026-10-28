@@ -8,11 +8,8 @@ import { GenericAst } from '../ast/genericAst.js';
 import { PvlAst } from '../ast/pvlAst.js';
 import type { Destination } from '../destination/destination.js';
 import { STANDALONE_BRAND_NAME } from '../frame/consts.js';
-import {
-  createAbsolutePathWithRelative,
-  type AbsolutePath,
-  type AbsolutePathWithRelative,
-} from '../path.js';
+import { createAbsolutePathWithRelative } from '../path/path.js';
+import type { AbsolutePath, AbsolutePathWithRelative } from '../path/types.js';
 import { HoistedArguments } from '../runtimeArgument/hoistedArguments.js';
 import type { ScannedPath } from '../scanner.js';
 import type { Schema } from '../schemas/schema.js';

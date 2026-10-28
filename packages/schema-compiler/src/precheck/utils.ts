@@ -4,7 +4,7 @@ import { GenericAst } from '../ast/genericAst.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import type { Module } from '../module/module.js';
-import { isOutsideBase } from '../path.js';
+import { isOutsideBase } from '../path/path.js';
 
 /**
  * A PARSE_FAILED error when TypeScript's parser rejects the module, naming

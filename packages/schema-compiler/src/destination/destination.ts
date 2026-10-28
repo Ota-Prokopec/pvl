@@ -4,7 +4,8 @@ import * as path from 'node:path';
 import { defaultConfig } from '../config/defaultConfig.js';
 import type { PvlConfig } from '../config/types.js';
 import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from './consts.js';
-import { createAbsolutePathWithRelative, type AbsolutePathWithRelative } from '../path.js';
+import { createAbsolutePathWithRelative } from '../path/path.js';
+import type { AbsolutePathWithRelative } from '../path/types.js';
 
 /**
  * Where the Destination Directory of one compilation run goes. Its

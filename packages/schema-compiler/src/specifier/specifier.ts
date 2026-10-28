@@ -7,7 +7,8 @@ import { ts } from 'ts-morph';
 import { MODULE_SPECIFIER_EXTENSIONS } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { SpecifierTarget } from './types.js';
-import { stripFileExtension, toPosixPath, type AbsolutePath } from '../path.js';
+import type { AbsolutePath } from '../path/types.js';
+import { stripFileExtension, toPosixPath } from '../path/utils.js';
 
 export type RebaseSpecifierArgs = {
   /** The file the module specifier is written in. */
