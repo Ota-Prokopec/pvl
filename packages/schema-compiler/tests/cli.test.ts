@@ -314,6 +314,13 @@ const WARNING_CASES: ReadonlyArray<{ code: DiagnosticCode; files: FixtureFiles }
     code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
     files: { 'src/schemas/user.ts': `${SCHEMA_FILE}console.log(user);\n` },
   },
+  {
+    code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+    files: {
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: 'user.ts' },
+    },
+  },
 ];
 
 describe('pvl compile: warnings', () => {

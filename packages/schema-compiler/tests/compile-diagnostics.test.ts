@@ -331,6 +331,44 @@ describe('runCompilation(): diagnostics', () => {
     ]);
   });
 
+  it('SYMLINK_SKIPPED: one warning per symlink include matches, a dangling one included, which is not mirrored', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({ include: ['src/schemas/**/*.ts', 'src/schemas/linked.ts'] }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: '../../shared/team.ts' },
+      'src/schemas/dangling.ts': { symlinkTo: 'missing.ts' },
+      'shared/team.ts': SCHEMA_FILE,
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual(
+      ['src/schemas/dangling.ts', 'src/schemas/linked.ts'].map((symlinkPath) => ({
+        code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+        severity: SEVERITY.WARNING,
+        message: expect.any(String),
+        file: path.join(root, symlinkPath),
+      })),
+    );
+    expect(payload.written).toBe(true);
+    expect(await listFixtureFiles(root, '.pvl/schemas')).toEqual(['user.ts']);
+  });
+
+  it('SYMLINK_SKIPPED: strict turns it into an error that writes nothing', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: 'user.ts' },
+    });
+
+    const payload = await runCompilation({ cwd: root, strict: true });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED, file: path.join(root, 'src/schemas/linked.ts') },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
   it('FILE_EXPORTS_NOTHING: a warning that still writes', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),

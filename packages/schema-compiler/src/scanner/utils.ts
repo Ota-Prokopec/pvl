@@ -1,6 +1,6 @@
 // The pure functions `Scanner.scan` reports what `include` raises with: the
 // patterns that reach the Destination Directory, and the diagnostics for
-// those and for an `include` that matched no file.
+// those, for a symlink it matched and for an `include` that matched no file.
 import * as path from 'node:path';
 import { minimatch } from 'minimatch';
 import type { Destination } from '../destination/destination.js';
@@ -62,5 +62,24 @@ export const createNoInputFilesDiagnostic = (include: ReadonlyArray<string>): Di
   return new Diagnostic({
     code: DIAGNOSTIC_CODE.NO_INPUT_FILES,
     message: `include matched no file: ${include.map((pattern) => `\`${pattern}\``).join(', ')}.`,
+  });
+};
+
+/**
+ * The SYMLINK_SKIPPED warning for a symlink `include` matched, which the
+ * compiler doesn't follow, whether it points to a file, a directory or
+ * nothing.
+ *
+ * ```ts
+ * createSymlinkSkippedDiagnostic('/repo/src/schemas/linked.ts')
+ * // → SYMLINK_SKIPPED: This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled.
+ * ```
+ */
+export const createSymlinkSkippedDiagnostic = (symlinkPath: string): Diagnostic => {
+  return new Diagnostic({
+    code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+    message:
+      "This file is a symlink, which the compiler doesn't follow, so it isn't mirrored and its pvl.compile(...) calls aren't compiled.",
+    file: symlinkPath,
   });
 };
