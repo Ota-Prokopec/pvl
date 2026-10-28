@@ -128,14 +128,16 @@ const runCompilationWithoutPromoting = async ({
   const { rawSettings, baseDirectory, destination } = resolvedSettingsPayload;
   const rootDirectory = path.resolve(baseDirectory, rawSettings.rootDir);
 
-  const [destinationDiagnostics, { scannedFilePaths, diagnostics: scanDiagnostics }] =
-    await Promise.all([
-      DestinationWriter.checkDestination(destination.absolutePath),
-      Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
-    ]);
+  const [destinationDiagnostics, scanPayload] = await Promise.all([
+    DestinationWriter.checkDestination(destination.absolutePath),
+    Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
+  ]);
 
   // What `include` and the destination raise before any file is read.
-  const scanScopeDiagnostics: Diagnostic[] = [...scanDiagnostics, ...destinationDiagnostics];
+  const scanScopeDiagnostics: Diagnostic[] = [
+    ...scanPayload.diagnostics,
+    ...destinationDiagnostics,
+  ];
 
   const tsMorphProjectPayload = TsMorphProject.create(baseDirectory);
   // Without a project, no file can be read, so TSCONFIG_UNREADABLE is
@@ -150,7 +152,7 @@ const runCompilationWithoutPromoting = async ({
   }
   const { tsMorphProject } = tsMorphProjectPayload;
 
-  const modules = scannedFilePaths.map(
+  const modules = scanPayload.scannedFilePaths.map(
     (scannedFilePath) =>
       new Module({ scannedFilePath, tsMorphProject, rootDirectory, destination }),
   );

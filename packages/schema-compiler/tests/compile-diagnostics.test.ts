@@ -355,6 +355,30 @@ describe('runCompilation(): diagnostics', () => {
     expect(await listFixtureFiles(root, '.pvl/schemas')).toEqual(['user.ts']);
   });
 
+  it('SYMLINK_SKIPPED: a pattern going through a symlinked directory scans nothing under it, with one warning on the symlink', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({
+        include: ['src/schemas/**/*.ts', 'src/schemas/linked/*.ts', 'src/schemas/linked/deep/*.ts'],
+      }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked': { symlinkTo: '../../shared' },
+      'shared/team.ts': SCHEMA_FILE,
+      'shared/deep/admin.ts': SCHEMA_FILE,
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual([
+      {
+        code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+        severity: SEVERITY.WARNING,
+        message: expect.any(String),
+        file: path.join(root, 'src/schemas/linked'),
+      },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl/schemas')).toEqual(['user.ts']);
+  });
+
   it('SYMLINK_SKIPPED: strict turns it into an error that writes nothing', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
