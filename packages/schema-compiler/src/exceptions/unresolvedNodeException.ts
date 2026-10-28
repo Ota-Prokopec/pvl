@@ -6,21 +6,18 @@ import { BaseException } from './baseException.js';
 
 /** Thrown by a `read…`/`follow…` method at the first node it can't read statically, reported as COMPILE_ARGUMENT_UNRESOLVABLE. */
 export class UnresolvedNodeException extends BaseException {
-  public readonly unresolvedNode: Node;
-
   /**
-   * The exception at `unresolvedNode`, naming it and its line.
+   * The exception at `unresolvedNode`, naming it.
    *
    * ```ts
    * new UnresolvedNodeException(<makeSchema()>).message
-   * // "`makeSchema()` on line 3 isn't a pvl Schema, a literal or a const of this file holding one, so it can't be read statically."
+   * // "`makeSchema()` isn't a pvl Schema, a literal or a const holding one, so it can't be read statically."
    * ```
    */
   public constructor(unresolvedNode: Node) {
     super(
-      `\`${unresolvedNode.getText()}\` on line ${String(unresolvedNode.getStartLineNumber())} isn't a pvl Schema, a literal or a const of this file holding one, so it can't be read statically.`,
-      { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE },
+      `\`${unresolvedNode.getText()}\` isn't a pvl Schema, a literal or a const holding one, so it can't be read statically.`,
+      { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE, offendingNode: unresolvedNode },
     );
-    this.unresolvedNode = unresolvedNode;
   }
 }

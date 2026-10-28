@@ -11,6 +11,7 @@ import {
   diagnosticCodes,
   expectFailure,
   listFixtureFiles,
+  schemaFile,
   readFixtureFile,
 } from './helpers.js';
 
@@ -331,6 +332,68 @@ describe('runCompilation(): diagnostics', () => {
     ]);
   });
 
+  it('SYMLINK_SKIPPED: one warning per symlink include matches, a dangling one included, which is not mirrored', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({ include: ['src/schemas/**/*.ts', 'src/schemas/linked.ts'] }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: '../../shared/team.ts' },
+      'src/schemas/dangling.ts': { symlinkTo: 'missing.ts' },
+      'shared/team.ts': SCHEMA_FILE,
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual(
+      ['src/schemas/dangling.ts', 'src/schemas/linked.ts'].map((symlinkPath) => ({
+        code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+        severity: SEVERITY.WARNING,
+        message: expect.any(String),
+        file: path.join(root, symlinkPath),
+      })),
+    );
+    expect(payload.written).toBe(true);
+    expect(await listFixtureFiles(root, '.pvl/schemas')).toEqual(['user.ts']);
+  });
+
+  it('SYMLINK_SKIPPED: a pattern going through a symlinked directory scans nothing under it, with one warning on the symlink', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({
+        include: ['src/schemas/**/*.ts', 'src/schemas/linked/*.ts', 'src/schemas/linked/deep/*.ts'],
+      }),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked': { symlinkTo: '../../shared' },
+      'shared/team.ts': SCHEMA_FILE,
+      'shared/deep/admin.ts': SCHEMA_FILE,
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual([
+      {
+        code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+        severity: SEVERITY.WARNING,
+        message: expect.any(String),
+        file: path.join(root, 'src/schemas/linked'),
+      },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl/schemas')).toEqual(['user.ts']);
+  });
+
+  it('SYMLINK_SKIPPED: strict turns it into an error that writes nothing', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: 'user.ts' },
+    });
+
+    const payload = await runCompilation({ cwd: root, strict: true });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED, file: path.join(root, 'src/schemas/linked.ts') },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
   it('FILE_EXPORTS_NOTHING: a warning that still writes', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -414,19 +477,31 @@ describe('runCompilation(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe('previous output');
   });
 
-  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument not written in the file, or a spread method argument', async () => {
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument no const holds, imported or not, or a spread method argument, with how to write an import that is followed', async () => {
     const schemaFilePath = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/fallback.ts':
+        "import { pvl } from '@pvl/schema';\n\nexport default pvl.string();\n",
+      'src/schemas/named.ts':
+        "import { pvl } from '@pvl/schema';\n\nconst named = pvl.string();\nexport default named;\n",
+      'lib/external.d.ts': 'export declare const external: unknown;\n',
       [schemaFilePath]: [
         "import { pvl } from '@pvl/schema';",
         "import { user } from './user.js';",
+        "import * as schemas from './user.js';",
+        "import * as defaults from './named.js';",
+        "import fallback from './fallback.js';",
+        "import { external } from '../../lib/external.js';",
         '',
         'const makeSchema = () => pvl.object({});',
         'const limits = [3] as const;',
         "const options = { message: 'too long' };",
-        'export const imported = pvl.compile(user);',
+        'export const defaultExpression = pvl.compile(fallback);',
+        'export const namespaced = pvl.compile(schemas.user);',
+        'export const namespacedDefault = pvl.compile(defaults.default);',
+        'export const declared = pvl.compile(external);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
         'export const spreadArgument = pvl.compile(pvl.array(pvl.string()).max(...limits));',
@@ -439,11 +514,48 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 5 }, () => ({
+      Array.from({ length: 8 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
         file: path.join(root, schemaFilePath),
       })),
     );
+    expect(payload.diagnostics.slice(0, 3).map(({ message }) => message)).toEqual([
+      expect.stringContaining(
+        "`fallback` is a default-exported expression on line 3 of fallback.ts, which the compiler doesn't follow. A default export is followed when it names a `const`: `const fallback = pvl.object(…); export default fallback;`.",
+      ),
+      expect.stringContaining(
+        "Import the Schema by its name instead: `import { user } from './user.js'`.",
+      ),
+      expect.stringContaining(
+        "Import the default export instead: `import schema from './named.js'`.",
+      ),
+    ]);
+  });
+
+  it('RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: an Imported Schema passes a Runtime Argument written in its own file, reported on the compiling one', async () => {
+    const schemaFilePath = 'src/schemas/compiled.ts';
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/shared/user.ts': [
+        "import { pvl } from '@pvl/schema';",
+        '',
+        'const isNice = (name: string): boolean => name.length > 0;',
+        'export const user = pvl.object({ name: pvl.string().refine(isNice) });',
+        '',
+      ].join('\n'),
+      [schemaFilePath]: schemaFile(
+        "import { user } from '../shared/user.js';\nexport const team = pvl.compile(pvl.object({ user }));",
+      ),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expectFailure(payload, [
+      {
+        code: DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA,
+        file: path.join(root, schemaFilePath),
+      },
+    ]);
   });
 
   it('COMPILE_ARGUMENT_UNRESOLVABLE: a factory argument naming what shadows a top-level const', async () => {

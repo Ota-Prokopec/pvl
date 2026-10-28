@@ -9,8 +9,8 @@ import type { Issue, Result, Schema } from '@pvl/schema';
 import { afterEach, expect } from 'vitest';
 import { SEVERITY, type CompilationOutput, type DiagnosticCode } from '../src/index.js';
 
-/** A fixture project's files, keyed by path relative to its root. */
-export type FixtureFiles = Readonly<Record<string, string>>;
+/** A fixture project's files, keyed by path relative to its root: each one's text, or where a symlink there points. */
+export type FixtureFiles = Readonly<Record<string, string | { symlinkTo: string }>>;
 
 const fixtures: string[] = [];
 
@@ -32,8 +32,11 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
   );
   fixtures.push(root);
   for (const [filePath, content] of Object.entries(files)) {
-    await fsPromises.mkdir(path.dirname(path.join(root, filePath)), { recursive: true });
-    await fsPromises.writeFile(path.join(root, filePath), content);
+    const absolutePath = path.join(root, filePath);
+    await fsPromises.mkdir(path.dirname(absolutePath), { recursive: true });
+    await (typeof content === 'string'
+      ? fsPromises.writeFile(absolutePath, content)
+      : fsPromises.symlink(content.symlinkTo, absolutePath));
   }
   return root;
 };

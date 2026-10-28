@@ -1,0 +1,114 @@
+// The functions `Scanner.scan` reports what `include` raises with: the
+// patterns that reach the Destination Directory, the symlinked directory a
+// matched file is reached through, and the diagnostics for those, for a
+// symlink and for an `include` that matched no file.
+import * as fsPromises from 'node:fs/promises';
+import * as path from 'node:path';
+import { minimatch } from 'minimatch';
+import type { Destination } from '../destination/destination.js';
+import { Diagnostic } from '../diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
+
+/**
+ * The glob `patterns` that match `relativePath` or could match anything inside
+ * it, in their given order. Both are POSIX-separated and relative to the same
+ * base; each pattern is normalized first, so `./src/**` and `src/**` agree.
+ *
+ * ```ts
+ * findPatternsMatchingPath(['src/**\/*.ts', 'lib/*.ts'], 'src/compiled') // ['src/**\/*.ts']
+ * findPatternsMatchingPath(['../shared/**'], '../shared/out')           // ['../shared/**']
+ * findPatternsMatchingPath(['src/schemas/**\/*.ts'], '.pvl')             // []
+ * ```
+ */
+export const findPatternsMatchingPath = (
+  patterns: ReadonlyArray<string>,
+  relativePath: string,
+): string[] => {
+  // `partial`: the pattern matches `relativePath` or could match something inside it.
+  // Normalized, as minimatch, unlike `fs.glob`, never matches `./src/**` against `src/…`.
+  return patterns.filter((pattern) =>
+    minimatch(relativePath, path.posix.normalize(pattern), { partial: true }),
+  );
+};
+
+/**
+ * The first directory on the way from `baseDirectory` down to
+ * `directoryPath` that is a symlink, `undefined` when none is: a file under
+ * it is reached through the symlink. A `..` step goes up from where the walk
+ * is, so it follows no symlink.
+ *
+ * ```ts
+ * // /repo/src/linked → ../lib
+ * findLinkedDirectory('/repo', '/repo/src/linked/deep') // '/repo/src/linked'
+ * findLinkedDirectory('/repo', '/repo/src')             // undefined
+ * ```
+ */
+export const findLinkedDirectory = async (
+  baseDirectory: string,
+  directoryPath: string,
+): Promise<string | undefined> => {
+  let walkedPath = baseDirectory;
+  for (const step of path.relative(baseDirectory, directoryPath).split(path.sep)) {
+    walkedPath = path.join(walkedPath, step);
+    if (step !== '..' && step !== '' && (await fsPromises.lstat(walkedPath)).isSymbolicLink()) {
+      return walkedPath;
+    }
+  }
+  return undefined;
+};
+
+/**
+ * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
+ * matches the Destination Directory or anything inside it, so the compiler
+ * would scan its own output.
+ *
+ * ```ts
+ * // include: ['src/**\/*.ts'], destination: 'src/compiled'
+ * createDestinationInsideIncludeDiagnostic(destination, 'src/**\/*.ts') // DESTINATION_INSIDE_INCLUDE
+ * ```
+ */
+export const createDestinationInsideIncludeDiagnostic = (
+  destination: Destination,
+  pattern: string,
+): Diagnostic => {
+  return new Diagnostic({
+    code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
+    message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
+    file: destination.absolutePath,
+  });
+};
+
+/**
+ * The `NO_INPUT_FILES` error a run reports when `include` matched no file,
+ * listing every pattern.
+ *
+ * ```ts
+ * createNoInputFilesDiagnostic(['src/*.ts', 'lib/*.ts'])
+ * // message: 'include matched no file: `src/*.ts`, `lib/*.ts`.'
+ * ```
+ */
+export const createNoInputFilesDiagnostic = (include: ReadonlyArray<string>): Diagnostic => {
+  return new Diagnostic({
+    code: DIAGNOSTIC_CODE.NO_INPUT_FILES,
+    message: `include matched no file: ${include.map((pattern) => `\`${pattern}\``).join(', ')}.`,
+  });
+};
+
+/**
+ * The SYMLINK_SKIPPED warning for a symlink `include` matched or reached a
+ * file through, which the compiler doesn't follow, whether it points to a
+ * file, a directory or nothing.
+ *
+ * ```ts
+ * createSymlinkSkippedDiagnostic('/repo/src/schemas/linked.ts')
+ * // → SYMLINK_SKIPPED: This path is a symlink, which the compiler doesn't follow, so nothing reached through it is mirrored or compiled. …
+ * ```
+ */
+export const createSymlinkSkippedDiagnostic = (symlinkPath: string): Diagnostic => {
+  return new Diagnostic({
+    code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+    message:
+      "This path is a symlink, which the compiler doesn't follow, so nothing reached through it is mirrored or compiled. A Schema exported from a file it leads to can still be imported into a scanned file and nested in a Schema there.",
+    file: symlinkPath,
+  });
+};

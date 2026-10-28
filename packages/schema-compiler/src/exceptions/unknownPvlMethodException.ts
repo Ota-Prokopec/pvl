@@ -11,22 +11,18 @@ import { BaseException } from './baseException.js';
  * it, so a Schema reports only the first one.
  */
 export class UnknownPvlMethodException extends BaseException {
-  /** The call of the method `@pvl/schema` doesn't have. */
-  public readonly unknownCall: PropertyAccessCallExpression;
-
   /**
-   * The exception at `unknownCall`, naming its method and its line.
+   * The exception at `unknownCall`, naming its method.
    *
    * ```ts
-   * new UnknownPvlMethodException(<pvl.string().foo()>).message // "`.foo()` on line 3 isn't a method `@pvl/schema` has."
-   * new UnknownPvlMethodException(<pvl.foo()>).message          // "`.foo()` on line 3 isn't a method `@pvl/schema` has."
+   * new UnknownPvlMethodException(<pvl.string().foo()>).message // "`.foo()` isn't a method `@pvl/schema` has."
+   * new UnknownPvlMethodException(<pvl.foo()>).message          // "`.foo()` isn't a method `@pvl/schema` has."
    * ```
    */
   public constructor(unknownCall: PropertyAccessCallExpression) {
-    super(
-      `\`.${unknownCall.getExpression().getName()}()\` on line ${String(unknownCall.getStartLineNumber())} isn't a method \`@pvl/schema\` has.`,
-      { errorCode: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA },
-    );
-    this.unknownCall = unknownCall;
+    super(`\`.${unknownCall.getExpression().getName()}()\` isn't a method \`@pvl/schema\` has.`, {
+      errorCode: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
+      offendingNode: unknownCall,
+    });
   }
 }

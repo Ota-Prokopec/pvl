@@ -23,6 +23,8 @@ export const DIAGNOSTIC_CODE = {
   INVALID_CONFIG: 'INVALID_CONFIG',
   /** `include` matched no file. */
   NO_INPUT_FILES: 'NO_INPUT_FILES',
+  /** `include` matched a symlink, or a file through a symlinked directory, which the compiler doesn't follow, so nothing reached through it is mirrored or compiled (a warning). */
+  SYMLINK_SKIPPED: 'SYMLINK_SKIPPED',
   /** The destination is a file, or can't be created or written. */
   DESTINATION_UNWRITABLE: 'DESTINATION_UNWRITABLE',
   /** The destination holds files the compiler didn't write, so it won't be replaced. */
@@ -39,10 +41,12 @@ export const DIAGNOSTIC_CODE = {
   SIDE_EFFECT_COPIED: 'SIDE_EFFECT_COPIED',
   /** A scanned file has no export (a warning). */
   FILE_EXPORTS_NOTHING: 'FILE_EXPORTS_NOTHING',
-  /** A `pvl.compile(...)` argument, or a factory's argument in it, can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` of the same file holding one; or an argument of a method chained in it is spread. */
+  /** A `pvl.compile(...)` argument, or a factory's argument in it, can't be read statically: it isn't a `pvl.*` call chain, a literal or a top-level `const` holding one, of the same file or imported; or an argument of a method chained in it is spread. */
   COMPILE_ARGUMENT_UNRESOLVABLE: 'COMPILE_ARGUMENT_UNRESOLVABLE',
   /** A `pvl.compile(...)` argument, or a factory's argument in it, follows a `const` that refers back to itself, so reading it would never end. */
   COMPILE_ARGUMENT_CYCLE: 'COMPILE_ARGUMENT_CYCLE',
+  /** A Schema `pvl.compile(...)` reads from another file passes a Runtime Argument written there, which can't be evaluated in this one. */
+  RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: 'RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA',
   /** Something is chained onto the result of `pvl.compile(...)`, which takes no Modifier: chain it inside the call. */
   COMPILE_RESULT_MODIFIED: 'COMPILE_RESULT_MODIFIED',
   /** A `pvl.compile(...)` argument uses something the compiler can't compile yet, such as a union, or calls a method `@pvl/schema` doesn't have, which ends the reading, so only the first is reported. */

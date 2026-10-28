@@ -1,7 +1,7 @@
 // Compiles every scanned module into the Destination Directory's files
 // (ADR-0005): `Module.compile` handles each module.
 import type { MirroredFile, MirroredPath } from '../module/types.js';
-import type { ScannedPath } from '../scanner.js';
+import type { ScannedPath } from '../scanner/types.js';
 import type { ModuleCompilation } from '../schemas/readSchema.js';
 
 export type CompileAllArgs = {
@@ -33,12 +33,13 @@ export const compileAll = ({ compilations, withTypes }: CompileAllArgs): Mirrore
     modules.map(({ path, mirroredPath }) => [path.absolutePath, mirroredPath]),
   );
 
-  const mirroredModules: MirroredFile[] = compilations.map(({ module, schemas }) =>
-    module.compile({
-      schemas,
-      mirroredPathByScannedPath,
-      withTypes,
-    }),
+  const mirroredModules: MirroredFile[] = compilations.map(
+    ({ module, schemas, exportedSchemaNames }) =>
+      module.compile({
+        schemas,
+        mirroredPathByScannedPath,
+        exportedSchemaNames: withTypes ? exportedSchemaNames : [],
+      }),
   );
 
   return mirroredModules.sort((first, second) =>

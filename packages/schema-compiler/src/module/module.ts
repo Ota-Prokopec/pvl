@@ -3,15 +3,15 @@
 // place, module specifiers rewritten to reach the right files from there.
 // `Precheck` checks it before that.
 import * as path from 'node:path';
-import type { Project, SourceFile } from 'ts-morph';
+import type { Node, Project, SourceFile } from 'ts-morph';
 import { GenericAst } from '../ast/genericAst.js';
-import { PvlAst } from '../ast/pvlAst.js';
 import type { Destination } from '../destination/destination.js';
 import { STANDALONE_BRAND_NAME } from '../frame/consts.js';
 import { createAbsolutePathWithRelative } from '../path/path.js';
 import type { AbsolutePath, AbsolutePathWithRelative } from '../path/types.js';
+import { toPosixPath } from '../path/utils.js';
 import { HoistedArguments } from '../runtimeArgument/hoistedArguments.js';
-import type { ScannedPath } from '../scanner.js';
+import type { ScannedPath } from '../scanner/types.js';
 import type { Schema } from '../schemas/schema.js';
 import { SPECIFIER_TARGET_KIND } from '../specifier/enums.js';
 import { Specifier } from '../specifier/specifier.js';
@@ -42,8 +42,8 @@ type CompileModuleArgs = {
   schemas: ReadonlyArray<Schema>;
   /** Lets an import of another scanned file point at that file's mirror instead. */
   mirroredPathByScannedPath: ReadonlyMap<ScannedPath, MirroredPath>;
-  /** Whether the module ends with its exported Schemas' type aliases (the `withTypes` setting). */
-  withTypes: boolean;
+  /** The exported Schemas the module ends with type aliases for (`PvlAst.findExportedSchemaNames`), none without the `withTypes` setting. */
+  exportedSchemaNames: ReadonlyArray<string>;
 };
 
 /**
@@ -100,15 +100,15 @@ export class Module {
    * Turns the module into its mirrored file by editing its source file in
    * place: replaces its `pvl.compile(...)` calls with straight-line code,
    * points its module specifiers at the right files from the mirrored
-   * location, appends its exported Schemas' type aliases under `withTypes`,
-   * then prepends the `@generated` header.
+   * location, appends the type aliases of `exportedSchemaNames`, then
+   * prepends the `@generated` header.
    *
    * ```ts
    * // /repo/src/schemas/user.ts, mirrored to /repo/.pvl/schemas/user.ts
    * import { pvl } from '@pvl/schema';
    * import { tags } from '../lib/tags.js';
    * export const user = pvl.compile(pvl.object({ name: pvl.string() }));
-   * // module.compile({ …, withTypes: true })
+   * // module.compile({ …, exportedSchemaNames: ['user'] })
    * // → { relativePath: 'schemas/user.ts', text: '<@generated header>\n…' }, where
    * //   '../lib/tags.js' becomes '../../src/lib/tags.js', `pvl.compile(...)`
    * //   becomes an instance of its emitted Compiled Schema class, and the
@@ -118,24 +118,58 @@ export class Module {
   public compile({
     schemas,
     mirroredPathByScannedPath,
-    withTypes,
+    exportedSchemaNames,
   }: CompileModuleArgs): MirroredFile {
-    // Read before compiling, which replaces each `pvl.compile(...)` call.
-    const schemaNames = withTypes ? PvlAst.findExportedSchemaNames(this.moduleFile) : [];
-
     this.compileSchemas(schemas);
 
     this.rewriteSpecifiers(mirroredPathByScannedPath);
 
-    if (schemaNames.length > 0) {
+    if (exportedSchemaNames.length > 0) {
       this.insertAfterImports(TYPE_ALIAS_IMPORT);
-      this.moduleFile.addStatements(renderTypeAliases(schemaNames));
+      this.moduleFile.addStatements(renderTypeAliases(exportedSchemaNames));
     }
 
     return {
       relativePath: this.path.relativePath.pathFromBase,
       text: `${GENERATED_HEADER}\n${this.moduleFile.getFullText()}`,
     };
+  }
+
+  /**
+   * Whether `sourceNode` is written in this module's file, rather than in
+   * another one a followed import reached (ADR-0043).
+   *
+   * ```ts
+   * // /repo/src/schemas/team.ts
+   * team.contains(<pvl.string()>)                             // true
+   * team.contains(<pvl.string()>), in /repo/src/shared/user.ts // false
+   * ```
+   */
+  public contains(sourceNode: Node): boolean {
+    return sourceNode.getSourceFile() === this.moduleFile;
+  }
+
+  /**
+   * Where `sourceNode` is, as a diagnostic on this module names it: its
+   * line, and also its file, relative to this module's directory, when that
+   * is another one, which a followed import reads from (ADR-0043).
+   *
+   * ```ts
+   * // /repo/src/schemas/team.ts
+   * team.spellLocation(<pvl.string()>)                             // 'line 3'
+   * team.spellLocation(<pvl.string()>), in /repo/src/shared/user.ts // 'line 2 of ../shared/user.ts'
+   * ```
+   */
+  public spellLocation(sourceNode: Node): string {
+    const line = `line ${String(sourceNode.getStartLineNumber())}`;
+    if (this.contains(sourceNode)) {
+      return line;
+    }
+    const relativePath = path.relative(
+      path.dirname(this.path.absolutePath),
+      sourceNode.getSourceFile().getFilePath(),
+    );
+    return `${line} of ${toPosixPath(relativePath)}`;
   }
 
   /**

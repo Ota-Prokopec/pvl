@@ -258,6 +258,16 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'out'],
   },
   {
+    code: DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA,
+    files: {
+      'src/shared/name.ts': schemaFile('export const name = pvl.string().max(LIMIT);'),
+      'src/schemas/user.ts': schemaFile(
+        "import { name } from '../shared/name.js';\nexport const user = pvl.compile(name);",
+      ),
+    },
+    argv: ['--destination', 'out'],
+  },
+  {
     code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE,
     files: {
       'src/schemas/user.ts': schemaFile(
@@ -313,6 +323,13 @@ const WARNING_CASES: ReadonlyArray<{ code: DiagnosticCode; files: FixtureFiles }
   {
     code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
     files: { 'src/schemas/user.ts': `${SCHEMA_FILE}console.log(user);\n` },
+  },
+  {
+    code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+    files: {
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: 'user.ts' },
+    },
   },
 ];
 

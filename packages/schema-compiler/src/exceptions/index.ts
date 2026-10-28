@@ -3,6 +3,7 @@
 // the compiler throws a plain `Error` instead.
 export * from './baseException.js';
 export * from './constCycleException.js';
+export * from './runtimeArgumentInImportedSchemaException.js';
 export * from './types.js';
 export * from './unknownPvlMethodException.js';
 export * from './unresolvedNodeException.js';

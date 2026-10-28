@@ -13,6 +13,6 @@ export type SchemaModifierCall = {
    * `undefined` when one is spread, so it has no fixed position.
    */
   args: ReadonlyArray<SchemaModifierCallArgument> | undefined;
-  /** The 1-based line it is written on. */
-  line: number;
+  /** Where the call is written, as a diagnostic on its Schema's Module names it (`Module.spellLocation`): `line 3`, or `line 2 of ../shared/user.ts` in another file (ADR-0043). */
+  location: string;
 };
