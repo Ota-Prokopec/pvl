@@ -12,6 +12,12 @@ export type SchemaCall = Omit<PropertyAccessCall, 'receiver' | 'methodName'> & {
   methodName: PvlSchemaMethodName;
 };
 
+/** The first error TypeScript's parser reports in a file: its message, flattened to one line, and the line it is on. */
+export type ParseError = {
+  message: string;
+  line: number;
+};
+
 /**
  * A `pvl.<factory>(…)` call and the methods chained onto it.
  *

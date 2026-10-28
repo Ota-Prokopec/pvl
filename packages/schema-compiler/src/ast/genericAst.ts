@@ -1,20 +1,24 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
-// reading literals as values, whether a file exports anything, and where its
-// module specifiers are written. Nothing is imported or executed.
+// reading literals as values, whether a file parses and exports anything,
+// which of its statements run code, and where its module specifiers are
+// written. Nothing is imported or executed.
 import {
   Node,
   SyntaxKind,
+  ts,
   VariableDeclarationKind,
   type CallExpression,
   type Identifier,
   type PrefixUnaryExpression,
   type PropertyAccessExpression,
   type SourceFile,
+  type Statement,
   type StringLiteral,
   type VariableDeclaration,
 } from 'ts-morph';
 import { ConstCycleException, UnresolvedNodeException } from '../exceptions/index.js';
+import type { ParseError } from './types.js';
 
 /** An argument written as a literal in source: `3`, `'a'`, `10n`, `{ message: 'too short' }`. */
 export type StaticValue =
@@ -121,6 +125,69 @@ export class GenericAst {
           Node.isExportAssignment(statement) ||
           (Node.isExportable(statement) && statement.hasExportKeyword()),
       );
+  }
+
+  /**
+   * The first error TypeScript's parser reports in `sourceFile`, or
+   * `undefined` when it parses. The later ones are usually its knock-on
+   * effects. A grammar error TypeScript's checker reports, such as a
+   * top-level `return`, isn't one, and neither is a type error
+   * ([ADR-0042](../../../../docs/adr/0042-the-precheck-leaves-grammar-errors-to-the-applications-toolchain.md)).
+   *
+   * ```ts
+   * GenericAst.findFirstParseError(<export const user = pvl.object({ name: pvl.string() ;>)
+   * // { message: "',' expected.", line: 1 }
+   * GenericAst.findFirstParseError(<return;>)                   // undefined: a checker error
+   * GenericAst.findFirstParseError(<const age: number = 'x';>) // undefined: a type error
+   * ```
+   */
+  public static findFirstParseError(sourceFile: SourceFile): ParseError | undefined {
+    const [syntaxDiagnostic] = sourceFile
+      .getProject()
+      .getProgram()
+      .getSyntacticDiagnostics(sourceFile);
+    return syntaxDiagnostic === undefined
+      ? undefined
+      : {
+          message: ts.flattenDiagnosticMessageText(
+            syntaxDiagnostic.compilerObject.messageText,
+            ' ',
+          ),
+          line: syntaxDiagnostic.getLineNumber(),
+        };
+  }
+
+  /**
+   * Whether a top-level statement runs code when its module is evaluated,
+   * rather than only declaring a name. A declaration's initializer doesn't
+   * count, since building a Schema is exactly that, and neither does a
+   * directive such as `'use strict';`, which evaluates nothing.
+   *
+   * ```ts
+   * GenericAst.isSideEffectStatement(<console.log('loaded');>)                 // true
+   * GenericAst.isSideEffectStatement(<if (debug) { … }>)                       // true
+   * GenericAst.isSideEffectStatement(<export const user = pvl.object({ … });>) // false: a declaration
+   * GenericAst.isSideEffectStatement(<import { pvl } from '@pvl/schema';>)     // false: an import
+   * GenericAst.isSideEffectStatement(<export { user as account };>)            // false: an export
+   * GenericAst.isSideEffectStatement(<'use strict';>)                          // false: a directive
+   * ```
+   */
+  public static isSideEffectStatement(statement: Statement): boolean {
+    return !(
+      Node.isVariableStatement(statement) ||
+      Node.isFunctionDeclaration(statement) ||
+      Node.isClassDeclaration(statement) ||
+      Node.isInterfaceDeclaration(statement) ||
+      Node.isTypeAliasDeclaration(statement) ||
+      Node.isEnumDeclaration(statement) ||
+      Node.isModuleDeclaration(statement) ||
+      Node.isImportEqualsDeclaration(statement) ||
+      Node.isImportDeclaration(statement) ||
+      Node.isExportDeclaration(statement) ||
+      Node.isExportAssignment(statement) ||
+      Node.isEmptyStatement(statement) ||
+      (Node.isExpressionStatement(statement) && Node.isStringLiteral(statement.getExpression()))
+    );
   }
 
   /**

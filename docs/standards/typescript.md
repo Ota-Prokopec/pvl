@@ -6,7 +6,7 @@ How to write TypeScript in this repo. `pnpm lint` enforces the mechanical rules,
 
 A reader must know from the name alone what a function does or what a variable holds, without reading its body or its declaration.
 
-- **A function's name is a verb phrase saying what it does to what:** `findPatternsMatchingPath`, `createNoInputFilesDiagnostic`, not `resolve`, `claim` or `findCycles`. A predicate reads as a question: `isOutsideRootDirectory`, `hasTopLevelSideEffect`.
+- **A function's name is a verb phrase saying what it does to what:** `findPatternsMatchingPath`, `createNoInputFilesDiagnostic`, not `resolve`, `claim` or `findCycles`. A predicate reads as a question: `isOutsideBase`, `isSideEffectStatement`.
 - **A variable's name says what the value is, not its shape or where it came from:** `moduleSpecifier`, not `raw`; `mirroredModules`, not `modules`; `extensionlessTargetPath`, not `target`. Never `context`, `entry`, `node`, `data`, `item` or `result` alone.
 - **A map is named `<value>By<Key>`:** `mirroredPathByScannedPath`, `firstExportByExportedName`.
 - **A name stays the same across the code it passes through:** a value named `exportedName` in one function isn't `name` in the next, and a destructured property keeps its name.

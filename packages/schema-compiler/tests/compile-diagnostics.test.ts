@@ -386,6 +386,18 @@ describe('runCompilation(): diagnostics', () => {
     expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
   });
 
+  it('SIDE_EFFECT_COPIED: not raised for a directive, which runs no code', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts': `'use strict';\n${SCHEMA_FILE}`,
+    });
+
+    const payload = await runCompilation({ cwd: root, strict: true });
+
+    expect(payload.diagnostics).toStrictEqual([]);
+    expect(payload.written).toBe(true);
+  });
+
   it('strict: promotes a warning to an error, so the previous output is kept', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -670,7 +682,7 @@ describe('runCompilation(): diagnostics', () => {
     expect(payload.written).toBe(false);
   });
 
-  it("reports one file's diagnostics in a fixed order, and only FILE_OUTSIDE_ROOT_DIR beside PARSE_FAILED", async () => {
+  it("reports one file's diagnostics in a fixed order, only FILE_OUTSIDE_ROOT_DIR beside PARSE_FAILED, and no pvl.compile(...) error after a precheck error", async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({ include: ['lib/*.ts'] }),
       'lib/broken.ts': 'export default = ;\n',
@@ -709,11 +721,28 @@ describe('runCompilation(): diagnostics', () => {
         severity: SEVERITY.WARNING,
         file: path.join(root, 'lib/legacy.ts'),
       },
-      {
-        code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-        severity: SEVERITY.ERROR,
-        file: path.join(root, 'lib/legacy.ts'),
-      },
+    ]);
+    expect(payload.written).toBe(false);
+  });
+
+  it('reads the pvl.compile(...) calls after a precheck that raised only warnings', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/legacy.ts': [
+        "import { pvl } from '@pvl/schema';",
+        "import { address } from './address.js';",
+        '',
+        "console.log('loaded');",
+        'export const home = pvl.compile(address);',
+        '',
+      ].join('\n'),
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(diagnosticCodes(payload)).toEqual([
+      DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
+      DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
     ]);
     expect(payload.written).toBe(false);
   });

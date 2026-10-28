@@ -5,7 +5,7 @@ import type { ScannedPath } from '../scanner.js';
 import type { ModuleCompilation } from '../schemas/readSchema.js';
 
 export type CompileAllArgs = {
-  /** One per scanned module, each of which passed `Precheck.precheckModules` without an error. */
+  /** One per scanned module, compiled only once the run raised no error. */
   compilations: ReadonlyArray<ModuleCompilation>;
   /** Whether each mirrored module ends with its exported Schemas' type aliases (the `withTypes` setting). */
   withTypes: boolean;

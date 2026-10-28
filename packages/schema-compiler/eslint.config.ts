@@ -6,9 +6,8 @@ export default defineConfig(
   config,
   {
     files: ['src/**/*.ts'],
-    // The AST helpers themselves, and the statement checks that stay in the
-    // one place they are used.
-    ignores: ['src/ast/**', 'src/precheck.ts'],
+    // The AST helpers themselves.
+    ignores: ['src/ast/**'],
     plugins: { '@repo/conventions': conventionsPlugin },
     rules: {
       '@repo/conventions/ts-morph-through-ast': 'error',

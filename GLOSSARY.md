@@ -124,7 +124,7 @@ The directory `@pvl/schema-compiler` writes: a mirror of the Root Directory hold
 _Avoid_: Destination File (the rejected single aggregate module), generated file, output bundle.
 
 **Module**:
-One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module` places the file in the mirror and rewrites it there: `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression, and its module specifiers are rewritten to reach the right files from the mirror. Under `withTypes`, `compile` also appends each exported Schema's Type Aliases. Every check of it, and the DUPLICATE_EXPORT check across Modules, is `Precheck`'s (`src/precheck.ts`).
+One file `include` matches, as the compiler reads it: it is prechecked, its Marked-to-Compile Schemas are compiled, and it is mirrored into the Destination Directory as a mirrored module. In code, `Module` places the file in the mirror and rewrites it there: `compileSchemas(schemas)` compiles every Schema it is given with `schema.compile()`, putting each Compiled Schema in place of the Schema's expression, and its module specifiers are rewritten to reach the right files from the mirror. Under `withTypes`, `compile` also appends each exported Schema's Type Aliases. Its checks as a whole file are `Precheck`'s (`src/precheck/`), and its `pvl.compile(...)` calls' errors are `findMarkedToCompileSchemas`'s.
 _Avoid_: Scanned Module.
 
 **Type Alias**:

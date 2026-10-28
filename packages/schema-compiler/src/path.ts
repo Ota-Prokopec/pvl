@@ -1,6 +1,7 @@
 // A file's or directory's location: its absolute path, and its path relative
 // to a base directory when the mirror places it against one, plus the
 // helpers that read and respell a file path.
+// "node:path" automatically follows filesystem rules
 import * as path from 'node:path';
 
 /** Declaration file suffixes, each read as one extension so `types.d.ts` isn't left as `types.d`. */
@@ -46,6 +47,22 @@ export const createAbsolutePathWithRelative = <TAbsolutePath extends string>(
       pathFromBase: toPosixPath(path.relative(absoluteBase, absolutePath)),
     },
   };
+};
+
+/**
+ * Whether `relativePath` leads outside its base directory: up out of it, or
+ * to another drive, where no relative path reaches.
+ *
+ * ```ts
+ * isOutsideBase({ …, relativePath: { absoluteBase: '/repo/src', pathFromBase: 'schemas/user.ts' } })   // false
+ * isOutsideBase({ …, relativePath: { absoluteBase: '/repo/src', pathFromBase: '../lib/helpers.ts' } }) // true
+ * isOutsideBase({ …, relativePath: { absoluteBase: 'C:\\repo', pathFromBase: 'D:/lib/helpers.ts' } })  // true on Windows: another drive
+ * ```
+ */
+export const isOutsideBase = ({
+  relativePath: { pathFromBase },
+}: AbsolutePathWithRelative): boolean => {
+  return pathFromBase === '..' || pathFromBase.startsWith('../') || path.isAbsolute(pathFromBase);
 };
 
 /**

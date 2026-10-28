@@ -84,6 +84,8 @@ export type ModuleCompilation = {
  * ```
  *
  * A module that doesn't import `pvl` from `@pvl/schema` has no call to read.
+ * `module` must parse: `runCompilation` reads it only once the precheck,
+ * PARSE_FAILED included, raised no error.
  */
 export const findMarkedToCompileSchemas = (module: Module): ModuleCompilation => {
   const diagnostics: Diagnostic[] = [];

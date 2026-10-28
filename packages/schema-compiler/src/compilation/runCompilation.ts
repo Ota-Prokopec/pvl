@@ -13,8 +13,9 @@ import { DestinationWriter } from '../destination/destinationWriter.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { findPatternsMatchingPath } from '../utils.js';
 import { TsMorphProject } from '../tsMorphProject.js';
-import { Precheck } from '../precheck.js';
+import { Precheck } from '../precheck/precheck.js';
 import { Scanner } from '../scanner.js';
+import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
 import type { CompilationOutput } from './types.js';
 
 /**
@@ -36,6 +37,21 @@ const createDestinationInsideIncludeDiagnostic = (
     message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
     file: destination.absolutePath,
   });
+};
+
+/**
+ * Whether `diagnostics` stop the run before anything is written: any error
+ * does, and under `strict` any warning too; warnings alone let it go ahead
+ * otherwise.
+ *
+ * ```ts
+ * isRunStoppedBy([PARSE_FAILED], false)         // true
+ * isRunStoppedBy([FILE_EXPORTS_NOTHING], false) // false: a warning
+ * isRunStoppedBy([FILE_EXPORTS_NOTHING], true)  // true
+ * ```
+ */
+const isRunStoppedBy = (diagnostics: ReadonlyArray<Diagnostic>, strict: boolean): boolean => {
+  return isErrorInDiagnostics(diagnostics) || (strict && diagnostics.length > 0);
 };
 
 /**
@@ -66,9 +82,10 @@ type RunCompilationArgs = {
  * 1. resolves the settings (overrides, then `pvlconfig.json`, then defaults),
  *    the Destination Directory and the Root Directory;
  * 2. creates the ts-morph project and reads into it the files `include` selects;
- * 3. collects every diagnostic, from the destination checks to each scanned
- *    module's precheck;
- * 4. unless an error fired, compiles every scanned module with `compileAll`
+ * 3. collects the destination checks' diagnostics and each scanned module's
+ *    precheck, and stops there when the precheck stops the run;
+ * 4. reads each scanned module's `pvl.compile(...)` calls;
+ * 5. unless an error fired, compiles every scanned module with `compileAll`
  *    and writes the Destination Directory.
  *
  * Nothing is written when any error fired, or under `strict` any warning,
@@ -169,15 +186,29 @@ const runCompilationWithoutPromoting = async ({
     rootDirectory,
     destination,
   });
-  const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({ modules });
+  const precheckDiagnostics = Precheck.precheckModules({ modules });
 
-  const diagnostics = [...scanScopeDiagnostics, ...moduleDiagnostics];
+  // A precheck that stops the run stops it before any `pvl.compile(...)` call
+  // is read. PARSE_FAILED is an error, so past this point every scanned
+  // module parsed.
+  if (isRunStoppedBy(precheckDiagnostics, strict)) {
+    return {
+      diagnostics: [...scanScopeDiagnostics, ...precheckDiagnostics],
+      settings: rawSettings,
+      destination: destination.absolutePath,
+      written: false,
+    };
+  }
 
-  // Any error means nothing is compiled or written, and so does any warning
-  // under `strict`; warnings alone let the run go ahead otherwise.
-  // PARSE_FAILED is an error, so past this point every scanned module parsed
-  // and has its compilation.
-  if (isErrorInDiagnostics(diagnostics) || (strict && diagnostics.length > 0)) {
+  const compilations = modules.map((module) => findMarkedToCompileSchemas(module));
+
+  const diagnostics = [
+    ...scanScopeDiagnostics,
+    ...precheckDiagnostics,
+    ...compilations.flatMap((compilation) => compilation.diagnostics),
+  ];
+
+  if (isRunStoppedBy(diagnostics, strict)) {
     return {
       diagnostics,
       settings: rawSettings,
