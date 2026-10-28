@@ -1,8 +1,8 @@
 // The one function writing each kind of emitted text (ADR-0033): a check, a
 // base check, a short-circuit condition, a coercion, a transform, an output
-// statement and a declaration. An Issue's is in `../../issue.ts`.
+// statement and a declaration. An Issue's is in `../../issue/utils.ts`.
 import { ISSUE_CODE, type IssueProps } from '@pvl/schema';
-import { emitIssue } from '../../issue.js';
+import { emitIssue } from '../../issue/utils.js';
 import type {
   EmittedCheck,
   EmittedCoercion,

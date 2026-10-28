@@ -11,7 +11,7 @@
 // its `pvl.compile(...)` call, and closes `_validate` with its one return. A
 // Frame writes no check of its own, only the JavaScript fragments it places:
 // a composite's path and Issue-count locals, the gate behind them
-// (`../issue.ts`), the pre-modifiers' guards, the transform's gate, and the
+// (`../issue/utils.ts`), the pre-modifiers' guards, the transform's gate, and the
 // handoff of its output. The helpers reading nothing of the Frame itself
 // are in `./utils.ts`.
 import { VENDOR } from '@pvl/schema';
@@ -36,8 +36,8 @@ import {
 import {
   emitIssueCountBeforeValueValidationName,
   emitNoNewIssuesCondition,
-  emitRootIssuePath,
-} from '../issue.js';
+  getRootIssuePathInitialization,
+} from '../issue/utils.js';
 import type { SchemaTypes } from '../spelledType/types.js';
 import type { RuntimeArgumentParameter } from '../runtimeArgument/types.js';
 import type { CompiledSchema } from '../emitters/types/compiledSchema.js';
@@ -99,7 +99,7 @@ export class Frame {
   public static readonly rootCheckingTarget: CheckingTarget = {
     value: VALIDATE_VALUE_PARAMETER_NAME,
     path: VALIDATE_PATH_PARAMETER_NAME,
-    issuePath: emitRootIssuePath(VALIDATE_PATH_PARAMETER_NAME),
+    issuePath: getRootIssuePathInitialization(VALIDATE_PATH_PARAMETER_NAME),
   };
 
   /**

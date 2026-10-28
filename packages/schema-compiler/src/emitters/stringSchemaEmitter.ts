@@ -18,7 +18,7 @@ import { emitCoerceToString } from './utils/coercions.js';
 import { emitCheck, emitTypeCheck } from './utils/emittedText.js';
 import { js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue/utils.js';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 
 /** `.min(3)` → `field0.length < 3`, reporting `TOO_SMALL`. */

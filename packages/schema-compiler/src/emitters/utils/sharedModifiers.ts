@@ -4,7 +4,7 @@
 // later check, `.refine()`, which calls the user's own predicate, and
 // `.transform()`, which calls the user's own function.
 import { ISSUE_CODE, replaceEmptyIssueMessage, type ChainableInterpretedSchema } from '@pvl/schema';
-import { emitConstraintIssue } from '../../issue.js';
+import { emitConstraintIssue } from '../../issue/utils.js';
 import type { EmitterMethodOf } from '../types/methodTables.js';
 import type { EmittedPreModifierStep } from '../types/schemaParts.js';
 import { emitFunctionCall } from './arguments.js';

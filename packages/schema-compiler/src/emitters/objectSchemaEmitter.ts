@@ -41,7 +41,7 @@ import {
 } from './utils/emittedText.js';
 import { composeBlock, js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitMessageAroundValue } from '../issue.js';
+import { emitConstraintIssue, emitMessageAroundValue } from '../issue/utils.js';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import type { Scope } from '../scope.js';
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pvl/schema';

@@ -13,7 +13,7 @@ import { composeBlock, js } from '../emitters/utils/js.js';
 import {
   emitIssueCountBeforeValueChildrenValidationName,
   emitNoNewIssuesCondition,
-} from '../issue.js';
+} from '../issue/utils.js';
 import { SCHEMA_TYPE_NAME, STANDALONE_MARKER_TYPE_NAME } from './consts.js';
 import type { GroupedPreModifierStep } from './types.js';
 

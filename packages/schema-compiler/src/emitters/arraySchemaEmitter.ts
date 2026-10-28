@@ -28,7 +28,7 @@ import { emitArgument } from './utils/arguments.js';
 import { emitCheck, emitTypeCheck, emitVariableDeclaration } from './utils/emittedText.js';
 import { composeBlock, js } from './utils/js.js';
 import type { EmitBaseCheckArgs } from './schemaEmitter.js';
-import { emitConstraintIssue, emitDefaultMessage } from '../issue.js';
+import { emitConstraintIssue, emitDefaultMessage } from '../issue/utils.js';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import type { Scope } from '../scope.js';
 import type { ArraySchema } from '../schemas/arraySchema.js';

@@ -11,16 +11,10 @@ import {
   type IssueCode,
   type IssueProps,
 } from '@pvl/schema';
-import type { EmittedIssue } from './emitters/types/emittedText.js';
-import { js } from './emitters/utils/js.js';
-import { RuntimeArgument } from './runtimeArgument/runtimeArgument.js';
-
-// Stands in for a value only known at runtime while a default message is
-// rendered, so the message's text around it can be split off and spelled in
-// a template literal. It works for a message that writes its value as it is,
-// as every `<SCHEMA>_SCHEMA_ISSUE_MESSAGE` does; the differential test
-// catches one that formats it.
-const MESSAGE_VALUE_PLACEHOLDER = '\u0000' as const;
+import type { EmittedIssue } from '../emitters/types/emittedText.js';
+import { js } from '../emitters/utils/js.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import { MESSAGE_VALUE_PLACEHOLDER } from './consts.js';
 
 /** What {@link emitIssueLiteral} writes an Issue literal from: its code, and its message and path, each as an expression. */
 export type EmitIssueLiteralArgs = {
@@ -106,41 +100,43 @@ export const emitConstraintIssue = ({
   options,
   defaultMessage,
 }: EmitConstraintIssueArgs): EmittedIssue => {
-  if (!(options instanceof RuntimeArgument) && options?.message !== undefined) {
-    return emitIssue({ code, message: options.message, path });
+  if (options instanceof RuntimeArgument) {
+    // A message a Runtime Argument decides is only known when the check runs,
+    // and the emitted code imports nothing, so `||` mirrors
+    // `replaceEmptyIssueMessage` there, with the text it replaces an empty one
+    // with. The differential test's empty Runtime Argument message keeps the
+    // two in step.
+    const message = `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(replaceEmptyIssueMessage(''))}`;
+    return emitIssueLiteral({ code, message, path });
   }
-  // A message a Runtime Argument decides is only known when the check runs,
-  // and the emitted code imports nothing, so `||` mirrors
-  // `replaceEmptyIssueMessage` there, with the text it replaces an empty one
-  // with. The differential test's empty Runtime Argument message keeps the
-  // two in step.
-  const message =
-    options instanceof RuntimeArgument
-      ? `(${options.emitReading()}?.message ?? ${defaultMessage}) || ${JSON.stringify(replaceEmptyIssueMessage(''))}`
-      : defaultMessage;
-  return emitIssueLiteral({ code, message, path });
+  return options?.message === undefined
+    ? emitIssueLiteral({ code, message: defaultMessage, path })
+    : emitIssue({ code, message: options.message, path });
 };
 
 /**
  * A default message from `messageOf`, one of `<SCHEMA>_SCHEMA_ISSUE_MESSAGE`'s
- * functions, as an expression: a literal for a value written as one, or, for
- * a Runtime Argument, the field its Compiled Schema's constructor builds the
- * message into. The constructor builds it from its emitter's
- * `argumentMessages`, so `messageOf` must be read from there.
+ * functions, as an expression: a literal for a value written as one or for a
+ * message naming no value, or, for a Runtime Argument, the field its Compiled
+ * Schema's constructor builds the message into. The constructor builds it
+ * from its emitter's `argumentMessages`, so `messageOf` must be read from
+ * there.
  *
  * ```ts
  * emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, 3)                          // '"String must contain at least 3 character(s)"'
  * emitDefaultMessage(StringSchemaEmitter.argumentMessages.min, <the 1st Runtime Argument>) // 'this.arg0Message'
- * emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int)                             // '"Number must be an integer"'
+ * emitDefaultMessage(NUMBER_SCHEMA_ISSUE_MESSAGE.int)                                      // '"Number must be an integer"'
  * ```
  */
-export const emitDefaultMessage = <TValue>(
-  messageOf: (value: TValue) => string,
-  value?: TValue | RuntimeArgument,
+export const emitDefaultMessage = <TValues extends [] | [unknown]>(
+  messageOf: (...values: TValues) => string,
+  // The value is optional exactly when `messageOf` names none.
+  ...values: NoInfer<{ [I in keyof TValues]: TValues[I] | RuntimeArgument }>
 ): string => {
+  const [value] = values;
   return value instanceof RuntimeArgument
     ? value.emitMessageReading()
-    : JSON.stringify(messageOf(value as TValue));
+    : JSON.stringify(messageOf(...(values as TValues)));
 };
 
 /**
@@ -170,10 +166,10 @@ export const emitMessageAroundValue = <TValue>(
  * `@pvl/schema`'s own `Issue` makes it.
  *
  * ```ts
- * emitRootIssuePath('path') // 'path.length > 0 ? path : undefined'
+ * getRootIssuePathInitialization('path') // 'path.length > 0 ? path : undefined'
  * ```
  */
-export const emitRootIssuePath = (pathVariableName: string): string => {
+export const getRootIssuePathInitialization = (pathVariableName: string): string => {
   return js`${pathVariableName}.length > 0 ? ${pathVariableName} : undefined`;
 };
 

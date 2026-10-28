@@ -11,7 +11,7 @@ export * from './diagnostics/utils.js';
 export * from './diagnostics/enums.js';
 // bin.ts is the `pvl` executable and cli/ its in-process entry, so the library
 // never loads yargs. ast/, compilation/, config/, destination/, emitters/,
-// exceptions/, frame/, issue.ts, module/, path.ts, precheck.ts, runtimeArgument/,
+// exceptions/, frame/, issue/, module/, path.ts, precheck.ts, runtimeArgument/,
 // scanner.ts, schemas/, scope.ts, spelledType/, specifier/, tsMorphProject.ts and utils.ts are runCompilation()'s internal steps;
 // config/ and diagnostics/ export their public files above. config/defaultConfig.ts
 // holds the package-wide internal defaults, kept out so semver doesn't bind them.

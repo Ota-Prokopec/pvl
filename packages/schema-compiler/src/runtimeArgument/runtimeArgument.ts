@@ -3,7 +3,7 @@
 // rather than reading it at compile time (ADR-0030).
 import type { Node } from 'ts-morph';
 import { js } from '../emitters/utils/js.js';
-import { emitMessageAroundValue } from '../issue.js';
+import { emitMessageAroundValue } from '../issue/utils.js';
 import type { Schema } from '../schemas/schema.js';
 import type { RuntimeArgumentParameter } from './types.js';
 
