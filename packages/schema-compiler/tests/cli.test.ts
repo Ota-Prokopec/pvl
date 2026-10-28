@@ -4,7 +4,7 @@ import { runCli } from '../src/cli/runCli.js';
 import {
   DIAGNOSTIC_CODE,
   SEVERITY,
-  type RunCompilationPayload,
+  type CompilationOutput,
   type DiagnosticCode,
 } from '../src/index.js';
 import { SCHEMA_FILE } from './consts.js';
@@ -34,13 +34,13 @@ const run = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> =>
   return { exitCode, stdout, stderr };
 };
 
-// `--json` prints one RunCompilationPayload, so a test reads it back as one.
+// `--json` prints one CompilationOutput, so a test reads it back as one.
 const runJson = async (
   cwd: string,
   argv: ReadonlyArray<string>,
-): Promise<CliRun & { payload: RunCompilationPayload }> => {
+): Promise<CliRun & { payload: CompilationOutput }> => {
   const result = await run(cwd, [...argv, '--json']);
-  return { ...result, payload: JSON.parse(result.stdout) as RunCompilationPayload };
+  return { ...result, payload: JSON.parse(result.stdout) as CompilationOutput };
 };
 
 describe('pvl compile: settings from flags', () => {
@@ -253,13 +253,18 @@ const ERROR_CASES: ReadonlyArray<{
     argv: ['--destination', 'out', '--root-dir', 'lib'],
   },
   {
-    code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
-    files: { 'src/schemas/user.ts': 'export default 1;\n' },
+    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
+    files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());') },
     argv: ['--destination', 'out'],
   },
   {
-    code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
-    files: { 'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());') },
+    code: DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA,
+    files: {
+      'src/shared/name.ts': schemaFile('export const name = pvl.string().max(LIMIT);'),
+      'src/schemas/user.ts': schemaFile(
+        "import { name } from '../shared/name.js';\nexport const user = pvl.compile(name);",
+      ),
+    },
     argv: ['--destination', 'out'],
   },
   {
@@ -287,11 +292,6 @@ const ERROR_CASES: ReadonlyArray<{
         'export const user = pvl.compile(pvl.object({ tags: pvl.array(pvl.union([pvl.string()])) }));',
       ),
     },
-    argv: ['--destination', 'out'],
-  },
-  {
-    code: DIAGNOSTIC_CODE.DUPLICATE_EXPORT,
-    files: { 'src/schemas/a.ts': SCHEMA_FILE, 'src/schemas/b.ts': SCHEMA_FILE },
     argv: ['--destination', 'out'],
   },
   // A usage error still comes back as JSON under `--json`.
@@ -324,6 +324,13 @@ const WARNING_CASES: ReadonlyArray<{ code: DiagnosticCode; files: FixtureFiles }
     code: DIAGNOSTIC_CODE.SIDE_EFFECT_COPIED,
     files: { 'src/schemas/user.ts': `${SCHEMA_FILE}console.log(user);\n` },
   },
+  {
+    code: DIAGNOSTIC_CODE.SYMLINK_SKIPPED,
+    files: {
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/linked.ts': { symlinkTo: 'user.ts' },
+    },
+  },
 ];
 
 describe('pvl compile: warnings', () => {
@@ -355,7 +362,7 @@ describe('pvl compile: warnings', () => {
       expect(payload.diagnostics).toEqual([
         expect.objectContaining({ code, severity: SEVERITY.ERROR }),
       ]);
-      expect(await readFixtureFile(root, 'out/index.ts')).toBe(undefined);
+      expect(await readFixtureFile(root, 'out/schemas/user.ts')).toBe(undefined);
     },
   );
 

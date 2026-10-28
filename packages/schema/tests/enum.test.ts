@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import { pvl } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
@@ -102,10 +102,8 @@ describe('pvl.enum()', () => {
       expect(result.value).toBe('owner');
     });
 
-    it('is chainable through .coerce() without changing the accepted values', () => {
-      const schema = pvl.enum(SYSTEM_ROLE).coerce();
-      expect(schema.validate('OWNER').issues).toBeUndefined();
-      expect(schema.validate('ADMIN').issues).toBeDefined();
+    it('has no .coerce(), having no single type to convert to', () => {
+      expectTypeOf(pvl.enum(SYSTEM_ROLE)).not.toHaveProperty('coerce');
     });
 
     it('exposes Standard Schema conformance', () => {

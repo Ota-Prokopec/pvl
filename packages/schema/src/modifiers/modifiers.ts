@@ -10,7 +10,7 @@ import type { ModifierTag } from './enums.js';
 export type Modifier<Input, Output> = {
   fn: (value: Input, path: ReadonlyArray<PropertyKey>) => Result<Output> | null;
   tags?: ReadonlyArray<ModifierTag>;
-  // The factory that built this modifier, so `_withoutModifiers` can remove
+  // The factory that built this modifier, so `_withoutModifier` can remove
   // every modifier of that shape whichever instance a schema holds. Left out
   // on a modifier nothing ever removes.
   shape?: ModifierShape;

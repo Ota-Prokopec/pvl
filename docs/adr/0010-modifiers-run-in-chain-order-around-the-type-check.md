@@ -7,7 +7,7 @@ Every Modifier on a `@pvl/schema` Schema is one `Modifier` value pushed onto one
 | `.optional()`, `.nullable()`                                         | pre                    | `SHORT_CIRCUIT`                                   |
 | `.coerce()`                                                          | pre                    | none                                              |
 | Constraints (`.min()`, `.max()`, `.length()`, `.int()`), `.refine()` | post                   | none                                              |
-| `object`'s default strip, `.strict()`                                | post                   | none                                              |
+| `object`'s `.strict()`                                               | post                   | none                                              |
 | `.transform()`                                                       | post (always the last) | `REQUIRES_ALL_PASSED`, `RUNS_AFTER_SHORT_CIRCUIT` |
 
 A Modifier's `fn` returns `null` (no opinion, continue), `{ issues }` (collect them and continue) or `{ value }` (replace the current value and continue). A `MODIFIER_TAG` changes that reading for one Modifier: `SHORT_CIRCUIT` makes a `{ value }` mean "valid, stop here"; `REQUIRES_ALL_PASSED` skips the step once any `Issue` has been collected; `RUNS_AFTER_SHORT_CIRCUIT` keeps the step running after a short-circuit. `Schema._validate(value, path)` is then exactly:

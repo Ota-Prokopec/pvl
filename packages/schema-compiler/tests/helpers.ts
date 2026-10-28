@@ -7,10 +7,10 @@ import * as path from 'node:path';
 import * as url from 'node:url';
 import type { Issue, Result, Schema } from '@pvl/schema';
 import { afterEach, expect } from 'vitest';
-import { SEVERITY, type RunCompilationPayload, type DiagnosticCode } from '../src/index.js';
+import { SEVERITY, type CompilationOutput, type DiagnosticCode } from '../src/index.js';
 
-/** A fixture project's files, keyed by path relative to its root. */
-export type FixtureFiles = Readonly<Record<string, string>>;
+/** A fixture project's files, keyed by path relative to its root: each one's text, or where a symlink there points. */
+export type FixtureFiles = Readonly<Record<string, string | { symlinkTo: string }>>;
 
 const fixtures: string[] = [];
 
@@ -32,8 +32,11 @@ export const createFixture = async (files: FixtureFiles): Promise<string> => {
   );
   fixtures.push(root);
   for (const [filePath, content] of Object.entries(files)) {
-    await fsPromises.mkdir(path.dirname(path.join(root, filePath)), { recursive: true });
-    await fsPromises.writeFile(path.join(root, filePath), content);
+    const absolutePath = path.join(root, filePath);
+    await fsPromises.mkdir(path.dirname(absolutePath), { recursive: true });
+    await (typeof content === 'string'
+      ? fsPromises.writeFile(absolutePath, content)
+      : fsPromises.symlink(content.symlinkTo, absolutePath));
   }
   return root;
 };
@@ -109,7 +112,7 @@ export const listFixtureFiles = async (
 
 /** Each diagnostic's code, in the order the compiler reported them. */
 export const diagnosticCodes = (
-  payload: Pick<RunCompilationPayload, 'diagnostics'>,
+  payload: Pick<CompilationOutput, 'diagnostics'>,
 ): DiagnosticCode[] => payload.diagnostics.map((diagnostic) => diagnostic.code);
 
 /**
@@ -129,7 +132,7 @@ export type SchemasModule = Readonly<Record<string, Pick<Schema<unknown>, 'valid
 /** A fixture project a test has compiled: its root, and what the run returned. */
 export type CompiledFixture = {
   root: string;
-  payload: RunCompilationPayload;
+  payload: CompilationOutput;
 };
 
 /**
@@ -173,7 +176,7 @@ export type ExpectedError = {
  * `file`, and wrote nothing.
  */
 export const expectFailure = (
-  payload: RunCompilationPayload,
+  payload: CompilationOutput,
   expected: ReadonlyArray<ExpectedError>,
 ): void => {
   // Each Diagnostic's fields, as a plain object: `toStrictEqual` also compares prototypes.

@@ -2,6 +2,8 @@
 
 **`.standalone()` marks a Schema as a Standalone Key. An object's `shape` holds its Standalone Keys and no other key, at the type level and at runtime, interpreted and compiled alike. With none, it is `{}`. Every array keeps its `element`. `.standalone()` keeps the chain going, and every Modifier after it keeps the marker. `shape` and `element` survive the Modifiers, `.standalone()` and `pvl.compile()`. A `.transform()` ends them, as [ADR-0016](./0016-transform-and-compile-end-the-modifier-chain.md) decided.** The [standalone-keys spec](../specification/standalone-keys.md) (#107) holds the user-facing rules. This record holds why, and how both packages implement them.
 
+> Superseded in part by [ADR-0039](./0039-an-arrays-element-is-opt-in-as-shapes-keys-are.md): an array's `element` is opt-in, as `shape`'s keys are. It holds the item only when `.standalone()` marked it and is `undefined` otherwise, so an unmarked item is no longer passed in as source.
+
 ```ts
 const user = pvl.compile(
   pvl.object({

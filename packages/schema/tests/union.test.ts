@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import fc from 'fast-check';
 import { pvl } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
@@ -70,6 +70,10 @@ describe('pvl.union()', () => {
       const result = schema.validate('42');
       assertSuccess(result);
       expect(result.value).toBe(42);
+    });
+
+    it('has no .coerce(), having no single type to convert to', () => {
+      expectTypeOf(pvl.union([pvl.string(), pvl.number()])).not.toHaveProperty('coerce');
     });
 
     it('exposes Standard Schema conformance', () => {

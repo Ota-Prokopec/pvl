@@ -1,74 +1,11 @@
 // `pvl compile`, in process: argv in, an exit code out, every byte of output
 // through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
-import { runCompilation, type RunCompilationPayload } from '../compilation/runCompilation.js';
-import type { PvlConfigOverrides } from '../config/config.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { Diagnostics } from '../diagnostics/diagnostics.js';
-
-/** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
-export type CliStream = {
-  write: (text: string) => unknown;
-};
-
-export type RunCliOptions = {
-  /** The working directory `pvl compile` runs in. */
-  cwd: string;
-  stdout: CliStream;
-  stderr: CliStream;
-};
-
-// Every setting is also a flag, so the settings come from `PvlConfigOverrides`
-// and only the CLI's own flags are listed here.
-type CompileFlags = PvlConfigOverrides & {
-  config: string | undefined;
-  strict: boolean;
-  json: boolean;
-};
-
-// `error NO_CONFIG: …`: severities read as words on a terminal.
-const formatDiagnostic = ({ severity, code, message, file }: Diagnostic): string => {
-  return `${severity.toLowerCase()} ${code}: ${message}${file === undefined ? '' : ` (${file})`}\n`;
-};
-
-type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
-  payload: RunCompilationPayload;
-  json: boolean;
-};
-
-const report = ({ payload, json, stdout, stderr }: ReportArgs): void => {
-  if (json) {
-    stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-    return;
-  }
-  for (const diagnostic of payload.diagnostics) {
-    stderr.write(formatDiagnostic(diagnostic));
-  }
-  if (payload.written) {
-    stdout.write(`Wrote ${payload.destination}\n`);
-  }
-};
-
-const runCompile = async (
-  flags: CompileFlags,
-  { cwd, stdout, stderr }: RunCliOptions,
-): Promise<number> => {
-  const payload = await runCompilation({
-    cwd,
-    configPath: flags.config,
-    overrides: {
-      include: flags.include,
-      rootDir: flags.rootDir,
-      destination: flags.destination,
-      withTypes: flags.withTypes,
-      watch: flags.watch,
-    },
-    strict: flags.strict,
-  });
-  report({ payload, json: flags.json, stdout, stderr });
-  return Diagnostics.hasError(payload.diagnostics) ? 1 : 0;
-};
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
+import { report } from './report.js';
+import type { RunCliOptions } from './types.js';
+import { runCompile } from './runCompile.js';
 
 /**
  * Runs the `pvl` CLI against `argv` (without the `node` and script entries)

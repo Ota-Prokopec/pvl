@@ -1,10 +1,11 @@
 // Where the Destination Directory and the sibling directories a run keeps
 // beside it go. Pure: touches no file.
 import * as path from 'node:path';
-import type { PvlConfig } from '../config/config.js';
-import { createAbsolutePathWithRelative, type AbsolutePathWithRelative } from '../path.js';
-import { DEFAULT_DESTINATION_DIRECTORY } from '../config/defaults/consts.js';
-import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from '../consts.js';
+import { defaultConfig } from '../config/defaultConfig.js';
+import type { PvlConfig } from '../config/types.js';
+import { BACKUP_DESTINATION_SUFFIX, TEMPORARY_DESTINATION_SUFFIX } from './consts.js';
+import { createAbsolutePathWithRelative } from '../path/path.js';
+import type { AbsolutePathWithRelative } from '../path/types.js';
 
 /**
  * Where the Destination Directory of one compilation run goes. Its
@@ -54,7 +55,7 @@ export class Destination implements AbsolutePathWithRelative {
   ): Destination {
     return new Destination(
       createAbsolutePathWithRelative(
-        path.resolve(baseDirectory, config.destination ?? DEFAULT_DESTINATION_DIRECTORY),
+        path.resolve(baseDirectory, config.destination ?? defaultConfig.destination),
         baseDirectory,
       ),
       config.destination === undefined,

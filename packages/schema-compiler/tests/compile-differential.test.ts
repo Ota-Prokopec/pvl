@@ -18,9 +18,9 @@ import {
 } from './helpers.js';
 
 // Every Schema the differential test compiles, by export name: each feature
-// of an object or array at least once, alone, combined and nested, and each
+// of an object or array at least once, alone, combined and nested, each
 // primitive, literal and enum at the root, `.optional()`/`.nullable()` on a
-// root of each kind.
+// root of each kind, and an Imported Schema nested and chained onto.
 const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   everyPrimitive: [
     'pvl.object({',
@@ -38,6 +38,8 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   passthrough: 'pvl.object({ name: pvl.string().optional() }).passthrough()',
   passthroughThenStrict: 'pvl.object({ name: pvl.string() }).passthrough().strict()',
   strictThenPassthrough: 'pvl.object({ name: pvl.string() }).strict().passthrough()',
+  strictReplacedAfterRefine:
+    "pvl.object({ name: pvl.string() }).strict().refine((value) => value.name !== 'a').strict({ message: 'extra' })",
   empty: 'pvl.object({})',
   integerKeys: 'pvl.object({ b: pvl.string(), 1: pvl.number(), 0: pvl.boolean() })',
   duplicateEnumMembers: "pvl.array(pvl.enum(['A', 'A', 'B']))",
@@ -131,10 +133,9 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
     "  kind: pvl.literal('user').coerce().optional(),",
     '  yes: pvl.literal(true).coerce().optional(),',
     '  big: pvl.literal(1n).nullable().coerce().optional(),',
-    "  role: pvl.enum(['ADMIN', 'USER']).coerce().optional(),",
-    '}).coerce()',
+    '})',
   ].join('\n'),
-  coercedArray: 'pvl.array(pvl.number().coerce().nullable()).coerce().optional()',
+  coercedArray: 'pvl.array(pvl.number().coerce().nullable()).optional()',
   rootCoercedNumber: 'pvl.number().coerce().min(0)',
   rootCoercedBigint: 'pvl.bigint().optional().coerce()',
   rootTransform: 'pvl.string().min(1).refine(isNotUser).transform((value) => value.length)',
@@ -194,7 +195,18 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
     '  count: pvl.string().standalone().transform((value) => value.length),',
     '})',
   ].join('\n'),
+  importedSchema:
+    'pvl.object({ owner: sharedUser, list: pvl.array(sharedUser.nullable()).max(2) })',
 };
+
+// The file the Imported Schema case reads, outside `include`, importing `pvl`
+// under a Local Name of its own.
+const SHARED_FILE = [
+  "import { pvl as p } from '@pvl/schema';",
+  '',
+  "export const sharedUser = p.object({ name: p.string().min(2), role: p.enum(['ADMIN', 'USER']).optional() }).strict();",
+  '',
+].join('\n');
 
 // An interpreted object whose fields are Compiled Schemas, so their Issues
 // are reported under the parent's path, one of them marked `.standalone()`
@@ -203,11 +215,12 @@ const INTERPRETED_PARENT =
   'pvl.object({ inner: pvl.compile(pvl.object({ name: pvl.string().standalone() }).strict()).standalone(), list: pvl.compile(pvl.array(pvl.number()).min(1)) })' as const;
 
 // The scanned file the differential test compiles: every case, exported
-// compiled, the interpreted parent, the constants one case reads, and the
-// values the Runtime Argument cases evaluate, one of them in a const a case
-// follows.
+// compiled, the interpreted parent, the constants one case reads, the
+// Imported Schema one case nests, and the values the Runtime Argument cases
+// evaluate, one of them in a const a case follows.
 const DIFFERENTIAL_FILE = schemaFile(
   [
+    "import { sharedUser } from '../shared/user.js';",
     'const MAX = 9;',
     'const name = pvl.string().min(2);',
     'let LIMIT = 4;',
@@ -239,6 +252,7 @@ const KEYS = [
   'id',
   'kind',
   'role',
+  'owner',
   'count',
   'e-mail',
   '__proto__',
@@ -360,6 +374,7 @@ const compileDifferentialFixture = async (): Promise<CompiledFixture> => {
   const root = await createFixture({
     'pvlconfig.json': configJson({}),
     'src/schemas/cases.ts': DIFFERENTIAL_FILE,
+    'src/shared/user.ts': SHARED_FILE,
   });
   await linkSchemaPackage(root);
   return { root, payload: await runCompilation({ cwd: root }) };

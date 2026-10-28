@@ -19,11 +19,9 @@
   },
   "intentionallyNotExported": [
     "ComposeObject",
-    "Flatten",
-    "ShapeInput",
-    "ShapeOutput",
-    "MemberInputs",
-    "MemberOutputs",
-    "WithUnknownKeys"
+    "WithUnknownKeys",
+    "EnumObjectSource",
+    "EnumArraySource",
+    "CompiledSchemaOf"
   ]
 }

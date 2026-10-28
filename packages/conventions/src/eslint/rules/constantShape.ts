@@ -1,11 +1,10 @@
 /**
  * Rule: a constant (a module-level `const` initialised with one literal) is
  * UPPER_SNAKE_CASE, ends in `as const`, and when exported lives in a
- * `consts.ts`.
+ * `consts.ts` or a file directly inside a `consts/` folder.
  */
-import * as path from 'node:path';
 import { AST_NODE_TYPES, type TSESTree } from '@typescript-eslint/utils';
-import { createRule, isUpperSnakeCase } from '../utils.ts';
+import { createRule, findDeclarationsOwner, isUpperSnakeCase } from '../utils.ts';
 
 const isSingleLiteral = (node: TSESTree.Node): boolean => {
   switch (node.type) {
@@ -62,12 +61,12 @@ export const constantShape = createRule({
     type: 'suggestion',
     docs: {
       description:
-        'A module-level `const` initialised with one literal is UPPER_SNAKE_CASE, ends in `as const`, and when exported lives in a `consts.ts`.',
+        'A module-level `const` initialised with one literal is UPPER_SNAKE_CASE, ends in `as const`, and when exported lives in a `consts.ts` or a file directly inside a `consts/` folder.',
     },
     messages: {
       name: 'Name the constant `{{name}}` in UPPER_SNAKE_CASE.',
       asConst: 'End the constant `{{name}}` with `as const`.',
-      file: 'Move the exported constant `{{name}}` into a `consts.ts` file.',
+      file: 'Move the exported constant `{{name}}` into a `consts.ts` file, or a file directly inside a `consts/` folder.',
     },
     schema: [],
   },
@@ -101,7 +100,7 @@ export const constantShape = createRule({
         }
       },
       'Program:exit': (): void => {
-        if (path.basename(context.filename) === 'consts.ts') {
+        if (findDeclarationsOwner(context.filename, 'consts') !== undefined) {
           return;
         }
         for (const name of exported) {

@@ -1,14 +1,12 @@
 // `pvl.array(element)`: a composite whose elements each match one Schema,
 // read from its argument, compiled by ArraySchemaEmitter.
-import type { CallChainLink } from '../ast/pvlAst.js';
+import { PvlAst } from '../ast/pvlAst.js';
+import type { PvlFactoryCall } from '../ast/types.js';
 import { ArraySchemaEmitter } from '../emitters/arraySchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
-
-/** What an ArraySchema holds besides what every Schema does. */
-export type ArraySchemaOptions = SchemaOptions & {
-  element: Schema;
-};
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+import { Schema } from './schema.js';
+import type { ReadFactoryArgs } from './types/schemaClass.js';
+import type { ArraySchemaOptions, SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.array(element)` as read from source, holding its element's Schema.
@@ -18,7 +16,7 @@ export type ArraySchemaOptions = SchemaOptions & {
  * ```
  */
 export class ArraySchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.ARRAY;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.ARRAY;
 
   public static override readonly emitter = ArraySchemaEmitter;
 
@@ -34,14 +32,14 @@ export class ArraySchema extends Schema {
   /**
    * Reads the element of the `pvl.array(element)` `link` calls through
    * `readNested`, and returns how its ArraySchema is built from it and what
-   * every Schema holds. Throws an UnresolvedNodeError when its element is
+   * every Schema holds. Throws an UnresolvedNodeException when its element is
    * missing or can't be read.
    */
   public static readFactoryArgument(
-    link: CallChainLink,
+    link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => ArraySchema {
-    const element = readNested(Schema.readArgument(link), link.followed);
+    const element = readNested(PvlAst.readArgument(link), link.followed);
     return (options: SchemaOptions): ArraySchema => new ArraySchema({ ...options, element });
   }
 

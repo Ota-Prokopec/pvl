@@ -1,5 +1,5 @@
 import { ArrayInterpretedSchema } from './schemas/arrayInterpretedSchema.js';
-import type { Schema, StandaloneMarker, StandaloneMarkerOf } from './schemas/schema.js';
+import type { Schema, StandaloneMarkerOf } from './schemas/schema.js';
 import { BigintInterpretedSchema } from './schemas/bigintInterpretedSchema.js';
 import { BooleanInterpretedSchema } from './schemas/booleanInterpretedSchema.js';
 import { EnumInterpretedSchema, type EnumSource } from './schemas/enumInterpretedSchema.js';
@@ -25,15 +25,17 @@ type CompiledSchemaOf<TSchema extends Schema<unknown, unknown>> = Schema<
 
 // The `shape` and `element` of `TSchema`'s Compiled Schema, so they type alike
 // on both sides of the import swap: each Standalone Key is compiled, and so is
-// a marked element, while an unmarked one is the interpreted Schema the
-// compiler passes in (ADR-0036). A transformed schema has neither.
+// a marked element, the only kind an array's `element` holds (ADR-0036,
+// ADR-0039). An unmarked element's `undefined` matches no Schema, so its
+// Compiled Schema has no `element`, as the compiler writes none. A
+// transformed schema has neither.
 type CompiledStructureOf<TSchema> = (TSchema extends {
   readonly shape: infer Shape extends Readonly<Record<string, Schema<unknown, unknown>>>;
 }
   ? { readonly shape: { readonly [Key in keyof Shape]: CompiledSchemaOf<Shape[Key]> } }
   : unknown) &
   (TSchema extends { readonly element: infer Element extends Schema<unknown, unknown> }
-    ? { readonly element: Element extends StandaloneMarker ? CompiledSchemaOf<Element> : Element }
+    ? { readonly element: CompiledSchemaOf<Element> }
     : unknown);
 
 /**

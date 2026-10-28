@@ -18,6 +18,12 @@ export default defineConfig(
     plugins: { '@repo/conventions': conventionsPlugin },
     rules: {
       '@repo/conventions/no-regex': 'error',
+      // Each schema file keeps its `<SCHEMA>_SCHEMA_ISSUE_MESSAGE`, the
+      // runtime half of its rules, beside the class that reports them.
+      '@repo/conventions/compound-constant-file': [
+        'error',
+        { allowedNameSuffixes: ['_SCHEMA_ISSUE_MESSAGE'] },
+      ],
     },
   },
   {

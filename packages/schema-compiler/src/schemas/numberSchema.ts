@@ -1,8 +1,9 @@
 // `pvl.number()`: a number, which reads no argument, compiled by
 // NumberSchemaEmitter.
 import { NumberSchemaEmitter } from '../emitters/numberSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type SchemaOptions } from './schema.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+import { Schema } from './schema.js';
+import type { SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.number()` as read from source. It reads no argument, so any it is
@@ -13,7 +14,7 @@ import { Schema, type SchemaOptions } from './schema.js';
  * ```
  */
 export class NumberSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.NUMBER;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.NUMBER;
 
   public static override readonly emitter = NumberSchemaEmitter;
 

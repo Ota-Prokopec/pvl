@@ -1,5 +1,5 @@
-import { ISSUE_CODE } from '../enums.js';
-import { Issue } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { InferInput, InferOutput, InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
@@ -65,9 +65,9 @@ interface UnionInterpretedSchemaKind<Members extends UnionMembers> extends Inter
  * at the union's own path, followed by every member's own rejection in
  * member order, so the detail of why each alternative failed is kept.
  *
- * `.coerce()` is inherited but does nothing here — the members can be
- * unrelated types, so there is no single conversion target. A member that
- * needs coercion opts into it on its own schema.
+ * There is no `.coerce()`: the members can be unrelated types, so there is
+ * no single conversion target. A member that needs coercion opts into it on
+ * its own schema.
  *
  * @example
  * ```ts

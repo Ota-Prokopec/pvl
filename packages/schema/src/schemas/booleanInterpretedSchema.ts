@@ -1,8 +1,8 @@
 import { coerceToBoolean } from '../coercions.js';
-import { ISSUE_CODE } from '../enums.js';
-import { Issue } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -26,9 +26,9 @@ interface BooleanInterpretedSchemaKind extends InterpretedSchemaKind<
  * Accepts a JavaScript `boolean`. Build one with `pvl.boolean()`.
  *
  * There is nothing to constrain beyond the type itself, so this schema has no
- * check methods of its own — only the modifiers every schema shares. Note
- * that `.coerce()` here is plain JavaScript truthiness, so the string
- * `'false'` becomes `true`.
+ * check methods of its own — only `.coerce()` and the modifiers every schema
+ * shares. Note that `.coerce()` here is plain JavaScript truthiness, so the
+ * string `'false'` becomes `true`.
  *
  * @example
  * ```ts
@@ -55,9 +55,28 @@ export class BooleanInterpretedSchema<
     super();
   }
 
-  /** @internal */
-  override _coerceInput(value: unknown): unknown {
-    return coerceToBoolean(value);
+  /**
+   * Converts a string, a number or a bigint with `Boolean()` before the type
+   * check: plain JavaScript truthiness, so the string `'false'` becomes
+   * `true`. Any other value is left as it is.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const enabled = pvl.boolean().coerce();
+   *
+   * enabled.validate(1); // { value: true }
+   * enabled.validate(''); // { value: false }
+   * enabled.validate(null); // { issues: [{ code: 'INVALID_TYPE', ... }] }
+   * ```
+   */
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: coerceToBoolean(value) };
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

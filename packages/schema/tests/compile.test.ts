@@ -1,10 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import {
-  pvl,
-  type Schema,
-  type StandaloneMarker,
-  type StringInterpretedSchema,
-} from '../src/index.js';
+import { pvl, type Schema, type StandaloneMarker } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
 describe('pvl.compile()', () => {
@@ -166,11 +161,11 @@ describe('pvl.compile()', () => {
       >();
     });
 
-    it('hands back a plain Schema with its element for an array schema', () => {
+    it('hands back a plain Schema with no element for an array schema whose item is unmarked', () => {
       const compiled = pvl.compile(pvl.array(pvl.string()).min(1));
-      expectTypeOf(compiled).toEqualTypeOf<
-        Schema<string[], string[]> & { readonly element: StringInterpretedSchema }
-      >();
+      // @ts-expect-error an unmarked item is no `element`
+      void compiled.element;
+      expectTypeOf(compiled).toEqualTypeOf<Schema<string[], string[]>>();
     });
 
     it("carries a transformed composite's output type, without its shape or element", () => {

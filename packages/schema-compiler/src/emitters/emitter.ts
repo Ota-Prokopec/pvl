@@ -1,117 +1,78 @@
 // The abstract base class every emitter extends, as every schema of
 // `@pvl/schema` extends `Schema`. It does the emitting, following the
-// pipeline of ADR-0010: its `_` hooks emit a Schema's parts as source text
-// (its composite parts, its base check, its pre-modifiers' parts, its
+// pipeline of ADR-0010: it emits a Schema's parts as source text (its
+// composite parts, its base check, its pre-modifiers' parts, its
 // post-modifiers' checks, its transform), and `_emitSchemaParts` returns
 // them as one `SchemaParts`. A composite's emitter supplies what makes it
-// one through `_emitCompositeParts` (locals, declarations, children's
+// one through `_emitSchemaCompositeParts` (locals, declarations, children's
 // checks, output statements), and its post-modifiers are handed its output
 // local to read. The Frame composes those parts, the same way where a parent
 // reads the value and at the root, at `_validate`'s own parameters, where it
 // wraps the checks in the Compiled Schema's class (`emitCompiledSchema`). It
 // also dispatches each chained method to the emitter method of its name,
-// through the table of the kind of text that method writes (ADR-0033), all
-// but `.coerce()` and `.transform()`, which have a hook each (ADR-0035).
+// through the table of the kind of step that method writes (ADR-0033): a
+// pre-modifier's, or a post-modifier's.
 // Every method whose name starts with `emit` or `_emit` returns source text,
 // a string or a list of them (ADR-0028), or, for `_emitSchemaParts`, the
 // parts holding it (ADR-0032). A subclass adds the methods mirroring its
-// schema's to its tables and overrides the `_` hooks.
-import { ISSUE_CODE } from '@pvl/schema';
-import type { Node } from 'ts-morph';
-import { RuntimeArgument } from '../schemas/runtimeArgument.js';
+// schema's to its tables and overrides the `_` hooks. What reads nothing of
+// the emitter it is called on is a function in `./utils/`.
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaModifierCall, SchemaTypes, SpelledType } from '../schemas/schemaTypes.js';
-import { MODIFIER_NAME, UNDEFINEDNESS } from '../enums.js';
+import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
+import { UNDEFINEDNESS } from '../spelledType/enums.js';
+import { Frame } from '../frame/frame.js';
+import { Scope } from '../scope.js';
+import type { SchemaEmitter } from './schemaEmitter.js';
+import type { CompiledSchema, EmitCompiledSchemaArgs } from './types/compiledSchema.js';
+import type {
+  CompilesMethodArgs,
+  EmitElementPropertyArgs,
+  EmitSchemaCompositePartsArgs,
+  EmitShapePropertyArgs,
+  SpellParameterTypesArgs,
+  SpellTypesArgs,
+} from './types/hookArgs.js';
+import type {
+  EmitterMethodInput,
+  PostModifierStepTable,
+  PreModifierStepTable,
+} from './types/methodTables.js';
 import type {
   CheckingTarget,
-  CompositeLocals,
-  CompositeParts,
-  EmittedCheck,
-  EmittedCoercion,
-  EmittedMethodText,
-  EmitterMethodTable,
-  PostModifierCheckTable,
-  PreModifierStep,
+  EmittedPreModifierStep,
+  SchemaCompositeParts,
   SchemaParts,
-  ShortCircuitConditionTable,
-  TransformParts,
-} from './emittersTypes.js';
-import { emitCheck, js, readCallArguments } from './emitterUtils.js';
-import { emitIssue, emitMessageAroundValue, type EmitIssueArgs } from '../issue.js';
-import { Frame, type ComposedStructure, type RuntimeArgumentParameter } from './frame.js';
-import { Scope } from './scope.js';
+} from './types/schemaParts.js';
+import type { EmittedStandaloneProperty } from './types/standaloneProperties.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import { js } from './utils/js.js';
+import { emitMethodCall } from './utils/methodCall.js';
 
 /** For each method an emitter compiles, the TypeScript type of each of its parameters (see `ParameterTypesOf`). */
-export type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
+type EmitterParameterTypes = Readonly<Partial<Record<string, ReadonlyArray<string>>>>;
 
 /** For each method whose default message names its first argument, that message (see `ArgumentMessagesOf`). */
-export type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
+type EmitterArgumentMessages = Readonly<Partial<Record<string, (value: never) => string>>>;
 
-/** What {@link SchemaEmitter._emitBaseCheck} emits a type check for: a Schema at the target it checks. */
-export type EmitBaseCheckArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
+/** What {@link Emitter.emitPreModifierSteps} emits its pre-modifiers' parts for: a Schema at the target it checks. */
+type EmitPreModifierStepsArgs = {
+  schema: Schema;
   target: CheckingTarget;
 };
 
-/** What {@link Emitter.emitTypeCheck} writes a base check from: the condition it fails under, its message, the Issue path it reports at, and its code. */
-export type EmitTypeCheckArgs = Omit<EmitIssueArgs, 'code' | 'path'> & {
-  failsWhen: string;
-  /** The Issue's path, as an expression: the target's `issuePath`. */
-  issuePath: string;
-  /** `INVALID_TYPE` unless the check compares the value to fixed values, as `pvl.literal` and `pvl.enum`'s report `INVALID_VALUE`. */
-  code?: EmitIssueArgs['code'];
-};
-
-/** What {@link Emitter._emitPreModifierSteps} emits its pre-modifiers' parts for: a Schema at the target it checks. */
-export type EmitPreModifierStepsArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  target: CheckingTarget;
-};
-
-/** What {@link Emitter._emitCoercion} emits `.coerce()`'s conversion for: a Schema, and the value it converts, as an expression. */
-export type EmitCoercionHookArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  value: string;
-};
-
-/** What {@link Emitter._emitPostModifierChecks} emits its post-modifiers' checks for: a Schema at the target they read, and its composite's locals. */
-export type EmitPostModifierChecksArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  /** Its own target, or, for a composite, the same with its output local as the value, which its post-modifiers read. */
-  target: CheckingTarget;
-  /** Its composite's locals, which a post-modifier reading something besides the value reads, as an object's `.strict()` reads its keys; `undefined` for a Schema that isn't a composite. */
-  locals: CompositeLocals | undefined;
-};
+/** What {@link Emitter.emitPostModifierSteps} emits its post-modifiers' parts for: a Schema at the targets they read, and its composite's locals. */
+type EmitPostModifierStepsArgs = Omit<EmitterMethodInput<never, Schema>, 'args'>;
 
 /** What {@link Emitter._emitSchemaParts} emits every part of a Schema's checks for: a Schema at the target it checks, inlined into a parent, or at `Frame.rootCheckingTarget`, as the body of a Compiled Schema's `_validate`. */
-export type EmitSchemaPartsArgs<TSchema extends Schema = Schema> = {
+type EmitSchemaPartsArgs<TSchema extends Schema = Schema> = {
   schema: TSchema;
   target: CheckingTarget;
   /** Numbers the locals of the Compiled Schema's class the checks are emitted into. */
   scope: Scope;
 };
 
-/** What {@link Emitter._emitTransform} emits a Schema's `.transform()` for: a Schema at the target it checks. */
-export type EmitTransformHookArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  target: CheckingTarget;
-};
-
-/** What {@link Emitter._spellTypes} and {@link Emitter._spellFactoryTypes} spell types for: the Schema, as the methods chained before `before` left it. */
-export type SpellTypesArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  /** The first method whose effect is left out, as a Modifier sees the types the methods before it left; omitted, the whole chain, its `.transform()` included. */
-  before?: SchemaModifierCall;
-};
-
-/** What {@link Emitter._spellParameterTypes} spells a method's parameter types for: the Schema, and the call. */
-export type SpellParameterTypesArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  call: SchemaModifierCall;
-};
-
 /** What {@link Emitter.emitNestedSchemaChecks} emits a field's or an element's checks for: its Schema, the local its value is read into, and its path. */
-export type EmitNestedSchemaChecksArgs = {
+type EmitNestedSchemaChecksArgs = {
   schema: Schema;
   /** The local its value is read into: `field0`, `element1`. */
   value: string;
@@ -125,167 +86,44 @@ export type EmitNestedSchemaChecksArgs = {
   scope: Scope;
 };
 
-/** What {@link Emitter.emitCompiledSchema} writes a class expression for. */
-export type EmitCompiledSchemaArgs = {
-  /** A Schema `Schema.findUncompilableDiagnostics` found nothing in, which this Emitter compiles. */
-  schema: Schema;
-  className: string;
-  /** The whitespace the line its `pvl.compile(...)` call is on starts with, which every line of the class after its first is indented by. */
-  indentation: string;
-  /** The name of the hoisted `const` holding each Runtime Argument written outside its `pvl.compile(...)` call, by the argument as written. */
-  hoistedNameByExpression: ReadonlyMap<Node, string>;
-};
-
 /** What {@link Emitter.emitStandaloneCompiledSchema} writes the Compiled Schema of a Standalone Key or a marked element for. */
-export type EmitStandaloneCompiledSchemaArgs = {
-  /** The Standalone Key's or the element's Schema. */
-  schema: Schema;
-  className: string;
-  /** Numbers the unmarked elements the root exposes, at any depth, in the order they are reached. */
-  nextElementIndex: () => number;
-};
-
-/** What `Emitter.emitCompiledSchemaClass` writes a class expression for: at the root, with how its Runtime Arguments are passed, or a Standalone Key's or marked element's, built by its parent. */
-type EmitCompiledSchemaClassArgs = EmitStandaloneCompiledSchemaArgs & {
-  indentation: string;
-  /** Set at the root only. */
-  root: Pick<EmitCompiledSchemaArgs, 'hoistedNameByExpression'> | undefined;
-};
-
-/** What {@link Emitter._emitCompiledStructure} emits a Compiled Schema's `shape` or `element` for. */
-export type EmitCompiledStructureArgs<TSchema extends Schema = Schema> = {
-  schema: TSchema;
-  /** The name of its class, which names the classes of what it exposes: `PvlCompiledSchema0_1`. */
-  className: string;
-  nextElementIndex: () => number;
-};
-
-/**
- * An unmarked array element a Compiled Schema exposes as the interpreted
- * Schema it is, which the root's caller passes in, as written (ADR-0036).
- */
-export type UnmarkedElement = {
-  /** Its number among the root's, which names its type parameter, `TElement0`, and the parameter handing it on, `pvlElement0`. */
-  index: number;
-  /** The array whose `element` it is. */
-  array: Schema;
-  /** Its source, which the root's caller evaluates. */
-  expression: string;
-};
-
-/** A Standalone Key's or marked element's Compiled Schema, as `Emitter.emitStandaloneCompiledSchema` writes it. */
-export type StandaloneCompiledSchema = {
-  /** The expression building it, a class expression's instance. */
-  expression: string;
-  /** The type it is cast up to: `PvlSchema<string, string> & PvlStandaloneMarker`. */
-  type: string;
-  /** The unmarked elements it exposes, at any depth, its constructor takes. */
-  elements: ReadonlyArray<UnmarkedElement>;
-};
-
-/** A Compiled Schema's `shape` or `element`, as its class holds it (ADR-0036). */
-export type CompiledStructure = {
-  /** Its type, which the Compiled Schema's type intersects: `{ readonly element: TElement0 }`. */
-  type: string;
-  /** How the class declares and builds it, `undefined` when its constructor takes it, as an unmarked `element`. */
-  composed: ComposedStructure | undefined;
-  /** The unmarked elements it exposes, at any depth, which the class's constructor takes, in the order they are numbered. */
-  elements: ReadonlyArray<UnmarkedElement>;
-};
-
-/** What {@link Emitter.compilesMethod} looks an emitter method up by: the name of the Schema method it mirrors. */
-export type CompilesMethodArgs = {
-  name: string;
-};
-
-/** What {@link Emitter.emitMethodCall} emits a chained method with: the table of the kind of text it writes, the call, and the target it reads. */
-export type EmitMethodCallArgs<TOutput extends EmittedMethodText, TInput extends CheckingTarget> = {
-  table: EmitterMethodTable<TOutput, TInput>;
-  call: SchemaModifierCall;
-  target: TInput;
-};
-
-/** The field an array's Compiled Schema holds its unmarked element in, which its constructor takes. */
-const ELEMENT_FIELD_NAME = 'element' as const;
-
-/**
- * The type parameter an unmarked element exposed by a Compiled Schema is
- * typed by, inferred from its source where the root is built.
- *
- * ```ts
- * toElementTypeParameter(0) // 'TElement0'
- * ```
- */
-const toElementTypeParameter = (index: number): string => `TElement${String(index)}`;
-
-/**
- * The constructor parameter an unmarked element is handed on to the class
- * exposing it as, through each class between it and the root.
- *
- * ```ts
- * toElementParameterName(1) // 'pvlElement1'
- * ```
- */
-const toElementParameterName = (index: number): string => `pvlElement${String(index)}`;
-
-/**
- * An Emitter a Schema subclass compiles with (`Schema.emitter`): `Emitter`'s
- * static methods, plus the base check of its schema type, which every such
- * Emitter writes. TypeScript has no abstract static method, so this type
- * stands in for one: naming an Emitter without `_emitBaseCheck` as a
- * Schema subclass's, or emitting a Schema's parts with one, is a type
- * error.
- */
-export type SchemaEmitter = typeof Emitter & {
-  /**
-   * The base check of `schema` at `target`: its type check, as a
-   * statement, reading `schema` only when the check needs the factory's
-   * argument (`pvl.literal('a')`).
-   *
-   * ```ts
-   * StringSchemaEmitter._emitBaseCheck({ schema, target: { value: 'field0', path, issuePath } })
-   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", … });\n}'
-   * ```
-   */
-  // A method, not a function-typed property, so an Emitter's own may take
-  // the Schema subclass it compiles (`EmitBaseCheckArgs<EnumSchema>`), as
-  // an override of every other hook does.
-  _emitBaseCheck(args: EmitBaseCheckArgs): EmittedCheck;
-};
+type EmitStandaloneCompiledSchemaArgs = Omit<
+  EmitCompiledSchemaArgs,
+  'indentation' | 'hoistedNameByExpression'
+>;
 
 /**
  * The abstract base of every emitter. Its static methods are called on the emitter
  * of the Schema being emitted, so `this` is that emitter:
  * `StringSchemaEmitter._emitSchemaParts({ schema, target, scope })` emits
- * `.min(3)` with `StringSchemaEmitter.postModifierChecks.min`.
+ * `.min(3)` with `StringSchemaEmitter.postModifierSteps.min`.
  *
- * The methods mirroring a Schema's are held in tables, one per kind of text
- * they write, each spread from the table of the Emitter it extends: a
- * chained method compiles exactly when a table holds a method of its name,
- * or a hook emits it, as `_emitCoercion` does `.coerce()` and
- * `_emitTransform` does `.transform()` (`compilesMethod`). Every method
- * takes one object, so a hook reads only what it needs.
+ * The methods mirroring a Schema's are held in tables, one per kind of step
+ * they write, as a Schema splits its calls (`preModifierCalls`,
+ * `postModifierCalls`), each spread from the table of the Emitter it
+ * extends: a chained method compiles exactly when a table holds a method of
+ * its name (`compilesMethod`). Every method takes one object, so a hook
+ * reads only what it needs.
  */
 export abstract class Emitter {
   /**
-   * The pre-modifiers this emitter compiles, each writing the condition a
-   * value short-circuits under, by the name of the method it mirrors.
-   * `ChainableSchemaEmitter` adds `.optional()` and `.nullable()`.
-   * `.coerce()`, the pre-modifier converting the value, has a hook instead
-   * (`_emitCoercion`).
+   * The pre-modifiers this emitter compiles, each writing its step, by the
+   * name of the method it mirrors: the condition a value short-circuits
+   * under, or the conversion replacing it. `ChainableSchemaEmitter` adds
+   * `.optional()` and `.nullable()`, and a primitive's emitter and a
+   * literal's their `.coerce()`.
    */
-  public static readonly shortCircuitConditions: ShortCircuitConditionTable = {};
+  public static readonly preModifierSteps: PreModifierStepTable = {};
 
   /**
-   * The post-modifiers this emitter compiles that check its value, each
-   * writing its check, by the name of the method it mirrors. A
-   * post-modifier reading something else, as an object's `.strict()` reads
-   * its keys, sits in a table of its emitter's own instead, which its
-   * `_emitPostModifierChecks` calls it from and its `compilesMethod` reads
-   * too. `.transform()`, which replaces the value, has a hook instead
-   * (`_emitTransform`).
+   * The post-modifiers this emitter compiles, each writing its step, by the
+   * name of the method it mirrors: its check, or `.transform()`'s call
+   * replacing the value. `ChainableSchemaEmitter` adds `.refine()` and
+   * `.transform()`, and each schema's emitter its Constraints; an object's
+   * `.strict()` reads its Schema's keys and its composite's locals, and its
+   * `.passthrough()` writes nothing.
    */
-  public static readonly postModifierChecks: PostModifierCheckTable = {};
+  public static readonly postModifierSteps: PostModifierStepTable = {};
 
   /**
    * For each method this emitter compiles, the TypeScript type of each of
@@ -324,17 +162,18 @@ export abstract class Emitter {
    */
   public static _emitSchemaParts(this: SchemaEmitter, args: EmitSchemaPartsArgs): SchemaParts {
     const { schema, target } = args;
-    const composite = this._emitCompositeParts?.(args);
+    const composite = this._emitSchemaCompositeParts?.(args);
+
     return {
       baseCheck: this._emitBaseCheck({ schema, target }),
-      preModifierSteps: this._emitPreModifierSteps({ schema, target }),
-      postModifierChecks: this._emitPostModifierChecks({
+      preModifierSteps: this.emitPreModifierSteps({ schema, target }),
+      ...this.emitPostModifierSteps({
         schema,
         target: composite === undefined ? target : { ...target, value: composite.locals.output },
-        locals: composite?.locals,
+        schemaTarget: target,
+        compositeLocals: composite?.locals,
       }),
       composite,
-      transform: this._emitTransform?.({ schema, target }),
     };
   }
 
@@ -346,103 +185,120 @@ export abstract class Emitter {
    * children's parts with the same `scope`.
    *
    * ```ts
-   * StringSchemaEmitter._emitCompositeParts // undefined
-   * ArraySchemaEmitter._emitCompositeParts({ schema: <pvl.array(pvl.string())>, target: <field0 at [...path1, "tags"]>, scope })
+   * StringSchemaEmitter._emitSchemaCompositeParts // undefined
+   * ArraySchemaEmitter._emitSchemaCompositeParts({ schema: <pvl.array(pvl.string())>, target: <field0 at [...path1, "tags"]>, scope })
    * // { locals: <locals ending in 2>, declarations: ['const output2: unknown[] = [];'], childChecks: ['for (let index2 = 0; …) { … }'], setsChildrenApart: false, outputStatements: [] }
    * ```
    */
-  protected static _emitCompositeParts?(args: EmitSchemaPartsArgs): CompositeParts;
+  protected static _emitSchemaCompositeParts?(
+    args: EmitSchemaCompositePartsArgs,
+  ): SchemaCompositeParts;
 
   /**
-   * The hook writing what a Compiled Schema of this Emitter's schema type
-   * exposes besides validating: an object's `shape`, holding the Compiled
-   * Schema of each Standalone Key, or an array's `element`, its own Compiled
-   * Schema when it is marked and else the interpreted Schema it is
-   * (ADR-0036). Only a composite's Emitter has one.
+   * What a compiled object exposes besides validating, its `shape`: the
+   * Compiled Schema of each Standalone Key, `{}` with none, with its type,
+   * the class field declaring it and the constructor statement building it
+   * (ADR-0036). Only the object Emitter has it, and
+   * `emitCompiledSchema` skips it for a transformed Schema, whose value
+   * needn't have one.
    *
    * ```ts
-   * ArraySchemaEmitter._emitCompiledStructure({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0', nextElementIndex })
-   * // { type: '{ readonly element: TElement0 }', composed: undefined, elements: [{ index: 0, array: <pvl.array(…)>, expression: 'pvl.string()' }] }
+   * StringSchemaEmitter._emitShapeProperty // undefined: nothing to expose
+   * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ age: pvl.number() })>, … })
+   * // { type: '{ readonly shape: {} }', declaration: 'readonly shape: {} = {};', statement: undefined }
+   * ObjectSchemaEmitter._emitShapeProperty({ schema: <pvl.object({ name: pvl.string().standalone() })>, className: 'PvlCompiledSchema0' })
+   * // { type: '{ readonly shape: { readonly name: PvlSchema<string, string> & PvlStandaloneMarker } }', declaration: 'readonly shape: { … };', statement: 'this.shape = {\n  "name": (new (class PvlCompiledSchema0_0 …)() as …),\n};' }
    * ```
    */
-  protected static _emitCompiledStructure?(args: EmitCompiledStructureArgs): CompiledStructure;
+  protected static _emitShapeProperty?(args: EmitShapePropertyArgs): EmittedStandaloneProperty;
 
   /**
-   * The parts of `schema.preModifierCalls` at `target`, in chain order: a
+   * What a compiled array exposes besides validating, its `element`: the
+   * element's own Compiled Schema, when it is marked `.standalone()`, and
+   * nothing otherwise, as an unmarked element is exposed nowhere
+   * (ADR-0039). Only the array Emitter has it, and `emitCompiledSchema`
+   * skips it for a transformed Schema, whose value needn't have one.
+   *
+   * ```ts
+   * StringSchemaEmitter._emitElementProperty // undefined: nothing to expose
+   * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string())>, className: 'PvlCompiledSchema0' })
+   * // undefined
+   * ArraySchemaEmitter._emitElementProperty({ schema: <pvl.array(pvl.string().standalone())>, className: 'PvlCompiledSchema0' })
+   * // { type: '{ readonly element: PvlSchema<string, string> & PvlStandaloneMarker }', declaration: 'readonly element: …;', statement: 'this.element = (new (class PvlCompiledSchema0_element …)() as …);' }
+   * ```
+   */
+  protected static _emitElementProperty?(
+    args: EmitElementPropertyArgs,
+  ): EmittedStandaloneProperty | undefined;
+
+  /**
+   * The parts of `schema.preModifierCalls` at `target`, in chain order, each
+   * written by the method of its name in `preModifierSteps`: a
    * short-circuit condition, which a value a pre-modifier accepts holds
-   * for, skipping every check after it, or `.coerce()`'s conversion
-   * (`_emitCoercion`), which replaces the value, left out where it is the
-   * identity.
+   * for, skipping every check after it, or `.coerce()`'s conversion, which
+   * replaces the value. A method writing nothing is left out.
    *
    * ```ts
-   * StringSchemaEmitter._emitPreModifierSteps({ schema: <pvl.string().nullable().coerce().optional()>, target: { value: 'field0', path, issuePath } })
+   * StringSchemaEmitter.emitPreModifierSteps({ schema: <pvl.string().nullable().coerce().optional()>, target: { value: 'field0', path, issuePath } })
    * // [{ shortCircuitCondition: 'field0 === null' }, { coercion: 'field0 = String(field0);' }, { shortCircuitCondition: 'field0 === undefined' }]
-   * ObjectSchemaEmitter._emitPreModifierSteps({ schema: <pvl.object({}).coerce()>, target }) // []
+   * ObjectSchemaEmitter.emitPreModifierSteps({ schema: <pvl.object({})>, target }) // []
    * ```
    */
-  public static _emitPreModifierSteps({
+  public static emitPreModifierSteps({
     schema,
     target,
-  }: EmitPreModifierStepsArgs): PreModifierStep[] {
-    return schema.preModifierCalls.flatMap((call): PreModifierStep[] => {
-      if (call.name === MODIFIER_NAME.COERCE) {
-        const coercion = this._emitCoercion?.({ schema, value: target.value });
-        return coercion === undefined ? [] : [{ coercion }];
-      }
-      return [
-        {
-          shortCircuitCondition: this.emitMethodCall({
-            table: this.shortCircuitConditions,
-            call,
-            target,
-          }),
-        },
-      ];
+  }: EmitPreModifierStepsArgs): EmittedPreModifierStep[] {
+    return schema.preModifierCalls.flatMap((call) => {
+      const step = emitMethodCall({
+        table: this.preModifierSteps,
+        call,
+        schema,
+        target,
+        schemaTarget: target,
+        // A pre-modifier runs before a composite declares its locals.
+        compositeLocals: undefined,
+        emitterName: this.name,
+      });
+      return step === undefined ? [] : [step];
     });
   }
 
   /**
-   * `.coerce()`'s conversion of `value`, chained onto `schema`, as
-   * statements replacing it before its type check. A primitive's emitter
-   * has it, writing its conversion (`./coercions.ts`), and a literal's,
-   * writing the one of its value's primitive. An emitter without it keeps
-   * the identity, as `@pvl/schema`'s base `_coerceInput` is, which an
-   * object, an array and an enum keep, and emits nothing.
+   * The parts of `schema.postModifierCalls`, in chain order, each written by
+   * the method of its name in `postModifierSteps`: their checks, as
+   * statements at `target`, each reporting at its `issuePath` as the base
+   * check does, and `.transform()`'s call at `schemaTarget`, set apart, as
+   * its Frame runs it after the checks and only if none failed, as
+   * `@pvl/schema` tags it. A method writing nothing, as `.passthrough()`,
+   * is left out.
    *
    * ```ts
-   * StringSchemaEmitter._emitCoercion({ schema, value: 'field0' }) // 'field0 = String(field0);'
-   * ObjectSchemaEmitter._emitCoercion                              // undefined
+   * StringSchemaEmitter.emitPostModifierSteps({ schema: <pvl.string().min(3).max(20)>, target: { value: 'field0', path, issuePath }, schemaTarget: <the same>, compositeLocals: undefined })
+   * // { postModifierChecks: ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}', 'if (field0.length > 20) { … }'], transform: undefined }
+   * StringSchemaEmitter.emitPostModifierSteps({ schema: <pvl.string().transform(trim)>, … })
+   * // { postModifierChecks: [], transform: 'field0 = this.arg0.call(undefined, field0 as never);' }
    * ```
    */
-  public static _emitCoercion?(args: EmitCoercionHookArgs): EmittedCoercion;
-
-  /**
-   * The checks of `schema.postModifierCalls` at `target`, in chain order, as
-   * statements, each reporting at its `issuePath` as the base check does: a
-   * value one of them fails pushes its Issue. An emitter whose post-modifiers
-   * read its composite's `locals` instead of its value, as an object's
-   * `.strict()` reads its keys, overrides it.
-   *
-   * ```ts
-   * StringSchemaEmitter._emitPostModifierChecks({ schema: <pvl.string().min(3).max(20)>, target: { value: 'field0', path, issuePath }, locals: undefined })
-   * // ['if (field0.length < 3) {\n  issues.push({ code: "TOO_SMALL", … });\n}', 'if (field0.length > 20) {\n  issues.push({ code: "TOO_BIG", … });\n}']
-   * ```
-   */
-  public static _emitPostModifierChecks({
+  public static emitPostModifierSteps({
     schema,
-    target,
-  }: EmitPostModifierChecksArgs): EmittedCheck[] {
-    return schema.postModifierCalls.map((call) =>
-      this.emitMethodCall({ table: this.postModifierChecks, call, target }),
-    );
+    ...input
+  }: EmitPostModifierStepsArgs): Pick<SchemaParts, 'postModifierChecks' | 'transform'> {
+    const steps = schema.postModifierCalls.flatMap((call) => {
+      const step = emitMethodCall({
+        table: this.postModifierSteps,
+        call,
+        schema,
+        ...input,
+        emitterName: this.name,
+      });
+      return step === undefined ? [] : [step];
+    });
+    return {
+      postModifierChecks: steps.flatMap((step) => ('check' in step ? [step.check] : [])),
+      // A chain holds at most one `.transform()`, always last (ADR-0016).
+      transform: steps.flatMap((step) => ('transform' in step ? [step.transform] : [])).at(0),
+    };
   }
-
-  /**
-   * The call of `schema`'s `.transform()` at `target`, which replaces its
-   * value, and the local its gate reads: `undefined` when it has none.
-   * `ChainableSchemaEmitter` has it, as it adds `.transform()`.
-   */
-  public static _emitTransform?(args: EmitTransformHookArgs): TransformParts | undefined;
 
   /**
    * The TypeScript type of each parameter of `call`, a method chained onto
@@ -523,24 +379,29 @@ export abstract class Emitter {
   }
 
   /**
-   * The expression a Compiled Schema is, which replaces its `pvl.compile(...)`
-   * call: an instance of a class expression implementing `PvlSchema` (see
-   * `COMPILED_SCHEMA_IMPORT`), whose `_validate` checks `schema` at its own
-   * parameters exactly as a nested Schema is checked where its parent reads
-   * it, then returns the Issues, or the value its checks accepted. Its
-   * `Input` and `Output` types are spelled here, its parts are emitted at
-   * `Frame.rootCheckingTarget`, and the Frame composes the expression. A
-   * composite's also exposes its `shape` or `element`
-   * (`_emitCompiledStructure`, ADR-0036).
+   * A Compiled Schema, with the type it is cast up to: at the root
+   * (`hoistedNameByExpression` set), the expression replacing its
+   * `pvl.compile(...)` call, or a Standalone Key's or marked element's (see
+   * `emitStandaloneCompiledSchema`). The expression is an instance of a
+   * class expression implementing `PvlSchema` (see `COMPILED_SCHEMA_IMPORT`),
+   * whose `_validate` checks `schema` at its own parameters exactly as a
+   * nested Schema is checked where its parent reads it, then returns the
+   * Issues, or the value its checks accepted. Its `Input` and `Output` types
+   * are spelled here, its parts are emitted at `Frame.rootCheckingTarget`,
+   * and the Frame composes the expression from them, with its Runtime
+   * Arguments (`RuntimeArgument.getArgumentParameters`). A composite's also
+   * exposes its `shape` or marked `element` (`_emitShapeProperty`,
+   * `_emitElementProperty`, ADR-0036, ADR-0039).
    *
-   * Its Runtime Arguments are passed in the order they are written, each as
-   * written or by the name of the `const` it is hoisted into
-   * (`hoistedNameByExpression`), then each unmarked element it exposes, by
-   * its source, and the class's lines after its first are indented by
-   * `indentation`.
+   * At the root, its Runtime Arguments are passed in the order they are
+   * written, each as written or by the name of the `const` it is hoisted
+   * into (`hoistedNameByExpression`), the class is generic in the type
+   * parameter of each `.transform()`'s output, and its lines after its
+   * first are indented by `indentation`.
    *
    * ```ts
    * ObjectSchemaEmitter.emitCompiledSchema({ schema: <pvl.object({ name: pvl.string() })>, className: 'PvlCompiledSchema0', indentation: '', hoistedNameByExpression: new Map() })
+   * // { type: 'PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} }', expression:
    * // (new (class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> {
    * //   declare readonly [PVL_SCHEMA_BRAND]: true;
    * //   readonly _standalone: boolean = false;
@@ -558,21 +419,31 @@ export abstract class Emitter {
    * //     return issues.length > 0 ? { issues } : { value };
    * //   }
    * //   standalone(): this & PvlStandaloneMarker { … }
-   * // })() as PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} })
+   * // })() as PvlSchema<{ name: string }, { name: string }> & { readonly shape: {} }) }
    * ```
    */
   public static emitCompiledSchema(
     this: SchemaEmitter,
     { schema, className, indentation, hoistedNameByExpression }: EmitCompiledSchemaArgs,
-  ): string {
-    let elementCount = 0;
-    return this.emitCompiledSchemaClass({
-      schema,
+  ): CompiledSchema {
+    return Frame.composeSchema({
       className,
+      types: this._spellTypes({ schema }),
+      isStandalone: schema.isStandalone,
       indentation,
-      root: { hoistedNameByExpression },
-      nextElementIndex: () => elementCount++,
-    }).expression;
+      runtimeArguments: RuntimeArgument.getArgumentParameters({ schema, hoistedNameByExpression }),
+      // A transformed Schema exposes neither, as its value needn't have them (ADR-0016).
+      standaloneProperty:
+        schema.getTransformFunction() === undefined
+          ? (this._emitShapeProperty?.({ schema, className }) ??
+            this._emitElementProperty?.({ schema, className }))
+          : undefined,
+      parts: this._emitSchemaParts({
+        schema,
+        target: Frame.rootCheckingTarget,
+        scope: new Scope(),
+      }),
+    });
   }
 
   /**
@@ -583,225 +454,44 @@ export abstract class Emitter {
    * turn (ADR-0036). It is written inside its parent, so it is generic in
    * nothing: the root's type parameters are in scope. Each of its Runtime
    * Arguments is passed as the parent holds it (`this.arg0`), so it is
-   * still evaluated once, where the root's `pvl.compile(...)` call was, and
-   * each unmarked element it exposes by the parameter the parent took it as
-   * (`pvlElement1`).
+   * still evaluated once, where the root's `pvl.compile(...)` call was.
    *
    * ```ts
-   * StringSchemaEmitter.emitStandaloneCompiledSchema({ schema: <pvl.string().max(max).standalone()>, className: 'PvlCompiledSchema0_0', nextElementIndex })
-   * // { expression: '(new (class PvlCompiledSchema0_0 implements PvlSchema<string, string> { … })(this.arg0) as PvlSchema<string, string> & PvlStandaloneMarker)', type: 'PvlSchema<string, string> & PvlStandaloneMarker', elements: [] }
+   * StringSchemaEmitter.emitStandaloneCompiledSchema({ schema: <pvl.string().max(max).standalone()>, className: 'PvlCompiledSchema0_0' })
+   * // { expression: '(new (class PvlCompiledSchema0_0 implements PvlSchema<string, string> { … })(this.arg0) as PvlSchema<string, string> & PvlStandaloneMarker)', type: 'PvlSchema<string, string> & PvlStandaloneMarker' }
    * ```
    */
   public static emitStandaloneCompiledSchema(
     this: SchemaEmitter,
-    { schema, className, nextElementIndex }: EmitStandaloneCompiledSchemaArgs,
-  ): StandaloneCompiledSchema {
-    return this.emitCompiledSchemaClass({
+    { schema, className }: EmitStandaloneCompiledSchemaArgs,
+  ): CompiledSchema {
+    return this.emitCompiledSchema({
       schema,
       className,
       indentation: '',
-      root: undefined,
-      nextElementIndex,
+      hoistedNameByExpression: undefined,
     });
-  }
-
-  /**
-   * A Compiled Schema's class expression, at the root (`root` set) or
-   * a Standalone Key's or marked element's (see `emitStandaloneCompiledSchema`), with its type
-   * and the unmarked elements it exposes. Its `shape` or `element` comes
-   * from its Emitter's `_emitCompiledStructure`.
-   */
-  private static emitCompiledSchemaClass(
-    this: SchemaEmitter,
-    { schema, className, indentation, root, nextElementIndex }: EmitCompiledSchemaClassArgs,
-  ): StandaloneCompiledSchema {
-    const types = this._spellTypes({ schema });
-    const runtimeArgumentParameters = this.findRuntimeArgumentParameters({ schema }).sort(
-      (left, right) => left.runtimeArgument.index - right.runtimeArgument.index,
-    );
-    const runtimeArguments: RuntimeArgumentParameter[] = runtimeArgumentParameters.map(
-      ({ runtimeArgument, type, messageOf }) => ({
-        fieldName: runtimeArgument.fieldName,
-        type,
-        passedExpression:
-          root === undefined
-            ? js`this.${runtimeArgument.fieldName}`
-            : (root.hoistedNameByExpression.get(runtimeArgument.expression) ??
-              runtimeArgument.expression.getText()),
-        messageField:
-          messageOf === undefined
-            ? undefined
-            : {
-                fieldName: runtimeArgument.messageFieldName,
-                expression: emitMessageAroundValue(messageOf, runtimeArgument.fieldName),
-              },
-      }),
-    );
-    // A transformed Schema exposes neither, as its value needn't have them (ADR-0016).
-    const structure =
-      schema.transformCall === undefined
-        ? this._emitCompiledStructure?.({ schema, className, nextElementIndex })
-        : undefined;
-    const unmarkedElements = structure?.elements ?? [];
-    const type = Frame.spellCompiledSchemaType({
-      types,
-      isStandalone: schema.isStandalone,
-      structureType: structure?.type,
-    });
-    const expression = Frame.composeSchema({
-      className,
-      types,
-      compiledSchemaType: type,
-      isStandalone: schema.isStandalone,
-      // In the order their Runtime Arguments are numbered, then the elements'.
-      typeParameters:
-        root === undefined
-          ? []
-          : [
-              ...runtimeArgumentParameters.flatMap(({ typeParameter }) =>
-                typeParameter === undefined ? [] : [typeParameter],
-              ),
-              ...unmarkedElements.map(({ index }) => toElementTypeParameter(index)),
-            ],
-      indentation,
-      runtimeArguments,
-      elementParameters: unmarkedElements.map((element) => {
-        const isField = element.array === schema;
-        return {
-          name: isField ? ELEMENT_FIELD_NAME : toElementParameterName(element.index),
-          isField,
-          type: toElementTypeParameter(element.index),
-          passedExpression:
-            root === undefined ? toElementParameterName(element.index) : element.expression,
-        };
-      }),
-      structure: structure?.composed,
-      parts: this._emitSchemaParts({
-        schema,
-        target: Frame.rootCheckingTarget,
-        scope: new Scope(),
-      }),
-    });
-    return { expression, type, elements: unmarkedElements };
-  }
-
-  /**
-   * Every Runtime Argument of the methods chained onto `schema` and onto
-   * every Schema nested in it, each with the type of the parameter it is
-   * passed as, from its own Schema's emitter (`parameterTypes`), and, when
-   * it is a method's first argument, the default message naming it
-   * (`argumentMessages`), or, when it is a `.transform()`'s function, the
-   * type parameter its return type is inferred as, as the interpreted
-   * `.transform<NewOutput>()` infers it. Throws for a parameter with no
-   * type, which is a bug in an emitter, never a user error.
-   *
-   * ```ts
-   * StringSchemaEmitter.findRuntimeArgumentParameters({ schema: <pvl.string().max(max, options)> })
-   * // [{ runtimeArgument: <max>, type: 'number', messageOf: STRING_SCHEMA_ISSUE_MESSAGE.max, typeParameter: undefined }, { runtimeArgument: <options>, type: '{ message?: string } | undefined', messageOf: undefined, typeParameter: undefined }]
-   * StringSchemaEmitter.findRuntimeArgumentParameters({ schema: <pvl.string().transform(trim)> })
-   * // [{ runtimeArgument: <trim>, type: '(value: string) => TArg0Output', messageOf: undefined, typeParameter: 'TArg0Output' }]
-   * ```
-   */
-  private static findRuntimeArgumentParameters({ schema }: { schema: Schema }): Array<{
-    runtimeArgument: RuntimeArgument;
-    type: string;
-    messageOf: EmitterArgumentMessages[string];
-    typeParameter: string | undefined;
-  }> {
-    const ownParameters = schema.chainedCalls.flatMap((call) =>
-      (call.args ?? []).flatMap((argument, index) => {
-        if (!(argument instanceof RuntimeArgument)) {
-          return [];
-        }
-        const type = this._spellParameterTypes({ schema, call })?.[index];
-        if (type === undefined) {
-          throw new Error(
-            `${this.name} has no type for argument ${String(index)} of .${call.name}().`,
-          );
-        }
-        // Only a method's first argument is a value its default message names.
-        const messageOf = index === 0 ? this.argumentMessages[call.name] : undefined;
-        const typeParameter =
-          call === schema.transformCall && index === 0
-            ? argument.outputTypeParameterName
-            : undefined;
-        return [{ runtimeArgument: argument, type, messageOf, typeParameter }];
-      }),
-    );
-    return [
-      ...ownParameters,
-      ...schema
-        .findChildren()
-        .flatMap((child) => child.emitter.findRuntimeArgumentParameters({ schema: child })),
-    ];
   }
 
   /**
    * Whether this emitter compiles the Schema method `name`: one of its
    * tables holds a method of that name, its own or one spread from the
    * emitter it extends. Only own keys are read, so a name every object has
-   * (`toString`, `__proto__`) is never one. An emitter that emits a method
-   * through a hook or calls it itself, rather than dispatching it from a
-   * table, overrides it to name that method too.
+   * (`toString`, `__proto__`) is never one.
    *
    * ```ts
    * StringSchemaEmitter.compilesMethod({ name: 'min' })            // true
    * StringSchemaEmitter.compilesMethod({ name: 'optional' })       // true: spread from ChainableSchemaEmitter
-   * StringSchemaEmitter.compilesMethod({ name: 'refine' })         // true: spread from ChainableSchemaEmitter
-   * StringSchemaEmitter.compilesMethod({ name: 'coerce' })         // true: named by ChainableSchemaEmitter's own
+   * StringSchemaEmitter.compilesMethod({ name: 'transform' })      // true: spread from ChainableSchemaEmitter
+   * EnumSchemaEmitter.compilesMethod({ name: 'coerce' })           // false: an enum has no `.coerce()`
+   * ObjectSchemaEmitter.compilesMethod({ name: 'passthrough' })    // true: writing nothing
    * StringSchemaEmitter.compilesMethod({ name: '_emitBaseCheck' }) // false: a hook, held in no table
    * BooleanSchemaEmitter.compilesMethod({ name: 'length' })        // false
    * ```
    */
   public static compilesMethod({ name }: CompilesMethodArgs): boolean {
     return (
-      Object.hasOwn(this.shortCircuitConditions, name) ||
-      Object.hasOwn(this.postModifierChecks, name)
+      Object.hasOwn(this.preModifierSteps, name) || Object.hasOwn(this.postModifierSteps, name)
     );
-  }
-
-  /**
-   * A base check, as every `_emitBaseCheck` writes it: a check that pushes
-   * an Issue of `code` with `message` at `issuePath` when `failsWhen` holds.
-   * Named after the `_checkType` it compiles, which every interpreted Schema
-   * names its base check, a literal's and an enum's value check included.
-   *
-   * ```ts
-   * this.emitTypeCheck({ failsWhen: 'typeof field0 !== "string"', message: 'Expected string', issuePath: '[...path1, "name"]' })
-   * // 'if (typeof field0 !== "string") {\n  issues.push({ code: "INVALID_TYPE", message: "Expected string", path: [...path1, "name"] });\n}'
-   * ```
-   */
-  protected static emitTypeCheck({
-    failsWhen,
-    message,
-    issuePath,
-    code = ISSUE_CODE.INVALID_TYPE,
-  }: EmitTypeCheckArgs): EmittedCheck {
-    return emitCheck({ failsWhen, issue: emitIssue({ code, message, path: issuePath }) });
-  }
-
-  /**
-   * What `call` compiles to, written at `target` by the method of its name
-   * in `table`, which holds the methods writing one kind of text: a check
-   * such as `.min(3)`'s, or a short-circuit condition such as
-   * `.optional()`'s. Typed by the table, so what it writes needs no cast.
-   * Only called on a Schema `Schema.findUncompilableDiagnostics` found
-   * nothing in, so the method and its arguments are there. Throws when
-   * `table` has no method of its name, which is a bug in an emitter, never
-   * a user error.
-   *
-   * ```ts
-   * StringSchemaEmitter.emitMethodCall({ table: StringSchemaEmitter.shortCircuitConditions, call: <.optional()>, target: { value: 'field0', path, issuePath } }) // 'field0 === undefined'
-   * ```
-   */
-  protected static emitMethodCall<
-    TOutput extends EmittedMethodText,
-    TInput extends CheckingTarget,
-  >({ table, call, target }: EmitMethodCallArgs<TOutput, TInput>): TOutput {
-    const emitterMethod = Object.hasOwn(table, call.name) ? table[call.name] : undefined;
-    if (emitterMethod === undefined) {
-      throw new Error(`${this.name} has no method to emit .${call.name}() with.`);
-    }
-    return emitterMethod({ target, args: readCallArguments(call) });
   }
 }

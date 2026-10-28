@@ -37,6 +37,14 @@ export interface Schema<Input = unknown, Output = Input> {
   readonly [SCHEMA_BRAND]: true;
 
   /**
+   * Whether `.standalone()` marked this schema, which is what an object
+   * reads to keep it in its `shape`.
+   *
+   * @internal
+   */
+  readonly _standalone: boolean;
+
+  /**
    * The Standard Schema protocol property. Consumers reach for
    * `.validate()`; this exists so any Standard Schema-aware tool can use a
    * `@pvl/schema` schema without knowing about this library.
@@ -77,14 +85,6 @@ export interface Schema<Input = unknown, Output = Input> {
   // its `validate` is the one place that casts. Its signature is part of the
   // compiler's contract (compile.md).
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): Result<unknown>;
-
-  /**
-   * Whether `.standalone()` marked this schema, which is what an object
-   * reads to keep it in its `shape`.
-   *
-   * @internal
-   */
-  readonly _standalone: boolean;
 
   /**
    * Marks this schema as a Standalone Key: as a field of `pvl.object()`, it

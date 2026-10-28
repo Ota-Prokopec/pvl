@@ -2,14 +2,12 @@
 // read from its argument. It has no Emitter yet, so it is reported as
 // UNSUPPORTED_SCHEMA wherever it is written.
 import { GenericAst } from '../ast/genericAst.js';
-import type { CallChainLink } from '../ast/pvlAst.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type ReadFactoryArgs, type SchemaOptions } from './schema.js';
-
-/** What a UnionSchema holds besides what every Schema does. */
-export type UnionSchemaOptions = SchemaOptions & {
-  members: ReadonlyArray<Schema>;
-};
+import { PvlAst } from '../ast/pvlAst.js';
+import type { PvlFactoryCall } from '../ast/types.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+import { Schema } from './schema.js';
+import type { ReadFactoryArgs } from './types/schemaClass.js';
+import type { SchemaOptions, UnionSchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.union(members)` as read from source, holding its members' Schemas.
@@ -20,7 +18,7 @@ export type UnionSchemaOptions = SchemaOptions & {
  * ```
  */
 export class UnionSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.UNION;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.UNION;
 
   /** `undefined`: a union can't be compiled yet, which reports UNSUPPORTED_SCHEMA. */
   public static override readonly emitter = undefined;
@@ -37,15 +35,15 @@ export class UnionSchema extends Schema {
   /**
    * Reads the members of the `pvl.union(members)` `link` calls, each
    * through `readNested`, and returns how its UnionSchema is built from
-   * them and what every Schema holds. Throws an UnresolvedNodeError when
+   * them and what every Schema holds. Throws an UnresolvedNodeException when
    * its members are missing or aren't an array literal, or a member can't
    * be read.
    */
   public static readFactoryArgument(
-    link: CallChainLink,
+    link: PvlFactoryCall,
     { readNested }: ReadFactoryArgs,
   ): (options: SchemaOptions) => UnionSchema {
-    const members = GenericAst.readArray(Schema.readArgument(link), readNested, link.followed);
+    const members = GenericAst.readArray(PvlAst.readArgument(link), readNested, link.followed);
     return (options: SchemaOptions): UnionSchema => new UnionSchema({ ...options, members });
   }
 

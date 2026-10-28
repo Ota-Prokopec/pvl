@@ -1,8 +1,8 @@
 import { coerceToBigint, coerceToBoolean, coerceToNumber, coerceToString } from '../coercions.js';
-import { ISSUE_CODE } from '../enums.js';
-import { Issue } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -80,24 +80,36 @@ export class LiteralInterpretedSchema<
   }
 
   /**
-   * A literal pins the schema to one primitive type, so `.coerce()` has an
-   * unambiguous target: convert the input exactly as the matching primitive
-   * schema would, then let the equality check decide. An unconvertible input
-   * falls through unchanged and fails that check.
+   * Converts the raw input before the check, exactly as the primitive schema
+   * of the literal's own type would: `pvl.literal(1).coerce()` converts as
+   * `pvl.number().coerce()` does. The equality check then decides, so an
+   * input that doesn't convert to the literal fails it.
    *
-   * @internal
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const one = pvl.literal(1).coerce();
+   *
+   * one.validate('1'); // { value: 1 }
+   * one.validate('2'); // { issues: [{ code: 'INVALID_VALUE', ... }] }
+   * ```
    */
-  override _coerceInput(value: unknown): unknown {
-    switch (typeof this.literalValue) {
-      case 'string':
-        return coerceToString(value);
-      case 'number':
-        return coerceToNumber(value);
-      case 'boolean':
-        return coerceToBoolean(value);
-      default:
-        return coerceToBigint(value);
-    }
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        switch (typeof this.literalValue) {
+          case 'string':
+            return { value: coerceToString(value) };
+          case 'number':
+            return { value: coerceToNumber(value) };
+          case 'boolean':
+            return { value: coerceToBoolean(value) };
+          default:
+            return { value: coerceToBigint(value) };
+        }
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

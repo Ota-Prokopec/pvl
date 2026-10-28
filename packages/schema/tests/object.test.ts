@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import fc from 'fast-check';
 import { ObjectInterpretedSchema, pvl, type Schema, type StandaloneMarker } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
@@ -206,12 +206,8 @@ describe('pvl.object()', () => {
       expect(result.value).toBe('ADA');
     });
 
-    it('leaves the value unchanged once .coerce(), having no object-specific conversion', () => {
-      const schema = pvl.object({ name: pvl.string() }).coerce();
-      const accepted = schema.validate({ name: 'ada' });
-      assertSuccess(accepted);
-      expect(accepted.value).toEqual({ name: 'ada' });
-      expect(schema.validate('{"name":"ada"}').issues).toBeDefined();
+    it('has no .coerce(), having no object-specific conversion', () => {
+      expectTypeOf(pvl.object({ name: pvl.string() })).not.toHaveProperty('coerce');
     });
 
     it('keeps .optional() through a later .strict()', () => {
@@ -311,7 +307,7 @@ describe('pvl.object()', () => {
     });
 
     it('reaches a nested array field through its element', () => {
-      const tag = pvl.string();
+      const tag = pvl.string().standalone();
       const schema = pvl.object({ tags: pvl.array(tag).standalone() });
       expect(schema.shape.tags.element).toBe(tag);
     });

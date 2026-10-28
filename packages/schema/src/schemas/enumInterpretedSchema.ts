@@ -1,6 +1,6 @@
 import type { ValueOfEnum } from '@repo/types';
-import { ISSUE_CODE } from '../enums.js';
-import { Issue } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { InterpretedSchemaKind } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
@@ -62,9 +62,9 @@ interface EnumInterpretedSchemaKind<Source extends EnumSource> extends Interpret
  * `pvl.enum(source)`. Membership is a `Set` lookup, so the check stays O(1)
  * however large the set is.
  *
- * `.coerce()` is inherited but does nothing here: a source may mix string and
- * number members, so there is no single target type to convert an input to.
- * Convert before calling `.validate()` if you need that.
+ * There is no `.coerce()`: a source may mix string and number members, so
+ * there is no single target type to convert an input to. Convert before
+ * calling `.validate()` if you need that.
  *
  * @example
  * ```ts

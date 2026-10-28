@@ -1,5 +1,5 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import type { Issue } from './issue.js';
+import type { Issue } from './issue/issue.js';
 
 // Derived from the spec's own `FailureResult` by intersection rather than
 // re-declared, so this stays one representation that cannot drift from the

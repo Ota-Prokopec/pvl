@@ -1,7 +1,9 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
-    "allow": ["Bash(*)"]
+    "allow": [
+      "Bash(*)"
+    ],
+    "defaultMode": "bypassPermissions"
   },
   "skillOverrides": {
     "cli-developer": "off",
@@ -9,6 +11,7 @@
     "wizard": "off"
   },
   "enabledPlugins": {
-    "mattpocock-skills@claude-plugins-official": false
+    "mattpocock-skills@claude-plugins-official": false,
+    "ponytail@ponytail": true
   }
 }

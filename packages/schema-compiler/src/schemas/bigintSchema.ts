@@ -1,8 +1,9 @@
 // `pvl.bigint()`: a bigint, which reads no argument, compiled by
 // BigintSchemaEmitter.
 import { BigintSchemaEmitter } from '../emitters/bigintSchemaEmitter.js';
-import { SCHEMA_FACTORY } from '../enums.js';
-import { Schema, type SchemaOptions } from './schema.js';
+import { PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+import { Schema } from './schema.js';
+import type { SchemaOptions } from './types/schemaOptions.js';
 
 /**
  * A `pvl.bigint()` as read from source. It reads no argument, so any it is
@@ -13,7 +14,7 @@ import { Schema, type SchemaOptions } from './schema.js';
  * ```
  */
 export class BigintSchema extends Schema {
-  public static override readonly factory = SCHEMA_FACTORY.BIGINT;
+  public static override readonly factory = PVL_FACTORY_NAMES_ENUM.BIGINT;
 
   public static override readonly emitter = BigintSchemaEmitter;
 

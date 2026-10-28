@@ -1,8 +1,8 @@
 import { coerceToString } from '../coercions.js';
-import { ISSUE_CODE } from '../enums.js';
-import { Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
-import type { InterpretedSchemaKind } from '../types.js';
+import type { CheckOptions, InterpretedSchemaKind, RetypedSchema } from '../types.js';
 import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
@@ -72,7 +72,7 @@ export class StringInterpretedSchema<
    * password.validate('hunter2'); // { issues: [{ code: 'TOO_SMALL', message: 'too short' }] }
    * ```
    */
-  min(minLength: number, options?: IssueEditableProps): this {
+  min(minLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length >= minLength
@@ -102,7 +102,7 @@ export class StringInterpretedSchema<
    * tweet.validate('x'.repeat(281)); // { issues: [{ code: 'TOO_BIG', ... }] }
    * ```
    */
-  max(maxLength: number, options?: IssueEditableProps): this {
+  max(maxLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length <= maxLength
@@ -133,7 +133,7 @@ export class StringInterpretedSchema<
    * countryCode.validate('CZE'); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
    * ```
    */
-  length(exactLength: number, options?: IssueEditableProps): this {
+  length(exactLength: number, options?: CheckOptions): this {
     return this._withPostModifier<string, string>({
       fn: (value, path) => {
         return value.length === exactLength
@@ -151,9 +151,32 @@ export class StringInterpretedSchema<
     });
   }
 
-  /** @internal */
-  override _coerceInput(value: unknown): unknown {
-    return coerceToString(value);
+  /**
+   * Converts the raw input with `String()` before the type check, so any
+   * value can satisfy this schema: `42` becomes `'42'`.
+   *
+   * It runs where it is chained among `.optional()` and `.nullable()`:
+   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
+   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
+   * Constraints always run after the type check, so chaining it after them is
+   * fine.
+   *
+   * @example
+   * ```ts
+   * import { pvl } from '@pvl/schema';
+   *
+   * const pin = pvl.string().length(4).coerce();
+   *
+   * pin.validate(1234); // { value: '1234' }
+   * pin.validate(12); // { issues: [{ code: 'INVALID_LENGTH', ... }] }
+   * ```
+   */
+  coerce(): RetypedSchema<this, unknown, Output> {
+    return this._withPreModifier<unknown, unknown>({
+      fn: (value) => {
+        return { value: coerceToString(value) };
+      },
+    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 
   /** @internal */

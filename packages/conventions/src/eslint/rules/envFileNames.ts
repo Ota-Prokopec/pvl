@@ -6,17 +6,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { JSONRuleDefinition } from '@eslint/json';
 import { findEntry } from '../utils.ts';
-
-const ALLOWED = new Set(['.env.production', '.env.development']);
-const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.turbo', '.git']);
+import { ALLOWED_ENV_FILE_NAMES, ENV_FILE_SKIPPED_DIRECTORIES } from './consts.ts';
 
 const findEnvFiles = (directory: string): string[] => {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry): string[] => {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      return SKIPPED_DIRECTORIES.has(entry.name) ? [] : findEnvFiles(entryPath);
+      return ENV_FILE_SKIPPED_DIRECTORIES.has(entry.name) ? [] : findEnvFiles(entryPath);
     }
-    return entry.name.startsWith('.env') && !ALLOWED.has(entry.name) ? [entryPath] : [];
+    return entry.name.startsWith('.env') && !ALLOWED_ENV_FILE_NAMES.has(entry.name)
+      ? [entryPath]
+      : [];
   });
 };
 

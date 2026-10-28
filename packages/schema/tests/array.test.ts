@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import fc from 'fast-check';
 import { pvl, type Issue } from '../src/index.js';
 import { assertSuccess, issueCodes } from './helpers.js';
@@ -127,12 +127,8 @@ describe('pvl.array()', () => {
       expect(result.value).toBe(3);
     });
 
-    it('leaves the value unchanged once .coerce(), having no array-specific conversion', () => {
-      const schema = pvl.array(pvl.string()).coerce();
-      const accepted = schema.validate(['a']);
-      assertSuccess(accepted);
-      expect(accepted.value).toEqual(['a']);
-      expect(schema.validate('["a"]').issues).toBeDefined();
+    it('has no .coerce(), having no array-specific conversion', () => {
+      expectTypeOf(pvl.array(pvl.string())).not.toHaveProperty('coerce');
     });
 
     it('keeps .optional() through a constraint chained after it', () => {
@@ -216,20 +212,24 @@ describe('pvl.array()', () => {
   });
 
   describe('element', () => {
-    it('exposes the item schema instance it was built with', () => {
-      const item = pvl.string();
+    it('exposes the item schema instance it was built with, when the item is marked .standalone()', () => {
+      const item = pvl.string().standalone();
       expect(pvl.array(item).element).toBe(item);
     });
 
+    it('is undefined when the item is not marked .standalone()', () => {
+      expect(pvl.array(pvl.string()).element).toBeUndefined();
+    });
+
     it('validates one item on its own, accepting a valid value', () => {
-      const schema = pvl.array(pvl.string().min(2));
+      const schema = pvl.array(pvl.string().min(2).standalone());
       const result = schema.element.validate('ada');
       assertSuccess(result);
       expect(result.value).toBe('ada');
     });
 
     it('validates one item on its own, rejecting an invalid value', () => {
-      const schema = pvl.array(pvl.string().min(2));
+      const schema = pvl.array(pvl.string().min(2).standalone());
       expect(schema.element.validate('a').issues).toEqual([
         { code: 'TOO_SMALL', message: 'String must contain at least 2 character(s)' },
       ]);
@@ -239,26 +239,26 @@ describe('pvl.array()', () => {
     });
 
     it("carries the item's own modifiers when validated on its own", () => {
-      const schema = pvl.array(pvl.number().coerce());
+      const schema = pvl.array(pvl.number().coerce().standalone());
       const result = schema.element.validate('42');
       assertSuccess(result);
       expect(result.value).toBe(42);
     });
 
-    it('reaches a nested array item through its own element', () => {
-      const inner = pvl.number();
-      const schema = pvl.array(pvl.array(inner));
-      expect(schema.element.element).toBe(inner);
+    it('reaches a nested array item through its own element, when each level is marked', () => {
+      const inner = pvl.number().standalone();
+      expect(pvl.array(pvl.array(inner).standalone()).element.element).toBe(inner);
+      expect(pvl.array(pvl.array(inner)).element).toBeUndefined();
     });
 
     it("reaches an object item's Standalone Keys through its shape", () => {
       const name = pvl.string().standalone();
-      const schema = pvl.array(pvl.object({ name }));
+      const schema = pvl.array(pvl.object({ name }).standalone());
       expect(schema.element.shape.name).toBe(name);
     });
 
     it('survives the length constraints, the base modifiers, .standalone() and pvl.compile()', () => {
-      const item = pvl.string();
+      const item = pvl.string().standalone();
       const base = pvl.array(item);
 
       expect(base.min(1).element).toBe(item);
@@ -271,25 +271,21 @@ describe('pvl.array()', () => {
       expect(pvl.compile(base).element).toBe(item);
     });
 
-    it('is there whether or not the item is marked .standalone()', () => {
-      const item = pvl.string().standalone();
-      expect(pvl.array(item).element).toBe(item);
-    });
-
     it('leaves validation behaviour untouched', () => {
-      const schema = pvl.array(pvl.string());
+      const schema = pvl.array(pvl.string().standalone());
       const before = schema.validate(['a', 42]);
 
       schema.element.validate(42);
 
       expect(schema.validate(['a', 42])).toEqual(before);
+      expect(pvl.array(pvl.string()).validate(['a', 42])).toEqual(before);
     });
 
     it('rejects a replacement element, at the type level and at runtime', () => {
-      const schema = pvl.array(pvl.string());
+      const schema = pvl.array(pvl.string().standalone());
       expect((): void => {
         // @ts-expect-error `element` is read-only
-        schema.element = pvl.number();
+        schema.element = pvl.string().standalone();
       }).toThrow(TypeError);
       expect(schema.validate(['a']).issues).toBeUndefined();
     });

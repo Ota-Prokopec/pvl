@@ -1,7 +1,7 @@
-import { ISSUE_CODE } from '../enums.js';
-import { Issue, type IssueEditableProps } from '../issue.js';
+import { ISSUE_CODE } from '../issue/enums.js';
+import { Issue } from '../issue/issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
-import type { RetypedSchema } from '../types.js';
+import type { CheckOptions, RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';
 import type { Schema, StandaloneMarkerOf } from './schema.js';
 
@@ -118,13 +118,13 @@ export abstract class ChainableInterpretedSchema<
   // `.optional()`, since a short-circuited value skips it, which is harmless.
   refine(
     predicate: (value: Output) => boolean,
-    issueProps?: IssueEditableProps,
+    options?: CheckOptions,
   ): RetypedSchema<this, Input, Output> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
         return predicate(value)
           ? null
-          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, issueProps?.message)] };
+          : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, options?.message)] };
       },
     }) as unknown as RetypedSchema<this, Input, Output>;
   }
@@ -167,36 +167,5 @@ export abstract class ChainableInterpretedSchema<
         return { value: fn(value) };
       },
     }) as unknown as Schema<Input, NewOutput> & StandaloneMarkerOf<this>;
-  }
-
-  /**
-   * Converts the raw input to this schema's type before the type check, so
-   * `'42'` can satisfy a number schema. Only the primitives and `literal`
-   * have a conversion; on `object`, `array`, `union` and `enum` there is no
-   * unambiguous target type, so this is a no-op and a wrong-shaped value is
-   * still rejected.
-   *
-   * It runs where it is chained among `.optional()` and `.nullable()`:
-   * `pvl.string().coerce().optional()` turns `undefined` into `'undefined'`,
-   * while `pvl.string().optional().coerce()` accepts `undefined` as it is.
-   * Constraints always run after the type check, so chaining it after them is
-   * fine.
-   *
-   * @example
-   * ```ts
-   * import { pvl } from '@pvl/schema';
-   *
-   * const port = pvl.number().int().min(1).coerce();
-   *
-   * port.validate('8080'); // { value: 8080 }
-   * port.validate('nope'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
-   * ```
-   */
-  coerce(): RetypedSchema<this, unknown, Output> {
-    return this._withPreModifier<unknown, unknown>({
-      fn: (value) => {
-        return { value: this._coerceInput(value) };
-      },
-    }) as unknown as RetypedSchema<this, unknown, Output>;
   }
 }

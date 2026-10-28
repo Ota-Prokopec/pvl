@@ -1,7 +1,7 @@
 // How each factory's argument is read, through `runCompilation()`: one
 // `describe` per Schema subclass, on what a read argument compiles to and
-// what can't be read, then one on an argument that can't be read being the
-// one diagnostic of its call.
+// what can't be read, one on a Schema followed into another file, then one
+// on an argument that can't be read being the one diagnostic of its call.
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runCompilation, DIAGNOSTIC_CODE, type DiagnosticCode } from '../src/index.js';
@@ -11,21 +11,24 @@ import {
   expectFailure,
   readFixtureFile,
   schemaFile,
+  type FixtureFiles,
 } from './helpers.js';
 
 const PATH = 'src/schemas/compiled.ts' as const;
 
 /**
  * The `class … implements PvlSchema<Input, Output> {` head of every Compiled
- * Schema the run wrote for `source`, which spells the types it read.
+ * Schema the run wrote for `source`, beside the other `files`, which spells
+ * the types it read.
  *
  * ```ts
  * await compileClassHeads("export const a = pvl.compile(pvl.array(pvl.literal('a')));")
- * // ['class PvlCompiledSchema0 implements PvlSchema<"a"[], "a"[]> {']
+ * // ['class PvlCompiledSchema0 implements PvlSchema<("a")[], ("a")[]> {']
  * ```
  */
-const compileClassHeads = async (source: string): Promise<string[]> => {
+const compileClassHeads = async (source: string, files: FixtureFiles = {}): Promise<string[]> => {
   const root = await createFixture({
+    ...files,
     'pvlconfig.json': configJson({}),
     [PATH]: schemaFile(source),
   });
@@ -37,12 +40,14 @@ const compileClassHeads = async (source: string): Promise<string[]> => {
   ].map(([classHead]) => classHead);
 };
 
-/** Asserts that compiling `source` fails with one `code` per entry, each on the compiled file. */
+/** Asserts that compiling `source`, beside the other `files`, fails with one `code` per entry, each on the compiled file. */
 const expectCompileFailure = async (
   source: string,
   codes: ReadonlyArray<DiagnosticCode>,
+  files: FixtureFiles = {},
 ): Promise<void> => {
   const root = await createFixture({
+    ...files,
     'pvlconfig.json': configJson({}),
     [PATH]: schemaFile(source),
   });
@@ -60,7 +65,7 @@ describe('StringSchema, NumberSchema, BooleanSchema and BigintSchema', () => {
       ),
     ).toEqual([
       'class PvlCompiledSchema0 implements PvlSchema<{ s: string; n: number; b: boolean; g: bigint }, { s: string; n: number; b: boolean; g: bigint }> {',
-      'class PvlCompiledSchema1 implements PvlSchema<string[], string[]> {',
+      'class PvlCompiledSchema1 implements PvlSchema<(string)[], (string)[]> {',
     ]);
   });
 
@@ -89,9 +94,9 @@ describe('LiteralSchema', () => {
         ].join('\n'),
       ),
     ).toEqual([
-      'class PvlCompiledSchema0 implements PvlSchema<"user"[], "user"[]> {',
-      'class PvlCompiledSchema1 implements PvlSchema<-1[], -1[]> {',
-      'class PvlCompiledSchema2 implements PvlSchema<"user"[], "user"[]> {',
+      'class PvlCompiledSchema0 implements PvlSchema<("user")[], ("user")[]> {',
+      'class PvlCompiledSchema1 implements PvlSchema<(-1)[], (-1)[]> {',
+      'class PvlCompiledSchema2 implements PvlSchema<("user")[], ("user")[]> {',
     ]);
   });
 
@@ -138,7 +143,7 @@ describe('ObjectSchema', () => {
         'const name = pvl.string();\nconst shape = { name, tags: pvl.array(pvl.number()) };\nexport const a = pvl.compile(pvl.object(shape));',
       ),
     ).toEqual([
-      'class PvlCompiledSchema0 implements PvlSchema<{ name: string; tags: number[] }, { name: string; tags: number[] }> {',
+      'class PvlCompiledSchema0 implements PvlSchema<{ name: string; tags: (number)[] }, { name: string; tags: (number)[] }> {',
     ]);
   });
 
@@ -159,7 +164,9 @@ describe('ArraySchema', () => {
       await compileClassHeads(
         'const element = pvl.array(pvl.boolean());\nexport const a = pvl.compile(pvl.array(element));',
       ),
-    ).toEqual(['class PvlCompiledSchema0 implements PvlSchema<boolean[][], boolean[][]> {']);
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<((boolean)[])[], ((boolean)[])[]> {',
+    ]);
   });
 
   it('rejects an element that is no Schema, and a missing one', async () => {
@@ -188,6 +195,104 @@ describe('UnionSchema', () => {
     await expectCompileFailure(
       'export const a = pvl.compile(pvl.object({ id: pvl.union([pvl.string(), 1]) }));',
       [DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE],
+    );
+  });
+});
+
+describe('an Imported Schema', () => {
+  it('is followed through a named, aliased or default import, and a barrel, into a file include doesn’t match', async () => {
+    expect(
+      await compileClassHeads(
+        [
+          "import { user } from '../shared/user.js';",
+          "import { user as aliased, renamed } from '../shared/index.js';",
+          "import tag from '../shared/tag.js';",
+          'export const a = pvl.compile(user);',
+          'export const b = pvl.compile(pvl.object({ aliased, renamed, tag }));',
+        ].join('\n'),
+        {
+          'src/shared/user.ts': schemaFile(
+            'export const user = pvl.object({ name: pvl.string() });',
+          ),
+          'src/shared/index.ts':
+            "export * from './user.js';\nexport { user as renamed } from './user.js';\n",
+          'src/shared/tag.ts': schemaFile("const tag = pvl.literal('a');\nexport default tag;"),
+        },
+      ),
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<{ name: string }, { name: string }> {',
+      'class PvlCompiledSchema1 implements PvlSchema<{ aliased: { name: string }; renamed: { name: string }; tag: "a" }, { aliased: { name: string }; renamed: { name: string }; tag: "a" }> {',
+    ]);
+  });
+
+  it('is read with the Local Name its own file imports `pvl` under, through a tsconfig `paths` alias and a symlink', async () => {
+    expect(
+      await compileClassHeads(
+        [
+          "import { name } from '@/shared/name';",
+          "import { linked } from '../shared/linked.js';",
+          'export const a = pvl.compile(pvl.object({ name, linked }));',
+        ].join('\n'),
+        {
+          'tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+          'src/shared/name.ts':
+            "import { pvl as p } from '@pvl/schema';\n\nexport const name = p.string();\n",
+          'src/shared/linked.ts': { symlinkTo: '../../outside/linked.ts' },
+          'outside/linked.ts': schemaFile('export const linked = pvl.number();'),
+        },
+      ),
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<{ name: string; linked: number }, { name: string; linked: number }> {',
+    ]);
+  });
+
+  it('recognises `pvl` by what each name is bound to, so a parameter shadowing it marks nothing', async () => {
+    expect(
+      await compileClassHeads(
+        [
+          "import { name } from '../shared/name.js';",
+          'export const a = pvl.compile(pvl.object({ name }));',
+          'export const make = (pvl: { compile: (value: number) => number }) => pvl.compile(1);',
+        ].join('\n'),
+        {
+          'src/shared/name.ts':
+            "import { pvl as p } from '@pvl/schema';\n\nconst pvl = { string: () => 1 };\nexport const name = p.string().optional();\nexport const notPvl = pvl.string();\n",
+        },
+      ),
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<{ name?: string | undefined }, { name?: string | undefined }> {',
+    ]);
+  });
+
+  it('takes a Runtime Argument chained onto it in the compiling file', async () => {
+    expect(
+      await compileClassHeads(
+        "import { name } from '../shared/name.js';\nconst LIMIT = 3;\nexport const a = pvl.compile(name.max(LIMIT));",
+        { 'src/shared/name.ts': schemaFile('export const name = pvl.string();') },
+      ),
+    ).toEqual(['class PvlCompiledSchema0 implements PvlSchema<string, string> {']);
+  });
+
+  it('rejects a cycle across files, and a Runtime Argument written in the imported file', async () => {
+    await expectCompileFailure(
+      [
+        "import { a } from '../shared/a.js';",
+        "import { limited } from '../shared/limited.js';",
+        'export const cyclic = pvl.compile(a);',
+        'export const runtime = pvl.compile(pvl.object({ limited }));',
+      ].join('\n'),
+      [DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE, DIAGNOSTIC_CODE.RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA],
+      {
+        'src/shared/a.ts': schemaFile(
+          "import { b } from './b.js';\nexport const a = pvl.object({ b });",
+        ),
+        'src/shared/b.ts': schemaFile(
+          "import { a } from './a.js';\nexport const b = pvl.object({ a });",
+        ),
+        'src/shared/limited.ts': schemaFile(
+          'const LIMIT = 3;\nexport const limited = pvl.string().max(LIMIT);',
+        ),
+      },
     );
   });
 });

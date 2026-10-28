@@ -1,111 +1,106 @@
-// Recognising PVL in a module's syntax: the Local Names `pvl` is imported
-// under, `pvl.compile(...)` markers and what is chained onto them, and a
-// `pvl.<factory>(…)` call chain split into its links. Built on GenericAst.
-import type { ArrayInterpretedSchema, ObjectInterpretedSchema, Schema } from '@pvl/schema';
-import type { ValueOfEnum } from '@repo/types';
-import { Node, type CallExpression, type SourceFile } from 'ts-morph';
-import { GenericAst, type FollowedConsts, type PropertyAccessCall } from './genericAst.js';
-import { UnresolvedNodeError } from './unresolvedNodeError.js';
-import { STANDALONE_METHOD_NAME } from '../consts.js';
-
-/** The package `pvl` is imported from. */
-const PVL_PACKAGE = '@pvl/schema' as const;
-
-/** The members that may still be read off the result of `pvl.compile(...)`: `.validate()`, `.standalone()`, and an object's `shape` and an array's `element`, which a Compiled Schema keeps (ADR-0036), each valued by its name on the Schema. Anything else read off it is a Modifier, a Constraint or a property a Compiled Schema doesn't have, reported as COMPILE_RESULT_MODIFIED. */
-const COMPILE_MARKER_ALLOWED_MEMBER = {
-  VALIDATE: 'validate',
-  STANDALONE: STANDALONE_METHOD_NAME,
-  SHAPE: 'shape',
-  ELEMENT: 'element',
-} as const satisfies Record<
-  string,
-  keyof Schema | keyof ObjectInterpretedSchema | keyof ArrayInterpretedSchema
->;
-
-type CompileMarkerAllowedMember = ValueOfEnum<typeof COMPILE_MARKER_ALLOWED_MEMBER>;
-
-const COMPILE_MARKER_ALLOWED_MEMBERS: ReadonlySet<string> = new Set<CompileMarkerAllowedMember>(
-  Object.values(COMPILE_MARKER_ALLOWED_MEMBER),
-);
-
-/** A method chained in a call chain, `.min(3)`. Its arguments never follow a `const` (ADR-0030), so it carries none of the ones followed to reach it. */
-export type ChainedMethodCall = Omit<PropertyAccessCall, 'receiver'>;
-
-/** A call chain's factory call, with the `const`s followed to reach it, which reading the factory's arguments carries on. */
-export type CallChainLink = Omit<PropertyAccessCall, 'receiver'> & {
-  followed: FollowedConsts;
-};
-
-/**
- * A `pvl.<factory>(…)` call and the methods chained onto it.
- *
- * ```ts
- * pvl.string().min(3).max(5)
- * // { factory: <pvl.string()>, methods: [<….min(3)>, <….max(5)>] }
- * ```
- */
-export type CallChain = {
-  /** The call of `pvl` itself: `pvl.string()`, or `pvl.compile(…)`. */
-  factory: CallChainLink;
-  /** The methods chained onto it, in chain order. */
-  methods: ReadonlyArray<ChainedMethodCall>;
-};
+// Recognising PVL in a module's syntax: a name bound to `pvl` imported from
+// `@pvl/schema`, `pvl.compile(...)` markers and what is chained onto them, and
+// a `pvl.<factory>(…)` call chain split into its links, and which of a
+// module's exports are Schemas. Built on GenericAst.
+import {
+  Node,
+  VariableDeclarationKind,
+  type CallExpression,
+  type Identifier,
+  type SourceFile,
+  type VariableDeclaration,
+} from 'ts-morph';
+import {
+  BaseException,
+  UnknownPvlMethodException,
+  UnresolvedNodeException,
+} from '../exceptions/index.js';
+import {
+  GenericAst,
+  type FollowedConsts,
+  type PropertyAccessCallExpression,
+} from './genericAst.js';
+import type { CallChain, PvlFactoryCall } from './types.js';
+import { PVL_OBJECT_PROPERTY_NAMES_ENUM, PVL_SCHEMA_PROPERTY_NAMES_ENUM } from '@pvl/schema';
+import type { CompileMarkerAllowedPropertyName } from './enums.js';
+import { COMPILE_MARKER_ALLOWED_PROPERTY_NAMES, PVL_PACKAGE_SPECIFIER } from './consts.js';
+import { isPvlObjectPropertyName, isPvlSchemaMethodName } from './utils.js';
 
 /**
  * Static helpers that recognise PVL in ts-morph nodes. Like GenericAst's,
  * `is…`/`as…`/`find…` methods never throw, and `read…` methods throw
- * UnresolvedNodeError or ConstCycleError.
+ * UnresolvedNodeException, ConstCycleException or
+ * UnknownPvlMethodException. A method name they hand on is narrowed to the
+ * one `@pvl/schema` gives it (ADR-0038).
  */
 export class PvlAst {
   /**
-   * The Local Names `pvl` is imported under in `sourceFile`: one per named
-   * import whose Module Specifier is `@pvl/schema` and whose Import Name is
-   * `pvl`. An empty set means the module has no `pvl` to read.
+   * Whether `node` is `<pvl>.<methodName>(…)` called directly on a name
+   * bound to `pvl` (`isPvlImport`), rather than another shape, such as a
+   * method chained onto a Schema.
    *
    * ```ts
-   * import { pvl } from '@pvl/schema';              // {'pvl'}
-   * import { pvl as p } from '@pvl/schema';         // {'p'}
-   * import { pvl as p, pvl } from '@pvl/schema';    // {'p', 'pvl'}
-   * import { pvl } from './my-pvl.js';              // {}: Module Specifier isn't `@pvl/schema`
-   * import { z } from '@pvl/schema';                // {}: Import Name isn't `pvl`
-   * import * as schema from '@pvl/schema';          // {}: not a named import
+   * // import { pvl } from '@pvl/schema';
+   * PvlAst.isDirectPvlCall(<pvl.string()>)          // true
+   * PvlAst.isDirectPvlCall(<pvl.string().min(3)>)   // false: called on a Schema, not on `pvl`
+   * PvlAst.isDirectPvlCall(<schemas.compile(x)>)    // false: `schemas` isn't bound to `pvl`
    * ```
    */
-  public static findPvlImportLocalNames(sourceFile: SourceFile): Set<string> {
-    return new Set(
-      sourceFile
-        .getImportDeclarations()
-        .filter((declaration) => declaration.getModuleSpecifierValue() === PVL_PACKAGE)
-        .flatMap((declaration) => declaration.getNamedImports())
-        .filter((namedImport) => namedImport.getName() === 'pvl')
-        .map((namedImport) => namedImport.getAliasNode()?.getText() ?? namedImport.getName()),
+  public static isDirectPvlCall(node: Node): node is PropertyAccessCallExpression {
+    if (!GenericAst.isPropertyAccessCall(node)) {
+      return false;
+    }
+    const receiver = node.getExpression().getExpression();
+    return Node.isIdentifier(receiver) && PvlAst.isPvlImport(receiver);
+  }
+
+  /**
+   * Whether `identifier` is bound to `pvl` imported from `@pvl/schema`: to a
+   * named import whose Module Specifier is `@pvl/schema` and whose Import
+   * Name is `pvl`, under any Local Name, in whichever file `identifier` is
+   * written. A parameter or a local that shadows it is not it.
+   *
+   * ```ts
+   * // import { pvl as p } from '@pvl/schema';
+   * PvlAst.isPvlImport(<p>)   // true
+   * // import { pvl } from './my-pvl.js';
+   * PvlAst.isPvlImport(<pvl>) // false: Module Specifier isn't `@pvl/schema`
+   * // import { z } from '@pvl/schema';
+   * PvlAst.isPvlImport(<z>)   // false: Import Name isn't `pvl`
+   * // import * as schema from '@pvl/schema';
+   * PvlAst.isPvlImport(<schema>) // false: not a named import
+   * // import { pvl } from '@pvl/schema'; (pvl: Factory) => pvl.string()
+   * PvlAst.isPvlImport(<pvl>) // false, in the arrow function: the parameter
+   * ```
+   */
+  private static isPvlImport(identifier: Identifier): boolean {
+    const declaration = GenericAst.findLocalDeclaration(identifier);
+    return (
+      Node.isImportSpecifier(declaration) &&
+      declaration.getName() === 'pvl' &&
+      declaration.getImportDeclaration().getModuleSpecifierValue() === PVL_PACKAGE_SPECIFIER
     );
   }
 
   /**
-   * `node` as `<pvl>.<methodName>(…)` called directly on `<pvl>`, one of
-   * `pvlImportLocalNames`, or `undefined` when it is another shape, such as a
-   * method chained onto a Schema.
+   * `node` split into the call and its method name when it is a direct `pvl`
+   * call (`isDirectPvlCall`) of a method `@pvl/schema`'s `pvl` has, the name
+   * narrowed to it; `undefined` for any other shape or name.
    *
    * ```ts
-   * // pvlImportLocalNames: {'pvl'}
-   * PvlAst.asDirectPvlCall(<pvl.string()>, names)          // { call, methodName: 'string' }
-   * PvlAst.asDirectPvlCall(<pvl.string().min(3)>, names)   // undefined: called on a Schema, not on `pvl`
-   * PvlAst.asDirectPvlCall(<schemas.compile(x)>, names)    // undefined: `schemas` isn't a Local Name of `pvl`
+   * // import { pvl } from '@pvl/schema';
+   * PvlAst.asDirectPvlCall(<pvl.string()>)          // { call, methodName: 'string' }
+   * PvlAst.asDirectPvlCall(<pvl.compile(user)>)     // { call, methodName: 'compile' }
+   * PvlAst.asDirectPvlCall(<pvl.string().min(3)>)   // undefined: called on a Schema, not on `pvl`
+   * PvlAst.asDirectPvlCall(<pvl.foo()>)             // undefined: `pvl` has no `foo`
    * ```
    */
-  public static asDirectPvlCall(
-    node: Node,
-    pvlImportLocalNames: ReadonlySet<string>,
-  ): Omit<PropertyAccessCall, 'receiver'> | undefined {
-    const propertyAccessCall = GenericAst.asPropertyAccessCall(node);
-    if (propertyAccessCall === undefined) {
+  public static asDirectPvlCall(node: Node): Omit<PvlFactoryCall, 'followed'> | undefined {
+    if (!PvlAst.isDirectPvlCall(node)) {
       return undefined;
     }
-    const { call, receiver, methodName } = propertyAccessCall;
-    return Node.isIdentifier(receiver) && pvlImportLocalNames.has(receiver.getText())
-      ? { call, methodName }
-      : undefined;
+    const methodName = node.getExpression().getName();
+    return isPvlObjectPropertyName(methodName) ? { call: node, methodName } : undefined;
   }
 
   /**
@@ -113,29 +108,26 @@ export class PvlAst {
    * nodes (`CallExpression`), wherever they are nested, in source order. Each
    * node is the whole call, not the Schema inside it, so a caller can both read
    * its argument and replace the call. A call counts when it is
-   * `<name>.compile(…)` and `<name>` is one of `pvlImportLocalNames`, the Local
-   * Names `pvl` is imported under. A nested call follows the call around it.
-   * Empty when no call matches or the module imports no `pvl`.
+   * `<name>.compile(…)` and `<name>` is bound to `pvl` (`isPvlImport`). A
+   * nested call follows the call around it. Empty when no call matches or the
+   * module imports nothing from `@pvl/schema`.
    *
    * ```ts
-   * // pvlImportLocalNames: {'pvl'}
+   * // import { pvl } from '@pvl/schema';
    * pvl.compile(pvl.string())     // [pvl.compile(pvl.string()) ]
    * export const user = pvl.compile(userSchema); // [pvl.compile(...)], at any depth
    * pvl.compile(pvl.compile(x))   // [outer call, inner call]
    * pvl.string()                  // []: not `compile`
-   * schemas.compile(pvl.string()) // []: `schemas` isn't a Local Name of `pvl`
+   * schemas.compile(pvl.string()) // []: `schemas` isn't bound to `pvl`
    * pvl.compile                   // []: not called
    *
-   * // pvlImportLocalNames: {}
+   * // no import from '@pvl/schema'
    * pvl.compile(pvl.string())     // []: the module imports no `pvl`
    * ```
    */
-  public static findCompileCalls(
-    sourceFile: SourceFile,
-    pvlImportLocalNames: ReadonlySet<string>,
-  ): CallExpression[] {
-    // Without a `pvl` import there is nothing to find, so skip the walk.
-    if (pvlImportLocalNames.size === 0) {
+  public static findCompileCalls(sourceFile: SourceFile): CallExpression[] {
+    // Without a `@pvl/schema` import there is nothing to find, so skip the walk.
+    if (sourceFile.getImportDeclaration(PVL_PACKAGE_SPECIFIER) === undefined) {
       return [];
     }
 
@@ -144,8 +136,8 @@ export class PvlAst {
     // depth, parents before their children, so in source order.
     return sourceFile
       .getDescendants()
-      .flatMap((node) => PvlAst.asDirectPvlCall(node, pvlImportLocalNames) ?? [])
-      .filter(({ methodName }) => methodName === 'compile')
+      .flatMap((node) => PvlAst.asDirectPvlCall(node) ?? [])
+      .filter(({ methodName }) => methodName === PVL_OBJECT_PROPERTY_NAMES_ENUM.COMPILE)
       .map(({ call }) => call);
   }
 
@@ -155,9 +147,11 @@ export class PvlAst {
    * Modifier, a Constraint or an unknown property onto it. `undefined` when
    * nothing is read off the result, or only `validate`.
    *
+   * - Used for checking (there cannot be any modifier after `pvl.compile()`)
+   *
    * ```ts
-   * pvl.compile(user).optional()      // 'optional'
-   * pvl.compile(tags).min(1)          // 'min'
+   * pvl.compile(user).optional()      // 'optional' - not allowed
+   * pvl.compile(tags).min(1)          // 'min' - not allowed
    * pvl.compile(user).strict          // 'strict': read, even when not called
    * pvl.compile(user).validate(input) // undefined: a Compiled Schema has it
    * pvl.compile(user).standalone()    // undefined: a Compiled Schema has it
@@ -171,43 +165,133 @@ export class PvlAst {
 
     return Node.isPropertyAccessExpression(parent) &&
       parent.getExpression() === call &&
-      !COMPILE_MARKER_ALLOWED_MEMBERS.has(parent.getName())
+      !COMPILE_MARKER_ALLOWED_PROPERTY_NAMES.has(
+        parent.getName() as CompileMarkerAllowedPropertyName,
+      )
       ? parent.getName()
       : undefined;
   }
 
   /**
    * The call chain `expression` holds, read from the outside in and
-   * following `const`s: `<receiver>.<methodName>(…)` is the factory when `receiver`
-   * is `pvl`, and otherwise a method chained onto the receiver's chain.
+   * following `const`s, into another file too: `<receiver>.<methodName>(…)`
+   * is the factory when `receiver` is bound to `pvl` (`isPvlImport`), in
+   * whichever file, and otherwise a method chained onto the receiver's
+   * chain. Each method name is narrowed to the one `@pvl/schema` gives it,
+   * `pvl`'s for the factory and a Schema's for a chained method, and one it
+   * doesn't have throws UnknownPvlMethodException at its call. A chained
+   * method's name is checked only once its receiver is read, so a receiver
+   * that can't be read is what is reported.
    *
    * ```ts
-   * // pvlImportLocalNames: {'pvl'}
-   * PvlAst.readCallChain(<pvl.string().min(3)>, names) // { factory: string(), methods: [min(3)] }
-   * PvlAst.readCallChain(<user>, names)                // the chain `const user = …` holds
-   * PvlAst.readCallChain(<makeSchema()>, names)        // throws UnresolvedNodeError
-   * PvlAst.readCallChain(<z.string()>, names)          // throws UnresolvedNodeError at <z>
+   * // import { pvl } from '@pvl/schema';
+   * PvlAst.readCallChain(<pvl.string().min(3)>) // { factory: string(), methods: [min(3)] }
+   * PvlAst.readCallChain(<user>)                // the chain `const user = …` holds, imported or not
+   * PvlAst.readCallChain(<makeSchema()>)        // throws UnresolvedNodeException
+   * PvlAst.readCallChain(<schemas.user>)        // throws UnresolvedNodeException at <schemas.user>: a property read
+   * PvlAst.readCallChain(<z.string()>)          // throws UnresolvedNodeException at <z>
+   * PvlAst.readCallChain(<pvl.foo()>)           // throws UnknownPvlMethodException at <pvl.foo()>
+   * PvlAst.readCallChain(<pvl.string().foo()>)  // throws UnknownPvlMethodException at <….foo()>
+   * PvlAst.readCallChain(<z.string().foo()>)    // throws UnresolvedNodeException at <z>: the receiver is read first
    * ```
    */
-  public static readCallChain(
-    expression: Node,
-    pvlImportLocalNames: ReadonlySet<string>,
-    followed: FollowedConsts = new Set(),
-  ): CallChain {
+  public static readCallChain(expression: Node, followed: FollowedConsts = new Set()): CallChain {
     const { node, followed: reading } = GenericAst.followConst(expression, followed);
-    const directPvlCall = PvlAst.asDirectPvlCall(node, pvlImportLocalNames);
+    const directPvlCall = PvlAst.asDirectPvlCall(node);
 
     if (directPvlCall !== undefined) {
       return { factory: { ...directPvlCall, followed: reading }, methods: [] };
     }
+    if (PvlAst.isDirectPvlCall(node)) {
+      throw new UnknownPvlMethodException(node);
+    }
 
     const propertyAccessCall = GenericAst.asPropertyAccessCall(node);
     if (propertyAccessCall === undefined) {
-      throw new UnresolvedNodeError(node);
+      throw new UnresolvedNodeException(node);
     }
 
     const { call, receiver, methodName } = propertyAccessCall;
-    const chain = PvlAst.readCallChain(receiver, pvlImportLocalNames, reading);
+    const chain = PvlAst.readCallChain(receiver, reading);
+    if (!isPvlSchemaMethodName(methodName)) {
+      throw new UnknownPvlMethodException(call);
+    }
     return { ...chain, methods: [...chain.methods, { call, methodName }] };
+  }
+
+  /**
+   * The argument of `link`, a factory call, which every factory but the
+   * primitives needs. Throws an UnresolvedNodeException at the call when
+   * there is none.
+   *
+   * ```ts
+   * PvlAst.readArgument(<pvl.array(pvl.string())>) // <pvl.string()>
+   * PvlAst.readArgument(<pvl.array()>)             // throws UnresolvedNodeException(<pvl.array()>)
+   * ```
+   */
+  public static readArgument({ call }: PvlFactoryCall): Node {
+    const [argument] = call.getArguments();
+    if (argument === undefined) {
+      throw new UnresolvedNodeException(call);
+    }
+    return argument;
+  }
+
+  /**
+   * The names of `sourceFile`'s exported Schemas, in declaration order: each
+   * `export const` whose value is a `pvl.*` call chain, read statically,
+   * following `const`s, imported ones too, marked to compile or not. A
+   * function or a `.validate()` result is no Schema here.
+   *
+   * ```ts
+   * const name = pvl.string();
+   * export const user = pvl.object({ name });
+   * export const optionalName = name.optional();
+   * export const getUser = () => pvl.object({ name });
+   * PvlAst.findExportedSchemaNames(sourceFile) // ['user', 'optionalName']
+   * ```
+   */
+  public static findExportedSchemaNames(sourceFile: SourceFile): string[] {
+    return sourceFile
+      .getVariableStatements()
+      .filter(
+        (statement) =>
+          statement.isExported() &&
+          statement.getDeclarationKind() === VariableDeclarationKind.Const,
+      )
+      .flatMap((statement) => statement.getDeclarations())
+      .filter((declaration) => PvlAst.holdsSchema(declaration))
+      .map((declaration) => declaration.getName());
+  }
+
+  /**
+   * Whether `declaration` binds one name to a Schema: every `pvl.*` method
+   * returns one, so any chain that ends in no `.validate()` does. A chain
+   * calling a method `@pvl/schema` doesn't have returns nothing known.
+   *
+   * ```ts
+   * const user = pvl.object({ … });      // true
+   * const user = base.optional();        // true, with `const base = pvl.string()`, imported or not
+   * const result = user.validate(input); // false: a Result
+   * const getUser = () => pvl.string();  // false: a function
+   * const { shape } = user;              // false: destructuring
+   * const name = pvl.string().foo();     // false: `@pvl/schema` has no `foo`
+   * ```
+   */
+  private static holdsSchema(declaration: VariableDeclaration): boolean {
+    const initializer = declaration.getInitializer();
+    if (initializer === undefined || !Node.isIdentifier(declaration.getNameNode())) {
+      return false;
+    }
+    try {
+      return PvlAst.readCallChain(initializer).methods.every(
+        ({ methodName }) => methodName !== PVL_SCHEMA_PROPERTY_NAMES_ENUM.VALIDATE,
+      );
+    } catch (error) {
+      if (error instanceof BaseException) {
+        return false;
+      }
+      throw error;
+    }
   }
 }

@@ -3,61 +3,33 @@
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
 import * as path from 'node:path';
-import type { PvlConfig, PvlConfigOverrides } from '../config/config.js';
-import { ConfigResolver } from '../config/configResolver.js';
-import { Barrel } from '../barrel.js';
+import { resolveConfig } from '../config/configResolver.js';
+import type { PvlConfigOverrides } from '../config/types.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
-import { Diagnostics } from '../diagnostics/diagnostics.js';
+import { isErrorInDiagnostics, promoteAllDiagnostics } from '../diagnostics/utils.js';
 import { compileAll } from './compileAll.js';
-import { Destination } from '../destination/destination.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
-import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { findPatternsMatchingPath } from '../utils.js';
-import { TsMorphProject } from '../tsMorphProject.js';
-import { Precheck } from '../precheck.js';
-import { Scanner } from '../scanner.js';
+import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
+import { Precheck } from '../precheck/precheck.js';
+import { Module } from '../module/module.js';
+import { Scanner } from '../scanner/scanner.js';
+import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
+import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
+import type { CompilationOutput } from './types.js';
 
 /**
- * What a {@link runCompilation} run reports.
- *
- * @example
- * ```ts
- * import { runCompilation } from '@pvl/schema-compiler';
- *
- * const { diagnostics, written, destination } = await runCompilation({ cwd: process.cwd() });
- * if (written) console.log(`wrote ${destination}`);
- * ```
- */
-export type RunCompilationPayload = {
-  /** Every diagnostic, errors and warnings alike, in the order they were found. */
-  diagnostics: Diagnostic[];
-  /** The merged settings, or `undefined` when they couldn't be resolved. */
-  settings: PvlConfig | undefined;
-  /** The Destination Directory's absolute path, once settings resolved. */
-  destination: string | undefined;
-  /** Whether the Destination Directory was written. Never `true` when an error fired. */
-  written: boolean;
-};
-
-/**
- * The DESTINATION_INSIDE_INCLUDE diagnostic for an `include` pattern that
- * matches the Destination Directory or anything inside it, so the compiler
- * would scan its own output.
+ * Whether `diagnostics` stop the run before anything is written: any error
+ * does, and under `strict` any warning too; warnings alone let it go ahead
+ * otherwise.
  *
  * ```ts
- * // include: ['src/**\/*.ts'], destination: 'src/compiled'
- * createDestinationInsideIncludeDiagnostic(destination, 'src/**\/*.ts') // DESTINATION_INSIDE_INCLUDE
+ * isRunStoppedBy([PARSE_FAILED], false)         // true
+ * isRunStoppedBy([FILE_EXPORTS_NOTHING], false) // false: a warning
+ * isRunStoppedBy([FILE_EXPORTS_NOTHING], true)  // true
  * ```
  */
-const createDestinationInsideIncludeDiagnostic = (
-  destination: Destination,
-  pattern: string,
-): Diagnostic => {
-  return new Diagnostic({
-    code: DIAGNOSTIC_CODE.DESTINATION_INSIDE_INCLUDE,
-    message: `The destination ${destination.relativePath.pathFromBase} matches the include pattern \`${pattern}\`, so the compiler would read its own output. Move the destination out of it, or narrow include.`,
-    file: destination.absolutePath,
-  });
+const isRunStoppedBy = (diagnostics: ReadonlyArray<Diagnostic>, strict: boolean): boolean => {
+  return isErrorInDiagnostics(diagnostics) || (strict && diagnostics.length > 0);
 };
 
 /**
@@ -71,7 +43,7 @@ const createDestinationInsideIncludeDiagnostic = (
  * await runCompilation(args);
  * ```
  */
-export type RunCompilationArgs = {
+type RunCompilationArgs = {
   /** The working directory: where `pvlconfig.json` is looked for, and the base directory without one. */
   cwd: string;
   /** The config file, relative to `cwd`. Defaults to `pvlconfig.json` in `cwd`, which may be absent. */
@@ -88,9 +60,10 @@ export type RunCompilationArgs = {
  * 1. resolves the settings (overrides, then `pvlconfig.json`, then defaults),
  *    the Destination Directory and the Root Directory;
  * 2. creates the ts-morph project and reads into it the files `include` selects;
- * 3. collects every diagnostic, from the destination checks to each scanned
- *    module's precheck;
- * 4. unless an error fired, compiles every scanned module with `compileAll`
+ * 3. collects the destination checks' diagnostics and each scanned module's
+ *    precheck, and stops there when the precheck stops the run;
+ * 4. reads each scanned module's `pvl.compile(...)` calls;
+ * 5. unless an error fired, compiles every scanned module with `compileAll`
  *    and writes the Destination Directory.
  *
  * Nothing is written when any error fired, or under `strict` any warning,
@@ -99,21 +72,21 @@ export type RunCompilationArgs = {
  *
  * @example
  * ```ts
- * import { runCompilation, Diagnostics } from '@pvl/schema-compiler';
+ * import { runCompilation, isErrorInDiagnostics } from '@pvl/schema-compiler';
  *
  * const { diagnostics } = await runCompilation({
  *   cwd: process.cwd(),
  *   overrides: { destination: 'src/generated' },
  * });
- * const failed = Diagnostics.hasError(diagnostics);
+ * const failed = isErrorInDiagnostics(diagnostics);
  * ```
  */
-export const runCompilation = async (args: RunCompilationArgs): Promise<RunCompilationPayload> => {
+export const runCompilation = async (args: RunCompilationArgs): Promise<CompilationOutput> => {
   const payload = await runCompilationWithoutPromoting(args);
   // Promoted here, once, so every warning comes back as an error whichever
   // step the run returned from.
   return args.strict === true
-    ? { ...payload, diagnostics: Diagnostics.promote(payload.diagnostics) }
+    ? { ...payload, diagnostics: promoteAllDiagnostics(payload.diagnostics) }
     : payload;
 };
 
@@ -136,14 +109,15 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
-}: RunCompilationArgs): Promise<RunCompilationPayload> => {
-  const resolvedSettingsPayload = await ConfigResolver.resolveConfig({
+}: RunCompilationArgs): Promise<CompilationOutput> => {
+  const resolvedSettingsPayload = await resolveConfig({
     cwd: path.resolve(cwd),
     configPath,
     overrides,
   });
 
-  if (resolvedSettingsPayload.settings === undefined) {
+  if (!resolvedSettingsPayload.isResolved) {
+    //TODO: this will throw an error in the future
     return {
       diagnostics: resolvedSettingsPayload.diagnostics,
       settings: undefined,
@@ -152,23 +126,20 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
-  const { settings, baseDirectory } = resolvedSettingsPayload;
-  const destination = Destination.resolveDestination(baseDirectory, settings);
-  const rootDirectory = path.resolve(baseDirectory, settings.rootDir);
+  const { rawSettings, baseDirectory, destination } = resolvedSettingsPayload;
+  const rootDirectory = path.resolve(baseDirectory, rawSettings.rootDir);
 
-  const [destinationDiagnostics, scannedFilePaths] = await Promise.all([
+  const [destinationDiagnostics, scanPayload] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
-    Scanner.scan({ baseDirectory, include: settings.include, destination }),
+    Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
   ]);
 
-  // What the destination and `include` raise before any file is read.
+  // What `include` and the destination raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
-    ...findPatternsMatchingPath(settings.include, destination.relativePath.pathFromBase).map(
-      (pattern) => createDestinationInsideIncludeDiagnostic(destination, pattern),
-    ),
+    ...scanPayload.diagnostics,
     ...destinationDiagnostics,
-    ...(scannedFilePaths.length === 0
-      ? [Scanner.createNoInputFilesDiagnostic(settings.include)]
+    ...(scanPayload.scannedFilePaths.length === 0
+      ? [createNoInputFilesDiagnostic(rawSettings.include)]
       : []),
   ];
 
@@ -178,41 +149,51 @@ const runCompilationWithoutPromoting = async ({
   if (tsMorphProjectPayload.tsMorphProject === undefined) {
     return {
       diagnostics: [...scanScopeDiagnostics, ...tsMorphProjectPayload.diagnostics],
-      settings,
+      settings: rawSettings,
       destination: destination.absolutePath,
       written: false,
     };
   }
   const { tsMorphProject } = tsMorphProjectPayload;
 
-  const modules = Scanner.getModules({
-    tsMorphProject,
-    scannedFilePaths,
-    rootDirectory,
-    destination,
-  });
-  // A scanned `<rootDir>/index.ts` is mirrored in place of the generated barrel.
-  const generatesBarrel = !Barrel.hasScannedBarrel(modules);
-  const { diagnostics: moduleDiagnostics, compilations } = Precheck.precheckModules({
-    modules,
-    generatesBarrel,
-  });
+  const modules = scanPayload.scannedFilePaths.map(
+    (scannedFilePath) =>
+      new Module({ scannedFilePath, tsMorphProject, rootDirectory, destination }),
+  );
+  const precheckDiagnostics = Precheck.precheckModules({ modules });
 
-  const diagnostics = [...scanScopeDiagnostics, ...moduleDiagnostics];
+  // A precheck that stops the run stops it before any `pvl.compile(...)` call
+  // is read. PARSE_FAILED is an error, so past this point every scanned
+  // module parsed.
+  if (isRunStoppedBy(precheckDiagnostics, strict)) {
+    return {
+      diagnostics: [...scanScopeDiagnostics, ...precheckDiagnostics],
+      settings: rawSettings,
+      destination: destination.absolutePath,
+      written: false,
+    };
+  }
 
-  // Any error means nothing is compiled or written, and so does any warning
-  // under `strict`; warnings alone let the run go ahead otherwise.
-  // PARSE_FAILED is an error, so past this point every scanned module parsed
-  // and has its compilation.
-  if (Diagnostics.hasError(diagnostics) || (strict && diagnostics.length > 0)) {
-    return { diagnostics, settings, destination: destination.absolutePath, written: false };
+  const compilations = modules.map((module) => findMarkedToCompileSchemas(module));
+
+  const diagnostics = [
+    ...scanScopeDiagnostics,
+    ...precheckDiagnostics,
+    ...compilations.flatMap((compilation) => compilation.diagnostics),
+  ];
+
+  if (isRunStoppedBy(diagnostics, strict)) {
+    return {
+      diagnostics,
+      settings: rawSettings,
+      destination: destination.absolutePath,
+      written: false,
+    };
   }
 
   const mirroredFiles = compileAll({
-    tsMorphProject,
     compilations,
-    generatesBarrel,
-    withTypes: settings.withTypes,
+    withTypes: rawSettings.withTypes,
   });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
@@ -220,7 +201,7 @@ const runCompilationWithoutPromoting = async ({
 
   return {
     diagnostics: [...diagnostics, ...writeDestinationDiagnostics],
-    settings,
+    settings: rawSettings,
     destination: destination.absolutePath,
     written: isWritten,
   };

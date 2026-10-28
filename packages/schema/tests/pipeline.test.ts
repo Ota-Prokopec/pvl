@@ -95,6 +95,28 @@ describe('the modifier pipeline', () => {
     expect(schema.validate({ id: 'a', meta: 1 }).issues).toBeUndefined();
   });
 
+  it('lets a .refine() chained after .strict() see the undeclared keys', () => {
+    const schema = pvl
+      .object({ id: pvl.string() })
+      .strict()
+      .refine((value) => 'meta' in value);
+    const result = schema.validate({ id: 'a', meta: 1 });
+    expect(result.issues?.map((issue: Issue) => [issue.path, issue.code])).toEqual([
+      [['meta'], 'UNRECOGNIZED_KEY'],
+    ]);
+  });
+
+  it('lets a .refine() chained before .strict() see the undeclared keys too', () => {
+    const schema = pvl
+      .object({ id: pvl.string() })
+      .refine((value) => 'meta' in value)
+      .strict();
+    const result = schema.validate({ id: 'a', meta: 1 });
+    expect(result.issues?.map((issue: Issue) => [issue.path, issue.code])).toEqual([
+      [['meta'], 'UNRECOGNIZED_KEY'],
+    ]);
+  });
+
   it('runs a .refine() on the stripped value by default', () => {
     const schema = pvl.object({ id: pvl.string() }).refine((value) => 'meta' in value);
     expect(issueCodes(schema.validate({ id: 'a', meta: 1 }))).toEqual(['CUSTOM']);

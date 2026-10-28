@@ -1,29 +1,12 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { VENDOR, type SCHEMA_BRAND } from '../consts.js';
-import type { Issue } from '../issue.js';
+import type { Issue } from '../issue/issue.js';
 import type { Result } from '../result.js';
 import type { StandardSchemaProps } from '../standardSchema.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
 import type { Modifier, ModifierShape } from '../modifiers/modifiers.js';
 import type { PreModifiersResult } from '../types.js';
 import type { Schema, StandaloneMarker } from './schema.js';
-
-// Whether `modifier` was built by one of the modifier factories in
-// `shapes`. Matched by the factory rather than the instance, so a caller
-// can remove a modifier without holding on to the one it added: `.strict()`
-// and `.passthrough()` drop whichever unknown-keys modifier is already set.
-//
-//   isBuiltByOneOf(unknownKeysStrictModifier(keys), UNKNOWN_KEYS_MODIFIERS) // true
-//   isBuiltByOneOf(unknownKeysStripModifier(keys), UNKNOWN_KEYS_MODIFIERS)  // true
-//   isBuiltByOneOf(<the modifier .min(3) adds>, UNKNOWN_KEYS_MODIFIERS)     // false
-//
-// A modifier with no `shape` matches nothing, so it is never removed.
-const isBuiltByOneOf = (
-  modifier: Modifier<unknown, unknown>,
-  shapes: ReadonlyArray<ModifierShape>,
-): boolean => {
-  return modifier.shape !== undefined && shapes.includes(modifier.shape);
-};
 
 /**
  * The class every schema a `pvl.*` factory builds extends: a {@link Schema}
@@ -61,19 +44,10 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   private _preModifiers: ReadonlyArray<Modifier<unknown, unknown>>;
   private _postModifiers: ReadonlyArray<Modifier<unknown, unknown>>;
 
-  // A schema type whose default behaviour is itself a Modifier (`object`'s
-  // stripping, a post-modifier) starts with it, so a later Modifier removes it
-  // by shape like any other.
   /** @internal */
-  constructor({
-    preModifiers = [],
-    postModifiers = [],
-  }: {
-    readonly preModifiers?: ReadonlyArray<Modifier<unknown, unknown>>;
-    readonly postModifiers?: ReadonlyArray<Modifier<unknown, unknown>>;
-  } = {}) {
-    this._preModifiers = preModifiers;
-    this._postModifiers = postModifiers;
+  constructor() {
+    this._preModifiers = [];
+    this._postModifiers = [];
   }
 
   /**
@@ -245,16 +219,6 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   //TODO: Rename `_checkType` to `_baseCheck`
 
   /**
-   * The `.coerce()` conversion for this schema type. The base is identity —
-   * a schema type with no unambiguous conversion target leaves it that way.
-   *
-   * @internal
-   */
-  _coerceInput(value: unknown): unknown {
-    return value;
-  }
-
-  /**
    * A copy of this schema with the same prototype and fields, so a subclass
    * can re-point one of its own fields without dropping a chained modifier.
    *
@@ -295,18 +259,14 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   }
 
   /**
-   * A copy of this schema without any modifier built by one of `shapes`.
+   * A copy of this schema without any modifier built by `shape`.
    *
    * @internal
    */
-  protected _withoutModifiers(shapes: ReadonlyArray<ModifierShape>): this {
+  protected _withoutModifier(shape: ModifierShape): this {
     const clone = this._clone();
-    clone._preModifiers = this._preModifiers.filter(
-      (modifier) => !isBuiltByOneOf(modifier, shapes),
-    );
-    clone._postModifiers = this._postModifiers.filter(
-      (modifier) => !isBuiltByOneOf(modifier, shapes),
-    );
+    clone._preModifiers = this._preModifiers.filter((modifier) => !(modifier.shape === shape));
+    clone._postModifiers = this._postModifiers.filter((modifier) => !(modifier.shape === shape));
     return clone;
   }
 }
