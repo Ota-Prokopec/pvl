@@ -1,9 +1,9 @@
 // Reading Schemas from source, statically (ADR-0002): every Marked-to-Compile
 // Schema of a Module, and the `pvl.*` call chain an expression holds, read
 // into the Schema subclass of its factory, with every Schema nested in it.
-// This module holds the map from each factory to its subclass, so it imports
-// every subclass, and nothing has to load `src/schemas/` before a Schema is
-// read. Nothing imports it back: `schema.ts` never does, and a subclass reads
+// The map from each factory to its subclass (`./consts.ts`) imports every
+// subclass, so nothing has to load `src/schemas/` before a Schema is read.
+// Nothing imports either back: `schema.ts` never does, and a subclass reads
 // the Schemas nested in it through the `readNested` it is handed (ADR-0034).
 import type { Node } from 'ts-morph';
 import { GenericAst, type FollowedConsts } from '../ast/genericAst.js';
@@ -14,37 +14,15 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import {
   PVL_OBJECT_PROPERTY_NAMES_ENUM,
   PVL_SCHEMA_METHOD_NAME_ENUM,
-  PVL_FACTORY_NAMES_ENUM,
   type PvlFactoryName,
 } from '@pvl/schema';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
+import { SCHEMA_CLASS_BY_FACTORY } from './consts.js';
 import type { Module } from '../module/module.js';
-import { ArraySchema } from './arraySchema.js';
-import { BigintSchema } from './bigintSchema.js';
-import { BooleanSchema } from './booleanSchema.js';
-import { EnumSchema } from './enumSchema.js';
-import { LiteralSchema } from './literalSchema.js';
-import { NumberSchema } from './numberSchema.js';
-import { ObjectSchema } from './objectSchema.js';
 import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { Schema } from './schema.js';
 import type { SchemaModifierCall, SchemaModifierCallArgument } from './types/modifierCall.js';
 import type { SchemaClass } from './types/schemaClass.js';
-import { StringSchema } from './stringSchema.js';
-import { UnionSchema } from './unionSchema.js';
-
-/** Every Schema subclass, by the `pvl.*` factory it reads, which is the subclass's own `factory`. */
-const SCHEMA_CLASS_BY_FACTORY = {
-  [PVL_FACTORY_NAMES_ENUM.STRING]: StringSchema,
-  [PVL_FACTORY_NAMES_ENUM.NUMBER]: NumberSchema,
-  [PVL_FACTORY_NAMES_ENUM.BOOLEAN]: BooleanSchema,
-  [PVL_FACTORY_NAMES_ENUM.BIGINT]: BigintSchema,
-  [PVL_FACTORY_NAMES_ENUM.LITERAL]: LiteralSchema,
-  [PVL_FACTORY_NAMES_ENUM.ENUM]: EnumSchema,
-  [PVL_FACTORY_NAMES_ENUM.OBJECT]: ObjectSchema,
-  [PVL_FACTORY_NAMES_ENUM.ARRAY]: ArraySchema,
-  [PVL_FACTORY_NAMES_ENUM.UNION]: UnionSchema,
-} satisfies { readonly [Factory in PvlFactoryName]: SchemaClass & { readonly factory: Factory } };
 
 /** A parsed scanned module with its `pvl.compile(...)` calls read, ready to be compiled in place. */
 export type ModuleCompilation = {

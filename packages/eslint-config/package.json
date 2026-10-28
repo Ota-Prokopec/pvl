@@ -5,6 +5,7 @@
   "private": true,
   "exports": {
     "./base": "./src/base.ts",
+    "./consts": "./src/consts.ts",
     "./workspace": "./src/workspace.ts"
   },
   "devDependencies": {

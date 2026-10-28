@@ -6,6 +6,7 @@ import type { CompatiblePlugin } from 'typescript-eslint';
 import { argsTypeAboveFunction } from './rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from './rules/barrelExportsOnly.ts';
 import { classFileName } from './rules/classFileName.ts';
+import { compoundConstantFile } from './rules/compoundConstantFile.ts';
 import { constantShape } from './rules/constantShape.ts';
 import { declarationsFileOrFolder } from './rules/declarationsFileOrFolder.ts';
 import { entryHasAgentsMd } from './rules/entryHasAgentsMd.ts';
@@ -30,6 +31,7 @@ const plugin = {
     'args-type-above-function': argsTypeAboveFunction,
     'barrel-exports-only': barrelExportsOnly,
     'class-file-name': classFileName,
+    'compound-constant-file': compoundConstantFile,
     'constant-shape': constantShape,
     'declarations-file-or-folder': declarationsFileOrFolder,
     'entry-has-agents-md': entryHasAgentsMd,

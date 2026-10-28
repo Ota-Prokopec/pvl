@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import { argsTypeAboveFunction } from '../src/eslint/rules/argsTypeAboveFunction.ts';
 import { barrelExportsOnly } from '../src/eslint/rules/barrelExportsOnly.ts';
 import { classFileName } from '../src/eslint/rules/classFileName.ts';
+import { compoundConstantFile } from '../src/eslint/rules/compoundConstantFile.ts';
 import { constantShape } from '../src/eslint/rules/constantShape.ts';
 import { declarationsFileOrFolder } from '../src/eslint/rules/declarationsFileOrFolder.ts';
 import { enumShape } from '../src/eslint/rules/enumShape.ts';
@@ -292,6 +293,66 @@ typescriptTester.run('constant-shape', constantShape, {
       code: "export const VENDOR = '@pvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/consts/schema/vendor.ts'),
       errors: [{ messageId: 'file' }],
+    },
+  ],
+});
+
+typescriptTester.run('compound-constant-file', compoundConstantFile, {
+  valid: [
+    {
+      code: "const DECLARATION_FILE_SUFFIXES = ['.d.ts', '.d.mts'] as const;",
+      filename: '/repo/src/path/consts.ts',
+    },
+    {
+      code: "export const SEPARATORS = new Set(['&&', '||']);",
+      filename: '/repo/src/hooks/consts/bash.ts',
+    },
+    { code: "const SYSTEM_ROLE = { OWNER: 'OWNER' } as const;", filename: '/repo/src/user.ts' },
+    {
+      code: 'export const MODIFIER_ENUM = { ...PRE_ENUM, ...POST_ENUM } satisfies Names;',
+      filename: '/repo/src/enums.ts',
+    },
+    { code: 'const VARIANTS = Object.values(VARIANT);', filename: '/repo/src/run.ts' },
+    { code: 'const MAX_SIZE = 5 as const;', filename: '/repo/src/run.ts' },
+    { code: 'const lookup = { a: 1 };', filename: '/repo/src/run.ts' },
+    { code: 'let LIST = [1];', filename: '/repo/src/run.ts' },
+    { code: 'const run = (): void => { const LIST = [1]; };', filename: '/repo/src/run.ts' },
+    {
+      code: "export const STRING_SCHEMA_ISSUE_MESSAGE = { TOO_SHORT: 'Too short' };",
+      filename: '/repo/src/schemas/stringSchema.ts',
+      options: [{ allowedNameSuffixes: ['_SCHEMA_ISSUE_MESSAGE'] }],
+    },
+  ],
+  invalid: [
+    {
+      code: "const DECLARATION_FILE_SUFFIXES = ['.d.ts', '.d.mts'] as const;",
+      filename: '/repo/src/path/utils.ts',
+      errors: [{ messageId: 'file', data: { name: 'DECLARATION_FILE_SUFFIXES' } }],
+    },
+    {
+      code: "export const SEPARATORS = new Set(['&&', '||']);",
+      filename: '/repo/src/hooks/checkBashCommand.ts',
+      errors: [{ messageId: 'file', data: { name: 'SEPARATORS' } }],
+    },
+    {
+      code: 'const CACHE = new Map<string, number>();',
+      filename: '/repo/src/run.ts',
+      errors: [{ messageId: 'file', data: { name: 'CACHE' } }],
+    },
+    {
+      code: 'const SCHEMA_CLASS_BY_FACTORY = { [KIND.A]: A } satisfies Table;',
+      filename: '/repo/src/schemas/readSchema.ts',
+      errors: [{ messageId: 'file', data: { name: 'SCHEMA_CLASS_BY_FACTORY' } }],
+    },
+    {
+      code: "export const STRING_SCHEMA_ISSUE_MESSAGE = { TOO_SHORT: 'Too short' };",
+      filename: '/repo/src/schemas/stringSchema.ts',
+      errors: [{ messageId: 'file', data: { name: 'STRING_SCHEMA_ISSUE_MESSAGE' } }],
+    },
+    {
+      code: "export const SEPARATORS = new Set(['&&', '||']);",
+      filename: '/repo/src/hooks/consts/bash/separators.ts',
+      errors: [{ messageId: 'file', data: { name: 'SEPARATORS' } }],
     },
   ],
 });

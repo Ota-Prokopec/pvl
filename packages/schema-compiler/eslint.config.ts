@@ -1,4 +1,5 @@
-import { config, RESTRICTED_SYNTAX } from '@repo/eslint-config/base';
+import { config } from '@repo/eslint-config/base';
+import { RESTRICTED_SYNTAX } from '@repo/eslint-config/consts';
 import { conventionsPlugin } from '@repo/conventions/eslint';
 import { defineConfig } from 'eslint/config';
 

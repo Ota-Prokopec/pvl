@@ -5,21 +5,10 @@
  */
 import * as path from 'node:path';
 import { parse } from 'shell-quote';
+import { GH_POSTING_COMMANDS, GH_TITLED_COMMANDS, SEPARATORS } from './consts.ts';
 import { BRANCH_NAME, CONVENTIONAL_SUBJECT } from './naming.ts';
 
 const MAIN_BRANCH = 'main' as const;
-const SEPARATORS = new Set(['&&', '||', ';', '|', '&', '|&', '(', ')']);
-const GH_POSTING_COMMANDS = new Set([
-  'pr create',
-  'pr edit',
-  'pr comment',
-  'pr review',
-  'issue create',
-  'issue edit',
-  'issue comment',
-  'issue close',
-]);
-const GH_TITLED_COMMANDS = new Set(['pr create', 'pr edit', 'issue create', 'issue edit']);
 
 const SKIP_HOOK =
   'Never skip the pre-commit hook (no `--no-verify`/`-n`, `LEFTHOOK=0`, `LEFTHOOK_EXCLUDE` or `core.hooksPath` override). Fix what the hook reports and commit again.' as const;
