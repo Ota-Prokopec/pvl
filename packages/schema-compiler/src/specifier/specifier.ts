@@ -153,12 +153,14 @@ export class Specifier {
    * to `./src/*`:
    *
    * ```ts
-   * './user.js'         // MIRRORED  → './user.js': the mirror has the same layout
-   * '../lib/helpers.js' // REPOSITORY → '../../src/lib/helpers.js': back to the original
-   * '@/schemas/user.js' // MIRRORED  → './user.js': the alias reaches a scanned file
-   * '@/lib/helpers'     // REPOSITORY → '../../src/lib/helpers': the alias reaches an unscanned file
-   * '@pvl/schema'       // UNRESOLVED → '@pvl/schema': a package, kept
-   * '@/lib/missing'     // UNRESOLVED → '@/lib/missing': resolves to nothing, kept
+   * './user.js'                 // MIRRORED  → './user.js': the mirror has the same layout
+   * '../lib/helpers.js'         // REPOSITORY → '../../src/lib/helpers.js': back to the original
+   * '@/schemas/user.js'         // MIRRORED  → './user.js': the alias reaches a scanned file
+   * '@/lib/helpers'             // REPOSITORY → '../../src/lib/helpers': the alias reaches an unscanned file
+   * '/repo/src/schemas/user.js' // MIRRORED  → './user.js': an absolute path to a scanned file
+   * '/repo/src/lib/helpers.js'  // REPOSITORY → '../../src/lib/helpers.js': an absolute path to an unscanned file
+   * '@pvl/schema'               // UNRESOLVED → '@pvl/schema': a package, kept
+   * '@/lib/missing'             // UNRESOLVED → '@/lib/missing': resolves to nothing, kept
    * ```
    */
   public rewrite({ target, importerPath, outputDirectory }: RewriteSpecifierArgs): Specifier {
