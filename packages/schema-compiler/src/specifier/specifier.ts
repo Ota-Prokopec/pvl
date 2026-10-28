@@ -8,7 +8,7 @@ import { MODULE_SPECIFIER_EXTENSIONS } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
 import type { SpecifierTarget } from './types.js';
 import type { AbsolutePath } from '../path/types.js';
-import { stripFileExtension, toPosixPath } from '../path/utils.js';
+import { splitFileExtension, toPosixPath } from '../path/utils.js';
 
 export type RebaseSpecifierArgs = {
   /** The file the module specifier is written in. */
@@ -194,7 +194,9 @@ export class Specifier {
   /**
    * A relative module specifier for the file `targetPath`, read from
    * `outputDirectory`, spelling the extension the way this module specifier
-   * did: its own extension when it had one, none otherwise.
+   * did: its own extension when it had one, none otherwise. A `.d.<ext>.ts`
+   * target always gets the `<ext>` of the file it declares, the only spelling
+   * TypeScript resolves it from.
    *
    * With `outputDirectory` `/repo/.pvl/schemas`:
    *
@@ -202,15 +204,18 @@ export class Specifier {
    * new Specifier('@/schemas/user.js').toRelative({ targetPath: '/repo/.pvl/schemas/user.ts', … }).moduleSpecifierAsString // './user.js'
    * new Specifier('@/lib/helpers').toRelative({ targetPath: '/repo/src/lib/helpers.ts', … }).moduleSpecifierAsString      // '../../src/lib/helpers'
    * new Specifier('@/data.json').toRelative({ targetPath: '/repo/src/data.json', … }).moduleSpecifierAsString             // '../../src/data.json'
+   * new Specifier('@/styles.css').toRelative({ targetPath: '/repo/src/styles.d.css.ts', … }).moduleSpecifierAsString      // '../../src/styles.css'
    * ```
    */
   private toRelative({ targetPath, outputDirectory }: ToRelativeSpecifierArgs): Specifier {
-    const originalExtension = path.extname(this.moduleSpecifierAsString);
-    const spelledExtension = MODULE_SPECIFIER_EXTENSIONS.has(originalExtension)
-      ? originalExtension
-      : '';
+    const { extensionlessPath: extensionlessTargetPath, declaredExtension } = splitFileExtension(
+      targetPath.absolutePath,
+    );
 
-    const extensionlessTargetPath = stripFileExtension(targetPath.absolutePath);
+    const originalExtension = path.extname(this.moduleSpecifierAsString);
+    const spelledExtension =
+      declaredExtension ??
+      (MODULE_SPECIFIER_EXTENSIONS.has(originalExtension) ? originalExtension : '');
 
     return Specifier.fromRelativePath(
       `${path.relative(outputDirectory.absolutePath, extensionlessTargetPath)}${spelledExtension}`,

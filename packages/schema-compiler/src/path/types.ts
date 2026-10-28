@@ -1,5 +1,6 @@
 // Where a file or directory is: its absolute path, and its path relative to a
-// base directory when the mirror places it against one.
+// base directory when the mirror places it against one; and a file path split
+// from its extension.
 
 /** Where a file or directory is, by its absolute path. */
 export type AbsolutePath<TAbsolutePath extends string = string> = {
@@ -18,3 +19,11 @@ export type AbsolutePathWithRelative<TAbsolutePath extends string = string> =
       readonly pathFromBase: string;
     };
   };
+
+/** What `splitFileExtension` reads off a file path. */
+export type SplitFileExtensionPayload = {
+  /** The path without its extension, a declaration file's whole `.d.ts` or `.d.css.ts` included. */
+  readonly extensionlessPath: string;
+  /** The extension of the file a `.d.<ext>.ts` declares (`.css` for `styles.d.css.ts`), or `undefined` for any other file. */
+  readonly declaredExtension: string | undefined;
+};
