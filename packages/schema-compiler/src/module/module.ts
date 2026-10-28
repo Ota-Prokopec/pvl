@@ -11,7 +11,7 @@ import { STANDALONE_BRAND_NAME } from '../frame/consts.js';
 import { createAbsolutePathWithRelative } from '../path/path.js';
 import type { AbsolutePath, AbsolutePathWithRelative } from '../path/types.js';
 import { HoistedArguments } from '../runtimeArgument/hoistedArguments.js';
-import type { ScannedPath } from '../scanner.js';
+import type { ScannedPath } from '../scanner/types.js';
 import type { Schema } from '../schemas/schema.js';
 import { SPECIFIER_TARGET_KIND } from '../specifier/enums.js';
 import { Specifier } from '../specifier/specifier.js';

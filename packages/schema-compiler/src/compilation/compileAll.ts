@@ -1,7 +1,7 @@
 // Compiles every scanned module into the Destination Directory's files
 // (ADR-0005): `Module.compile` handles each module.
 import type { MirroredFile, MirroredPath } from '../module/types.js';
-import type { ScannedPath } from '../scanner.js';
+import type { ScannedPath } from '../scanner/types.js';
 import type { ModuleCompilation } from '../schemas/readSchema.js';
 
 export type CompileAllArgs = {
