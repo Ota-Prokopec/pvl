@@ -9,6 +9,7 @@ import type { Destination } from '../destination/destination.js';
 import { STANDALONE_BRAND_NAME } from '../frame/consts.js';
 import { createAbsolutePathWithRelative } from '../path/path.js';
 import type { AbsolutePath, AbsolutePathWithRelative } from '../path/types.js';
+import { toPosixPath } from '../path/utils.js';
 import { HoistedArguments } from '../runtimeArgument/hoistedArguments.js';
 import type { ScannedPath } from '../scanner/types.js';
 import type { Schema } from '../schemas/schema.js';
@@ -135,9 +136,23 @@ export class Module {
   }
 
   /**
-   * Where `node` is, as a diagnostic on this module names it: its line, and
-   * also its file when that is another one, which a followed import reads
-   * from, named as a module specifier written here would name it (ADR-0043).
+   * Whether `sourceNode` is written in this module's file, rather than in
+   * another one a followed import reached (ADR-0043).
+   *
+   * ```ts
+   * // /repo/src/schemas/team.ts
+   * team.contains(<pvl.string()>)                             // true
+   * team.contains(<pvl.string()>), in /repo/src/shared/user.ts // false
+   * ```
+   */
+  public contains(sourceNode: Node): boolean {
+    return sourceNode.getSourceFile() === this.moduleFile;
+  }
+
+  /**
+   * Where `sourceNode` is, as a diagnostic on this module names it: its
+   * line, and also its file, relative to this module's directory, when that
+   * is another one, which a followed import reads from (ADR-0043).
    *
    * ```ts
    * // /repo/src/schemas/team.ts
@@ -145,17 +160,16 @@ export class Module {
    * team.spellLocation(<pvl.string()>), in /repo/src/shared/user.ts // 'line 2 of ../shared/user.ts'
    * ```
    */
-  public spellLocation(node: Node): string {
-    const line = `line ${String(node.getStartLineNumber())}`;
-    const nodeFile = node.getSourceFile();
-    if (nodeFile === this.moduleFile) {
+  public spellLocation(sourceNode: Node): string {
+    const line = `line ${String(sourceNode.getStartLineNumber())}`;
+    if (this.contains(sourceNode)) {
       return line;
     }
     const relativePath = path.relative(
       path.dirname(this.path.absolutePath),
-      nodeFile.getFilePath(),
+      sourceNode.getSourceFile().getFilePath(),
     );
-    return `${line} of ${Specifier.fromRelativePath(relativePath).moduleSpecifierAsString}`;
+    return `${line} of ${toPosixPath(relativePath)}`;
   }
 
   /**

@@ -12,6 +12,14 @@ export type SchemaCall = Omit<PropertyAccessCall, 'receiver' | 'methodName'> & {
   methodName: PvlSchemaMethodName;
 };
 
+/** A property read off a namespace import: `schemas.user`, with `import * as schemas from './schemas.js'`. */
+export type NamespaceImportRead = {
+  /** The namespace import's Module Specifier: `'./schemas.js'`. */
+  moduleSpecifier: string;
+  /** The property read: `'user'`. */
+  propertyName: string;
+};
+
 /** The first error TypeScript's parser reports in a file: its message, flattened to one line, and the line it is on. */
 export type ParseError = {
   message: string;

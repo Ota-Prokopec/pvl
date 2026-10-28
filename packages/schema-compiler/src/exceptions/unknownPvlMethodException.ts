@@ -22,7 +22,7 @@ export class UnknownPvlMethodException extends BaseException {
   public constructor(unknownCall: PropertyAccessCallExpression) {
     super(`\`.${unknownCall.getExpression().getName()}()\` isn't a method \`@pvl/schema\` has.`, {
       errorCode: DIAGNOSTIC_CODE.UNSUPPORTED_SCHEMA,
-      node: unknownCall,
+      offendingNode: unknownCall,
     });
   }
 }

@@ -246,6 +246,24 @@ describe('an Imported Schema', () => {
     ]);
   });
 
+  it('recognises `pvl` by what each name is bound to, so a parameter shadowing it marks nothing', async () => {
+    expect(
+      await compileClassHeads(
+        [
+          "import { name } from '../shared/name.js';",
+          'export const a = pvl.compile(pvl.object({ name }));',
+          'export const make = (pvl: { compile: (value: number) => number }) => pvl.compile(1);',
+        ].join('\n'),
+        {
+          'src/shared/name.ts':
+            "import { pvl as p } from '@pvl/schema';\n\nconst pvl = { string: () => 1 };\nexport const name = p.string().optional();\nexport const notPvl = pvl.string();\n",
+        },
+      ),
+    ).toEqual([
+      'class PvlCompiledSchema0 implements PvlSchema<{ name?: string | undefined }, { name?: string | undefined }> {',
+    ]);
+  });
+
   it('takes a Runtime Argument chained onto it in the compiling file', async () => {
     expect(
       await compileClassHeads(

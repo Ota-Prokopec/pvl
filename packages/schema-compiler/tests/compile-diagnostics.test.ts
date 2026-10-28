@@ -477,24 +477,27 @@ describe('runCompilation(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/index.ts')).toBe('previous output');
   });
 
-  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument no const holds, imported or not, or a spread method argument', async () => {
+  it('COMPILE_ARGUMENT_UNRESOLVABLE: an argument no const holds, imported or not, or a spread method argument, with how to write an import that is followed', async () => {
     const schemaFilePath = 'src/schemas/compiled.ts';
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
       'src/schemas/fallback.ts':
         "import { pvl } from '@pvl/schema';\n\nexport default pvl.string();\n",
+      'lib/external.d.ts': 'export declare const external: unknown;\n',
       [schemaFilePath]: [
         "import { pvl } from '@pvl/schema';",
         "import { user } from './user.js';",
         "import * as schemas from './user.js';",
         "import fallback from './fallback.js';",
+        "import { external } from '../../lib/external.js';",
         '',
         'const makeSchema = () => pvl.object({});',
         'const limits = [3] as const;',
         "const options = { message: 'too long' };",
         'export const defaultExpression = pvl.compile(fallback);',
         'export const namespaced = pvl.compile(schemas.user);',
+        'export const declared = pvl.compile(external);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
         'export const spreadArgument = pvl.compile(pvl.array(pvl.string()).max(...limits));',
@@ -507,11 +510,19 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 6 }, () => ({
+      Array.from({ length: 7 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
         file: path.join(root, schemaFilePath),
       })),
     );
+    expect(payload.diagnostics.slice(0, 2).map(({ message }) => message)).toEqual([
+      expect.stringContaining(
+        "`fallback` is a default-exported expression on line 3 of fallback.ts, which the compiler doesn't follow. A default export is followed when it names a `const`: `const fallback = pvl.object(…); export default fallback;`.",
+      ),
+      expect.stringContaining(
+        "Import the Schema by its name instead: `import { user } from './user.js'`.",
+      ),
+    ]);
   });
 
   it('RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: an Imported Schema passes a Runtime Argument written in its own file, reported on the compiling one', async () => {

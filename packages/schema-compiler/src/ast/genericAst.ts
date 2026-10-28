@@ -1,14 +1,15 @@
 // Reading TypeScript syntax statically, with no PVL knowledge: matching a node
 // against a shape, seeing through parentheses, `as` and top-level `const`s,
-// of the same file or imported, reading literals as values, whether a file parses and exports anything,
-// which of its statements run code, and where its module specifiers are
-// written. Nothing is imported or executed.
+// of the same file or imported, reading literals as values, whether a file
+// parses and exports anything, which of its statements run code, and where
+// its module specifiers are written. Nothing is imported or executed.
 import {
   Node,
   SyntaxKind,
   ts,
   VariableDeclarationKind,
   type CallExpression,
+  type ExportAssignment,
   type Identifier,
   type PrefixUnaryExpression,
   type PropertyAccessExpression,
@@ -18,7 +19,7 @@ import {
   type VariableDeclaration,
 } from 'ts-morph';
 import { ConstCycleException, UnresolvedNodeException } from '../exceptions/index.js';
-import type { ParseError } from './types.js';
+import type { NamespaceImportRead, ParseError } from './types.js';
 
 /** An argument written as a literal in source: `3`, `'a'`, `10n`, `{ message: 'too short' }`. */
 export type StaticValue =
@@ -233,10 +234,9 @@ export class GenericAst {
    * (`unwrap`). An identifier is followed only when it names a top-level
    * `const` in its scope, of `node`'s own file or imported from another
    * (`findTopLevelConst`): any other identifier, one shadowing such a
-   * `const` included, throws UnresolvedNodeException, with a hint when it
-   * imports a default-exported expression (`findImportHint`), and a `const`
-   * that is reached again while it is being followed, or while its value is
-   * being read (`followed`), throws ConstCycleException, in whichever file.
+   * `const` included, throws UnresolvedNodeException, and a `const` that is
+   * reached again while it is being followed, or while its value is being
+   * read (`followed`), throws ConstCycleException, in whichever file.
    *
    * ```ts
    * // const MIN = 3; const LIMIT = (MIN);
@@ -246,7 +246,7 @@ export class GenericAst {
    * // import { user } from './user.js', where `export const user = pvl.string();`
    * GenericAst.followConst(<user>)             // { node: <pvl.string()>, followed: {<user = pvl.string()>} }
    * // import user from './user.js', where `export default pvl.string();`; let limit = 3;
-   * GenericAst.followConst(<user>)             // throws UnresolvedNodeException(<user>), with a hint: a default-exported expression
+   * GenericAst.followConst(<user>)             // throws UnresolvedNodeException(<user>): a default-exported expression is no `const`
    * GenericAst.followConst(<limit>)            // throws UnresolvedNodeException(<limit>): a `let`
    * // const MIN = 3; (MIN: number) => MIN;
    * GenericAst.followConst(<MIN>)              // throws UnresolvedNodeException(<MIN>): `MIN` is the parameter
@@ -265,7 +265,7 @@ export class GenericAst {
     const declaration = GenericAst.findTopLevelConst(unwrappedNode);
     const initializer = declaration?.getInitializer();
     if (declaration === undefined || initializer === undefined) {
-      throw new UnresolvedNodeException(unwrappedNode, GenericAst.findImportHint(unwrappedNode));
+      throw new UnresolvedNodeException(unwrappedNode);
     }
 
     if (followed.has(declaration)) {
@@ -273,37 +273,6 @@ export class GenericAst {
     }
 
     return GenericAst.followConst(initializer, new Set([...followed, declaration]));
-  }
-
-  /**
-   * A hint for how to write `node` so it reads, when it imports a Schema in
-   * a way that can't be followed: a default-exported expression, which no
-   * `const` holds, or a property of a namespace import, which is no name of
-   * its own (ADR-0043); `undefined` for anything else.
-   *
-   * ```ts
-   * // import user from './user.js', where `export default pvl.string();`
-   * GenericAst.findImportHint(<user>)         // 'A default export can be followed when it names a `const`: …'
-   * // import * as schemas from './schemas.js';
-   * GenericAst.findImportHint(<schemas.user>) // "Import the Schema by its name instead: `import { user } from './schemas.js'`."
-   * GenericAst.findImportHint(<makeSchema()>) // undefined
-   * ```
-   */
-  public static findImportHint(node: Node): string | undefined {
-    if (Node.isIdentifier(node) && Node.isExportAssignment(GenericAst.findBoundDeclaration(node))) {
-      return 'A default export can be followed when it names a `const`: `const schema = pvl.object(…); export default schema;`.';
-    }
-    if (!Node.isPropertyAccessExpression(node)) {
-      return undefined;
-    }
-    const [namespaceImport] = node.getExpression().getSymbol()?.getDeclarations() ?? [];
-    if (!Node.isNamespaceImport(namespaceImport)) {
-      return undefined;
-    }
-    const moduleSpecifier = namespaceImport
-      .getFirstAncestorByKindOrThrow(SyntaxKind.ImportDeclaration)
-      .getModuleSpecifierValue();
-    return `Import the Schema by its name instead: \`import { ${node.getName()} } from '${moduleSpecifier}'\`.`;
   }
 
   /**
@@ -326,8 +295,7 @@ export class GenericAst {
    */
   private static findTopLevelConst(identifier: Identifier): VariableDeclaration | undefined {
     const declaration = GenericAst.findBoundDeclaration(identifier);
-    return Node.isVariableDeclaration(declaration) &&
-      GenericAst.isTopLevelConstIn(declaration, declaration.getSourceFile())
+    return Node.isVariableDeclaration(declaration) && GenericAst.isTopLevelConst(declaration)
       ? declaration
       : undefined;
   }
@@ -356,6 +324,52 @@ export class GenericAst {
   }
 
   /**
+   * The `export default <expression>` that `node` is bound to, when it is a
+   * name imported from a default export that names no declaration of its
+   * own; `undefined` for anything else.
+   *
+   * ```ts
+   * // import user from './user.js', where `export default pvl.string();`
+   * GenericAst.findBoundDefaultExport(<user>) // <export default pvl.string();>
+   * // import tag from './tag.js', where `const tag = …; export default tag;`
+   * GenericAst.findBoundDefaultExport(<tag>)  // undefined: bound to <tag = …>
+   * ```
+   */
+  public static findBoundDefaultExport(node: Node): ExportAssignment | undefined {
+    if (!Node.isIdentifier(node)) {
+      return undefined;
+    }
+    const declaration = GenericAst.findBoundDeclaration(node);
+    return Node.isExportAssignment(declaration) ? declaration : undefined;
+  }
+
+  /**
+   * `node` as a property read off a namespace import, with the import's
+   * Module Specifier; `undefined` for any other node.
+   *
+   * ```ts
+   * // import * as schemas from './schemas.js';
+   * GenericAst.asNamespaceImportRead(<schemas.user>) // { moduleSpecifier: './schemas.js', propertyName: 'user' }
+   * GenericAst.asNamespaceImportRead(<user.shape>)   // undefined: `user` is no namespace import
+   * ```
+   */
+  public static asNamespaceImportRead(node: Node): NamespaceImportRead | undefined {
+    if (!Node.isPropertyAccessExpression(node)) {
+      return undefined;
+    }
+    const [namespaceImport] = node.getExpression().getSymbol()?.getDeclarations() ?? [];
+    if (!Node.isNamespaceImport(namespaceImport)) {
+      return undefined;
+    }
+    return {
+      moduleSpecifier: namespaceImport
+        .getFirstAncestorByKindOrThrow(SyntaxKind.ImportDeclaration)
+        .getModuleSpecifierValue(),
+      propertyName: node.getName(),
+    };
+  }
+
+  /**
    * The top-level `const` declarator of `node`'s file that `node` is written
    * in, at any depth; `undefined` when it is in none.
    *
@@ -371,20 +385,16 @@ export class GenericAst {
   public static findEnclosingTopLevelConst(node: Node): VariableDeclaration | undefined {
     return node.getFirstAncestor(
       (ancestor): ancestor is VariableDeclaration =>
-        Node.isVariableDeclaration(ancestor) &&
-        GenericAst.isTopLevelConstIn(ancestor, node.getSourceFile()),
+        Node.isVariableDeclaration(ancestor) && GenericAst.isTopLevelConst(ancestor),
     );
   }
 
-  /** Whether `declaration` is a `const` declared at the top level of `sourceFile`. */
-  private static isTopLevelConstIn(
-    declaration: VariableDeclaration,
-    sourceFile: SourceFile,
-  ): boolean {
+  /** Whether `declaration` is a `const` declared at the top level of its file. */
+  private static isTopLevelConst(declaration: VariableDeclaration): boolean {
     const variableStatement = declaration.getVariableStatement();
     return (
       variableStatement?.getDeclarationKind() === VariableDeclarationKind.Const &&
-      variableStatement.getParent() === sourceFile
+      variableStatement.getParent() === declaration.getSourceFile()
     );
   }
 

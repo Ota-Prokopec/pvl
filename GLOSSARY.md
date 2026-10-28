@@ -105,7 +105,7 @@ A method's argument in a Marked-to-Compile Schema that isn't a literal written i
 _Avoid_: Dynamic argument, captured argument, snapshot argument.
 
 **Imported Schema**:
-A Schema a `pvl.compile(...)` argument reads from another file, by following an import to the top-level `const` that holds it: a named, aliased or default import, through any barrel or tsconfig `paths` alias, into a file `include` matches or not. It is inlined into the Compiled Schema like any nested Schema, read under its own file's Local Names of `pvl`. A Runtime Argument written in its file can't be evaluated in the file being compiled, so it is `RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA`. In code, `GenericAst.findTopLevelConst` (`src/ast/genericAst.ts`) follows the import. See [ADR-0043](./docs/adr/0043-the-compiler-follows-a-const-into-another-file-and-a-runtime-argument-there-is-an-error.md) and [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
+A Schema a `pvl.compile(...)` argument reads from another file, by following an import to the top-level `const` that holds it: a named, aliased or default import, through any barrel or tsconfig `paths` alias, into a file `include` matches or not. It is inlined into the Compiled Schema like any nested Schema, read under its own file's Local Names of `pvl`. A Runtime Argument written in its file can't be evaluated in the file being compiled, so it is `RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA`. In code, `GenericAst.findBoundDeclaration` (`src/ast/genericAst.ts`) follows the import. See [ADR-0043](./docs/adr/0043-the-compiler-follows-a-const-into-another-file-and-a-runtime-argument-there-is-an-error.md) and [compilation.md](./docs/specification/schema-compiler/compilation.md#what-reads-statically).
 _Avoid_: Followed Schema, external Schema, shared Schema.
 
 **Emitter**:
@@ -160,5 +160,5 @@ The name a module exports and an import asks for: `pvl` in both `import { pvl } 
 _Avoid_: Variable expression, imported variable.
 
 **Local Name**:
-The name an import binds in the importing module: `p` in `import { pvl as p } from '@pvl/schema'`, and `pvl` in `import { pvl } from '@pvl/schema'`, where it equals the Import Name. A `pvl.compile(...)` call is found by the Local Names of `pvl`, so `p.compile(...)` counts too.
+The name an import binds in the importing module: `p` in `import { pvl as p } from '@pvl/schema'`, and `pvl` in `import { pvl } from '@pvl/schema'`, where it equals the Import Name. A `pvl.compile(...)` call is found by what its name is bound to, so `p.compile(...)` counts too, and a parameter or a local that shadows the import doesn't.
 _Avoid_: Alias, alias expression (an alias is a tsconfig `paths` entry such as `@/schemas/user`).

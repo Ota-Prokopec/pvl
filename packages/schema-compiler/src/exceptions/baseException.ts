@@ -8,7 +8,8 @@ import type { BaseExceptionOptions } from './types.js';
  * A failure the compiler expects and recovers from, reported as the
  * diagnostic `errorCode` names wherever it is caught to be reported. Its
  * `message` describes only its own node, so the catch adds which Schema it
- * is in and where `node` is, which may be in another file than the Schema.
+ * is in and where `offendingNode` is, which may be in another file than the
+ * Schema.
  * A bug in the compiler throws a plain `Error` instead, which nothing
  * catches.
  *
@@ -21,20 +22,23 @@ export abstract class BaseException extends Error {
   /** The diagnostic it is reported as. */
   public readonly errorCode: DiagnosticCode;
   /** The node it is thrown at. */
-  public readonly node: Node;
+  public readonly offendingNode: Node;
 
   /**
    * An exception named after its subclass, so a stack trace or a log shows
    * which one it is.
    *
    * ```ts
-   * super(`\`${node.getText()}\` can't be read statically.`, { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE, node });
+   * super(`\`${unresolvedNode.getText()}\` can't be read statically.`, { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE, offendingNode: unresolvedNode });
    * ```
    */
-  public constructor(message: string, { errorCode, node, ...errorOptions }: BaseExceptionOptions) {
+  public constructor(
+    message: string,
+    { errorCode, offendingNode, ...errorOptions }: BaseExceptionOptions,
+  ) {
     super(message, errorOptions);
     this.name = new.target.name;
     this.errorCode = errorCode;
-    this.node = node;
+    this.offendingNode = offendingNode;
   }
 }

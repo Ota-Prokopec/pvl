@@ -24,7 +24,7 @@ export class ConstCycleException extends BaseException {
   public constructor(cycleNode: Node) {
     super(
       `\`${cycleNode.getText()}\` names a const that refers back to itself, so reading it would never end.`,
-      { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE, node: cycleNode },
+      { errorCode: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_CYCLE, offendingNode: cycleNode },
     );
   }
 }
