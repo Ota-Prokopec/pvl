@@ -30,7 +30,8 @@ import {
 } from './path.js';
 import type { Schema } from './schemas/schema.js';
 import type { ScannedPath } from './scanner.js';
-import { Specifier, type SpecifierTarget } from './specifier/specifier.js';
+import { Specifier } from './specifier/specifier.js';
+import type { SpecifierTarget } from './specifier/types.js';
 import { TsMorphProject } from './tsMorphProject.js';
 
 /**

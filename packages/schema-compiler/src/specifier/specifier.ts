@@ -2,17 +2,10 @@
 // kind of specifier it is, the one a relative path is named by, and how one
 // written in a scanned module is spelled from its mirrored module's location.
 import * as path from 'node:path';
+import { MODULE_SPECIFIER_EXTENSIONS } from './consts.js';
 import { SPECIFIER_TARGET_KIND } from './enums.js';
+import type { SpecifierTarget } from './types.js';
 import { stripFileExtension, toPosixPath, type AbsolutePath } from '../path.js';
-
-/** What a module specifier reaches, resolved from where it was written. */
-export type SpecifierTarget =
-  | {
-      kind: typeof SPECIFIER_TARGET_KIND.MIRRORED | typeof SPECIFIER_TARGET_KIND.REPOSITORY;
-      /** The mirrored module of a scanned file, or the unscanned original file. */
-      path: AbsolutePath;
-    }
-  | { kind: typeof SPECIFIER_TARGET_KIND.UNRESOLVED };
 
 export type RebaseSpecifierArgs = {
   /** The file the module specifier is written in. */
