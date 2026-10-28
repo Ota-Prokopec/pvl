@@ -1,6 +1,6 @@
 // What every Schema holds, and what each subclass holds besides.
 import type { EnumMember, PossibleLiteralValue } from '@pvl/schema';
-import type { CallExpression, Node } from 'ts-morph';
+import type { Node } from 'ts-morph';
 import type { Module } from '../../module/module.js';
 import type { Schema } from '../schema.js';
 import type { SchemaModifierCall } from './modifierCall.js';
@@ -11,8 +11,8 @@ export type SchemaOptions = {
   module: Module;
   /** The expression it is read from. */
   expression: Node;
-  /** Its factory call as written, which may be in another file than its Module (ADR-0043). */
-  factoryCall: CallExpression;
+  /** Where its factory call is written, as a diagnostic on its Module names it (`Module.spellLocation`): `line 3`, or `line 2 of ../shared/user.ts` in another file (ADR-0043). */
+  location: string;
   /** The Modifiers chained onto its factory call, pre- and post-modifiers together, in chain order, its `.transform()` included, last. */
   calls: ReadonlyArray<SchemaModifierCall>;
   /** Whether `.standalone()` is chained onto it. */

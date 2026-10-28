@@ -23,7 +23,7 @@ export const DIAGNOSTIC_CODE = {
   INVALID_CONFIG: 'INVALID_CONFIG',
   /** `include` matched no file. */
   NO_INPUT_FILES: 'NO_INPUT_FILES',
-  /** `include` matched a symlink, which the compiler doesn't follow, so it isn't mirrored or compiled (a warning). */
+  /** `include` matched a symlink, or a file through a symlinked directory, which the compiler doesn't follow, so nothing reached through it is mirrored or compiled (a warning). */
   SYMLINK_SKIPPED: 'SYMLINK_SKIPPED',
   /** The destination is a file, or can't be created or written. */
   DESTINATION_UNWRITABLE: 'DESTINATION_UNWRITABLE',

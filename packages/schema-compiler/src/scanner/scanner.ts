@@ -1,13 +1,13 @@
 // Finds the files `include` selects, reading none of them (ADR-0002), and
 // reports what `include` raises: a pattern reaching the Destination Directory,
-// a symlink, which is never followed, a file or a directory, or no file matched.
+// and a symlink, which is never followed (ADR-0044). `runCompilation` reports
+// an `include` that matched no file, after the destination's diagnostics.
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
 import { NODE_MODULES_DIRECTORY_NAME } from './consts.js';
 import type { ScannedPath, ScanPayload, ScanScope } from './types.js';
 import {
   createDestinationInsideIncludeDiagnostic,
-  createNoInputFilesDiagnostic,
   createSymlinkSkippedDiagnostic,
   findLinkedDirectory,
   findPatternsMatchingPath,
@@ -28,9 +28,9 @@ export class Scanner {
    * ['./src/*.ts', 'src/a.ts']   // { scannedFilePaths: ['/repo/src/a.ts'], … }: deduplicated
    * ['src/*']                    // { scannedFilePaths: ['/repo/src/a.ts'], … }: the directory `src/b` is dropped
    * ['src/*.ts']                 // with src/linked.ts → a.ts: { scannedFilePaths: ['/repo/src/a.ts'], diagnostics: [SYMLINK_SKIPPED] }
-   * ['src/linked/*.ts']          // with src/linked → ../lib: { scannedFilePaths: [], diagnostics: [SYMLINK_SKIPPED, NO_INPUT_FILES] }
+   * ['src/linked/*.ts']          // with src/linked → ../lib: { scannedFilePaths: [], diagnostics: [SYMLINK_SKIPPED] }
    * ['**\/*.ts']                 // skips node_modules/, gen/, gen.pvl-tmp/ and gen.pvl-old/; diagnostics: [DESTINATION_INSIDE_INCLUDE]
-   * ['lib/*.ts']                 // { scannedFilePaths: [], diagnostics: [NO_INPUT_FILES] }
+   * ['lib/*.ts']                 // { scannedFilePaths: [], diagnostics: [] }
    * ```
    */
   public static async scan({
@@ -44,7 +44,7 @@ export class Scanner {
       destination.getOldDestination().absolutePath,
     ]);
 
-    const entries = fsPromises.glob(include, {
+    const matchedEntries = fsPromises.glob(include, {
       cwd: baseDirectory,
       withFileTypes: true,
       exclude: (visitedEntry) =>
@@ -54,14 +54,16 @@ export class Scanner {
 
     const files = new Set<ScannedPath>();
     const symlinks = new Set<string>();
-    // `**` never enters a symlinked directory, but a pattern naming one goes through it.
-    const linkedDirectoryByParent = new Map<string, Promise<string | undefined>>();
-    for await (const matchedEntry of entries) {
+    // `fs.glob` goes through a symlinked directory a pattern names
+    // (`src/linked/*.ts`), and `**` sometimes does (`src/**/*` one level
+    // in), so every match is checked for one on its way.
+    const linkedDirectoryByParentPath = new Map<string, Promise<string | undefined>>();
+    for await (const matchedEntry of matchedEntries) {
       const { parentPath } = matchedEntry;
-      if (!linkedDirectoryByParent.has(parentPath)) {
-        linkedDirectoryByParent.set(parentPath, findLinkedDirectory(baseDirectory, parentPath));
+      if (!linkedDirectoryByParentPath.has(parentPath)) {
+        linkedDirectoryByParentPath.set(parentPath, findLinkedDirectory(baseDirectory, parentPath));
       }
-      const linkedDirectory = await linkedDirectoryByParent.get(parentPath);
+      const linkedDirectory = await linkedDirectoryByParentPath.get(parentPath);
       const entryPath = path.join(parentPath, matchedEntry.name);
       if (linkedDirectory !== undefined) {
         symlinks.add(linkedDirectory);
@@ -80,7 +82,6 @@ export class Scanner {
           createDestinationInsideIncludeDiagnostic(destination, pattern),
         ),
         ...[...symlinks].sort().map((symlinkPath) => createSymlinkSkippedDiagnostic(symlinkPath)),
-        ...(scannedFilePaths.length === 0 ? [createNoInputFilesDiagnostic(include)] : []),
       ],
     };
   }

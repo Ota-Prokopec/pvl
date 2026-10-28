@@ -1,5 +1,4 @@
 // A method chained onto a Schema, and each of its arguments.
-import type { CallExpression } from 'ts-morph';
 import type { StaticValue } from '../../ast/genericAst.js';
 import type { RuntimeArgument } from '../../runtimeArgument/runtimeArgument.js';
 
@@ -14,6 +13,6 @@ export type SchemaModifierCall = {
    * `undefined` when one is spread, so it has no fixed position.
    */
   args: ReadonlyArray<SchemaModifierCallArgument> | undefined;
-  /** The call as written, which may be in another file than its Schema's Module (ADR-0043). */
-  methodCall: CallExpression;
+  /** Where the call is written, as a diagnostic on its Schema's Module names it (`Module.spellLocation`): `line 3`, or `line 2 of ../shared/user.ts` in another file (ADR-0043). */
+  location: string;
 };

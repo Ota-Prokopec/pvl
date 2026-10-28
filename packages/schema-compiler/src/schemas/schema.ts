@@ -13,7 +13,7 @@ import {
   PVL_SCHEMA_PRE_MODIFIER_METHOD_NAMES,
   type PvlFactoryName,
 } from '@pvl/schema';
-import type { CallExpression, Node } from 'ts-morph';
+import type { Node } from 'ts-morph';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 import type { EmitCompiledSchemaArgs } from '../emitters/types/compiledSchema.js';
 import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
@@ -63,8 +63,13 @@ export abstract class Schema {
   public readonly module: Module;
   /** The expression it is read from, which compiling the root replaces. */
   public readonly expression: Node;
-  /** Its factory call as written, which may be in another file than its Module (ADR-0043). */
-  public readonly factoryCall: CallExpression;
+  /**
+   * Where its factory call is written, as a diagnostic on its Module names
+   * it (`Module.spellLocation`): `line 3`, or `line 2 of ../shared/user.ts`
+   * in another file (ADR-0043). Spelled when it is read, so it holds no node
+   * that compiling another Module would leave stale.
+   */
+  public readonly location: string;
   /**
    * The Modifiers chained onto its factory call, pre- and post-modifiers
    * together, in chain order: the types a Modifier sees are those the ones
@@ -90,12 +95,12 @@ export abstract class Schema {
    * A Schema holding `options`, with the factory and Emitter of the
    * subclass being constructed (`new.target`).
    */
-  protected constructor({ module, expression, factoryCall, calls, isStandalone }: SchemaOptions) {
+  protected constructor({ module, expression, location, calls, isStandalone }: SchemaOptions) {
     this.factory = new.target.factory;
     this.subclassEmitter = new.target.emitter;
     this.module = module;
     this.expression = expression;
-    this.factoryCall = factoryCall;
+    this.location = location;
     this.calls = calls;
     this.isStandalone = isStandalone;
   }
@@ -145,9 +150,7 @@ export abstract class Schema {
     }
     const callIndex = calls.indexOf(call);
     if (callIndex === -1) {
-      throw new Error(
-        `.${call.name}() on ${this.module.spellLocation(call.methodCall)} isn't chained onto this Schema.`,
-      );
+      throw new Error(`.${call.name}() on ${call.location} isn't chained onto this Schema.`);
     }
     return calls.slice(0, callIndex);
   }
@@ -193,13 +196,14 @@ export abstract class Schema {
    * ```
    */
   public findUncompilableDiagnostics(): Diagnostic[] {
-    const { subclassEmitter, factory, factoryCall, module } = this;
+    const { subclassEmitter, factory, location } = this;
+    const file = this.module.path.absolutePath;
     if (subclassEmitter === undefined) {
-      return [createUnsupportedSchemaDiagnostic({ factory, factoryCall, module })];
+      return [createUnsupportedSchemaDiagnostic({ factory, location, file })];
     }
     return [
       ...this.calls.flatMap(
-        (call) => findUncompilableCallDiagnostic({ emitter: subclassEmitter, call, module }) ?? [],
+        (call) => findUncompilableCallDiagnostic({ emitter: subclassEmitter, call, file }) ?? [],
       ),
       ...this.findChildren().flatMap((child) => child.findUncompilableDiagnostics()),
     ];

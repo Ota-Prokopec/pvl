@@ -484,11 +484,14 @@ describe('runCompilation(): diagnostics', () => {
       'src/schemas/user.ts': SCHEMA_FILE,
       'src/schemas/fallback.ts':
         "import { pvl } from '@pvl/schema';\n\nexport default pvl.string();\n",
+      'src/schemas/named.ts':
+        "import { pvl } from '@pvl/schema';\n\nconst named = pvl.string();\nexport default named;\n",
       'lib/external.d.ts': 'export declare const external: unknown;\n',
       [schemaFilePath]: [
         "import { pvl } from '@pvl/schema';",
         "import { user } from './user.js';",
         "import * as schemas from './user.js';",
+        "import * as defaults from './named.js';",
         "import fallback from './fallback.js';",
         "import { external } from '../../lib/external.js';",
         '',
@@ -497,6 +500,7 @@ describe('runCompilation(): diagnostics', () => {
         "const options = { message: 'too long' };",
         'export const defaultExpression = pvl.compile(fallback);',
         'export const namespaced = pvl.compile(schemas.user);',
+        'export const namespacedDefault = pvl.compile(defaults.default);',
         'export const declared = pvl.compile(external);',
         'export const built = pvl.compile(makeSchema());',
         'export const spread = pvl.compile(pvl.object({ ...user.shape }));',
@@ -510,17 +514,20 @@ describe('runCompilation(): diagnostics', () => {
 
     expectFailure(
       payload,
-      Array.from({ length: 7 }, () => ({
+      Array.from({ length: 8 }, () => ({
         code: DIAGNOSTIC_CODE.COMPILE_ARGUMENT_UNRESOLVABLE,
         file: path.join(root, schemaFilePath),
       })),
     );
-    expect(payload.diagnostics.slice(0, 2).map(({ message }) => message)).toEqual([
+    expect(payload.diagnostics.slice(0, 3).map(({ message }) => message)).toEqual([
       expect.stringContaining(
         "`fallback` is a default-exported expression on line 3 of fallback.ts, which the compiler doesn't follow. A default export is followed when it names a `const`: `const fallback = pvl.object(…); export default fallback;`.",
       ),
       expect.stringContaining(
         "Import the Schema by its name instead: `import { user } from './user.js'`.",
+      ),
+      expect.stringContaining(
+        "Import the default export instead: `import schema from './named.js'`.",
       ),
     ]);
   });

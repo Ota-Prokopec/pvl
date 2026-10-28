@@ -15,7 +15,7 @@ export type SchemaCall = Omit<PropertyAccessCall, 'receiver' | 'methodName'> & {
 /** A property read off a namespace import: `schemas.user`, with `import * as schemas from './schemas.js'`. */
 export type NamespaceImportRead = {
   /** The namespace import's Module Specifier: `'./schemas.js'`. */
-  moduleSpecifier: string;
+  moduleSpecifierAsString: string;
   /** The property read: `'user'`. */
   propertyName: string;
 };

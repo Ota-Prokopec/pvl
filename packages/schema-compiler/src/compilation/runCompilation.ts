@@ -13,6 +13,7 @@ import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
 import { Precheck } from '../precheck/precheck.js';
 import { Module } from '../module/module.js';
 import { Scanner } from '../scanner/scanner.js';
+import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
 import type { CompilationOutput } from './types.js';
 
@@ -137,6 +138,9 @@ const runCompilationWithoutPromoting = async ({
   const scanScopeDiagnostics: Diagnostic[] = [
     ...scanPayload.diagnostics,
     ...destinationDiagnostics,
+    ...(scanPayload.scannedFilePaths.length === 0
+      ? [createNoInputFilesDiagnostic(rawSettings.include)]
+      : []),
   ];
 
   const tsMorphProjectPayload = TsMorphProject.create(baseDirectory);

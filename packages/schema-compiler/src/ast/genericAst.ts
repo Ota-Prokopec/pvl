@@ -324,6 +324,26 @@ export class GenericAst {
   }
 
   /**
+   * The declaration the name `node` reads in its own file: an import's
+   * specifier or namespace rather than what it imports, which
+   * `findBoundDeclaration` follows to; `undefined` for a name nothing
+   * declares. A parameter or a local that shadows an import is its own
+   * declaration.
+   *
+   * ```ts
+   * // import { pvl as p } from '@pvl/schema';
+   * GenericAst.findLocalDeclaration(<p>)       // <pvl as p>
+   * // import * as schemas from './schemas.js';
+   * GenericAst.findLocalDeclaration(<schemas>) // <* as schemas>
+   * // (pvl: Factory) => pvl.string()
+   * GenericAst.findLocalDeclaration(<pvl>)     // <pvl: Factory>
+   * ```
+   */
+  public static findLocalDeclaration(node: Node): Node | undefined {
+    return node.getSymbol()?.getDeclarations()[0];
+  }
+
+  /**
    * The `export default <expression>` that `node` is bound to, when it is a
    * name imported from a default export that names no declaration of its
    * own; `undefined` for anything else.
@@ -349,7 +369,7 @@ export class GenericAst {
    *
    * ```ts
    * // import * as schemas from './schemas.js';
-   * GenericAst.asNamespaceImportRead(<schemas.user>) // { moduleSpecifier: './schemas.js', propertyName: 'user' }
+   * GenericAst.asNamespaceImportRead(<schemas.user>) // { moduleSpecifierAsString: './schemas.js', propertyName: 'user' }
    * GenericAst.asNamespaceImportRead(<user.shape>)   // undefined: `user` is no namespace import
    * ```
    */
@@ -357,12 +377,12 @@ export class GenericAst {
     if (!Node.isPropertyAccessExpression(node)) {
       return undefined;
     }
-    const [namespaceImport] = node.getExpression().getSymbol()?.getDeclarations() ?? [];
+    const namespaceImport = GenericAst.findLocalDeclaration(node.getExpression());
     if (!Node.isNamespaceImport(namespaceImport)) {
       return undefined;
     }
     return {
-      moduleSpecifier: namespaceImport
+      moduleSpecifierAsString: namespaceImport
         .getFirstAncestorByKindOrThrow(SyntaxKind.ImportDeclaration)
         .getModuleSpecifierValue(),
       propertyName: node.getName(),

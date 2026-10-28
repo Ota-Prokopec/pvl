@@ -32,6 +32,6 @@ export type ScanScope = {
 export type ScanPayload = {
   /** The matched files' absolute paths, sorted and without duplicates. */
   scannedFilePaths: ScannedPath[];
-  /** DESTINATION_INSIDE_INCLUDE for each pattern matching the destination, SYMLINK_SKIPPED for each symlink matched, then NO_INPUT_FILES when no file matched. */
+  /** DESTINATION_INSIDE_INCLUDE for each pattern matching the destination, then SYMLINK_SKIPPED for each symlink matched or reached a file through. */
   diagnostics: Diagnostic[];
 };

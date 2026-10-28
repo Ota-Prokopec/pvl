@@ -10,13 +10,13 @@ import { BaseException } from './baseException.js';
  * Schema, reported as RUNTIME_ARGUMENT_IN_IMPORTED_SCHEMA: it is evaluated
  * in the file it is written in, so it can't be inlined into another one.
  */
-export class ImportedRuntimeArgumentException extends BaseException {
+export class RuntimeArgumentInImportedSchemaException extends BaseException {
   /**
    * The exception at `argument`, passed to the method `methodName`.
    *
    * ```ts
    * // shared/user.ts: export const user = pvl.string().max(LIMIT);
-   * new ImportedRuntimeArgumentException(<LIMIT>, 'max').message
+   * new RuntimeArgumentInImportedSchemaException(<LIMIT>, 'max').message
    * // "`LIMIT`, passed to `.max()`, is a Runtime Argument of a Schema imported from that file. …"
    * ```
    */

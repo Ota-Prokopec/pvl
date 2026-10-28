@@ -74,7 +74,7 @@ export class PvlAst {
    * ```
    */
   private static isPvlImport(identifier: Identifier): boolean {
-    const [declaration] = identifier.getSymbol()?.getDeclarations() ?? [];
+    const declaration = GenericAst.findLocalDeclaration(identifier);
     return (
       Node.isImportSpecifier(declaration) &&
       declaration.getName() === 'pvl' &&
