@@ -35,7 +35,7 @@ The checks are `check-types` on the VitePress config, `lint`, and `build`, which
 
 Two pages, and a third is a deliberate decision:
 
-- `content/guide/getting-started.md`: installing, a first schema, reading a `Result`, type inference, then "Compile it" and a lazy-loaded StackBlitz `<iframe>`. The iframe loads [`stackblitz/get-started-docs`](../../stackblitz/AGENTS.md) straight from `main` on GitHub, so a preview or `docs:dev` shows `main`'s project, not the branch's.
+- `content/guide/getting-started.md`: installing, a first schema, reading a `Result`, type inference, then "Compile it" and a lazy StackBlitz `<iframe>`; `ctl=1` makes the reader click before StackBlitz boots Node.js and installs packages in the browser. StackBlitz runs the project only on a cross-origin isolated page: every page sends `Cross-Origin-Embedder-Policy: credentialless` and `Cross-Origin-Opener-Policy: same-origin` (a plugin in `config.ts` for `dev` and `preview`, `vercel.json` in production, which also sets `cleanUrls` so Vercel serves the extensionless links `cleanUrls: true` in `config.ts` produces), and the iframe is `credentialless`. Without them StackBlitz shows the editor but never starts the terminal. The iframe loads [`stackblitz/get-started-docs`](../../stackblitz/AGENTS.md) straight from `main` on GitHub, so a preview or `docs:dev` shows `main`'s project, not the branch's.
 - `content/guide/schemas.md`: one section per schema type, then the shared Modifiers.
 
 The getting-started page opens with a `::: warning` callout saying both packages are prereleases on the `next` dist-tag, so every install command on the page uses `@next`. Delete that callout, and drop `@next`, when `0.1.0` ships on `latest`.

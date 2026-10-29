@@ -2,6 +2,7 @@
 // The content root is `content/`, so the package's own files (package.json,
 // typedoc.json, AGENTS.md) never become pages.
 import * as fs from 'node:fs';
+import type * as http from 'node:http';
 import * as url from 'node:url';
 import { defineConfig, type DefaultTheme } from 'vitepress';
 
@@ -23,13 +24,43 @@ const loadApiSidebar = (): DefaultTheme.SidebarItem[] => {
   }
 };
 
+/**
+ * The getting-started StackBlitz window runs only on a cross-origin isolated
+ * page, so the dev and preview servers send every page these headers: a
+ * client-side navigation keeps the first page's. Production sends the same
+ * ones from `vercel.json`.
+ */
+const sendCrossOriginIsolationHeaders = (
+  _request: http.IncomingMessage,
+  response: http.ServerResponse,
+  next: () => void,
+): void => {
+  response.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+  response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+};
+
 export default defineConfig({
   title: '@pcvl/schema',
   description: 'Compose schemas and validate values against them at runtime.',
   cleanUrls: true,
-  // The repo-root `assets/` folder is the site's public directory, so the
-  // banner has one copy, shared with the README.
-  vite: { publicDir: url.fileURLToPath(new URL('../../../../assets', import.meta.url)) },
+  vite: {
+    // The repo-root `assets/` folder is the site's public directory, so the
+    // banner has one copy, shared with the README.
+    publicDir: url.fileURLToPath(new URL('../../../../assets', import.meta.url)),
+    // A plugin, since `vite.server.headers` skips the HTML VitePress serves.
+    plugins: [
+      {
+        name: 'cross-origin-isolation',
+        configureServer: (server): void => {
+          server.middlewares.use(sendCrossOriginIsolationHeaders);
+        },
+        configurePreviewServer: (server): void => {
+          server.middlewares.use(sendCrossOriginIsolationHeaders);
+        },
+      },
+    ],
+  },
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
