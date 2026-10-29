@@ -53,7 +53,8 @@ jobs:
   # workspace, where no `@repo/*` resolves, installs the packed tarballs,
   # compiles a Schema, type-checks against the shipped declarations (so a
   # declaration importing a package the tarball doesn't depend on fails it),
-  # and imports both packages as ESM and requires them as CJS.
+  # and imports both packages as ESM and requires them as CJS. Each step is a
+  # script in .github/tarball/, and consumer/ there holds the project's sources.
   tarball:
     strategy:
       fail-fast: false
@@ -68,58 +69,21 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build --filter=@pcvl/schema --filter=@pcvl/compiler
+      - name: Build
+        run: .github/tarball/build.sh
       - name: publint
-        run: |
-          pnpm dlx publint@0.3.25 packages/schema
-          pnpm dlx publint@0.3.25 packages/compiler
+        run: .github/tarball/publint.sh
       - name: Pack
-        run: pnpm --filter "@pcvl/*" pack --pack-destination "$RUNNER_TEMP/tarballs"
+        run: .github/tarball/pack.sh
       - name: attw
-        # node10 resolution can't reach the `./json-schema` subpath export.
-        run: |
-          for tarball in "$RUNNER_TEMP"/tarballs/*.tgz; do
-            pnpm dlx @arethetypeswrong/cli@0.18.5 --profile node16 "$tarball"
-          done
+        run: .github/tarball/attw.sh
       - name: Install the tarballs into a project outside the workspace
-        working-directory: ${{ runner.temp }}
-        run: |
-          mkdir -p consumer/src/schemas
-          cd consumer
-          echo '{ "private": true, "type": "module" }' > package.json
-          # Strict, so a peer range that misses the packed `@pcvl/schema` fails the install.
-          npm install --strict-peer-deps --no-audit --no-fund "$RUNNER_TEMP"/tarballs/*.tgz typescript@6.0.3
-          echo '{}' > pvlconfig.json
-          cat > tsconfig.json <<'EOF'
-          { "compilerOptions": { "module": "nodenext", "strict": true, "outDir": "out", "types": [] }, "include": ["src"] }
-          EOF
-          cat > src/schemas/user.ts <<'EOF'
-          import { pvl } from '@pcvl/schema';
-          export const user = pvl.compile(pvl.object({ name: pvl.string() }));
-          EOF
-          cat > src/esm.ts <<'EOF'
-          import { runCompilation } from '@pcvl/compiler';
-          import { pvl } from '@pcvl/schema';
-          import { user } from '../.pvl/schemas/user.js';
-          if (typeof runCompilation !== 'function') throw new Error('ESM: no runCompilation');
-          if (pvl.string().validate('a').issues !== undefined) throw new Error('ESM: interpreted');
-          if (user.validate({ name: 'a' }).issues !== undefined) throw new Error('ESM: compiled');
-          EOF
-          cat > src/cjs.cts <<'EOF'
-          import { runCompilation } from '@pcvl/compiler';
-          import { pvl } from '@pcvl/schema';
-          if (typeof runCompilation !== 'function') throw new Error('CJS: no runCompilation');
-          if (pvl.string().validate('a').issues !== undefined) throw new Error('CJS: interpreted');
-          EOF
+        run: .github/tarball/install.sh
       - name: pvl compile
-        working-directory: ${{ runner.temp }}/consumer
-        run: npx --no-install pvl compile
+        run: .github/tarball/compile.sh
       - name: Type-check against the shipped declarations
-        working-directory: ${{ runner.temp }}/consumer
-        run: npx --no-install tsc
+        run: .github/tarball/type-check.sh
       - name: Import as ESM
-        working-directory: ${{ runner.temp }}/consumer
-        run: node out/src/esm.js
+        run: .github/tarball/esm.sh
       - name: Require as CJS
-        working-directory: ${{ runner.temp }}/consumer
-        run: node out/src/cjs.cjs
+        run: .github/tarball/cjs.sh
