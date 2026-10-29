@@ -1,6 +1,6 @@
 # `docs`
 
-The user-facing documentation site for [`@pcvl/schema`](../../packages/schema/AGENTS.md): a [VitePress](https://vitepress.dev) site with hand-written guide pages and an API reference that [TypeDoc](https://typedoc.org) generates from the library's source. It documents `@pcvl/schema` only, since `@pcvl/compiler` is still in progress. It builds and previews locally; hosting is [issue #59](https://github.com/Ota-Prokopec/pvl/issues/59).
+The user-facing documentation site for [`@pcvl/schema`](../../packages/schema/AGENTS.md): a [VitePress](https://vitepress.dev) site with hand-written guide pages and an API reference that [TypeDoc](https://typedoc.org) generates from the library's source. It documents `@pcvl/schema`, and of `@pcvl/compiler` only the getting-started page's "Compile it" section and its StackBlitz window; a full compiler guide is a separate issue. It builds and previews locally; hosting is [issue #59](https://github.com/Ota-Prokopec/pvl/issues/59).
 
 ## Technology
 
@@ -35,13 +35,13 @@ The checks are `check-types` on the VitePress config, `lint`, and `build`, which
 
 Two pages, and a third is a deliberate decision:
 
-- `content/guide/getting-started.md`: installing, a first schema, reading a `Result`, type inference.
+- `content/guide/getting-started.md`: installing, a first schema, reading a `Result`, type inference, then "Compile it" and a lazy-loaded StackBlitz `<iframe>`. The iframe loads [`stackblitz/get-started-docs`](../../stackblitz/AGENTS.md) straight from `main` on GitHub, so a preview or `docs:dev` shows `main`'s project, not the branch's.
 - `content/guide/schemas.md`: one section per schema type, then the shared Modifiers.
 
-The getting-started page opens with a `::: warning` callout saying `@pcvl/schema` is unpublished, so the `pnpm add @pcvl/schema` line under it doesn't fail a reader silently. Delete that callout on the first npm release.
+The getting-started page opens with a `::: warning` callout saying both packages are prereleases on the `next` dist-tag, so every install command on the page uses `@next`. Delete that callout, and drop `@next`, when `0.1.0` ships on `latest`.
 
 ## Writing the guide
 
 - Use the library's own vocabulary (`validate()`, `Result`, `Issue`).
 - How a schema works inside belongs in the [wiki](../../docs/agents/wiki.md), not here. Each schema and Shared Modifier section of `schemas.md` ends with a `::: info Behind the scenes` box linking its wiki page, and the nav and both "What comes next" lists link the wiki's home. A new section gets its box; the links are absolute `https://github.com/Ota-Prokopec/pvl/wiki/<Page>` URLs, which `build` doesn't check.
-- Describe what the library does today. A capability that doesn't exist yet (Compiled Schemas, async validation) is absent or named as absent.
+- Describe what the library does today. A capability that doesn't exist yet (async validation, compiling a `union`) is absent or named as absent.

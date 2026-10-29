@@ -23,6 +23,8 @@ scripts/
 
 `thesis/` at the root isn't a workspace entry: it's the LaTeX source of the bachelor's thesis, built by `apps/thesis-web` ([`thesis/AGENTS.md`](./thesis/AGENTS.md)).
 
+`stackblitz/` at the root isn't a workspace entry either: it holds the plain npm projects the docs site embeds as StackBlitz windows ([`stackblitz/AGENTS.md`](./stackblitz/AGENTS.md)).
+
 ## Dependencies
 
 - `@pcvl/compiler` depends on `@pcvl/schema`, never the other way round. Those two publish to npm; everything else is private.
