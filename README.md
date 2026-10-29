@@ -12,19 +12,19 @@ Every checkout, the main one and each git worktree, links its external packages 
 
 Run these from the repo root. Turborepo runs each one across the whole workspace.
 
-| Command                             | What it does                                                                                              |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                          | Watch/dev mode for every app and package except the thesis (`pnpm dev:thesis`)                            |
-| `pnpm build`                        | Build every app and package                                                                               |
-| `pnpm test`                         | Every package's unit and integration suites                                                               |
-| `pnpm lint`                         | Lint every app and package, plus the workspace-wide checks (`lint:workspace`)                             |
-| `pnpm check-types`                  | Type-check every app and package                                                                          |
-| `pnpm format` / `pnpm format:check` | Format with Prettier, or only check the formatting                                                        |
-| `pnpm docs:dev` / `pnpm docs:build` | Generate the API reference, then serve or build the documentation site                                    |
-| `pnpm dev:thesis`                   | Rebuild the thesis PDF on every change and show it in the browser, live-reloaded (needs TeX and the font) |
-| `pnpm build:thesis`                 | Build the thesis PDF and its page into `apps/thesis-web/site/` (needs TeX and the GT America font)        |
-| `pnpm claude [claude args]`         | Start Claude Code in a picked or new git worktree: here for the current one, else in a new VS Code window |
-| `pnpm claude-list`                  | Pick git worktrees from a menu and remove them, together with their branches                              |
+| Command                                   | What it does                                                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                | Watch/dev mode for every app and package except the thesis (`pnpm dev:thesis`)                                                                          |
+| `pnpm build`                              | Build every app and package                                                                                                                             |
+| `pnpm test`                               | Every package's unit and integration suites                                                                                                             |
+| `pnpm lint`                               | Lint every app and package, plus the workspace-wide checks (`lint:workspace`)                                                                           |
+| `pnpm check-types`                        | Type-check every app and package                                                                                                                        |
+| `pnpm format` / `pnpm format:check`       | Format with Prettier, or only check the formatting                                                                                                      |
+| `pnpm docs:dev` / `pnpm docs:build`       | Generate the API reference, then serve or build the documentation site                                                                                  |
+| `pnpm dev:thesis`                         | Rebuild the thesis PDF on every change and show it in the browser, live-reloaded (needs TeX and the font)                                               |
+| `pnpm build:thesis`                       | Build the thesis PDF and its page into `apps/thesis-web/site/` (needs TeX and the GT America font)                                                      |
+| `pnpm claude [--codespace] [claude args]` | Start Claude Code in a picked or new git worktree (here for the current one, else in a new VS Code window), or with `--codespace` in a GitHub Codespace |
+| `pnpm claude-list`                        | Pick git worktrees from a menu and remove them, together with their branches                                                                            |
 
 ## Post-modification checklist
 

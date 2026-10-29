@@ -10,7 +10,8 @@
  * as it opens. Claude Code starts with `TURBO_CACHE_DIR` set to the main
  * checkout's `.turbo/cache`, so every worktree reuses one turbo cache.
  * Arguments given to the script are forwarded to `claude`, so
- * `pnpm claude --continue` works.
+ * `pnpm claude --continue` works. `--codespace` is the script's own flag: it
+ * picks or creates a GitHub Codespace instead of a worktree (`codespace.ts`).
  */
 import * as childProcess from 'node:child_process';
 import * as fs from 'node:fs';
@@ -25,6 +26,8 @@ import {
   listWorktrees,
   type Worktree,
 } from '@repo/git-worktrees';
+import { startInCodespace } from './codespace.ts';
+import { createWorkspace, run } from './launch.ts';
 
 /** The menu value of the "create a new worktree" entry; no path can equal it. */
 const CREATE_WORKTREE = Symbol('create-worktree');
@@ -32,23 +35,13 @@ const CREATE_WORKTREE = Symbol('create-worktree');
 /** New worktrees start from this branch as it is on `origin`. */
 const MAIN_BRANCH = 'main' as const;
 
-const claudeArgs = ['--dangerously-skip-permissions', ...process.argv.slice(2)];
+const CODESPACE_FLAG = '--codespace' as const;
 
-type RunArgs = {
-  command: string;
-  args: string[];
-  cwd?: string;
-};
-
-/** Hands the terminal to `command` and exits with its status. */
-const run = ({ command, args, cwd }: RunArgs): never => {
-  const { error, status } = childProcess.spawnSync(command, args, { cwd, stdio: 'inherit' });
-  if (error !== undefined) {
-    log.error(`Could not start ${command}: ${error.message}`);
-    process.exit(1);
-  }
-  process.exit(status ?? 1);
-};
+const scriptArgs = process.argv.slice(2);
+const claudeArgs = [
+  '--dangerously-skip-permissions',
+  ...scriptArgs.filter((arg) => arg !== CODESPACE_FLAG),
+];
 
 const describeError = (error: unknown): string => {
   return error instanceof Error ? error.message : String(error);
@@ -65,26 +58,15 @@ const writeWorkspaceFile = (worktreePath: string): string => {
     '.vscode',
     `${path.basename(worktreePath)}.code-workspace`,
   );
-  const workspace = {
-    folders: [{ path: worktreePath }],
-    tasks: {
-      version: '2.0.0',
-      tasks: [
-        {
-          label: 'Claude Code',
-          type: 'process',
-          command: 'claude',
-          args: claudeArgs,
-          options: { cwd: worktreePath, env: { TURBO_CACHE_DIR: process.env.TURBO_CACHE_DIR } },
-          runOptions: { runOn: 'folderOpen' },
-          presentation: { reveal: 'always', focus: true, panel: 'dedicated' },
-          problemMatcher: [],
-        },
-      ],
-    },
-  };
   fs.mkdirSync(path.dirname(workspaceFile), { recursive: true });
-  fs.writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
+  fs.writeFileSync(
+    workspaceFile,
+    createWorkspace({
+      folderPath: worktreePath,
+      claudeArgs,
+      env: { TURBO_CACHE_DIR: process.env.TURBO_CACHE_DIR },
+    }),
+  );
   return workspaceFile;
 };
 
@@ -123,6 +105,8 @@ const orderedWorktrees = [
 ];
 
 intro('Claude Code');
+
+if (scriptArgs.includes(CODESPACE_FLAG)) await startInCodespace(claudeArgs);
 
 const choice = await select<string | typeof CREATE_WORKTREE>({
   message: 'Which worktree should Claude Code work in?',

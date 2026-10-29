@@ -16,7 +16,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 **Implementer subagents** should be run in the background where possible for maximum concurrency.
 
-**At most 2 implementer subagents run at once.** The development machine has 8 GB of RAM, and one uncached `pnpm test` peaks at about 2.4 GB, so a third implementer makes the machine swap. When the frontier holds more tickets, the rest wait until an implementer is merged.
+**At most 2 implementer subagents run at once, or 3 in a GitHub Codespace** (`CODESPACES` is `true`). The local development machine has 8 GB of RAM, and one uncached `pnpm test` peaks at about 2.4 GB, so a third implementer makes it swap. The codespace `pnpm claude --codespace` creates has 16 GB. When the frontier holds more tickets, the rest wait until an implementer is merged.
 
 ## Steps
 
@@ -33,7 +33,7 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 5. Once an **implementer subagent** completes, merge its work to the integration branch with a **merger subagent**.
 
-6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets, up to the limit of 2 running at once.
+6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets, up to the limit of running implementers above.
 
 7. Once all tickets are complete, call the Skill tool with `code-review` on the integration branch. Fix all issues raised by the code review in a single **implementer subagent**.
 

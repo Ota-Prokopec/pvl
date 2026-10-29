@@ -1,0 +1,16 @@
+// The dev container a GitHub Codespace of this repo runs (`pnpm claude --codespace`, ADR-0047).
+// It holds the project's toolchain only; personal Claude Code settings come from the dotfiles repo.
+{
+  "name": "pvl",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "features": {
+    // `gh codespace ssh`, which `pnpm claude --codespace` writes the workspace file through, needs an SSH server.
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+  "hostRequirements": { "cpus": 4, "memory": "16gb" },
+  // corepack would otherwise ask before downloading the pinned pnpm, and nobody answers in postCreateCommand.
+  "containerEnv": { "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0" },
+  // pnpm install also installs the lefthook git hooks.
+  "postCreateCommand": "sudo corepack enable && pnpm install"
+}
