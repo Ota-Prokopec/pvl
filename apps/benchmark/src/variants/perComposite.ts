@@ -5,8 +5,8 @@
 // pushes into its parent's `issues` and returns its output, and builds its path
 // only where V1 does, so the split is the only difference from V1. A Schema
 // reused through one `const` is one child, called from each place.
-import { pvl } from '@pvl/schema';
-import type { Issue, Result, StandardSchemaProps } from '@pvl/schema';
+import { pvl } from '@pcvl/schema';
+import type { Issue, Result, StandardSchemaProps } from '@pcvl/schema';
 import type {
   ComplexInput,
   ComplexOutput,
@@ -33,7 +33,7 @@ export const flat = new (class {
   get '~standard'(): StandardSchemaProps<FlatInput, FlatOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<FlatOutput> => this.validate(value),
     };
@@ -353,7 +353,7 @@ export const nested = new (class {
   get '~standard'(): StandardSchemaProps<NestedInput, NestedOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<NestedOutput> => this.validate(value),
     };
@@ -491,7 +491,7 @@ export const list = new (class {
   get '~standard'(): StandardSchemaProps<ListInput, ListOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<ListOutput> => this.validate(value),
     };
@@ -600,7 +600,7 @@ export const reused = new (class {
   get '~standard'(): StandardSchemaProps<ReusedInput, ReusedOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<ReusedOutput> => this.validate(value),
     };
@@ -1015,7 +1015,7 @@ export const wide = new (class {
   get '~standard'(): StandardSchemaProps<WideInput, WideOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<WideOutput> => this.validate(value),
     };
@@ -1868,7 +1868,7 @@ export const complex = new (class {
   get '~standard'(): StandardSchemaProps<ComplexInput, ComplexOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<ComplexOutput> => this.validate(value),
     };
@@ -2011,7 +2011,7 @@ export const huge = new (class {
   get '~standard'(): StandardSchemaProps<HugeInput, HugeOutput> {
     return {
       version: 1,
-      vendor: '@pvl/schema',
+      vendor: '@pcvl/schema',
       types: undefined,
       validate: (value: unknown): Result<HugeOutput> => this.validate(value),
     };

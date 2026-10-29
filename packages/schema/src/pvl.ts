@@ -39,12 +39,12 @@ type CompiledStructureOf<TSchema> = (TSchema extends {
     : unknown);
 
 /**
- * The single entry point of `@pvl/schema`. Every schema factory hangs off
+ * The single entry point of `@pcvl/schema`. Every schema factory hangs off
  * this object; from a schema, the modifiers and checks are chained methods.
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const user = pvl.object({
  *   name: pvl.string().min(1),
@@ -62,7 +62,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * pvl.string().validate('hello'); // { value: 'hello' }
    * pvl.string().min(3).validate('hi'); // { issues: [{ code: 'TOO_SMALL', ... }] }
@@ -78,7 +78,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * pvl.number().validate(36); // { value: 36 }
    * pvl.number().int().min(0).validate(-1); // { issues: [{ code: 'TOO_SMALL', ... }] }
@@ -92,7 +92,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * pvl.boolean().validate(false); // { value: false }
    * pvl.boolean().validate('false'); // { issues: [{ code: 'INVALID_TYPE', ... }] }
@@ -107,7 +107,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * pvl.bigint().validate(9007199254740993n); // { value: 9007199254740993n }
    * pvl.bigint().coerce().validate('42'); // { value: 42n }
@@ -121,7 +121,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * pvl.literal('OWNER').validate('OWNER'); // { value: 'OWNER' }
    * pvl.literal(42).validate('42'); // { issues: [{ code: 'INVALID_VALUE', ... }] }
@@ -138,7 +138,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const user = pvl.object({ name: pvl.string(), age: pvl.number().int() });
    *
@@ -156,7 +156,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const tags = pvl.array(pvl.string()).min(1);
    *
@@ -172,7 +172,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const;
    *
@@ -192,7 +192,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const id = pvl.union([pvl.string(), pvl.number().int()]);
    *
@@ -207,7 +207,7 @@ export const pvl = {
 
   /**
    * Marks a schema — any schema, primitive or composite, transformed or not —
-   * for ahead-of-time compilation by `@pvl/schema-compiler`. At runtime it is the
+   * for ahead-of-time compilation by `@pcvl/compiler`. At runtime it is the
    * identity function, so a schema that uses it still validates normally
    * before the compiler has seen the call site.
    *
@@ -223,7 +223,7 @@ export const pvl = {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const payload = pvl.compile(
    *   pvl.object({ id: pvl.string().standalone(), tags: pvl.array(pvl.string()) }),
@@ -233,7 +233,7 @@ export const pvl = {
    * payload.shape.id.validate('a1'); // a compiled validator of `id` alone, once compiled
    * ```
    */
-  // Identity function pre-compilation (see @pvl/schema-compiler's AGENTS.md
+  // Identity function pre-compilation (see @pcvl/compiler's AGENTS.md
   // for what happens once a call site has been through the compiler, ADR-0020
   // for why it hands back a plain Schema, and ADR-0036 for what it keeps).
   // The assertion only narrows the surface, which a deferred conditional

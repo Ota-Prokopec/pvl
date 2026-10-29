@@ -92,7 +92,7 @@ None.
 ## Source
 
 - [`enumInterpretedSchema.ts`](../../packages/schema/src/schemas/enumInterpretedSchema.ts): `EnumInterpretedSchema`, `ENUM_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/enumSchema.ts`](../../packages/schema-compiler/src/schemas/enumSchema.ts): `EnumSchema`
-- [`emitters/enumSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/enumSchemaEmitter.ts): `EnumSchemaEmitter`
+- [`schemas/enumSchema.ts`](../../packages/compiler/src/schemas/enumSchema.ts): `EnumSchema`
+- [`emitters/enumSchemaEmitter.ts`](../../packages/compiler/src/emitters/enumSchemaEmitter.ts): `EnumSchemaEmitter`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md), [ADR-0009](../adr/0009-enum-accepts-const-object-or-string-literal-array.md).

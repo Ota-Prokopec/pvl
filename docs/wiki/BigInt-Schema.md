@@ -105,7 +105,7 @@ flowchart TD
 ## Source
 
 - [`bigintInterpretedSchema.ts`](../../packages/schema/src/schemas/bigintInterpretedSchema.ts): `BigintInterpretedSchema`, `BIGINT_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/bigintSchema.ts`](../../packages/schema-compiler/src/schemas/bigintSchema.ts): `BigintSchema`
-- [`emitters/bigintSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/bigintSchemaEmitter.ts): `BigintSchemaEmitter`
+- [`schemas/bigintSchema.ts`](../../packages/compiler/src/schemas/bigintSchema.ts): `BigintSchema`
+- [`emitters/bigintSchemaEmitter.ts`](../../packages/compiler/src/emitters/bigintSchemaEmitter.ts): `BigintSchemaEmitter`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md).

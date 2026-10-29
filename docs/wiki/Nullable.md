@@ -74,7 +74,7 @@ _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> 
 ## Source
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `nullable()`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/chainableSchemaEmitter.ts): `nullable`, in `shortCircuitConditions`
-- [`emitters/frame.ts`](../../packages/schema-compiler/src/emitters/frame.ts): `groupPreModifierSteps`, `composeChecks`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `nullable`, in `shortCircuitConditions`
+- [`emitters/frame.ts`](../../packages/compiler/src/emitters/frame.ts): `groupPreModifierSteps`, `composeChecks`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md), [ADR-0010](../adr/0010-modifiers-run-in-chain-order-around-the-type-check.md).

@@ -13,7 +13,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@pvl/schema": "workspace:*"
+    "@pcvl/schema": "workspace:*"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",

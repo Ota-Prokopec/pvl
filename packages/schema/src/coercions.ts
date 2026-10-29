@@ -13,7 +13,7 @@
  *
  * @example
  * ```ts
- * import { coerceToString } from '@pvl/schema';
+ * import { coerceToString } from '@pcvl/schema';
  *
  * coerceToString(42); // '42'
  * coerceToString(true); // 'true'
@@ -32,7 +32,7 @@ export const coerceToString = (value: unknown): unknown => String(value);
  *
  * @example
  * ```ts
- * import { coerceToNumber } from '@pvl/schema';
+ * import { coerceToNumber } from '@pcvl/schema';
  *
  * coerceToNumber('42'); // 42
  * coerceToNumber(true); // 1
@@ -50,7 +50,7 @@ export const coerceToNumber = (value: unknown): unknown =>
  *
  * @example
  * ```ts
- * import { coerceToBoolean } from '@pvl/schema';
+ * import { coerceToBoolean } from '@pcvl/schema';
  *
  * coerceToBoolean(1); // true
  * coerceToBoolean(''); // false
@@ -74,7 +74,7 @@ export const coerceToBoolean = (value: unknown): unknown =>
  *
  * @example
  * ```ts
- * import { coerceToBigint } from '@pvl/schema';
+ * import { coerceToBigint } from '@pcvl/schema';
  *
  * coerceToBigint('42'); // 42n
  * coerceToBigint(7); // 7n

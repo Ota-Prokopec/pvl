@@ -236,8 +236,8 @@ The parent's own `_validate` still inlines the field's checks: it never calls `s
 ## Source
 
 - [`objectInterpretedSchema.ts`](../../packages/schema/src/schemas/objectInterpretedSchema.ts): `ObjectInterpretedSchema`, the unknown-key modifiers, `OBJECT_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/objectSchema.ts`](../../packages/schema-compiler/src/schemas/objectSchema.ts): `ObjectSchema`
-- [`emitters/objectSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/objectSchemaEmitter.ts): `ObjectSchemaEmitter`
-- [`emitters/frame.ts`](../../packages/schema-compiler/src/emitters/frame.ts): `composeCompositeStatements`
+- [`schemas/objectSchema.ts`](../../packages/compiler/src/schemas/objectSchema.ts): `ObjectSchema`
+- [`emitters/objectSchemaEmitter.ts`](../../packages/compiler/src/emitters/objectSchemaEmitter.ts): `ObjectSchemaEmitter`
+- [`emitters/frame.ts`](../../packages/compiler/src/emitters/frame.ts): `composeCompositeStatements`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md), [standalone-keys.md](../specification/standalone-keys.md), [ADR-0007](../adr/0007-object-strips-unknown-keys-by-default.md), [ADR-0012](../adr/0012-composite-schemas-collect-every-issue.md), [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md).

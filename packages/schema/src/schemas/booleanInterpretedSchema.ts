@@ -7,7 +7,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * The default message of every Issue `BooleanInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -32,7 +32,7 @@ interface BooleanInterpretedSchemaKind extends InterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const acceptedTerms = pvl.boolean();
  *
@@ -62,7 +62,7 @@ export class BooleanInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const enabled = pvl.boolean().coerce();
    *

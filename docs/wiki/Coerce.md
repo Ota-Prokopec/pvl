@@ -107,7 +107,7 @@ if (!((value === undefined))) {
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `coerce()`
 - [`coercions.ts`](../../packages/schema/src/coercions.ts): `coerceToString`, `coerceToNumber`, `coerceToBoolean`, `coerceToBigint`
-- [`emitters/coercions.ts`](../../packages/schema-compiler/src/emitters/coercions.ts): the same conversions, written as code
-- [`emitters/emitter.ts`](../../packages/schema-compiler/src/emitters/emitter.ts): `_emitPreModifierSteps`
+- [`emitters/coercions.ts`](../../packages/compiler/src/emitters/coercions.ts): the same conversions, written as code
+- [`emitters/emitter.ts`](../../packages/compiler/src/emitters/emitter.ts): `_emitPreModifierSteps`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md#refinements-transforms-coercion), [schema-types.md](../specification/schema/schema-types.md).

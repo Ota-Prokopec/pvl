@@ -1,4 +1,4 @@
-# `Result`'s failure branch carries `@pvl/schema`'s own `Issue`
+# `Result`'s failure branch carries `@pcvl/schema`'s own `Issue`
 
 `Issue` extends `StandardSchemaV1.Issue` with a `code` field whose stated purpose is programmatic matching — a consumer distinguishing "wrong type" from "too small" from "failed a custom refinement" without string-matching the human-readable `message`. But `Result<Output>` was a plain alias of `StandardSchemaV1.Result<Output>`, whose failure branch types `issues` as the spec's `Issue`, so `code` was erased at the package boundary: it was present at runtime on every issue the library produced and unreachable from TypeScript. The field existed for a purpose its own public type made impossible.
 

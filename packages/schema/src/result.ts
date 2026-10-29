@@ -11,7 +11,7 @@ import type { Issue } from './issue/issue.js';
  *
  * @example
  * ```ts
- * import { pvl, type FailureResult } from '@pvl/schema';
+ * import { pvl, type FailureResult } from '@pcvl/schema';
  *
  * const result = pvl.string().validate(42);
  * if (result.issues) {
@@ -32,7 +32,7 @@ export type FailureResult = StandardSchemaV1.FailureResult & {
  *
  * @example
  * ```ts
- * import { pvl, type Result } from '@pvl/schema';
+ * import { pvl, type Result } from '@pcvl/schema';
  *
  * const result: Result<string> = pvl.string().validate('hello');
  * if (result.issues) {

@@ -1,6 +1,6 @@
 # `benchmark`
 
-A private app that measures the code [`@pvl/schema-compiler`](../../packages/schema-compiler/AGENTS.md) emits against hand-split alternatives. It is the evidence behind [ADR-0023](../../docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md), and its findings, with the V8 limits that explain them, are written up in [`docs/research/v8-inlining-and-optimization-limits.md`](../../docs/research/v8-inlining-and-optimization-limits.md).
+A private app that measures the code [`@pcvl/compiler`](../../packages/compiler/AGENTS.md) emits against hand-split alternatives. It is the evidence behind [ADR-0023](../../docs/adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md), and its findings, with the V8 limits that explain them, are written up in [`docs/research/v8-inlining-and-optimization-limits.md`](../../docs/research/v8-inlining-and-optimization-limits.md).
 
 It compares three variants of the same Schemas:
 
@@ -10,7 +10,7 @@ It compares three variants of the same Schemas:
 
 ## Build first
 
-Every command needs `@pvl/schema` and `@pvl/schema-compiler` built (`pnpm build` at the root), since the `pvl` bin is `packages/schema-compiler/dist/bin.js`.
+Every command needs `@pcvl/schema` and `@pcvl/compiler` built (`pnpm build` at the root), since the `pvl` bin is `packages/compiler/dist/bin.js`.
 
 ## Commands
 

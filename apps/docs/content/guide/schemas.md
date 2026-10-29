@@ -3,7 +3,7 @@
 Every schema is built from the `pvl` namespace object, and every method on a schema returns a new schema — nothing is mutated, so a base schema can be reused and specialised independently.
 
 ```ts
-import { pvl } from '@pvl/schema';
+import { pvl } from '@pcvl/schema';
 ```
 
 The constraint methods below are deliberately cheap and structural — plain numeric and length comparisons. There is no built-in `.email()`, `.url()` or `.regex()`; a check like that is yours to attach with [`.refine()`](#refine).
@@ -322,7 +322,7 @@ order.shape.customer.shape.city.validate('London'); // { value: 'London' }
 order.shape.items.element.validate(42); // { issues: [{ code: 'INVALID_TYPE', ... }] }
 ```
 
-`shape` is the same before and after `@pvl/schema-compiler` compiles the object: a compiled object exposes exactly the Standalone Keys, each as a compiled validator of its own, so swapping the import to the compiled schemas never changes what compiles. That is why `shape` is opt-in: a compiled validator for every key of every object would grow the generated code with keys nobody validates alone.
+`shape` is the same before and after `@pcvl/compiler` compiles the object: a compiled object exposes exactly the Standalone Keys, each as a compiled validator of its own, so swapping the import to the compiled schemas never changes what compiles. That is why `shape` is opt-in: a compiled validator for every key of every object would grow the generated code with keys nobody validates alone.
 
 ### `.standalone()`
 

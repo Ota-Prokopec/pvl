@@ -85,8 +85,8 @@ Nested, a transformed field or element's value is declared with `let`, as the tr
 ## Source
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `transform()`
-- [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts): splits off `transformCall`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/chainableSchemaEmitter.ts): `_emitTransform`, `_spellTypes`
-- [`emitters/frame.ts`](../../packages/schema-compiler/src/emitters/frame.ts): `composeChecks`, `composeSchema`
+- [`schemas/readSchema.ts`](../../packages/compiler/src/schemas/readSchema.ts): splits off `transformCall`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `_emitTransform`, `_spellTypes`
+- [`emitters/frame.ts`](../../packages/compiler/src/emitters/frame.ts): `composeChecks`, `composeSchema`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md#transformation), [ADR-0016](../adr/0016-transform-and-compile-end-the-modifier-chain.md), [ADR-0035](../adr/0035-modifiers-compile-to-calls-to-the-users-own-functions-typed-at-their-place-in-the-chain.md).

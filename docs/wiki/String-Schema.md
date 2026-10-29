@@ -115,7 +115,7 @@ There are no regex-based checks (`.email()`, `.regex()`), to keep every built-in
 ## Source
 
 - [`stringInterpretedSchema.ts`](../../packages/schema/src/schemas/stringInterpretedSchema.ts): `StringInterpretedSchema`, `STRING_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/stringSchema.ts`](../../packages/schema-compiler/src/schemas/stringSchema.ts): `StringSchema`
-- [`emitters/stringSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/stringSchemaEmitter.ts): `StringSchemaEmitter`
+- [`schemas/stringSchema.ts`](../../packages/compiler/src/schemas/stringSchema.ts): `StringSchema`
+- [`emitters/stringSchemaEmitter.ts`](../../packages/compiler/src/emitters/stringSchemaEmitter.ts): `StringSchemaEmitter`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md), [ADR-0008](../adr/0008-no-regex-backed-constraints-in-v1.md).

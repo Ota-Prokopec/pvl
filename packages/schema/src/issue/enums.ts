@@ -8,7 +8,7 @@ import type { ValueOfEnum } from '@repo/types';
  *
  * @example
  * ```ts
- * import { ISSUE_CODE, pvl } from '@pvl/schema';
+ * import { ISSUE_CODE, pvl } from '@pcvl/schema';
  *
  * const result = pvl.string().min(3).validate('hi');
  * if (result.issues) {
@@ -34,7 +34,7 @@ export const ISSUE_CODE = {
  *
  * @example
  * ```ts
- * import { ISSUE_CODE, type IssueCode } from '@pvl/schema';
+ * import { ISSUE_CODE, type IssueCode } from '@pcvl/schema';
  *
  * const isSizeProblem = (code: IssueCode): boolean =>
  *   code === ISSUE_CODE.TOO_SMALL || code === ISSUE_CODE.TOO_BIG;

@@ -1,13 +1,13 @@
 # Getting started
 
-`@pvl/schema` describes the shape of a value once, as a schema, and then checks values against it at runtime. The schema is also the type: there is no second declaration to keep in sync.
+`@pcvl/schema` describes the shape of a value once, as a schema, and then checks values against it at runtime. The schema is also the type: there is no second declaration to keep in sync.
 
 ::: warning Pre-release — not yet on npm
-`@pvl/schema` is still at version `0.0.0` and has **not been published**. The command below is what installation will look like; today it will fail. Until the first release, use the package from a checkout of the repository.
+`@pcvl/schema` is still at version `0.0.0` and has **not been published**. The command below is what installation will look like; today it will fail. Until the first release, use the package from a checkout of the repository.
 :::
 
 ```sh
-pnpm add @pvl/schema
+pnpm add @pcvl/schema
 ```
 
 ## Your first schema
@@ -15,7 +15,7 @@ pnpm add @pvl/schema
 Every schema is built from the `pvl` namespace object — one import, and everything hangs off it.
 
 ```ts
-import { pvl } from '@pvl/schema';
+import { pvl } from '@pcvl/schema';
 
 const user = pvl.object({
   name: pvl.string().min(1),
@@ -90,7 +90,7 @@ A schema carries its own input and output types, so you never declare the shape 
 
 ```ts
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { pvl } from '@pvl/schema';
+import { pvl } from '@pcvl/schema';
 
 const user = pvl.object({
   name: pvl.string(),

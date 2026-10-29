@@ -13,7 +13,7 @@ It is a private workspace package (`claude`, one of the `scripts/*` entries in `
 
 The script runs from the checkout you call it in, and Node resolves its dependencies from that checkout's `node_modules`. In a worktree that has never had `pnpm install`, it can't run. Either install there, or run it from the main checkout. A worktree the script creates gets its `pnpm install` from the script, before VS Code opens it. If that install fails, the script warns and opens the worktree anyway, so rerun `pnpm install` there.
 
-The install gives the worktree its own dependency set and links its `@repo/*` and `@pvl/*` imports to the worktree's own sources. It links from pnpm's global virtual store [ADR-0025](../../docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md).
+The install gives the worktree its own dependency set and links its `@repo/*` and `@pcvl/*` imports to the worktree's own sources. It links from pnpm's global virtual store [ADR-0025](../../docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md).
 
 ## How the VS Code window starts Claude Code
 

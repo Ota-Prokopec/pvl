@@ -1,4 +1,4 @@
-// VitePress site configuration for the @pvl/schema documentation.
+// VitePress site configuration for the @pcvl/schema documentation.
 // The content root is `content/`, so the package's own files (package.json,
 // typedoc.json, AGENTS.md) never become pages.
 import * as fs from 'node:fs';
@@ -24,7 +24,7 @@ const loadApiSidebar = (): DefaultTheme.SidebarItem[] => {
 };
 
 export default defineConfig({
-  title: '@pvl/schema',
+  title: '@pcvl/schema',
   description: 'Compose schemas and validate values against them at runtime.',
   cleanUrls: true,
   // The repo-root `assets/` folder is the site's public directory, so the

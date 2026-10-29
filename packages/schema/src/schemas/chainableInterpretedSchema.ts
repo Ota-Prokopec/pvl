@@ -19,7 +19,7 @@ import type { Schema, StandaloneMarkerOf } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type ChainableInterpretedSchema } from '@pvl/schema';
+ * import { pvl, type ChainableInterpretedSchema } from '@pcvl/schema';
  *
  * // Still a `StringInterpretedSchema`, so `.min()` is still there.
  * const nickname = pvl.string().optional().min(2);
@@ -43,7 +43,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const user = pvl.object({ name: pvl.string(), nickname: pvl.string().optional() });
    *
@@ -67,7 +67,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const deletedAt = pvl.string().nullable();
    * deletedAt.validate(null); // { value: null }
@@ -99,7 +99,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const evenNumber = pvl
    *   .number()
@@ -144,7 +144,7 @@ export abstract class ChainableInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const trimmedLength = pvl.string().transform((value) => value.trim().length);
    *

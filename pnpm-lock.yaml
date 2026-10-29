@@ -32,12 +32,12 @@ importers:
 
   apps/benchmark:
     dependencies:
-      '@pvl/schema':
+      '@pcvl/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
+      '@pcvl/schema':
         specifier: workspace:*
         version: link:../../packages/schema
-      '@pvl/schema-compiler':
-        specifier: workspace:*
-        version: link:../../packages/schema-compiler
       '@repo/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -72,7 +72,7 @@ importers:
 
   apps/docs:
     dependencies:
-      '@pvl/schema':
+      '@pcvl/schema':
         specifier: workspace:*
         version: link:../../packages/schema
     devDependencies:
@@ -115,12 +115,12 @@ importers:
 
   apps/playground:
     dependencies:
-      '@pvl/schema':
+      '@pcvl/compiler':
+        specifier: workspace:*
+        version: link:../../packages/compiler
+      '@pcvl/schema':
         specifier: workspace:*
         version: link:../../packages/schema
-      '@pvl/schema-compiler':
-        specifier: workspace:*
-        version: link:../../packages/schema-compiler
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
@@ -173,6 +173,70 @@ importers:
       typescript:
         specifier: 6.0.3
         version: 6.0.3
+
+  packages/compiler:
+    dependencies:
+      '@pcvl/schema':
+        specifier: workspace:*
+        version: link:../schema
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../types
+      dedent:
+        specifier: ^1.7.2
+        version: 1.7.2
+      lodash-es:
+        specifier: ^4.18.1
+        version: 4.18.1
+      minimatch:
+        specifier: ^10.2.6
+        version: 10.2.6
+      ts-morph:
+        specifier: ^28.0.0
+        version: 28.0.0
+      yargs:
+        specifier: ^18.2.0
+        version: 18.2.0
+    devDependencies:
+      '@repo/conventions':
+        specifier: workspace:*
+        version: link:../conventions
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/lodash-es':
+        specifier: ^4.17.12
+        version: 4.17.12
+      '@types/node':
+        specifier: ^26.4.1
+        version: 26.4.1
+      '@types/yargs':
+        specifier: ^17.0.35
+        version: 17.0.35
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(jiti@2.7.0)(supports-color@7.2.0)
+      fast-check:
+        specifier: ^4.10.1
+        version: 4.10.1
+      jiti:
+        specifier: 2.7.0
+        version: 2.7.0
+      npm-run-all:
+        specifier: ^4.1.5
+        version: 4.1.5
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/conventions:
     dependencies:
@@ -292,70 +356,6 @@ importers:
       eslint-plugin-jsdoc:
         specifier: 65.0.2
         version: 65.0.2(eslint@10.9.1(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
-      fast-check:
-        specifier: ^4.10.1
-        version: 4.10.1
-      jiti:
-        specifier: 2.7.0
-        version: 2.7.0
-      npm-run-all:
-        specifier: ^4.1.5
-        version: 4.1.5
-      tsup:
-        specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(tsx@4.23.15)(typescript@6.0.3)(yaml@2.9.1)
-      typescript:
-        specifier: 6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^5.0.1
-        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
-
-  packages/schema-compiler:
-    dependencies:
-      '@pvl/schema':
-        specifier: workspace:*
-        version: link:../schema
-      '@repo/types':
-        specifier: workspace:*
-        version: link:../types
-      dedent:
-        specifier: ^1.7.2
-        version: 1.7.2
-      lodash-es:
-        specifier: ^4.18.1
-        version: 4.18.1
-      minimatch:
-        specifier: ^10.2.6
-        version: 10.2.6
-      ts-morph:
-        specifier: ^28.0.0
-        version: 28.0.0
-      yargs:
-        specifier: ^18.2.0
-        version: 18.2.0
-    devDependencies:
-      '@repo/conventions':
-        specifier: workspace:*
-        version: link:../conventions
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/lodash-es':
-        specifier: ^4.17.12
-        version: 4.17.12
-      '@types/node':
-        specifier: ^26.4.1
-        version: 26.4.1
-      '@types/yargs':
-        specifier: ^17.0.35
-        version: 17.0.35
-      eslint:
-        specifier: 10.9.1
-        version: 10.9.1(jiti@2.7.0)(supports-color@7.2.0)
       fast-check:
         specifier: ^4.10.1
         version: 4.10.1

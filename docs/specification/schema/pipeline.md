@@ -1,6 +1,6 @@
 # The Modifier pipeline
 
-How a `@pvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/interpretedSchema.ts` or `src/schemas/chainableInterpretedSchema.ts`. [`GLOSSARY.md`](../../../GLOSSARY.md) defines the terms.
+How a `@pcvl/schema` schema is built and how it runs. Read this before you add or change a Modifier, or touch `src/schemas/interpretedSchema.ts` or `src/schemas/chainableInterpretedSchema.ts`. [`GLOSSARY.md`](../../../GLOSSARY.md) defines the terms.
 
 ## `InterpretedSchema` and `ChainableInterpretedSchema`: two abstract classes, one per file
 

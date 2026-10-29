@@ -12,7 +12,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
  *
  * @example
  * ```ts
- * import { pvl, type PossibleLiteralValue } from '@pvl/schema';
+ * import { pvl, type PossibleLiteralValue } from '@pcvl/schema';
  *
  * const pinned: PossibleLiteralValue = 'OWNER';
  * const owner = pvl.literal(pinned);
@@ -22,7 +22,7 @@ export type PossibleLiteralValue = string | number | boolean | bigint;
 
 /**
  * The default message of every Issue `LiteralInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -50,7 +50,7 @@ interface LiteralInterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const owner = pvl.literal('OWNER');
  *
@@ -87,7 +87,7 @@ export class LiteralInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const one = pvl.literal(1).coerce();
    *

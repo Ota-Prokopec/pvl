@@ -8,7 +8,7 @@ The wiki is a separate git repo that no PR reviews and no agent reads, so pages 
 
 - **Pages pushed to the wiki repo by hand.** Nothing to set up, but every page lives outside review and goes stale silently. Rejected.
 - **A wiki workspace entry (`apps/wiki/`).** A `package.json`, an `AGENTS.md` and a `MONOREPO.md` entry for plain Markdown with no build. Rejected as disproportionate.
-- **`apps/docs`, the documentation site.** It documents `@pvl/schema` for its users through its API reference; the wiki explains how both packages work inside. Kept apart.
+- **`apps/docs`, the documentation site.** It documents `@pcvl/schema` for its users through its API reference; the wiki explains how both packages work inside. Kept apart.
 
 ## Consequences
 

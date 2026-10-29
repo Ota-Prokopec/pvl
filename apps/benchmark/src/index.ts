@@ -147,7 +147,7 @@ const transpileVariants = (): string[] => {
 };
 
 /**
- * Starts a fresh `node` and times importing `file` (once `@pvl/schema` is
+ * Starts a fresh `node` and times importing `file` (once `@pcvl/schema` is
  * loaded) and then the first validation of every Schema.
  */
 const measureColdStart = (
@@ -156,7 +156,7 @@ const measureColdStart = (
 ): { load: number; firstCall: number } => {
   const script = `
     import { readFileSync } from 'node:fs';
-    await import('@pvl/schema');
+    await import('@pcvl/schema');
     const inputs = JSON.parse(readFileSync(${JSON.stringify(inputsFile)}, 'utf8'));
     const start = performance.now();
     const schemas = await import(${JSON.stringify(url.pathToFileURL(file).href)});

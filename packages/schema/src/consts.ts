@@ -8,21 +8,21 @@ import {
 /**
  * The `vendor` string every schema in this library reports through its
  * Standard Schema properties. Compiled Schemas produced by
- * `@pvl/schema-compiler` report the same value, so a consumer cannot tell
+ * `@pcvl/compiler` report the same value, so a consumer cannot tell
  * the two apart by vendor.
  *
  * @example
  * ```ts
- * import { pvl, VENDOR } from '@pvl/schema';
+ * import { pvl, VENDOR } from '@pcvl/schema';
  *
  * const schema = pvl.string();
  * schema['~standard'].vendor === VENDOR; // true
  * ```
  */
-export const VENDOR = '@pvl/schema' as const;
+export const VENDOR = '@pcvl/schema' as const;
 
 /**
- * The key of the brand every `@pvl/schema` Schema declares, which only this
+ * The key of the brand every `@pcvl/schema` Schema declares, which only this
  * library's own classes and a Compiled Schema carry.
  *
  * @internal

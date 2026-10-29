@@ -11,7 +11,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
  *
  * @example
  * ```ts
- * import type { EnumMember } from '@pvl/schema';
+ * import type { EnumMember } from '@pcvl/schema';
  *
  * const member: EnumMember = 'OWNER';
  * const numericMember: EnumMember = 404;
@@ -28,7 +28,7 @@ type EnumArraySource = ReadonlyArray<string>;
  *
  * @example
  * ```ts
- * import { pvl, type EnumSource } from '@pvl/schema';
+ * import { pvl, type EnumSource } from '@pcvl/schema';
  *
  * const fromObject: EnumSource = { OWNER: 'OWNER' } as const;
  * const fromArray: EnumSource = ['OWNER'];
@@ -40,7 +40,7 @@ export type EnumSource = EnumObjectSource | EnumArraySource;
 
 /**
  * The default message of every Issue `EnumInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -68,7 +68,7 @@ interface EnumInterpretedSchemaKind<Source extends EnumSource> extends Interpret
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const SYSTEM_ROLE = { OWNER: 'OWNER', MEMBER: 'MEMBER' } as const;
  * const role = pvl.enum(SYSTEM_ROLE);

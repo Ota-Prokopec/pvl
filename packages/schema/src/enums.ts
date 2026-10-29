@@ -33,7 +33,7 @@ export const PVL_OBJECT_PROPERTY_NAMES_ENUM = {
  *
  * @example
  * ```ts
- * import { pvl, PVL_FACTORY_NAMES_ENUM } from '@pvl/schema';
+ * import { pvl, PVL_FACTORY_NAMES_ENUM } from '@pcvl/schema';
  *
  * pvl[PVL_FACTORY_NAMES_ENUM.STRING]().validate('hi'); // { value: 'hi' }
  * ```

@@ -6,7 +6,7 @@
 - Exported functions, variables and types are the same as in the source, a type alias the source declares (`export type User = InferOutput<typeof userSchema>`) included.
 - Nothing importable is added.
 - The only differences allowed are the ones the compiled replacement needs:
-  - each `pvl.compile(...)` replaced by its Compiled Schema's class expression, plus the type-only `@pvl/schema` import it needs;
+  - each `pvl.compile(...)` replaced by its Compiled Schema's class expression, plus the type-only `@pcvl/schema` import it needs;
   - Runtime Arguments hoisted into `const pvlArg<n>` ([ADR-0030](./0030-a-method-argument-the-compiler-cant-read-is-a-runtime-argument-evaluated-once-where-it-is-written.md));
   - module specifiers rewritten to resolve from the mirror's location;
   - the `@generated` header;

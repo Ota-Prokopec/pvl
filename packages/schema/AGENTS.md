@@ -1,6 +1,6 @@
-# `@pvl/schema`
+# `@pcvl/schema`
 
-A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. See [`@pvl/schema-compiler`'s `AGENTS.md`](../schema-compiler/AGENTS.md) for what the compiler does with a schema defined here, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`) used throughout.
+A Zod-style schema validation library: compose `Schema`s and validate values against them at runtime. See [`@pcvl/compiler`'s `AGENTS.md`](../compiler/AGENTS.md) for what the compiler does with a schema defined here, and [`GLOSSARY.md`](../../GLOSSARY.md) for the domain glossary (`Schema`, `Modifier`, `Constraint`, `Issue`, `Result`, `Refinement`, `Transform`, `Coercion`, `Chainable Schema`, `Compiled Schema`) used throughout.
 
 Each section below says when it applies and which file to read. Read only the sections the current task needs.
 
@@ -12,12 +12,12 @@ Each section below says when it applies and which file to read. Read only the se
 
 ## Entry point: the `pvl` namespace
 
-The single public entry point is a `pvl` namespace object (`import { pvl } from '@pvl/schema'`), not a set of flat named exports. Every factory hangs off it: `pvl.string()`, `pvl.number()`, `pvl.boolean()`, `pvl.bigint()`, `pvl.object(shape)`, `pvl.array(item)`, `pvl.union(schemas)`, `pvl.literal(value)`, `pvl.enum(source)`, `pvl.compile(schema)`.
+The single public entry point is a `pvl` namespace object (`import { pvl } from '@pcvl/schema'`), not a set of flat named exports. Every factory hangs off it: `pvl.string()`, `pvl.number()`, `pvl.boolean()`, `pvl.bigint()`, `pvl.object(shape)`, `pvl.array(item)`, `pvl.union(schemas)`, `pvl.literal(value)`, `pvl.enum(source)`, `pvl.compile(schema)`.
 
 ## Implementation rules
 
-- **Primitive validators must be written for raw speed**: no comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pvl/schema-compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
-- **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pvl/schema-compiler` (see its `AGENTS.md`).
+- **Primitive validators must be written for raw speed**: no comparatively slow techniques. They are both the runtime hot path for every schema built on them and the performance baseline `@pcvl/compiler`'s output is trying to beat. This is also why regex-backed helpers stay out of the built-in surface.
+- **This package carries runtime behaviour only.** A constraint's `code`, default `message` and `test` live here; the JavaScript source text the compiler emits for it lives in `@pcvl/compiler` (see its `AGENTS.md`).
 
 ## Modifiers
 

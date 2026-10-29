@@ -241,7 +241,7 @@ describe('pvl.object()', () => {
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.object({ name: pvl.string() });
       expect(schema['~standard'].version).toBe(1);
-      expect(schema['~standard'].vendor).toBe('@pvl/schema');
+      expect(schema['~standard'].vendor).toBe('@pcvl/schema');
       expect(schema['~standard'].validate({ name: 'ada' })).toEqual({
         value: { name: 'ada' },
       });

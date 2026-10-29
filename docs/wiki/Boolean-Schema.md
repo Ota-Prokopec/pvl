@@ -88,7 +88,7 @@ None.
 ## Source
 
 - [`booleanInterpretedSchema.ts`](../../packages/schema/src/schemas/booleanInterpretedSchema.ts): `BooleanInterpretedSchema`, `BOOLEAN_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/booleanSchema.ts`](../../packages/schema-compiler/src/schemas/booleanSchema.ts): `BooleanSchema`
-- [`emitters/booleanSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/booleanSchemaEmitter.ts): `BooleanSchemaEmitter`
+- [`schemas/booleanSchema.ts`](../../packages/compiler/src/schemas/booleanSchema.ts): `BooleanSchema`
+- [`emitters/booleanSchemaEmitter.ts`](../../packages/compiler/src/emitters/booleanSchemaEmitter.ts): `BooleanSchemaEmitter`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md).

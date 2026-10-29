@@ -1,6 +1,6 @@
 # PvlAst narrows method names, and an unknown one ends the reading
 
-**`GenericAst` reads a method name as the `string` the source writes. `PvlAst` narrows it to the name `@pvl/schema` gives it before handing it on: a call chain's factory to `PvlObjectPropertyName` (`pvl`'s factories and `compile`, in a `PvlFactoryCall`), and each method chained onto it to `PvlSchemaMethodName` (every Schema's methods, Modifiers, `validate` and `standalone` included, in a `SchemaCall`). A name `@pvl/schema` doesn't have, `pvl.foo()` or `pvl.string().foo()`, throws `UnknownPvlMethodException` at that call, reported as `UNSUPPORTED_SCHEMA` ([ADR-0037](./0037-the-compilers-expected-failures-are-base-exceptions-naming-their-diagnostic.md)). It ends the reading of the Schema, so only the first is reported. A chained method's receiver is read before its name is checked, so `z.string().foo()` is reported at `z`.**
+**`GenericAst` reads a method name as the `string` the source writes. `PvlAst` narrows it to the name `@pcvl/schema` gives it before handing it on: a call chain's factory to `PvlObjectPropertyName` (`pvl`'s factories and `compile`, in a `PvlFactoryCall`), and each method chained onto it to `PvlSchemaMethodName` (every Schema's methods, Modifiers, `validate` and `standalone` included, in a `SchemaCall`). A name `@pcvl/schema` doesn't have, `pvl.foo()` or `pvl.string().foo()`, throws `UnknownPvlMethodException` at that call, reported as `UNSUPPORTED_SCHEMA` ([ADR-0037](./0037-the-compilers-expected-failures-are-base-exceptions-naming-their-diagnostic.md)). It ends the reading of the Schema, so only the first is reported. A chained method's receiver is read before its name is checked, so `z.string().foo()` is reported at `z`.**
 
 Before, every name passed through as a `string`. `.foo()` reached `Schema.findUncompilableDiagnostics`, whose Emitter tables have no method for it, and was one UNSUPPORTED_SCHEMA among the Schema's others, while `pvl.foo()` failed `readSchema`'s factory check and was COMPILE_ARGUMENT_UNRESOLVABLE. Every consumer compared names untyped, so a misspelt one (`methodName === 'standlone'`) compiled.
 
@@ -13,9 +13,9 @@ Before, every name passed through as a `string`. `.foo()` reached `Schema.findUn
 
 ## Consequences
 
-- A Schema calling a method `@pvl/schema` doesn't have reports that one error, not one per problem: a union or a spread argument elsewhere in it shows up once the call is fixed. The application's own type check already reports the unknown method ([ADR-0024](./0024-the-compiler-checks-syntax-not-types.md)).
+- A Schema calling a method `@pcvl/schema` doesn't have reports that one error, not one per problem: a union or a spread argument elsewhere in it shows up once the call is fixed. The application's own type check already reports the unknown method ([ADR-0024](./0024-the-compiler-checks-syntax-not-types.md)).
 - `pvl.foo()` is UNSUPPORTED_SCHEMA, no longer COMPILE_ARGUMENT_UNRESOLVABLE.
 - An `export const` whose chain calls an unknown method is no Schema to `Module.holdsSchema`, so it gets no Type Aliases ([ADR-0036](./0036-type-aliases-read-the-mirrored-binding-through-typeof.md)).
-- The names are checked against `@pvl/schema`'s own enums (`PVL_OBJECT_PROPERTY_NAMES_ENUM`, `PVL_SCHEMA_METHOD_NAME_ENUM`), whose types force them to list every method, so a method added to `@pvl/schema` reads with no change here. Compiling it still needs its Emitter method.
+- The names are checked against `@pcvl/schema`'s own enums (`PVL_OBJECT_PROPERTY_NAMES_ENUM`, `PVL_SCHEMA_METHOD_NAME_ENUM`), whose types force them to list every method, so a method added to `@pcvl/schema` reads with no change here. Compiling it still needs its Emitter method.
 
 > Superseded in part by [ADR-0046](./0046-a-mirrored-module-exports-exactly-what-its-source-exports.md): the Type Aliases and `Module.holdsSchema` are removed, so no `export const` gets Type Aliases.

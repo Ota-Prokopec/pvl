@@ -44,7 +44,7 @@ jsoncTester.run('tsconfig-extends', tsconfigExtends, {
 });
 
 markdownTester.run('no-source-layout-heading', noSourceLayoutHeading, {
-  valid: ['# `@pvl/schema`\n\n## Architecture\n\nText about the source layout.'],
+  valid: ['# `@pcvl/schema`\n\n## Architecture\n\nText about the source layout.'],
   invalid: [
     {
       code: '# pkg\n\n## Source Layout\n\n- `src/index.ts`',
