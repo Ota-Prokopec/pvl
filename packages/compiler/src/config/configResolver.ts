@@ -7,7 +7,7 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { errorMessage } from '../errorMessage.js';
 import { pvlConfigSchema } from './configValidationSchemas.js';
-import { CONFIG_FILE_NAME } from './consts.js';
+import { DEFAULT_CONFIG_FILE_NAME } from './consts.js';
 import { defaultConfig } from './defaultConfig.js';
 import type { PvlConfig, PvlConfigFilePayload, PvlConfigOverrides } from './types.js';
 import {
@@ -43,7 +43,7 @@ export const resolveConfig = async ({
     };
   }
 
-  const file = path.resolve(cwd, configPath ?? CONFIG_FILE_NAME);
+  const file = path.resolve(cwd, configPath ?? DEFAULT_CONFIG_FILE_NAME);
   let text: string | undefined;
   try {
     text = await fsPromises.readFile(file, 'utf8');
@@ -65,7 +65,7 @@ export const resolveConfig = async ({
         diagnostics: [
           new Diagnostic({
             code: DIAGNOSTIC_CODE.NO_CONFIG,
-            message: `No ${CONFIG_FILE_NAME} in ${cwd}, and no setting passed as a flag. Add a ${CONFIG_FILE_NAME}, point --config at one, or pass --include/--destination.`,
+            message: `No ${DEFAULT_CONFIG_FILE_NAME} in ${cwd}, and no setting passed as a flag. Add a ${DEFAULT_CONFIG_FILE_NAME}, point --config at one, or pass --include/--destination.`,
           }),
         ],
         isResolved: false,
