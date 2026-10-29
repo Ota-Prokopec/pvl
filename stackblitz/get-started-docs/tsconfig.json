@@ -1,4 +1,4 @@
-// Strict TypeScript settings for the editor and `npm run check-types`, the same strictness PVL itself is written with.
+// Strict TypeScript settings for the editor and CI's type check, the same strictness PVL itself is written with.
 {
   "compilerOptions": {
     "module": "NodeNext",
@@ -8,8 +8,7 @@
     "noUncheckedIndexedAccess": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
+    "noEmit": true
   },
   "include": ["src"]
 }

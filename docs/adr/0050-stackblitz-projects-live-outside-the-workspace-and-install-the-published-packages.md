@@ -10,7 +10,7 @@
 
 - The project asks for the `next` dist-tag while PVL is in prerelease, and switches to `latest` when `0.1.0` ships ([releasing.md](../agents/releasing.md#leaving-prerelease-mode)).
 - `lint:workspace` exempts `stackblitz/**` from `tsconfig-extends`; its other rules still check the project's `package.json`.
-- CI's tarball job installs the packed tarballs into a copy of the project and runs its `check-types`, so a change that would break the window fails its PR. It checks the code about to be published, not the `next` already on npm, so the project keeps to released API.
+- CI's tarball job installs the packed tarballs into a copy of the project and type-checks it, so a change that would break the window fails its PR. It checks the code about to be published, not the `next` already on npm, so the project keeps to released API.
 - A docs preview or `docs:dev` shows `main`'s project, not the branch's.
 
 ## Considered options

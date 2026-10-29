@@ -165,9 +165,11 @@ Not every schema can be compiled yet: `pvl.union()` can't, and the compiler repo
 The window below runs exactly that project on the published packages. It compiles `src/schemas/user.ts`, validates one passing and one failing value, and prints both `Result`s. Open `.pvl/schemas/user.ts` to read the generated code, and save an edit to compile and run it again.
 
 <iframe
-  src="https://stackblitz.com/github/Ota-Prokopec/pvl/tree/main/stackblitz/get-started-docs?embed=1&file=src%2Fschemas%2Fuser.ts&view=editor&terminalHeight=50"
+  src="https://stackblitz.com/github/Ota-Prokopec/pvl/tree/main/stackblitz/get-started-docs?embed=1&ctl=1&file=src%2Fschemas%2Fuser.ts&view=editor&terminalHeight=50"
   title="StackBlitz: compile the user schema with @pcvl/compiler and run it"
   loading="lazy"
+  credentialless
+  allow="cross-origin-isolated"
   style="width: 100%; height: 560px; border: 0; border-radius: 8px; overflow: hidden"
 ></iframe>
 
