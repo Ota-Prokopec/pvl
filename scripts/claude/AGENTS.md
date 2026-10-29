@@ -23,6 +23,17 @@ VS Code's CLI can open a window but can't run a command in it, so the script wri
 - **VS Code asks once before it runs an automatic task.** Answer _Allow_, which sets `task.allowAutomaticTasks` to `"on"` in your user settings. VS Code never lets a workspace turn that setting on. If you answered _Disallow_, or `task.allowAutomaticTasks` is already `"off"`, the window opens without Claude Code. Change the answer with _Tasks: Manage Automatic Tasks_.
 - **Every opening of the workspace starts Claude Code again**, including VS Code restoring the window after a restart. Each opening uses the arguments of the last `pnpm claude` run that wrote the file, so a forwarded prompt is sent again. A workspace that is already open in a window only gets focused, and no second `claude` starts.
 
+## `--codespace`: a GitHub Codespace instead of a worktree
+
+`pnpm claude --codespace` lists this repo's codespaces by branch, plus a green entry that creates one: on `main`, on the 4-core, 16 GB `standardLinux32gb` machine, with a 30-minute idle timeout and a 7-day retention period, then switched to the `<type>/<slug>` branch you name, which must not exist on `origin` yet ([ADR-0047](../../docs/adr/0047-heavy-agent-work-runs-in-a-github-codespace-from-a-committed-devcontainer.md)). `src/codespace.ts` writes the same workspace file as for a worktree, but inside the codespace over `gh codespace ssh`, and opens it with `code --new-window --file-uri vscode-remote://codespaces+<name>/workspaces/pvl/.vscode/<branch>.code-workspace`. The window's task then starts `claude` in the codespace, and every other argument is forwarded as usual. The codespace's toolchain comes from [`.devcontainer/devcontainer.json`](../../.devcontainer/devcontainer.json).
+
+It needs, once per machine or account:
+
+- **The `codespace` scope on `gh`:** `gh auth refresh -h github.com -s codespace`. Without it, listing fails with that hint.
+- **The GitHub Codespaces VS Code extension** (`github.codespaces`), which resolves the `codespaces+<name>` remote.
+- **Your dotfiles** for Claude Code's personal settings: turn on _Automatically install dotfiles_ at github.com/settings/codespaces. VS Code's settings, `task.allowAutomaticTasks` included, come over through Settings Sync.
+- **A Claude Code login in each new codespace**, on its first run.
+
 ## No tests
 
 Like [`apps/playground`](../../apps/playground/AGENTS.md), this package deliberately has no tests. The script drives an interactive terminal and then hands it to another program, so a test would mostly check its own fakes. Type-checking is the automated check. To test it by hand, put stub `claude` and `code` commands ahead of the real ones on `PATH` that print their working directory and arguments, and run the script in a real terminal; `@clack/prompts` needs a TTY. Then open a generated workspace file with the real `code` to check that the window starts `claude`.

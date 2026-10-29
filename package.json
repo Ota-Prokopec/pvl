@@ -12,7 +12,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types --continue",
-    "test": "turbo run test --continue",
+    "test": "turbo run test --continue --concurrency=1",
     "claude": "node scripts/claude/src/index.ts",
     "claude-list": "node scripts/claude-list/src/index.ts",
     "lint:workspace": "eslint --config eslint.config.ts --max-warnings 0 ."
