@@ -1,6 +1,6 @@
 {
   "name": "@pcvl/compiler",
-  "version": "0.0.0",
+  "version": "0.1.0-next.0",
   "description": "The ahead-of-time compiler for @pcvl/schema: turns pvl.compile(...)-marked schemas into plain if/for validation code.",
   "keywords": [
     "validation",

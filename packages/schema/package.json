@@ -1,6 +1,6 @@
 {
   "name": "@pcvl/schema",
-  "version": "0.0.0",
+  "version": "0.1.0-next.0",
   "description": "A Zod-style schema-validation library whose schemas can be compiled ahead of time into plain if/for code.",
   "keywords": [
     "validation",

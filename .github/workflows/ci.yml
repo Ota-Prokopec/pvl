@@ -32,7 +32,9 @@ jobs:
 
   # A PR changing either published package's code (changedFilePatterns in
   # .changeset/config.json) must carry a changeset; docs and private entries
-  # don't need one.
+  # don't need one. A version PR (`pnpm changeset version`) is exempt: it
+  # consumes the pending changesets, deleting them from .changeset/, so it has
+  # none left to find.
   changeset:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -46,7 +48,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm changeset status --since=origin/main
+      - run: |
+          if git diff --no-renames --diff-filter=D --name-only origin/main... -- '.changeset/*.md' | grep -q .; then
+            echo 'A version PR: it consumes the pending changesets.'
+          else
+            pnpm changeset status --since=origin/main
+          fi
 
   # Both packages as a user installs them (ADR-0048): publint and attw check
   # the manifests and per-format types, then a throwaway project outside the
