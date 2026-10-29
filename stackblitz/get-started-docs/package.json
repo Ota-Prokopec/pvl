@@ -1,0 +1,24 @@
+{
+  "name": "get-started-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "pvl compile",
+    "validate": "tsx src/index.ts",
+    "dev": "nodemon --watch src --ext ts --exec \"run-s compile validate\"",
+    "check-types": "run-s compile check-types:tsc",
+    "check-types:tsc": "tsc"
+  },
+  "dependencies": {
+    "@pcvl/compiler": "next",
+    "@pcvl/schema": "next",
+    "nodemon": "^3.1.14",
+    "tsx": "^4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "6.0.3"
+  }
+}

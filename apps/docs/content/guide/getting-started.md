@@ -122,6 +122,55 @@ type CountOutput = StandardSchemaV1.InferOutput<typeof count>; // number
 
 A field whose schema is `.optional()` becomes an optional _key_ in the composed object type, not merely a key that may be `undefined` — and at runtime an omitted key stays omitted from the output rather than appearing as an explicit `undefined`.
 
+## Compile it
+
+`@pcvl/compiler` turns a schema into a Compiled Schema ahead of time: plain straight-line code that validates the same values and returns the same `Result`, without walking the schema at runtime. Install it as a devDependency:
+
+```sh
+pnpm add -D @pcvl/compiler@next
+```
+
+Wrap the schema in `pvl.compile(...)`, in a file under `src/schemas/`:
+
+```ts
+// src/schemas/user.ts
+import { pvl } from '@pcvl/schema';
+
+export const user = pvl.compile(
+  pvl.object({
+    name: pvl.string().min(1),
+    age: pvl.number().int().min(0),
+    nickname: pvl.string().optional(),
+  }),
+);
+```
+
+Run the compiler with `pnpm exec`. Not `npx pvl`: where `@pcvl/compiler` isn't installed, it fetches an unrelated package named `pvl`.
+
+```sh
+pnpm exec pvl compile
+```
+
+It writes each file to the `.pvl/` folder at the same path, relative to `src/`, so `src/schemas/user.ts` becomes `.pvl/schemas/user.ts`. Import the Compiled Schema from there:
+
+```ts
+// src/index.ts
+import { user } from '../.pvl/schemas/user.js';
+
+const result = user.validate({ name: 'Ada', age: 36 });
+```
+
+Not every schema can be compiled yet: `pvl.union()` can't, and the compiler reports it as `UNSUPPORTED_SCHEMA` and writes nothing. A schema you don't wrap in `pvl.compile(...)` keeps working as written.
+
+The window below runs exactly that project on the published packages. It compiles `src/schemas/user.ts`, validates one passing and one failing value, and prints both `Result`s. Open `.pvl/schemas/user.ts` to read the generated code, and save an edit to compile and run it again.
+
+<iframe
+  src="https://stackblitz.com/github/Ota-Prokopec/pvl/tree/main/stackblitz/get-started-docs?embed=1&file=src%2Fschemas%2Fuser.ts&view=editor&terminalHeight=50"
+  title="StackBlitz: compile the user schema with @pcvl/compiler and run it"
+  loading="lazy"
+  style="width: 100%; height: 560px; border: 0; border-radius: 8px; overflow: hidden"
+></iframe>
+
 ## What comes next
 
 - [Schema types](./schemas) — every factory, constraint and modifier, with examples.

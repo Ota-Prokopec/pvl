@@ -15,4 +15,4 @@ How `@pcvl/schema` and `@pcvl/compiler` get a new version and reach npm ([ADR-00
 
 ## Leaving prerelease mode
 
-When the compiler compiles every Schema `@pcvl/schema` offers, run `pnpm changeset pre exit` in a version PR together with `pnpm changeset version`: it versions both packages `0.1.0`, which the next push to `release` publishes on `latest`. Until then, every release stays a `0.1.0-next.N` prerelease.
+When the compiler compiles every Schema `@pcvl/schema` offers, run `pnpm changeset pre exit` in a version PR together with `pnpm changeset version`: it versions both packages `0.1.0`, which the next push to `release` publishes on `latest`. In the same PR, switch every StackBlitz project's `@pcvl/*` dependencies from `next` to `latest` ([`stackblitz/AGENTS.md`](../../stackblitz/AGENTS.md)). Until then, every release stays a `0.1.0-next.N` prerelease.

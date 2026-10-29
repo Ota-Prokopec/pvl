@@ -36,7 +36,8 @@ export const config: Linter.Config[] = defineConfig(
   },
   {
     files: ['**/tsconfig*.json'],
-    ignores: ['packages/typescript-config/**'],
+    // A StackBlitz project installs with plain npm, where no @repo/* resolves (ADR-0050).
+    ignores: ['packages/typescript-config/**', 'stackblitz/**'],
     language: 'json/jsonc',
     rules: {
       '@repo/conventions/tsconfig-extends': 'error',
