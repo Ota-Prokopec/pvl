@@ -18,6 +18,7 @@
     "lint:workspace": "eslint --config eslint.config.ts --max-warnings 0 ."
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@repo/eslint-config": "workspace:*",
     "eslint": "10.9.1",
     "jiti": "2.7.0",
