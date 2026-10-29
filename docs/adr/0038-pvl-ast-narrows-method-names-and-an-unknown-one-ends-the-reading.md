@@ -17,3 +17,5 @@ Before, every name passed through as a `string`. `.foo()` reached `Schema.findUn
 - `pvl.foo()` is UNSUPPORTED_SCHEMA, no longer COMPILE_ARGUMENT_UNRESOLVABLE.
 - An `export const` whose chain calls an unknown method is no Schema to `Module.holdsSchema`, so it gets no Type Aliases ([ADR-0036](./0036-type-aliases-read-the-mirrored-binding-through-typeof.md)).
 - The names are checked against `@pvl/schema`'s own enums (`PVL_OBJECT_PROPERTY_NAMES_ENUM`, `PVL_SCHEMA_METHOD_NAME_ENUM`), whose types force them to list every method, so a method added to `@pvl/schema` reads with no change here. Compiling it still needs its Emitter method.
+
+> Superseded in part by [ADR-0046](./0046-a-mirrored-module-exports-exactly-what-its-source-exports.md): the Type Aliases and `Module.holdsSchema` are removed, so no `export const` gets Type Aliases.

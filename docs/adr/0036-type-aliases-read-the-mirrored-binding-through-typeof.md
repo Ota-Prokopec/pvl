@@ -1,5 +1,7 @@
 # Type aliases read the mirrored binding through `typeof`
 
+> Superseded by [ADR-0046](./0046-a-mirrored-module-exports-exactly-what-its-source-exports.md): a mirrored module exports exactly what its source exports, so the Type Aliases and `withTypes` are removed.
+
 **Under `withTypes`, each Schema a mirrored module exports gets two exported type aliases at the end of that module, named after the export and typed from the mirror's own binding: `export type UserSchemaInput = PvlInferInput<typeof userSchema>;` and `export type UserSchemaOutput = PvlInferOutput<typeof userSchema>;`. They are not spelled out structurally (`{ name: string }`).** `@pvl/schema`'s `InferInput` and `InferOutput` come in through one type-only import, aliased as `COMPILED_SCHEMA_IMPORT` aliases its own. A Schema here is what the compiler can tell is one without a type checker: an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is, marked or not.
 
 The spec asked for aliases "generated structurally rather than as a live type-only import back into the application's source", written when the output was one aggregate Destination File. That file couldn't name a Schema of the application without importing it back from the source. A mirrored module holds the Schema itself, so `typeof userSchema` names the binding next to it and imports nothing from the source. That was the point of the requirement, and it holds.

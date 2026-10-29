@@ -49,7 +49,7 @@ describe('runCompilation(): diagnostics', () => {
 
   it('INVALID_CONFIG: one diagnostic per failing setting, naming its path', async () => {
     const root = await createFixture({
-      'pvlconfig.json': configJson({ include: 'src/**/*.ts', rootDir: 1, withTypes: 'yes' }),
+      'pvlconfig.json': configJson({ include: 'src/**/*.ts', rootDir: 1, destination: true }),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
@@ -63,12 +63,16 @@ describe('runCompilation(): diagnostics', () => {
     ]);
     expect(payload.diagnostics[0]?.message).toContain('include');
     expect(payload.diagnostics[1]?.message).toContain('rootDir');
-    expect(payload.diagnostics[2]?.message).toContain('withTypes');
+    expect(payload.diagnostics[2]?.message).toContain('destination');
   });
 
-  it('INVALID_CONFIG: an unknown key, so a typo is reported', async () => {
+  it.each([
+    { key: 'destinaton', reason: 'a typo' },
+    { key: 'withTypes', reason: 'a removed setting' },
+    { key: 'watch', reason: 'a removed setting' },
+  ])('INVALID_CONFIG: an unknown key, so $reason is reported', async ({ key }) => {
     const root = await createFixture({
-      'pvlconfig.json': configJson({ destinaton: 'out' }),
+      'pvlconfig.json': configJson({ destination: 'out', [key]: true }),
       'src/schemas/user.ts': SCHEMA_FILE,
     });
 
@@ -77,7 +81,7 @@ describe('runCompilation(): diagnostics', () => {
     expectFailure(payload, [
       { code: DIAGNOSTIC_CODE.INVALID_CONFIG, file: path.join(root, 'pvlconfig.json') },
     ]);
-    expect(payload.diagnostics[0]?.message).toContain('destinaton');
+    expect(payload.diagnostics[0]?.message).toContain(key);
     expect(await listFixtureFiles(root, 'out')).toBe(undefined);
   });
 
@@ -415,6 +419,56 @@ describe('runCompilation(): diagnostics', () => {
     expect(await readFixtureFile(root, '.pvl/schemas/setup.ts')).toContain('const internal = 1;');
   });
 
+  it('DEFAULT_EXPORT: a warning per statement for every form of default export, that still writes', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/a.ts': "import { pvl } from '@pvl/schema';\nexport default pvl.string();\n",
+      'src/schemas/b.ts': 'export default function format(): void {}\n',
+      'src/schemas/c.ts': 'const c = 1;\nexport { c as default };\n',
+      'src/schemas/d.ts': "export { default } from './legacy.js';\n",
+      'src/schemas/e.ts': 'const e = 1;\nexport = e;\n',
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics.map((diagnostic) => ({ ...diagnostic }))).toStrictEqual(
+      ['a', 'b', 'c', 'd', 'e'].map((name) => ({
+        code: DIAGNOSTIC_CODE.DEFAULT_EXPORT,
+        severity: SEVERITY.WARNING,
+        message: expect.any(String),
+        file: path.join(root, `src/schemas/${name}.ts`),
+      })),
+    );
+    expect(payload.written).toBe(true);
+    expect(await readFixtureFile(root, '.pvl/schemas/c.ts')).toContain('export { c as default };');
+  });
+
+  it('DEFAULT_EXPORT: not raised for a default re-exported under a name', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/lib/legacy.ts': 'export default 1;\n',
+      'src/schemas/a.ts': "export { default as legacy } from '../lib/legacy.js';\n",
+    });
+
+    const payload = await runCompilation({ cwd: root });
+
+    expect(payload.diagnostics).toEqual([]);
+  });
+
+  it('DEFAULT_EXPORT: strict turns it into an error that writes nothing', async () => {
+    const root = await createFixture({
+      'pvlconfig.json': configJson({}),
+      'src/schemas/user.ts': `${SCHEMA_FILE}export default user;\n`,
+    });
+
+    const payload = await runCompilation({ cwd: root, strict: true });
+
+    expectFailure(payload, [
+      { code: DIAGNOSTIC_CODE.DEFAULT_EXPORT, file: path.join(root, 'src/schemas/user.ts') },
+    ]);
+    expect(await listFixtureFiles(root, '.pvl')).toBe(undefined);
+  });
+
   it('SIDE_EFFECT_COPIED: a warning that still copies the statement and writes', async () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
@@ -482,17 +536,17 @@ describe('runCompilation(): diagnostics', () => {
     const root = await createFixture({
       'pvlconfig.json': configJson({}),
       'src/schemas/user.ts': SCHEMA_FILE,
-      'src/schemas/fallback.ts':
+      'src/shared/fallback.ts':
         "import { pvl } from '@pvl/schema';\n\nexport default pvl.string();\n",
-      'src/schemas/named.ts':
+      'src/shared/named.ts':
         "import { pvl } from '@pvl/schema';\n\nconst named = pvl.string();\nexport default named;\n",
       'lib/external.d.ts': 'export declare const external: unknown;\n',
       [schemaFilePath]: [
         "import { pvl } from '@pvl/schema';",
         "import { user } from './user.js';",
         "import * as schemas from './user.js';",
-        "import * as defaults from './named.js';",
-        "import fallback from './fallback.js';",
+        "import * as defaults from '../shared/named.js';",
+        "import fallback from '../shared/fallback.js';",
         "import { external } from '../../lib/external.js';",
         '',
         'const makeSchema = () => pvl.object({});',
@@ -521,13 +575,13 @@ describe('runCompilation(): diagnostics', () => {
     );
     expect(payload.diagnostics.slice(0, 3).map(({ message }) => message)).toEqual([
       expect.stringContaining(
-        "`fallback` is a default-exported expression on line 3 of fallback.ts, which the compiler doesn't follow. A default export is followed when it names a `const`: `const fallback = pvl.object(…); export default fallback;`.",
+        "`fallback` is a default-exported expression on line 3 of ../shared/fallback.ts, which the compiler doesn't follow. A default export is followed when it names a `const`: `const fallback = pvl.object(…); export default fallback;`.",
       ),
       expect.stringContaining(
         "Import the Schema by its name instead: `import { user } from './user.js'`.",
       ),
       expect.stringContaining(
-        "Import the default export instead: `import schema from './named.js'`.",
+        "Import the default export instead: `import schema from '../shared/named.js'`.",
       ),
     ]);
   });

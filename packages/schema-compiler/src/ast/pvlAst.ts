@@ -1,27 +1,15 @@
 // Recognising PVL in a module's syntax: a name bound to `pvl` imported from
-// `@pvl/schema`, `pvl.compile(...)` markers and what is chained onto them, and
-// a `pvl.<factory>(…)` call chain split into its links, and which of a
-// module's exports are Schemas. Built on GenericAst.
-import {
-  Node,
-  VariableDeclarationKind,
-  type CallExpression,
-  type Identifier,
-  type SourceFile,
-  type VariableDeclaration,
-} from 'ts-morph';
-import {
-  BaseException,
-  UnknownPvlMethodException,
-  UnresolvedNodeException,
-} from '../exceptions/index.js';
+// `@pvl/schema`, `pvl.compile(...)` markers and what is chained onto them,
+// and a `pvl.<factory>(…)` call chain split into its links. Built on GenericAst.
+import { Node, type CallExpression, type Identifier, type SourceFile } from 'ts-morph';
+import { UnknownPvlMethodException, UnresolvedNodeException } from '../exceptions/index.js';
 import {
   GenericAst,
   type FollowedConsts,
   type PropertyAccessCallExpression,
 } from './genericAst.js';
 import type { CallChain, PvlFactoryCall } from './types.js';
-import { PVL_OBJECT_PROPERTY_NAMES_ENUM, PVL_SCHEMA_PROPERTY_NAMES_ENUM } from '@pvl/schema';
+import { PVL_OBJECT_PROPERTY_NAMES_ENUM } from '@pvl/schema';
 import type { CompileMarkerAllowedPropertyName } from './enums.js';
 import { COMPILE_MARKER_ALLOWED_PROPERTY_NAMES, PVL_PACKAGE_SPECIFIER } from './consts.js';
 import { isPvlObjectPropertyName, isPvlSchemaMethodName } from './utils.js';
@@ -235,63 +223,5 @@ export class PvlAst {
       throw new UnresolvedNodeException(call);
     }
     return argument;
-  }
-
-  /**
-   * The names of `sourceFile`'s exported Schemas, in declaration order: each
-   * `export const` whose value is a `pvl.*` call chain, read statically,
-   * following `const`s, imported ones too, marked to compile or not. A
-   * function or a `.validate()` result is no Schema here.
-   *
-   * ```ts
-   * const name = pvl.string();
-   * export const user = pvl.object({ name });
-   * export const optionalName = name.optional();
-   * export const getUser = () => pvl.object({ name });
-   * PvlAst.findExportedSchemaNames(sourceFile) // ['user', 'optionalName']
-   * ```
-   */
-  public static findExportedSchemaNames(sourceFile: SourceFile): string[] {
-    return sourceFile
-      .getVariableStatements()
-      .filter(
-        (statement) =>
-          statement.isExported() &&
-          statement.getDeclarationKind() === VariableDeclarationKind.Const,
-      )
-      .flatMap((statement) => statement.getDeclarations())
-      .filter((declaration) => PvlAst.holdsSchema(declaration))
-      .map((declaration) => declaration.getName());
-  }
-
-  /**
-   * Whether `declaration` binds one name to a Schema: every `pvl.*` method
-   * returns one, so any chain that ends in no `.validate()` does. A chain
-   * calling a method `@pvl/schema` doesn't have returns nothing known.
-   *
-   * ```ts
-   * const user = pvl.object({ … });      // true
-   * const user = base.optional();        // true, with `const base = pvl.string()`, imported or not
-   * const result = user.validate(input); // false: a Result
-   * const getUser = () => pvl.string();  // false: a function
-   * const { shape } = user;              // false: destructuring
-   * const name = pvl.string().foo();     // false: `@pvl/schema` has no `foo`
-   * ```
-   */
-  private static holdsSchema(declaration: VariableDeclaration): boolean {
-    const initializer = declaration.getInitializer();
-    if (initializer === undefined || !Node.isIdentifier(declaration.getNameNode())) {
-      return false;
-    }
-    try {
-      return PvlAst.readCallChain(initializer).methods.every(
-        ({ methodName }) => methodName !== PVL_SCHEMA_PROPERTY_NAMES_ENUM.VALIDATE,
-      );
-    } catch (error) {
-      if (error instanceof BaseException) {
-        return false;
-      }
-      throw error;
-    }
   }
 }

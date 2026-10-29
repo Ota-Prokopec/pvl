@@ -10,7 +10,7 @@ The compiler writes a single **`Destination Directory`** and modifies nothing el
 
 The `Destination Directory` is a **complete mirror** of the scanned set. Every file `include` matches is mirrored, with or without a `pvl.compile(...)` call, to `<destination>/<its path relative to rootDir>`: with the default `rootDir` of `src`, `src/schemas/user.ts` becomes `<destination>/schemas/user.ts`. A scanned file outside `rootDir` has no place in the mirror, so it is the `FILE_OUTSIDE_ROOT_DIR` error. `@pvl/schema` stays a runtime dependency of the mirror, which carries ordinary interpreted schemas too, though a Compiled Schema imports only its types ([ADR-0029](../../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md)).
 
-Each mirrored module is its source's code under a `@generated` header, with each `pvl.compile(...)` call replaced by its Compiled Schema ([code-generation.md](./code-generation.md#each-compiled-schema-is-a-class-expression-implementing-schema)), a Runtime Argument in a `const` such a call follows hoisted (below), and module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`):
+Each mirrored module is its source's code under a `@generated` header, with each `pvl.compile(...)` call replaced by its Compiled Schema ([code-generation.md](./code-generation.md#each-compiled-schema-is-a-class-expression-implementing-schema)), a Runtime Argument in a `const` such a call follows hoisted (below), and module specifiers rewritten so they resolve from the new location (resolved the way a bundler would, so `./user.js` finds `user.ts`). Nothing else changes: a mirrored module exports exactly what its source exports, its declared types included, and adds no export of its own ([ADR-0046](../../adr/0046-a-mirrored-module-exports-exactly-what-its-source-exports.md)). The mirror holds no file the source lacks: with no `<rootDir>/index.ts`, it has no `index.ts`, and one the application wrote is mirrored like any other scanned file. A default export (`export default`, `export =`, `export { x as default }`) is mirrored as written, a `pvl.compile(...)` in it compiled, but is the `DEFAULT_EXPORT` warning, one per statement, in any scanned file and whatever it exports. Module specifiers are rewritten as follows:
 
 - **A relative import of a scanned file** stays as written: the layout is the same, so it already reaches the mirrored file.
 - **A relative import of anything else** (an unscanned helper, a `.json` file) is rewritten to reach the original file from the mirrored module's directory.
@@ -31,29 +31,6 @@ const pvlArg0 = getMax();
 export const base = pvl.string().max(pvlArg0);
 ```
 
-### No generated barrel
-
-The compiler never generates a barrel. When the Root Directory has no `index.ts`, the Destination Directory has none either: the mirror holds exactly the source's files at the source's paths, so an import of a Compiled Schema is the import of its interpreted Schema with only the alias target swapped. A barrel that existed only in the mirror would be an import with no interpreted counterpart, and the two versions would no longer be the same.
-
-A `<rootDir>/index.ts` the application wrote is mirrored like any other scanned file. Its module specifiers follow the rules above, and each keeps the extension it was written with, or its lack of one, so it resolves under whatever module resolution the application uses. An ambiguous `export *` in it is TypeScript's error, reported wherever the mirror is typechecked.
-
-### Type aliases
-
-With `withTypes` on (the default), each mirrored module ends with two exported type aliases per Schema it exports. They are named after the export, its first letter capitalised: `…Input` is its Input and `…Output` its Output, so a Schema with a `.transform()` gets both sides of the conversion. Each reads the mirror's own binding through `typeof`, with `@pvl/schema`'s `InferInput` and `InferOutput` imported type-only under aliases, so it imports nothing from the source ([ADR-0036](../../adr/0036-type-aliases-read-the-mirrored-binding-through-typeof.md)):
-
-```ts
-const name = pvl.string();
-export const userSchema = pvl.object({ name });
-export const optionalName = name.optional();
-// ↓ appended, in declaration order
-export type UserSchemaInput = PvlInferInput<typeof userSchema>;
-export type UserSchemaOutput = PvlInferOutput<typeof userSchema>;
-export type OptionalNameInput = PvlInferInput<typeof optionalName>;
-export type OptionalNameOutput = PvlInferOutput<typeof optionalName>;
-```
-
-An exported Schema is an `export const` whose value is a `pvl.*` call chain, read the way a `pvl.compile(...)` argument is (following `const`s, into an Imported Schema's file too), whether marked or not, so `export const admin = user.optional()` gets aliases when `user` is imported ([ADR-0043](../../adr/0043-the-compiler-follows-a-const-into-another-file-and-a-runtime-argument-there-is-an-error.md)). Every module's exported Schemas are read before any module is compiled, so which ones get aliases doesn't depend on the order modules compile in. A Schema built by a function, or exported only through `export { … }`, an imported one re-exported that way included, gets no alias. The compiler doesn't check alias names: one that clashes with another name is TypeScript's duplicate-identifier or ambiguous-`export *` error where the mirror is typechecked. With `withTypes` off, nothing is appended and the import isn't added.
-
 ### Writing it
 
 Output is byte-stable across runs with unchanged input. The compiler marks every Destination Directory it writes with a `.pvl-generated` file, and only ever replaces a directory that is absent, empty or carries that marker; anything else is the `DESTINATION_NOT_EMPTY` error, so a `destination` pointed at real source can't be wiped. The mirror is written to a temporary sibling directory (`<destination>.pvl-tmp`) first. The previous directory is then renamed aside to `<destination>.pvl-old`, the new one renamed into place, and only then is the old one removed; a failure at any step puts the old one back. So a run either replaces the whole directory or leaves it as it was. Both sibling directories are never scanned, and a later run replaces any a crashed run left behind.
@@ -69,7 +46,15 @@ The mirror has the source's layout, so an application swaps an alias rather than
 "paths": { "@/*": ["./src/*"] }
 ```
 
-A bundler alias works the same way. No alias can redirect a relative import (`'./schemas/user.js'`), so a schema imported that way keeps loading its source. A bundler plugin that redirects resolution of every scanned file, relative imports included, is the planned way around that.
+A bundler alias works the same way. No alias can redirect a relative import (`'./schemas/user.js'`), so a schema imported that way keeps loading its source. A bundler plugin that redirects resolution of every scanned file, relative imports included, in production builds only, is the planned way around that.
+
+Development runs the Interpreted Schemas, so there is no watch mode ([ADR-0045](../../adr/0045-there-is-no-watch-mode-because-development-runs-the-interpreted-schemas.md)): `pvl compile` is a build step, wired in ahead of the build so production always ships a fresh mirror:
+
+```jsonc
+"scripts": { "build": "pvl compile && tsc" }
+```
+
+CI runs `pvl compile`, then the typecheck and tests under the production alias, so the compiled code that ships is tested.
 
 ## Where it lands
 

@@ -83,7 +83,7 @@ export const readFixtureFile = async (
  * `directoryPath` doesn't exist.
  *
  * ```ts
- * await listFixtureFiles(root, '.pvl'); // ['.gitignore', '.pvl-generated', 'index.ts', 'schemas/user.ts']
+ * await listFixtureFiles(root, '.pvl'); // ['.gitignore', '.pvl-generated', 'schemas/user.ts']
  * ```
  */
 export const listFixtureFiles = async (

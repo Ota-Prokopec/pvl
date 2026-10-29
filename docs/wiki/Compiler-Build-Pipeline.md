@@ -35,7 +35,7 @@ flowchart TD
     MOD --> PC["Precheck.precheckModules<br/>(next graph)"]
     PC --> ERR{"any error?<br/>(or any warning with --strict)"}
     ERR -- yes --> NOWRITE["print the Diagnostics, exit 1,<br/>write nothing"]
-    ERR -- no --> CA["compileAll<br/>Module.compile for each file,<br/>plus the index.ts barrel"]
+    ERR -- no --> CA["compileAll<br/>Module.compile for each file"]
     CA --> WD["DestinationWriter.writeDestination<br/>into .pvl.pvl-tmp, then swapped in"]
     WD --> DONE["exit 0"]
 ```
@@ -98,10 +98,7 @@ flowchart TD
     EMIT --> REP["the class expression replaces<br/>the pvl.compile(...) call in the text"]
     REP --> IMP["add a type-only import of<br/>Schema, Issue, Result… from @pvl/schema"]
     IMP --> SPEC["rewrite module specifiers so they<br/>still resolve from the mirror"]
-    SPEC --> TA{"withTypes?"}
-    TA -- yes --> ALIAS["append NameInput / NameOutput<br/>type aliases per exported Schema"]
-    TA -- no --> OUT["the mirrored file's text"]
-    ALIAS --> OUT
+    SPEC --> OUT["the mirrored file's text"]
 ```
 
 Only the outermost `pvl.compile(...)` is replaced: one nested inside another's argument is compiled into it. A file with no `pvl.compile(...)` is copied with only its module specifiers rewritten.
@@ -140,14 +137,14 @@ export const username = (new (class PvlCompiledSchema0 implements PvlSchema<stri
 })() as PvlSchema<string, string>);
 ```
 
-plus `.pvl/index.ts`, re-exporting every mirrored file, and a `.pvl-generated` marker so a later run knows it may replace the folder.
+plus a `.pvl-generated` marker so a later run knows it may replace the folder.
 
 ## Source
 
 - [`cli/runCli.ts`](../../packages/schema-compiler/src/cli/runCli.ts), [`compilation/runCompilation.ts`](../../packages/schema-compiler/src/compilation/runCompilation.ts), [`compilation/compileAll.ts`](../../packages/schema-compiler/src/compilation/compileAll.ts)
-- [`config/configResolver.ts`](../../packages/schema-compiler/src/config/configResolver.ts), [`scanner.ts`](../../packages/schema-compiler/src/scanner.ts), [`tsMorphProject.ts`](../../packages/schema-compiler/src/tsMorphProject.ts)
-- [`precheck.ts`](../../packages/schema-compiler/src/precheck.ts), [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts), [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts), [`schemas/runtimeArgument.ts`](../../packages/schema-compiler/src/schemas/runtimeArgument.ts)
+- [`config/configResolver.ts`](../../packages/schema-compiler/src/config/configResolver.ts), [`scanner/scanner.ts`](../../packages/schema-compiler/src/scanner/scanner.ts), [`tsMorphProject/tsMorphProject.ts`](../../packages/schema-compiler/src/tsMorphProject/tsMorphProject.ts)
+- [`precheck/precheck.ts`](../../packages/schema-compiler/src/precheck/precheck.ts), [`schemas/readSchema.ts`](../../packages/schema-compiler/src/schemas/readSchema.ts), [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts), [`runtimeArgument/runtimeArgument.ts`](../../packages/schema-compiler/src/runtimeArgument/runtimeArgument.ts)
 - [`ast/pvlAst.ts`](../../packages/schema-compiler/src/ast/pvlAst.ts), [`ast/genericAst.ts`](../../packages/schema-compiler/src/ast/genericAst.ts)
-- [`module.ts`](../../packages/schema-compiler/src/module.ts), [`barrel.ts`](../../packages/schema-compiler/src/barrel.ts), [`destination/destinationWriter.ts`](../../packages/schema-compiler/src/destination/destinationWriter.ts)
+- [`module/module.ts`](../../packages/schema-compiler/src/module/module.ts), [`destination/destinationWriter.ts`](../../packages/schema-compiler/src/destination/destinationWriter.ts)
 
 Further reading: [compilation.md](../specification/schema-compiler/compilation.md), [configuration-and-cli.md](../specification/schema-compiler/configuration-and-cli.md), [destination-directory.md](../specification/schema-compiler/destination-directory.md), [ADR-0002](../adr/0002-static-ast-compilation-via-ts-morph.md), [ADR-0005](../adr/0005-compiler-emits-a-destination-directory-and-rewrites-nothing.md).

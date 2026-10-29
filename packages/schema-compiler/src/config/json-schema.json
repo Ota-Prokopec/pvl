@@ -24,16 +24,6 @@
     "destination": {
       "description": "The Destination Directory to write, relative to this file. Unset, it is .pvl, which also gets a .gitignore. The compiler only replaces a directory it wrote itself.",
       "type": "string"
-    },
-    "withTypes": {
-      "description": "Whether to generate each exported Schema's Input and Output type aliases.",
-      "type": "boolean",
-      "default": true
-    },
-    "watch": {
-      "description": "Whether `pvl compile` keeps running and recompiles on every change.",
-      "type": "boolean",
-      "default": false
     }
   },
   "additionalProperties": false

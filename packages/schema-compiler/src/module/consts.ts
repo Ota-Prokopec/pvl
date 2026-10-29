@@ -1,7 +1,6 @@
 // The text every mirrored module shares: its first line, the type-only
-// imports from `@pvl/schema` a Compiled Schema, its Standalone marker and
-// its type aliases are written with, the names those type aliases' inference
-// types are imported as, and its Compiled Schemas' class names.
+// imports from `@pvl/schema` a Compiled Schema and its Standalone marker are
+// written with, and its Compiled Schemas' class names.
 
 import {
   ISSUE_CLASS_NAME,
@@ -36,17 +35,3 @@ export const COMPILED_SCHEMA_IMPORT =
  */
 export const STANDALONE_BRAND_IMPORT =
   `import type { STANDALONE_BRAND as ${STANDALONE_BRAND_NAME} } from '@pvl/schema';` as const;
-
-/** The name `TYPE_ALIAS_IMPORT` aliases `@pvl/schema`'s `InferInput` as, which a module's `Input` type aliases are written with. */
-export const INFER_INPUT_TYPE_NAME = 'PvlInferInput' as const;
-
-/** The name `TYPE_ALIAS_IMPORT` aliases `@pvl/schema`'s `InferOutput` as, which a module's `Output` type aliases are written with. */
-export const INFER_OUTPUT_TYPE_NAME = 'PvlInferOutput' as const;
-
-/**
- * The import a module with type aliases gets (`withTypes`), aliasing the
- * two inference types they are written with, as `COMPILED_SCHEMA_IMPORT`
- * aliases its own.
- */
-export const TYPE_ALIAS_IMPORT =
-  `import type { InferInput as ${INFER_INPUT_TYPE_NAME}, InferOutput as ${INFER_OUTPUT_TYPE_NAME} } from '@pvl/schema';` as const;
