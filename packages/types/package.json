@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "types": "./src/types.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/types.ts"
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",

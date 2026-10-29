@@ -1,3 +1,5 @@
 # Publish `@pcvl/schema` and `@pcvl/compiler` as dual ESM+CJS
 
 Both packages build with [tsup](https://tsup.egoist.dev) and publish both an ESM and a CJS output, even though this monorepo's own source is ESM only (`@repo/conventions` requires `"type": "module"` in every `package.json`). That rule governs how code is _authored_ in this repo; these two packages are published deliverables consumed by arbitrary downstream apps, some of which are still on CJS — restricting them to ESM-only would exclude those consumers, and a publish-format change later is a breaking release. tsup builds the dual output from the same ESM TypeScript source, so this doesn't change how the packages are written, only what `tsup.config.ts` emits.
+
+> Amended by [ADR-0048](./0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md): the same `tsup` run also emits the declarations, `index.d.ts` for ESM and `index.d.cts` for CJS, with the private `@repo/types` inlined, so each `exports` condition has types matching its format.

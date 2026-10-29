@@ -4,6 +4,8 @@ The home of `ValueOfEnum<T>`, the utility type [`enums-and-constants.md`](../../
 
 It also holds `AnyFunction`, the type a parameter accepting any function is typed by, as `@pcvl/compiler`'s `emitFunctionCall` takes the user's `.refine()` predicate or `.transform()` function.
 
+`@pcvl/schema` and `@pcvl/compiler` take it as a devDependency, and their tsup build inlines it into the declarations they publish ([ADR-0048](../../docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)). That needs the `types` field in `package.json` and every type in `src/types.ts`, with no barrel: tsup's declaration resolver can't follow a relative re-export.
+
 `ValueOfEnum` has an array branch for `pvl.enum(['A', 'B'])`, whose source is a readonly tuple: `T[keyof T]` on an array would also yield `length` and every array method. It matches `ReadonlyArray`, because a `const`-inferred tuple is readonly and `any[]` wouldn't match it.
 
 ## Scope
