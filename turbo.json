@@ -1,6 +1,9 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": [
+    "TURBO_CACHE_DIR"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [
