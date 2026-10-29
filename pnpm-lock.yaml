@@ -179,9 +179,6 @@ importers:
 
   packages/compiler:
     dependencies:
-      '@pcvl/schema':
-        specifier: workspace:*
-        version: link:../schema
       dedent:
         specifier: ^1.7.2
         version: 1.7.2
@@ -198,6 +195,9 @@ importers:
         specifier: ^18.2.0
         version: 18.2.0
     devDependencies:
+      '@pcvl/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@repo/conventions':
         specifier: workspace:*
         version: link:../conventions

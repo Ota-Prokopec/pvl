@@ -1,6 +1,29 @@
 {
   "name": "@pcvl/compiler",
   "version": "0.0.0",
+  "description": "The ahead-of-time compiler for @pcvl/schema: turns pvl.compile(...)-marked schemas into plain if/for validation code.",
+  "keywords": [
+    "validation",
+    "schema",
+    "compiler",
+    "codegen",
+    "typescript",
+    "pvl"
+  ],
+  "homepage": "https://pvl-docs.vercel.app",
+  "bugs": "https://github.com/Ota-Prokopec/pvl/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ota-Prokopec/pvl.git",
+    "directory": "packages/compiler"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,8 +54,10 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run"
   },
+  "peerDependencies": {
+    "@pcvl/schema": "workspace:^"
+  },
   "dependencies": {
-    "@pcvl/schema": "workspace:*",
     "dedent": "^1.7.2",
     "lodash-es": "^4.18.1",
     "minimatch": "^10.2.6",
@@ -40,6 +65,7 @@
     "yargs": "^18.2.0"
   },
   "devDependencies": {
+    "@pcvl/schema": "workspace:*",
     "@repo/conventions": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@repo/types": "workspace:*",

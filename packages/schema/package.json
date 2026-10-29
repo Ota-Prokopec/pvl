@@ -1,6 +1,25 @@
 {
   "name": "@pcvl/schema",
   "version": "0.0.0",
+  "description": "A Zod-style schema-validation library whose schemas can be compiled ahead of time into plain if/for code.",
+  "keywords": [
+    "validation",
+    "schema",
+    "standard-schema",
+    "typescript",
+    "pvl"
+  ],
+  "homepage": "https://pvl-docs.vercel.app",
+  "bugs": "https://github.com/Ota-Prokopec/pvl/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ota-Prokopec/pvl.git",
+    "directory": "packages/schema"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

@@ -75,7 +75,8 @@ jobs:
           mkdir -p consumer/src/schemas
           cd consumer
           echo '{ "private": true, "type": "module" }' > package.json
-          npm install --no-audit --no-fund "$RUNNER_TEMP"/tarballs/*.tgz typescript@6.0.3
+          # Strict, so a peer range that misses the packed `@pcvl/schema` fails the install.
+          npm install --strict-peer-deps --no-audit --no-fund "$RUNNER_TEMP"/tarballs/*.tgz typescript@6.0.3
           echo '{}' > pvlconfig.json
           cat > tsconfig.json <<'EOF'
           { "compilerOptions": { "module": "nodenext", "strict": true, "outDir": "out", "types": [] }, "include": ["src"] }
