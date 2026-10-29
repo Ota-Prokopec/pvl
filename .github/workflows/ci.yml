@@ -22,6 +22,24 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  # A PR changing either published package's code (changedFilePatterns in
+  # .changeset/config.json) must carry a changeset; docs and private entries
+  # don't need one.
+  changeset:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm changeset status --since=origin/main
+
   # Both packages as a user installs them (ADR-0048): publint and attw check
   # the manifests and per-format types, then a throwaway project outside the
   # workspace, where no `@repo/*` resolves, installs the packed tarballs,

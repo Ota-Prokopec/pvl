@@ -7,6 +7,7 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 ## Naming
 
 - **Branches** are `<type>/<slug>`: `<type>` is one of the types below, `<slug>` is lowercase kebab-case (`feat/enum-factory`, `chore/agents-system-refactor`). A Claude Code worktree (`claude --worktree`) starts on a `worktree-<name>` branch, so rename it with `git branch -m <type>/<slug>` before the first commit. `pnpm claude` asks for the `<type>/<slug>` branch up front, so its new worktrees need no rename.
+- **`release` is the one long-lived branch outside the `<type>/<slug>` rule.** Pushing a `main` commit to it publishes to npm, so only the maintainer pushes to it; agents never check it out or push to it.
 - **Commit subjects, PR titles and issue titles** follow [Conventional Commits](https://www.conventionalcommits.org): `<type>(<scope>): <description>`, scope optional (`feat(schema): add pvl.enum()`, `chore: move the repo to TypeScript 6.0.3`). `<type>` is `feat`, `fix`, `docs`, `refactor`, `test` or `chore`; `<scope>` is lowercase kebab-case, usually the workspace entry's folder name.
 - **Everything posted to GitHub reads as the user's own work**: PR titles and bodies, issue titles, bodies and comments carry no `CLAUDE` prefix, no mention of Claude and no "Generated with Claude Code" footer.
 
@@ -14,6 +15,7 @@ The [`@repo/conventions` hooks](../../packages/conventions/AGENTS.md#hooks) enfo
 
 - **Every commit passes the pre-commit hook** ([AGENTS.md](../../AGENTS.md#commands)).
 - **One commit per solved issue**, parent or sub-issue.
+- **A change to a published package's code (`@pcvl/schema`, `@pcvl/compiler`) includes a changeset**: run `pnpm changeset` and commit the `.changeset/*.md` file it writes. CI's `changeset` job fails a PR without one; docs and private entries need none.
 
 ## Pull requests
 
