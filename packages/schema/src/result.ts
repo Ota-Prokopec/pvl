@@ -20,7 +20,7 @@ import type { Issue } from './issue/issue.js';
  * }
  * ```
  */
-export type FailureResult = StandardSchemaV1.FailureResult & {
+export type FailureResult = Omit<StandardSchemaV1.FailureResult, 'issues'> & {
   readonly issues: ReadonlyArray<Issue>;
 };
 
