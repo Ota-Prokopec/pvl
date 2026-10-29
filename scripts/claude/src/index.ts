@@ -7,7 +7,8 @@
  * worktree is named after the `<type>/<slug>` branch the script asks for:
  * branch `refactor/enum-factory` goes to `.claude/worktrees/refactor+enum-factory/`.
  * A generated workspace file runs `claude` in that window's terminal as soon
- * as it opens.
+ * as it opens. Claude Code starts with `TURBO_CACHE_DIR` set to the main
+ * checkout's `.turbo/cache`, so every worktree reuses one turbo cache.
  * Arguments given to the script are forwarded to `claude`, so
  * `pnpm claude --continue` works.
  */
@@ -74,7 +75,7 @@ const writeWorkspaceFile = (worktreePath: string): string => {
           type: 'process',
           command: 'claude',
           args: claudeArgs,
-          options: { cwd: worktreePath },
+          options: { cwd: worktreePath, env: { TURBO_CACHE_DIR: process.env.TURBO_CACHE_DIR } },
           runOptions: { runOn: 'folderOpen' },
           presentation: { reveal: 'always', focus: true, panel: 'dedicated' },
           problemMatcher: [],
@@ -98,6 +99,9 @@ const openInVSCode = (worktreePath: string): never => {
 const currentPath = getCurrentWorktreePath();
 const mainCheckoutPath = getMainCheckoutPath();
 const worktreesDirectory = path.join(mainCheckoutPath, '.claude', 'worktrees');
+
+// Every checkout shares the main checkout's turbo cache; `cacheDir` in turbo.json can't, as it must be relative.
+process.env.TURBO_CACHE_DIR ??= path.join(mainCheckoutPath, '.turbo', 'cache');
 
 const labelWorktree = (worktree: Worktree): string => {
   const tags = [
