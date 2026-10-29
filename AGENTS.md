@@ -22,6 +22,10 @@ Read [`README.md`](./README.md) before you run a root command or check that a ch
 
 Read [`docs/agents/git-workflow.md`](./docs/agents/git-workflow.md) before you branch, commit, push, open a PR, or touch a GitHub issue. It covers naming, commits, pull requests and resolving an issue.
 
+## Releases
+
+Read [`docs/agents/releasing.md`](./docs/agents/releasing.md) before you version or publish `@pcvl/schema` and `@pcvl/compiler`, or change the release workflow. It covers the version PR, the push to `release`, the one-time setup and when prerelease mode ends.
+
 ## Code
 
 Read the standard for each technology involved in [`docs/standards/`](./docs/standards/), plus [`docs/specification/`](./docs/specification/) for the area the change covers, before you write, refactor or review code.
