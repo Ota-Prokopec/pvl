@@ -1,6 +1,8 @@
 # The slow half of the post-modification checklist (README.md): lefthook's
 # pre-commit hook runs format, lint and check-types locally, and this runs
-# test and build on every pull request and push to main.
+# test and build on every pull request and push to main. It also checks that a
+# pull request changing a published package carries a changeset, and that both
+# packages install and work from their packed tarballs.
 name: CI
 
 on:
@@ -53,13 +55,17 @@ jobs:
   # declaration importing a package the tarball doesn't depend on fails it),
   # and imports both packages as ESM and requires them as CJS.
   tarball:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19', 24]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build --filter=@pcvl/schema --filter=@pcvl/compiler

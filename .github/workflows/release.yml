@@ -1,15 +1,10 @@
-# Publishes @pcvl/schema and @pcvl/compiler when the maintainer fast-forwards
-# `release` to a `main` commit (ADR-0049, docs/agents/releasing.md). npm trusted
-# publishing (OIDC) authenticates, so there is no npm token secret. A push whose
-# version is already on npm publishes, tags and releases nothing.
+# Publishes both packages when `release` is pushed (ADR-0049, docs/agents/releasing.md).
 name: Release
 
 on:
   push:
     branches: [release]
 
-# Never two publishes at once; a queued push waits rather than cancelling one
-# that may be halfway through.
 concurrency:
   group: release
 
@@ -29,36 +24,29 @@ jobs:
           node-version: 24
       - run: pnpm install --frozen-lockfile
       - run: pnpm build --filter=@pcvl/schema --filter=@pcvl/compiler
-      - name: Publish
-        id: publish
-        # pnpm publishes each package whose version isn't on npm yet (fixed
-        # Changesets, so both share one version) on the dist-tag named by the
-        # version's prerelease identifier: 0.1.0-next.1 goes to `next`, 0.1.0
-        # to `latest`. pnpm does the OIDC exchange itself.
+      - name: Version and dist-tag
         run: |
           version=$(jq -r .version packages/schema/package.json)
-          tag=latest
+          tag=latest prerelease=false
           if [[ $version == *-* ]]; then
             tag=${version#*-}
             tag=${tag%%.*}
+            prerelease=true
           fi
-          pnpm -r publish --tag "$tag" --provenance --no-git-checks --report-summary
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "published=$(jq '.publishedPackages | length' pnpm-publish-summary.json)" >> "$GITHUB_OUTPUT"
+          printf 'VERSION=%s\nDIST_TAG=%s\nPRERELEASE=%s\n' "$version" "$tag" "$prerelease" >> "$GITHUB_ENV"
+      - run: pnpm -r publish --tag "$DIST_TAG" --provenance --no-git-checks
       - name: Tag and create the GitHub Release
-        if: steps.publish.outputs.published != '0'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.publish.outputs.version }}
-        # The notes are each package's changelog section for this version.
-        # Tagging happens here because a tag pushed with GITHUB_TOKEN starts no
-        # other workflow.
         run: |
+          gh release view "v$VERSION" >/dev/null 2>&1 && exit 0
           for pkg in schema compiler; do
-            echo "## @pcvl/$pkg"
-            awk -v heading="## $VERSION" '$0 == heading { on = 1; next } /^## / { on = 0 } on' "packages/$pkg/CHANGELOG.md"
+            section=$(awk -v heading="## $VERSION" '$0 == heading { on = 1; next } /^## / { on = 0 } on' "packages/$pkg/CHANGELOG.md")
+            if [[ -z ${section//[[:space:]]/} ]]; then
+              echo "::error::packages/$pkg/CHANGELOG.md has no '## $VERSION' section"
+              exit 1
+            fi
+            printf '## @pcvl/%s\n%s\n\n' "$pkg" "$section"
           done > "$RUNNER_TEMP/notes.md"
-          prerelease=false
-          if [[ $VERSION == *-* ]]; then prerelease=true; fi
           gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" \
-            --notes-file "$RUNNER_TEMP/notes.md" --prerelease="$prerelease"
+            --notes-file "$RUNNER_TEMP/notes.md" --prerelease="$PRERELEASE"

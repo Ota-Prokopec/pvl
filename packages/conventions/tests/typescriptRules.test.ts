@@ -200,7 +200,7 @@ typescriptTester.run('no-inline-enum-value', noInlineEnumValue, {
     "import type { ValueOfEnum } from '@repo/types';\ntype Role = ValueOfEnum<typeof ROLE>;",
     {
       code: 'export type ValueOfEnum<T> = T[keyof T];',
-      filename: path.join(typesRoot, 'packages/types/src/valueOfEnum.ts'),
+      filename: path.join(typesRoot, 'packages/types/src/types.ts'),
     },
   ],
   invalid: [

@@ -55,7 +55,7 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@pcvl/schema": "workspace:^"
+    "@pcvl/schema": "workspace:*"
   },
   "dependencies": {
     "dedent": "^1.7.2",

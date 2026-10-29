@@ -5,9 +5,7 @@ How `@pcvl/schema` and `@pcvl/compiler` get a new version and reach npm ([ADR-00
 ## Release steps
 
 1. **Version PR.** On a `chore/<slug>` branch off `main`, run `pnpm changeset version`. It consumes the pending `.changeset/*.md` files, bumps both packages to the next version and writes each package's `CHANGELOG.md`. Commit it and open a PR into `main`; the maintainer merges it. Done when the PR is open.
-2. **Publish (maintainer only).** With `main` at the merged version commit, `git push origin main:release` fast-forwards `release`. [`release.yml`](../../.github/workflows/release.yml) builds both packages, publishes each version that isn't on npm yet through trusted publishing with provenance, and creates the `vX.Y.Z` tag and a GitHub Release of that version's changelog, a prerelease for `-next.N`. A push whose version is already on npm does nothing.
-
-A run that publishes and then fails before the GitHub Release can't be fixed by a re-run, which finds nothing to publish: the maintainer creates the release by hand with `gh release create vX.Y.Z --target <commit> --prerelease --notes-file <the changelog sections>`.
+2. **Publish (maintainer only).** With `main` at the merged version commit, `git push origin main:release` fast-forwards `release`. [`release.yml`](../../.github/workflows/release.yml) builds both packages, publishes each version that isn't on npm yet through trusted publishing with provenance, and creates the `vX.Y.Z` tag and a GitHub Release of that version's changelog, a prerelease for `-next.N`, unless that release already exists. A push whose version is already on npm and released does nothing, so re-running a failed run is the recovery.
 
 ## One-time setup (maintainer)
 

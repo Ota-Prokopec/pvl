@@ -2,12 +2,13 @@
 
 `@pcvl/schema` describes the shape of a value once, as a schema, and then checks values against it at runtime. The schema is also the type: there is no second declaration to keep in sync.
 
-::: warning Pre-release — not yet on npm
-`@pcvl/schema` is still at version `0.0.0` and has **not been published**. The command below is what installation will look like; today it will fail. Until the first release, use the package from a checkout of the repository.
+::: warning Pre-release
+Both packages are published as `0.1.0-next.N` prereleases on the `next` dist-tag, so install them with `@next`. `@pcvl/compiler` is optional, and its version must match `@pcvl/schema`'s.
 :::
 
 ```sh
-pnpm add @pcvl/schema
+pnpm add @pcvl/schema@next
+pnpm add -D @pcvl/compiler@next
 ```
 
 ## Your first schema
