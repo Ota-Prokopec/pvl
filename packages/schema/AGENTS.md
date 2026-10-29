@@ -8,7 +8,7 @@ Each section below says when it applies and which file to read. Read only the se
 
 - TypeScript, ESM source. The only runtime dependency is `@standard-schema/spec` — the canonical `StandardSchemaV1` type definitions, types-only and zero executable code.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS — [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The dual output is a publish-target concern only; source stays ESM.
-- Takes the monorepo's shared `@repo/eslint-config` (its `base` preset, plus TSDoc and no-regex rules of its own in `eslint.config.ts`) and `@repo/typescript-config` (`base.json`) as `workspace:*` devDependencies rather than standalone config, plus [`@repo/types`](../types/AGENTS.md) as a dependency for its own internal `as const` enums (e.g. `Issue` codes).
+- Takes the monorepo's shared `@repo/eslint-config` (its `base` preset, plus TSDoc and no-regex rules of its own in `eslint.config.ts`) and `@repo/typescript-config` (`base.json`) as `workspace:*` devDependencies rather than standalone config, plus [`@repo/types`](../types/AGENTS.md) as a devDependency for its own internal `as const` enums (e.g. `Issue` codes), which the tsup build inlines into the declarations ([ADR-0048](../../docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)).
 
 ## Entry point: the `pvl` namespace
 

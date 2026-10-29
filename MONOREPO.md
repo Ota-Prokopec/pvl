@@ -26,7 +26,7 @@ scripts/
 ## Dependencies
 
 - `@pcvl/compiler` depends on `@pcvl/schema`, never the other way round. Those two publish to npm; everything else is private.
-- `@pcvl/schema` depends on `@repo/types` for its internal enums.
+- `@pcvl/schema` and `@pcvl/compiler` take `@repo/types` as a devDependency only: their build inlines it into the declarations they publish ([ADR-0048](./docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)).
 - Both scripts read worktrees through `@repo/git-worktrees`, and `claude` takes the branch-name pattern from `@repo/conventions`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
 - `@repo/eslint-config` and `@repo/typescript-config` are real, adopted dependencies, not create-turbo leftovers: every entry takes them as `workspace:*` devDependencies. `@repo/eslint-config` wires in `@repo/conventions`.
 
