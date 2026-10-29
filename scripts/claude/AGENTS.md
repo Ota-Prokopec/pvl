@@ -2,18 +2,18 @@
 
 A developer script, not part of the library or the compiler; nothing depends on it. It shows a [`@clack/prompts`](https://bomb.sh/docs/clack/packages/prompts/) menu of the repo's git worktrees and starts Claude Code with `--dangerously-skip-permissions` in the picked one. For the worktree you run it from, Claude Code starts in the same terminal. Any other worktree, or a new one the menu creates, opens in a new VS Code window with Claude Code running in its terminal. Arguments are forwarded to `claude` (`pnpm claude --continue`, `pnpm claude "fix the flaky test"`). The header comment of `src/index.ts` covers what the menu shows.
 
-It is a private workspace package (`claude`, one of the `scripts/*` entries in `pnpm-workspace.yaml`), started from the repo root by the root `package.json` script `"claude": "node scripts/claude/src/index.ts"`. Being a package gives it its own dependencies and a place in the repo-wide `lint` and `check-types` tasks. It reads worktrees through [`@repo/git-worktrees`](../git-worktrees/AGENTS.md), which it shares with [`pnpm claude-list`](../claude-list/AGENTS.md), the command that removes worktrees.
+It is a private workspace package (`claude`, one of the `scripts/*` entries in `pnpm-workspace.yaml`), started from the repo root by the root `package.json` script `"claude": "tsx scripts/claude/src/index.ts"`. Being a package gives it its own dependencies and a place in the repo-wide `lint` and `check-types` tasks. It reads worktrees through [`@repo/git-worktrees`](../git-worktrees/AGENTS.md), which it shares with [`pnpm claude-list`](../claude-list/AGENTS.md), the command that removes worktrees.
 
 ## How it runs
 
-- Node runs `src/index.ts` directly through its built-in type stripping. There is no `tsx`, no `build` script and no `dist/`.
-- `tsconfig.json` enforces `erasableSyntaxOnly` and `verbatimModuleSyntax`, which keep the source to syntax Node can strip. Do not add an `enum`, a namespace, a parameter property, or a type import without `type`. A relative import between source files needs a `.ts` extension for Node to resolve it.
+- `tsx` (a root dev dependency) runs `src/index.ts` directly from source, so it doesn't depend on the Node version's type stripping. There is no `build` script and no `dist/`.
+- `tsconfig.json` enforces `erasableSyntaxOnly` and `verbatimModuleSyntax`, which keep the source to syntax Node's own type stripping handles too. Do not add an `enum`, a namespace, a parameter property, or a type import without `type`. A relative import between source files needs a `.ts` extension for Node to resolve it.
 
 ## Each worktree runs its own install, into the shared store
 
 The script runs from the checkout you call it in, and Node resolves its dependencies from that checkout's `node_modules`. In a worktree that has never had `pnpm install`, it can't run. Either install there, or run it from the main checkout. A worktree the script creates gets its `pnpm install` from the script, before VS Code opens it. If that install fails, the script warns and opens the worktree anyway, so rerun `pnpm install` there.
 
-The install gives the worktree its own dependency set and links its `@repo/*` and `@pvl/*` imports to the worktree's own sources. It links from pnpm's global virtual store [ADR-0025](../../docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md).
+The install gives the worktree its own dependency set and links its `@repo/*` and `@pcvl/*` imports to the worktree's own sources. It links from pnpm's global virtual store [ADR-0025](../../docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md).
 
 ## How the VS Code window starts Claude Code
 

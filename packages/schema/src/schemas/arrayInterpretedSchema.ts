@@ -12,7 +12,7 @@ import type { Schema, StandaloneMarker } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type StandaloneElement } from '@pvl/schema';
+ * import { pvl, type StandaloneElement } from '@pcvl/schema';
  *
  * const tag = pvl.string().standalone();
  *
@@ -26,7 +26,7 @@ export type StandaloneElement<ItemSchema> = ItemSchema extends StandaloneMarker
 
 /**
  * The default message of every Issue `ArrayInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -66,7 +66,7 @@ interface ArrayInterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const tags = pvl.array(pvl.string()).min(1).max(5);
  *
@@ -111,7 +111,7 @@ export class ArrayInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const users = pvl.array(pvl.object({ name: pvl.string().standalone() }).standalone());
    *
@@ -132,7 +132,7 @@ export class ArrayInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const tags = pvl.array(pvl.string()).min(1, { message: 'pick at least one tag' });
    *
@@ -162,7 +162,7 @@ export class ArrayInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const tags = pvl.array(pvl.string()).max(5);
    *
@@ -192,7 +192,7 @@ export class ArrayInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const rgb = pvl.array(pvl.number().int().min(0).max(255)).length(3);
    *

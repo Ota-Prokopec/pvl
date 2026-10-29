@@ -1,6 +1,6 @@
 # `@repo/conventions`
 
-The repo's conventions as code: the custom ESLint rules (`@repo/conventions/eslint`) and the git hooks (`src/hooks/`) for the rules lint can't see. A private package with no build. ESLint loads the TypeScript source through jiti, and Node runs the hook scripts directly by stripping their types. [`@repo/eslint-config`](../eslint-config/AGENTS.md) decides which files each rule runs on. [ADR-0022](../../docs/adr/0022-conventions-enforced-by-lint-not-restated-in-prose.md) records why conventions live here.
+The repo's conventions as code: the custom ESLint rules (`@repo/conventions/eslint`) and the git hooks (`src/hooks/`) for the rules lint can't see. A private package with no build. ESLint loads the TypeScript source through jiti, and `tsx` runs the hook scripts from source. [`@repo/eslint-config`](../eslint-config/AGENTS.md) decides which files each rule runs on. [ADR-0022](../../docs/adr/0022-conventions-enforced-by-lint-not-restated-in-prose.md) records why conventions live here.
 
 ## Writing a rule
 
@@ -28,4 +28,4 @@ A hook script can't run in a checkout that hasn't had `pnpm install`, because `s
 
 - `@repo/eslint-config` depends on this package, so this package's own `eslint.config.ts` imports that preset by relative path. Declaring it as a dependency would be a workspace cycle, and Turborepo rejects those.
 - The plugin is exported under typescript-eslint's opaque `CompatiblePlugin` type. typescript-eslint's rule types and ESLint's config types don't line up, and that type is the one both accept.
-- Relative imports name the `.ts` file (`allowImportingTsExtensions`), and only erasable syntax is allowed, because jiti and Node's type stripping both load this source directly.
+- Relative imports name the `.ts` file (`allowImportingTsExtensions`), and only erasable syntax is allowed, because jiti and `tsx` both load this source directly, and the source stays runnable by Node's own type stripping.

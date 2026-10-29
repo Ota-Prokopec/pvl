@@ -14,8 +14,8 @@
     "check-types:tsc": "tsc --noEmit"
   },
   "dependencies": {
-    "@pvl/schema": "workspace:*",
-    "@pvl/schema-compiler": "workspace:*",
+    "@pcvl/schema": "workspace:*",
+    "@pcvl/compiler": "workspace:*",
     "@repo/types": "workspace:*"
   },
   "devDependencies": {

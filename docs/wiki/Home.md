@@ -4,8 +4,8 @@
 
 **PVL** (Precompiled Validation Library) validates values against schemas you describe in TypeScript. A schema works in two ways:
 
-- **Interpreted**: `@pvl/schema` walks the schema at runtime. Each schema object runs its own steps in order and calls the schemas nested in it.
-- **Compiled**: `@pvl/schema-compiler` reads the schema from your source ahead of time and writes plain `if`/`for` code that does the same checks, with nothing left to walk at runtime.
+- **Interpreted**: `@pcvl/schema` walks the schema at runtime. Each schema object runs its own steps in order and calls the schemas nested in it.
+- **Compiled**: `@pcvl/compiler` reads the schema from your source ahead of time and writes plain `if`/`for` code that does the same checks, with nothing left to walk at runtime.
 
 Both ways accept and reject the same values, report the same Issues, and type the same. These pages show, with a graph for each, how every schema works in both.
 

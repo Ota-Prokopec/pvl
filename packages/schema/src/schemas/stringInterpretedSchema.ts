@@ -7,7 +7,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * The default message of every Issue `StringInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -38,7 +38,7 @@ interface StringInterpretedSchemaKind extends InterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const username = pvl.string().min(3).max(20);
  *
@@ -65,7 +65,7 @@ export class StringInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const password = pvl.string().min(8, { message: 'too short' });
    *
@@ -95,7 +95,7 @@ export class StringInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const tweet = pvl.string().max(280);
    *
@@ -125,7 +125,7 @@ export class StringInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const countryCode = pvl.string().length(2);
    *
@@ -163,7 +163,7 @@ export class StringInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const pin = pvl.string().length(4).coerce();
    *

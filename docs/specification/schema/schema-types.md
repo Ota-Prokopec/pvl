@@ -1,6 +1,6 @@
 # Schema types
 
-What each schema type in `@pvl/schema` accepts and returns. Read this before you add a schema type or a constraint, or change how one behaves. [pipeline.md](./pipeline.md) covers the Modifiers every type shares.
+What each schema type in `@pcvl/schema` accepts and returns. Read this before you add a schema type or a constraint, or change how one behaves. [pipeline.md](./pipeline.md) covers the Modifiers every type shares.
 
 ## Schema surface (v1 scope)
 

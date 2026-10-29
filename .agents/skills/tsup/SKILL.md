@@ -16,7 +16,7 @@ metadata:
 Zero-config TypeScript/JavaScript bundler powered by esbuild. Outputs CJS, ESM, and declaration files.
 
 > **Source:** [github.com/egoist/tsup](https://github.com/egoist/tsup) · [npm](https://www.npmjs.com/package/tsup)
-> **Version in project:** `8.5.1` · **Published:** 2025-03 · **Skill updated:** 2026-03-21
+> **Version in project:** `9.0.0` (needs Node `^22.18`, `^24.11` or `>=26`) · **Published:** 2026-10 · **Skill updated:** 2026-10-29
 
 ## When to Use
 

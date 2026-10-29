@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/dev.ts",
-    "build:thesis": "node src/build.ts",
+    "dev": "tsx src/dev.ts",
+    "build:thesis": "tsx src/build.ts",
     "lint": "eslint . --max-warnings 0",
     "check-types": "tsc --noEmit"
   },
@@ -17,6 +17,7 @@
     "browser-sync": "^3.0.4",
     "eslint": "10.9.1",
     "jiti": "2.7.0",
+    "tsx": "^4.23.15",
     "typescript": "6.0.3"
   }
 }

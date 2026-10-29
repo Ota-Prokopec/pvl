@@ -8,11 +8,11 @@ A developer who wraps an object Schema in `pvl.compile()` gets one compiled vali
 
 Exposing a compiled validator for every key of every compiled object would fix that, but it would multiply the size of the Destination File for keys nobody ever validates alone. The developer needs to say, per key, "this one gets its own compiled validator", and have the type system show exactly which keys that is, the same way on the interpreted and the compiled side of the import swap.
 
-Today the interpreted side does not match either: an interpreted `pvl.object()` exposes every key through `shape`, while a compiled one exposes nothing, so swapping `from './schemas/user.js'` for `from '@pvl/compiled-schemas'` changes what compiles.
+Today the interpreted side does not match either: an interpreted `pvl.object()` exposes every key through `shape`, while a compiled one exposes nothing, so swapping `from './schemas/user.js'` for `from '@pcvl/compiled-schemas'` changes what compiles.
 
 ## Solution
 
-A `.standalone()` marker, callable on any Schema, that marks it as a **Standalone Key** when it is used as a field of a `pvl.object()`. Only Standalone Keys appear in that object's `shape`, at both the type level and runtime, interpreted and compiled alike; an object with none has `shape: {}`. When the object is compiled, `@pvl/schema-compiler` also emits a public Compiled Schema for each Standalone Key, reachable as `compiled.shape.<key>`.
+A `.standalone()` marker, callable on any Schema, that marks it as a **Standalone Key** when it is used as a field of a `pvl.object()`. Only Standalone Keys appear in that object's `shape`, at both the type level and runtime, interpreted and compiled alike; an object with none has `shape: {}`. When the object is compiled, `@pcvl/compiler` also emits a public Compiled Schema for each Standalone Key, reachable as `compiled.shape.<key>`.
 
 ```ts
 const user = pvl.compile(
@@ -37,7 +37,7 @@ An array exposes its single `element` only when the element was marked `.standal
 3. As a `pvl` user, I want only my `.standalone()` keys in an object's `shape` type, so that the editor shows me exactly which fields can be validated alone.
 4. As a `pvl` user, I want an unmarked key to be a compile error when I read it from `shape`, so that I never get `undefined` at runtime.
 5. As a `pvl` user, I want an unmarked key to be absent from `shape` at runtime too, so that the runtime agrees with the types.
-6. As a `pvl` user, I want an interpreted and a compiled object to expose the same `shape`, so that swapping the import to `@pvl/compiled-schemas` never changes what compiles.
+6. As a `pvl` user, I want an interpreted and a compiled object to expose the same `shape`, so that swapping the import to `@pcvl/compiled-schemas` never changes what compiles.
 7. As a `pvl` user, I want an object with no `.standalone()` keys to have `shape: {}`, so that `shape` is always present on an object and reading any key from it is a compile error.
 8. As a `pvl` user, I want `.standalone()` to leave validation untouched, so that marking a key never changes what the object accepts or the Issues it reports.
 9. As a `pvl` user, I want `shape.<key>.validate()` to behave exactly like the Schema I declared for that key, so that validating a field alone gives the same Result as the field would inside the object, minus the key prefix on Issue paths.
@@ -75,7 +75,7 @@ An array exposes its single `element` only when the element was marked `.standal
 - It keeps the Modifier chain going. It returns the receiver's own type intersected with a type-only Standalone marker type (`this & StandaloneMarker`), so its Modifiers, Constraints, structural methods, `shape` and `element` are all still there. Every Modifier after it keeps the marker: a re-typed class carries it over, and so does `.transform()`'s plain Schema.
 - At runtime it is **not** a no-op: it returns a clone carrying a private Standalone flag, which every later clone copies. The flag is what an `ObjectInterpretedSchema` reads when it builds its runtime `shape`. It never affects `validate()`.
 - Calling it on an already-marked Schema is allowed and changes nothing further.
-- It is valid on any Schema, field or not. It never produces a diagnostic, in `@pvl/schema` or in the compiler: a marked Schema may be defined in one file and used as a field in another, which neither the type system nor a per-file scan can rule out.
+- It is valid on any Schema, field or not. It never produces a diagnostic, in `@pcvl/schema` or in the compiler: a marked Schema may be defined in one file and used as a field in another, which neither the type system nor a per-file scan can rule out.
 
 ### `shape` (objects only)
 
@@ -116,13 +116,13 @@ An array exposes its single `element` only when the element was marked `.standal
 
 - A new ADR reinstates `.standalone()` and the Standalone Key, records that `shape`/`element` survive `.standalone()` and `pvl.compile()` but not `.transform()`, and states the size argument for opt-in exposure. It supersedes the matching parts of ADR-0016 and ADR-0020, and both get a pointer to it, as ADR-0020 did to ADR-0016.
 - `GLOSSARY.md` regains **Standalone Key**: a field of an object Schema marked `.standalone()`, the only kind of key that appears in `shape`, and the only kind the compiler emits a separate Compiled Schema for. The **Compiled Schema** entry gains `shape`/`element`.
-- The `@pvl/schema` specification for `pvl.compile()` and the compiler's code-generation and compilation specifications are updated to match.
+- The `@pcvl/schema` specification for `pvl.compile()` and the compiler's code-generation and compilation specifications are updated to match.
 
 ## Testing Decisions
 
 A good test exercises external behaviour only: what a Schema's `validate()`, `shape` and `element` return, what the type system accepts and infers, and, for the compiler, what it writes and how the emitted code behaves. Never the private Standalone flag, the modifier arrays, or the compiler's internal representation.
 
-### `@pvl/schema`: existing seams only
+### `@pcvl/schema`: existing seams only
 
 - **Type-level inference** (prior art: the type-level blocks of the compile and standard-schema-types suites). `shape` holds exactly the marked keys, `{}` when none, and nested `shape`s require a marker at each level. `shape`/`element` survive `.optional()`, `.nullable()`, `.refine()`, `.standalone()` and `pvl.compile()`, and are gone after `.transform()`. `.standalone()` keeps the chain going, and every Modifier after it, `.transform()` included, keeps the marker. Both compile/standalone orders typecheck to the same type. A union exposes nothing.
 - **`validate()` → `Result`** (prior art: the object and array suites). `.standalone()` changes neither accepted values nor Issues. The runtime keys of `shape` equal the marked keys exactly. `shape.<key>.validate()` and `element.validate()` match the declared field Schema.
@@ -130,7 +130,7 @@ A good test exercises external behaviour only: what a Schema's `validate()`, `sh
 - No Issue-shape change: paths are unaffected.
 - The existing tests asserting an all-keys interpreted `shape`, and a compiled Schema with neither `shape` nor `element`, are rewritten to the new rules rather than kept alongside them.
 
-### `@pvl/schema-compiler`: its programmatic entry-point seam
+### `@pcvl/compiler`: its programmatic entry-point seam
 
 - The differential test diffs each emitted `shape.<key>` and marked `element` against the interpreted field Schema under `fast-check`, comparing accepted values, Issue messages and Issue paths.
 - The emitted-text snapshot shows a public Compiled Schema for each marked key, none for an unmarked key, and no `element` for an unmarked one.

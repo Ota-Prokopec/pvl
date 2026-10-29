@@ -113,7 +113,7 @@ flowchart TD
 ## Source
 
 - [`numberInterpretedSchema.ts`](../../packages/schema/src/schemas/numberInterpretedSchema.ts): `NumberInterpretedSchema`, `NUMBER_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/numberSchema.ts`](../../packages/schema-compiler/src/schemas/numberSchema.ts): `NumberSchema`
-- [`emitters/numberSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/numberSchemaEmitter.ts): `NumberSchemaEmitter`
+- [`schemas/numberSchema.ts`](../../packages/compiler/src/schemas/numberSchema.ts): `NumberSchema`
+- [`emitters/numberSchemaEmitter.ts`](../../packages/compiler/src/emitters/numberSchemaEmitter.ts): `NumberSchemaEmitter`
 
 Further reading: [schema-types.md](../specification/schema/schema-types.md).

@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: '@pvl/schema'
+  name: '@pcvl/schema'
   text: 'Schemas you compose, values you validate'
   tagline: A small, synchronous, Standard Schema-conformant validation library for TypeScript.
   actions:

@@ -3,7 +3,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 import { pvl, VENDOR } from '../src/index.js';
 import { assertSuccess } from './helpers.js';
 
-// A Standard Schema that is not an `@pvl/schema` Schema, down to reporting
+// A Standard Schema that is not an `@pcvl/schema` Schema, down to reporting
 // this library's vendor and a coded, synchronous Result.
 const foreignString: StandardSchemaV1<string> = {
   '~standard': {
@@ -16,21 +16,21 @@ const foreignString: StandardSchemaV1<string> = {
   },
 };
 
-// ADR-0018: a field, element or member is an `@pvl/schema` Schema, never a
+// ADR-0018: a field, element or member is an `@pcvl/schema` Schema, never a
 // Standard Schema from elsewhere.
 describe('composite children', () => {
   it('rejects a non-pvl Standard Schema as an object field', () => {
-    // @ts-expect-error a field must be an `@pvl/schema` Schema
+    // @ts-expect-error a field must be an `@pcvl/schema` Schema
     pvl.object({ name: foreignString });
   });
 
   it('rejects a non-pvl Standard Schema as an array element', () => {
-    // @ts-expect-error an element must be an `@pvl/schema` Schema
+    // @ts-expect-error an element must be an `@pcvl/schema` Schema
     pvl.array(foreignString);
   });
 
   it('rejects a non-pvl Standard Schema as a union member', () => {
-    // @ts-expect-error a member must be an `@pvl/schema` Schema
+    // @ts-expect-error a member must be an `@pcvl/schema` Schema
     pvl.union([pvl.number(), foreignString]);
   });
 

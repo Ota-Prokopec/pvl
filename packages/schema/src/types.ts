@@ -14,7 +14,7 @@ import type { pvl } from './pvl.js';
  *
  * @example
  * ```ts
- * import { pvl, type InferInput } from '@pvl/schema';
+ * import { pvl, type InferInput } from '@pcvl/schema';
  *
  * const port = pvl.number().coerce();
  * type PortInput = InferInput<typeof port>; // unknown — `.coerce()` accepts anything
@@ -27,7 +27,7 @@ export type InferInput<TSchema extends StandardSchemaV1> = StandardSchemaV1.Infe
  *
  * @example
  * ```ts
- * import { pvl, type InferOutput } from '@pvl/schema';
+ * import { pvl, type InferOutput } from '@pcvl/schema';
  *
  * const user = pvl.object({ name: pvl.string(), nickname: pvl.string().optional() });
  * type User = InferOutput<typeof user>; // { name: string; nickname?: string | undefined }
@@ -42,7 +42,7 @@ export type InferOutput<TSchema extends StandardSchemaV1> = StandardSchemaV1.Inf
  *
  * @example
  * ```ts
- * import { pvl, type CheckOptions } from '@pvl/schema';
+ * import { pvl, type CheckOptions } from '@pcvl/schema';
  *
  * const options: CheckOptions = { message: 'must be at least 3 characters' };
  * pvl.string().min(3, options);
@@ -148,7 +148,7 @@ export type PvlObjectPropertyName = keyof typeof pvl;
  *
  * @example
  * ```ts
- * import { PVL_FACTORY_NAMES_ENUM, type PvlFactoryName } from '@pvl/schema';
+ * import { PVL_FACTORY_NAMES_ENUM, type PvlFactoryName } from '@pcvl/schema';
  *
  * const factory: PvlFactoryName = PVL_FACTORY_NAMES_ENUM.STRING; // 'string'
  * ```

@@ -200,7 +200,7 @@ typescriptTester.run('no-inline-enum-value', noInlineEnumValue, {
     "import type { ValueOfEnum } from '@repo/types';\ntype Role = ValueOfEnum<typeof ROLE>;",
     {
       code: 'export type ValueOfEnum<T> = T[keyof T];',
-      filename: path.join(typesRoot, 'packages/types/src/valueOfEnum.ts'),
+      filename: path.join(typesRoot, 'packages/types/src/types.ts'),
     },
   ],
   invalid: [
@@ -259,7 +259,7 @@ typescriptTester.run('enum-shape', enumShape, {
 
 typescriptTester.run('constant-shape', constantShape, {
   valid: [
-    "const VENDOR = '@pvl/schema' as const;",
+    "const VENDOR = '@pcvl/schema' as const;",
     'const MAX_SIZE = -1 as const;',
     'const ENABLED = true as const;',
     'const LIMIT = 10n as const;',
@@ -268,29 +268,29 @@ typescriptTester.run('constant-shape', constantShape, {
     'const pattern = /x/;',
     'const greeting = `hello ${name}`;',
     {
-      code: "export const VENDOR = '@pvl/schema' as const;",
+      code: "export const VENDOR = '@pcvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/consts.ts'),
     },
     {
-      code: "export const VENDOR = '@pvl/schema' as const;",
+      code: "export const VENDOR = '@pcvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/consts/vendor.ts'),
     },
   ],
   invalid: [
-    { code: "const vendor = '@pvl/schema' as const;", errors: [{ messageId: 'name' }] },
+    { code: "const vendor = '@pcvl/schema' as const;", errors: [{ messageId: 'name' }] },
     { code: 'const RULE_WIDTH = 68;', errors: [{ messageId: 'asConst' }] },
     {
-      code: "export const VENDOR = '@pvl/schema' as const;",
+      code: "export const VENDOR = '@pcvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
-      code: "const VENDOR = '@pvl/schema' as const;\nexport { VENDOR };",
+      code: "const VENDOR = '@pcvl/schema' as const;\nexport { VENDOR };",
       filename: path.join(typesRoot, 'packages/other/src/schema.ts'),
       errors: [{ messageId: 'file' }],
     },
     {
-      code: "export const VENDOR = '@pvl/schema' as const;",
+      code: "export const VENDOR = '@pcvl/schema' as const;",
       filename: path.join(typesRoot, 'packages/other/src/consts/schema/vendor.ts'),
       errors: [{ messageId: 'file' }],
     },

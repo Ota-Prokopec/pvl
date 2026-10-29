@@ -93,7 +93,7 @@ None.
 ## Source
 
 - [`literalInterpretedSchema.ts`](../../packages/schema/src/schemas/literalInterpretedSchema.ts): `LiteralInterpretedSchema`, `LITERAL_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/literalSchema.ts`](../../packages/schema-compiler/src/schemas/literalSchema.ts): `LiteralSchema`
-- [`emitters/literalSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/literalSchemaEmitter.ts): `LiteralSchemaEmitter`
+- [`schemas/literalSchema.ts`](../../packages/compiler/src/schemas/literalSchema.ts): `LiteralSchema`
+- [`emitters/literalSchemaEmitter.ts`](../../packages/compiler/src/emitters/literalSchemaEmitter.ts): `LiteralSchemaEmitter`
 
-Further reading: [schema-types.md](../specification/schema/schema-types.md), [compilation.md](../specification/schema-compiler/compilation.md#what-reads-statically).
+Further reading: [schema-types.md](../specification/schema/schema-types.md), [compilation.md](../specification/compiler/compilation.md#what-reads-statically).

@@ -21,12 +21,12 @@ ADR-0036 kept `element` on every array because an array has one item, so exposin
 
 Opt-in removes all of it: an array whose item nobody validates alone compiles to a plain class again. Arrays and objects also follow one rule now: what is marked is exposed, and nothing else.
 
-## `@pvl/schema`
+## `@pcvl/schema`
 
 - **`ArrayInterpretedSchema.element` is typed `StandaloneElement<ItemSchema>`**: the item Schema when it carries `StandaloneMarker`, and `undefined` otherwise. A getter can't be dropped from a class's type the way `shape`'s mapped type drops a key, and `undefined` makes reading through an unmarked `element` (`.element.validate(…)`) a compile error all the same. At runtime the getter reads the item's `_standalone` flag, so the runtime agrees with the type, as `shape`'s does.
 - **`pvl.compile()` types an `element` only when it is a Schema.** `CompiledStructureOf` matches `element` against `Schema`, which an unmarked one's `undefined` isn't, so a Compiled Schema of such an array has no `element` key, and reading it is a compile error on both sides of the import swap. A marked one is typed as `pvl.compile()` types it, a plain Schema.
 
-## `@pvl/schema-compiler`
+## `@pcvl/compiler`
 
 - **An unmarked element is exposed nowhere.** `ArraySchemaEmitter._emitElementProperty` emits nothing for it, so its array's class writes no `element`. A Compiled Schema's constructor takes its Runtime Arguments only, and the root is a generic arrow function only for a `.transform()`'s output type ([ADR-0035](./0035-modifiers-compile-to-calls-to-the-users-own-functions-typed-at-their-place-in-the-chain.md)).
 - A marked element is compiled as ADR-0036 decided: a fully inlined class of its own, which its array's constructor builds into `element`.

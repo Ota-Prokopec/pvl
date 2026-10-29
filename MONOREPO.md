@@ -5,12 +5,12 @@ The inventory of this pnpm + Turborepo workspace: every entry under `apps/*`, `p
 ```
 apps/
 ├── benchmark/         (benchmark, private)   — measures compiled Schemas against hand-split variants (ADR-0023)
-├── docs/              (docs, private)        — documentation site for @pvl/schema
-├── playground/        (playground, private)  — scratch app for watching @pvl/schema-compiler compile a Schema
+├── docs/              (docs, private)        — documentation site for @pcvl/schema
+├── playground/        (playground, private)  — scratch app for watching @pcvl/compiler compile a Schema
 └── thesis-web/        (thesis-web, private)  — the bachelor's thesis PDF, shown on a page, built from thesis/
 packages/
-├── schema/            (npm: @pvl/schema)          — Zod-style schema/validation library
-├── schema-compiler/   (npm: @pvl/schema-compiler) — the ahead-of-time compiler and its `pvl` CLI (in progress)
+├── schema/            (npm: @pcvl/schema)          — Zod-style schema/validation library
+├── compiler/          (npm: @pcvl/compiler)        — the ahead-of-time compiler and its `pvl` CLI (in progress)
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type
 ├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
@@ -25,14 +25,14 @@ scripts/
 
 ## Dependencies
 
-- `@pvl/schema-compiler` depends on `@pvl/schema`, never the other way round. Those two publish to npm; everything else is private.
-- `@pvl/schema` depends on `@repo/types` for its internal enums.
+- `@pcvl/compiler` depends on `@pcvl/schema`, never the other way round. Those two publish to npm; everything else is private.
+- `@pcvl/schema` and `@pcvl/compiler` take `@repo/types` as a devDependency only: their build inlines it into the declarations they publish ([ADR-0048](./docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)).
 - Both scripts read worktrees through `@repo/git-worktrees`, and `claude` takes the branch-name pattern from `@repo/conventions`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
 - `@repo/eslint-config` and `@repo/typescript-config` are real, adopted dependencies, not create-turbo leftovers: every entry takes them as `workspace:*` devDependencies. `@repo/eslint-config` wires in `@repo/conventions`.
 
 ## Scripts
 
-`scripts/` holds only folders. `git-worktrees/` is the library the scripts share; every other folder is a script: its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "node scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
+`scripts/` holds only folders. `git-worktrees/` is the library the scripts share; every other folder is a script: its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "tsx scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
 
 ## Wiring
 

@@ -6,11 +6,11 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 import type { Schema } from './schema.js';
 
 /**
- * One schema a union tries: any `@pvl/schema` Schema.
+ * One schema a union tries: any `@pcvl/schema` Schema.
  *
  * @example
  * ```ts
- * import { pvl, type UnionMember } from '@pvl/schema';
+ * import { pvl, type UnionMember } from '@pcvl/schema';
  *
  * const member: UnionMember = pvl.string();
  * pvl.union([member, pvl.number()]);
@@ -24,7 +24,7 @@ export type UnionMember = Schema<unknown, unknown>;
  *
  * @example
  * ```ts
- * import { pvl, type UnionMembers } from '@pvl/schema';
+ * import { pvl, type UnionMembers } from '@pcvl/schema';
  *
  * const members = [pvl.string(), pvl.number()] as const satisfies UnionMembers;
  * const id = pvl.union(members);
@@ -34,7 +34,7 @@ export type UnionMembers = ReadonlyArray<UnionMember>;
 
 /**
  * The default message of every Issue `UnionInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -71,7 +71,7 @@ interface UnionInterpretedSchemaKind<Members extends UnionMembers> extends Inter
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const id = pvl.union([pvl.string(), pvl.number().int()]);
  *

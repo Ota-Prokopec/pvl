@@ -7,7 +7,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * The default message of every Issue `NumberInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -41,7 +41,7 @@ interface NumberInterpretedSchemaKind extends InterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const age = pvl.number().int().min(0).max(130);
  *
@@ -68,7 +68,7 @@ export class NumberInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const quantity = pvl.number().min(1, { message: 'order at least one' });
    *
@@ -99,7 +99,7 @@ export class NumberInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const percentage = pvl.number().min(0).max(100);
    *
@@ -130,7 +130,7 @@ export class NumberInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const pageSize = pvl.number().int();
    *
@@ -165,7 +165,7 @@ export class NumberInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const port = pvl.number().int().min(1).coerce();
    *

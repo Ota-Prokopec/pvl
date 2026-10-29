@@ -62,7 +62,7 @@ flowchart TD
 This happens for a union anywhere in a marked Schema: wrapped directly, or as a field or element at any depth. Running `pvl compile` on
 
 ```ts
-import { pvl } from '@pvl/schema';
+import { pvl } from '@pcvl/schema';
 
 export const id = pvl.compile(pvl.union([pvl.string(), pvl.number()]));
 ```
@@ -84,7 +84,7 @@ None.
 ## Source
 
 - [`unionInterpretedSchema.ts`](../../packages/schema/src/schemas/unionInterpretedSchema.ts): `UnionInterpretedSchema`, `UNION_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/unionSchema.ts`](../../packages/schema-compiler/src/schemas/unionSchema.ts): `UnionSchema`
-- [`schemas/schema.ts`](../../packages/schema-compiler/src/schemas/schema.ts): `findUncompilableDiagnostics`
+- [`schemas/unionSchema.ts`](../../packages/compiler/src/schemas/unionSchema.ts): `UnionSchema`
+- [`schemas/schema.ts`](../../packages/compiler/src/schemas/schema.ts): `findUncompilableDiagnostics`
 
-Further reading: [schema-types.md](../specification/schema/schema-types.md), [compilation.md](../specification/schema-compiler/compilation.md#what-reads-statically).
+Further reading: [schema-types.md](../specification/schema/schema-types.md), [compilation.md](../specification/compiler/compilation.md#what-reads-statically).

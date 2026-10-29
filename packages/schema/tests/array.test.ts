@@ -154,7 +154,7 @@ describe('pvl.array()', () => {
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.array(pvl.string());
       expect(schema['~standard'].version).toBe(1);
-      expect(schema['~standard'].vendor).toBe('@pvl/schema');
+      expect(schema['~standard'].vendor).toBe('@pcvl/schema');
       expect(schema['~standard'].validate(['a'])).toEqual({ value: ['a'] });
     });
   });

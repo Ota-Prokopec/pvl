@@ -1,0 +1,36 @@
+# Publishes both packages when `release` is pushed (ADR-0049, docs/agents/releasing.md).
+# Each step is a script in .github/release/.
+name: Release
+
+on:
+  push:
+    branches: [release]
+
+concurrency:
+  group: release
+
+permissions:
+  contents: write # the vX.Y.Z tag and the GitHub Release
+  id-token: write # npm trusted publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      # No dependency cache: a publishing job restores nothing another workflow wrote.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: .github/release/build.sh
+      - name: Version and dist-tag
+        run: .github/release/version.sh
+      - name: Publish
+        run: .github/release/publish.sh
+      - name: Tag and create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/release/github-release.sh

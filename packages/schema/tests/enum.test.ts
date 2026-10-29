@@ -109,7 +109,7 @@ describe('pvl.enum()', () => {
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.enum(SYSTEM_ROLE);
       expect(schema['~standard'].version).toBe(1);
-      expect(schema['~standard'].vendor).toBe('@pvl/schema');
+      expect(schema['~standard'].vendor).toBe('@pcvl/schema');
       expect(schema['~standard'].validate('OWNER')).toEqual({
         value: 'OWNER',
       });

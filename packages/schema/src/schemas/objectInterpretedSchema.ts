@@ -9,12 +9,12 @@ import type { Schema, StandaloneMarker } from './schema.js';
 
 /**
  * The field schemas an object schema composes, one per declared key. A field
- * is any `@pvl/schema` Schema — including a transformed or compiled one — but
+ * is any `@pcvl/schema` Schema — including a transformed or compiled one — but
  * never a schema from another library.
  *
  * @example
  * ```ts
- * import { pvl, type ObjectShape } from '@pvl/schema';
+ * import { pvl, type ObjectShape } from '@pcvl/schema';
  *
  * const shape = {
  *   name: pvl.string(),
@@ -51,7 +51,7 @@ type ComposeObject<
  *
  * @example
  * ```ts
- * import { pvl, type ObjectInput } from '@pvl/schema';
+ * import { pvl, type ObjectInput } from '@pcvl/schema';
  *
  * const shape = { name: pvl.string(), nickname: pvl.string().optional() };
  *
@@ -70,7 +70,7 @@ export type ObjectInput<Shape extends ObjectShape> = ComposeObject<{
  *
  * @example
  * ```ts
- * import { pvl, type ObjectOutput } from '@pvl/schema';
+ * import { pvl, type ObjectOutput } from '@pcvl/schema';
  *
  * const shape = { name: pvl.string(), age: pvl.string().transform(Number) };
  *
@@ -88,7 +88,7 @@ export type ObjectOutput<Shape extends ObjectShape> = ComposeObject<{
  *
  * @example
  * ```ts
- * import { pvl, type StandaloneShape } from '@pvl/schema';
+ * import { pvl, type StandaloneShape } from '@pcvl/schema';
  *
  * const shape = { email: pvl.string().standalone(), age: pvl.number() };
  *
@@ -101,7 +101,7 @@ export type StandaloneShape<Shape extends ObjectShape> = {
 
 /**
  * The default message of every Issue `ObjectInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -167,7 +167,7 @@ interface ObjectInterpretedSchemaKind<Shape extends ObjectShape> extends Interpr
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const user = pvl.object({
  *   name: pvl.string().min(1),
@@ -242,7 +242,7 @@ export class ObjectInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const user = pvl.object({
    *   name: pvl.string().min(1).standalone(),
@@ -272,7 +272,7 @@ export class ObjectInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const config = pvl.object({ port: pvl.number() }).strict();
    *
@@ -298,7 +298,7 @@ export class ObjectInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const envelope = pvl.object({ id: pvl.string() }).passthrough();
    *

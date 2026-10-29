@@ -4,7 +4,7 @@
 
 `PVL` (Precompiled Validation Library) is a schema-validation library that can compile schemas into optimized code (plain `if`/`for` statements) for fast runtime validation. It's a pnpm + Turborepo TypeScript monorepo: [`MONOREPO.md`](./MONOREPO.md) lists its workspace entries.
 
-Requires Node 24 or newer and pnpm (the version is pinned in `package.json`'s `packageManager`). `pnpm install` also installs the lefthook git hooks.
+Requires Node 22.19 or newer and pnpm (the version is pinned in `package.json`'s `packageManager`). `pnpm install` also installs the lefthook git hooks. CI runs the suite on Node 22.19 and 24. 22.19 is the floor, above pnpm 11's 22.13, because the `fs.glob` of older Node 22 releases, which the compiler's scanner uses, throws on a symlink under a `**` pattern (fixed in 22.19). The repo's own `.ts` scripts and hooks run through `tsx`, so they don't depend on Node's type stripping.
 
 Every checkout, the main one and each git worktree, links its external packages from pnpm's global virtual store, one shared folder on the machine ([ADR-0025](./docs/adr/0025-checkouts-share-dependencies-through-pnpm-global-virtual-store.md)). After deleting worktrees, `pnpm store prune` removes the store entries no project uses any more; nothing runs it automatically.
 

@@ -79,7 +79,7 @@ describe('pvl.union()', () => {
     it('exposes Standard Schema conformance', () => {
       const schema = pvl.union([pvl.string(), pvl.number()]);
       expect(schema['~standard'].version).toBe(1);
-      expect(schema['~standard'].vendor).toBe('@pvl/schema');
+      expect(schema['~standard'].vendor).toBe('@pcvl/schema');
       expect(schema['~standard'].validate('hi')).toEqual({ value: 'hi' });
     });
   });

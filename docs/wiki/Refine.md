@@ -82,7 +82,7 @@ The predicate is passed exactly as you wrote it, so a function you imported or d
 ## Source
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `refine()`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/chainableSchemaEmitter.ts): `refine`, in `postModifierChecks`, and `_spellParameterTypes`
-- [`schemas/runtimeArgument.ts`](../../packages/schema-compiler/src/schemas/runtimeArgument.ts): `RuntimeArgument`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `refine`, in `postModifierChecks`, and `_spellParameterTypes`
+- [`schemas/runtimeArgument.ts`](../../packages/compiler/src/schemas/runtimeArgument.ts): `RuntimeArgument`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md#refinements-transforms-coercion), [ADR-0035](../adr/0035-modifiers-compile-to-calls-to-the-users-own-functions-typed-at-their-place-in-the-chain.md).

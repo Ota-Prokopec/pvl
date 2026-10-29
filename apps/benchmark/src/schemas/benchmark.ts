@@ -2,7 +2,7 @@
 // mirrors them into `.pvl/schemas/benchmark.ts`: the inline-everything
 // variant (V1) the runners measure against two hand-split ones in `src/variants/`,
 // which are typed by each Schema's `Input` and `Output` declared here.
-import { pvl, type InferInput, type InferOutput } from '@pvl/schema';
+import { pvl, type InferInput, type InferOutput } from '@pcvl/schema';
 
 export const flat = pvl.compile(
   pvl.object({

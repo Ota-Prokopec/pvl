@@ -1,6 +1,6 @@
-# Testing `@pvl/schema`
+# Testing `@pcvl/schema`
 
-The testing strategy for `@pvl/schema`, on top of the repo-wide rules in [`TESTS.md`](../../../TESTS.md). Read this before you write, change or review a test in `packages/schema/tests/`. Apply it as-is to every schema type, so the suite stays uniform.
+The testing strategy for `@pcvl/schema`, on top of the repo-wide rules in [`TESTS.md`](../../../TESTS.md). Read this before you write, change or review a test in `packages/schema/tests/`. Apply it as-is to every schema type, so the suite stays uniform.
 
 Tests reach a schema through its public interface only: feed it an input and assert on what `.validate()` or the type system reports. Internal state (private fields, the modifier arrays) stays out of every assertion.
 
@@ -47,4 +47,4 @@ Use `fast-check` on primitives and composites where generated inputs find what h
 
 ## Scope
 
-This suite covers the interpreted path. Compiled output is `@pvl/schema-compiler`'s to test, by diffing it against this path ([code-generation.md](../schema-compiler/code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)), so this package's compile coverage ends at seam 3.
+This suite covers the interpreted path. Compiled output is `@pcvl/compiler`'s to test, by diffing it against this path ([code-generation.md](../compiler/code-generation.md#issues-are-literals-so-the-differential-test-is-load-bearing)), so this package's compile coverage ends at seam 3.

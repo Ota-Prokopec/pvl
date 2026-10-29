@@ -4,7 +4,7 @@ Spec issue: [#105](https://github.com/Ota-Prokopec/pvl/issues/105)
 
 ## Problem Statement
 
-In `@pvl/schema`, a **Result** is only a type: `Result<Output>` is a union of the Standard Schema `SuccessResult` and this library's `FailureResult`. Every Result is a hand-written `{ value }` or `{ issues }` object literal. There are about twenty of these, spread over the Schemas, the pipeline runners, `.refine()` and `unionSchema`, and generated code in the Destination File will write more. Nothing marks a value as a pvl Result at runtime, nothing builds Results in one place, and the type checker accepts any plain object shaped like a Result.
+In `@pcvl/schema`, a **Result** is only a type: `Result<Output>` is a union of the Standard Schema `SuccessResult` and this library's `FailureResult`. Every Result is a hand-written `{ value }` or `{ issues }` object literal. There are about twenty of these, spread over the Schemas, the pipeline runners, `.refine()` and `unionSchema`, and generated code in the Destination File will write more. Nothing marks a value as a pvl Result at runtime, nothing builds Results in one place, and the type checker accepts any plain object shaped like a Result.
 
 `Issue` already went the other way. It is a class that `implements StandardSchemaV1.Issue`, with an `@internal` constructor that both interpreted Schemas and generated code call. That convention was never recorded in an ADR, and `Result` doesn't follow it.
 
@@ -20,7 +20,7 @@ In `@pvl/schema`, a **Result** is only a type: `Result<Output>` is a union of th
 4. As a pvl consumer, I want `result.issues` to be typed as `ReadonlyArray<Issue>` on the failure branch, so that `code` stays readable (ADR-0011).
 5. As a pvl consumer, I want `result instanceof Result` to be true for every Result `.validate()` returns, so that I can recognise a pvl Result at runtime.
 6. As a pvl consumer, I want `instanceof SuccessResult` and `instanceof FailureResult` to tell the two branches apart, so that I have a runtime check besides `issues`.
-7. As a pvl consumer, I want `SuccessResult` and `FailureResult` exported from `@pvl/schema`, so that I can name either branch in my own types.
+7. As a pvl consumer, I want `SuccessResult` and `FailureResult` exported from `@pcvl/schema`, so that I can name either branch in my own types.
 8. As a pvl consumer, I want a successful Result to have no own `issues` property, so that `'issues' in result` and serialisation behave as they do today.
 9. As a pvl consumer, I want a failed Result to carry only `issues` and no `value`, so that it matches the Standard Schema `FailureResult`.
 10. As a Standard Schema consumer (a form library, an API framework), I want `"~standard".validate` to keep returning something assignable to `StandardSchemaV1.Result`, so that pvl Schemas plug in with no adapter.
@@ -30,11 +30,11 @@ In `@pvl/schema`, a **Result** is only a type: `Result<Output>` is a union of th
 14. As a pvl maintainer, I want the factories and the branch constructors marked `@internal`, so that they stay out of the public docs like `Issue`'s constructor while generated code can still call them.
 15. As a pvl maintainer, I want `Result.failure` to take a `ReadonlyArray<Issue>`, so that the runners and `unionSchema` pass the arrays they already hold without copying.
 16. As a pvl maintainer, I want each branch class to `implements` its Standard Schema interface, so that the compiler reports any drift from the spec.
-17. As a pvl maintainer, I want a lint error when someone writes a `{ issues: … }` or `{ value: … }` object literal as a Result in `@pvl/schema`'s source, so that plain-object Results can't come back.
+17. As a pvl maintainer, I want a lint error when someone writes a `{ issues: … }` or `{ value: … }` object literal as a Result in `@pcvl/schema`'s source, so that plain-object Results can't come back.
 18. As a pvl maintainer, I want that lint error to tell me which factory to use, so that the fix is obvious.
 19. As a pvl maintainer, I want the internal pre-modifier state (`PreModifiersResult`) left alone, so that the lint rule and the migration only cover real Results.
-20. As a schema-compiler maintainer, I want the code-generation specification to say generated code builds Results with `Result.success` / `Result.failure`, so that compiled and interpreted output stay the same class.
-21. As a schema-compiler maintainer, I want the differential test (compiled vs interpreted `validate()`) to keep passing, so that the change is invisible on that path.
+20. As a compiler maintainer, I want the code-generation specification to say generated code builds Results with `Result.success` / `Result.failure`, so that compiled and interpreted output stay the same class.
+21. As a compiler maintainer, I want the differential test (compiled vs interpreted `validate()`) to keep passing, so that the change is invisible on that path.
 22. As a pvl maintainer, I want an ADR that records "validation outputs are classes that `implements` their Standard Schema interface, with `@internal` constructors and factories", so that the convention `Issue` set is written down and `Result` follows it.
 23. As a pvl maintainer, I want that ADR to explain why the base class's runtime name is `ResultBase`, so that seeing it in a stack trace or in TypeDoc is no surprise.
 24. As a pvl maintainer, I want that ADR to list the rejected alternatives (renaming the union to `ValidationResult`, a named class expression, a plain factory object, one class without narrowing), so that nobody re-argues them.
@@ -70,11 +70,11 @@ In `@pvl/schema`, a **Result** is only a type: `Result<Output>` is a union of th
 - **Exports.** `Result` (value and type), `SuccessResult` and `FailureResult`. `ResultBase` is not exported. `FailureResult` was already public as a type, so it moves from type to class. `SuccessResult` is a new export.
 - **Visibility.** The factories and the branch constructors are `@internal`: exported and callable, so the Destination File can use them, but left out of TypeDoc. This matches `Issue`'s constructor.
 - **Factory signatures.** `Result.success<Output>(value: Output)` and `Result.failure(issues: ReadonlyArray<Issue>)`. Single-issue sites pass a one-element array.
-- **Migration, in the same change.** Every Result object literal in `@pvl/schema` switches to the factories: the type-check and Local Modifier code in every Schema, both pipeline runners, `.refine()` and `unionSchema`. `Modifier.fn` keeps its `Result<Output> | null` return type. The internal `PreModifiersResult` isn't a Result and doesn't change.
-- **Lint enforcement.** A `no-restricted-syntax` selector, scoped to `@pvl/schema`'s source, reports an object literal whose only property is `issues` or only `value`. Its message names `Result.failure(...)` / `Result.success(...)`. It lands with the migration, so the tree stays green. Per ADR-0022 the convention lives in lint, not in prose.
+- **Migration, in the same change.** Every Result object literal in `@pcvl/schema` switches to the factories: the type-check and Local Modifier code in every Schema, both pipeline runners, `.refine()` and `unionSchema`. `Modifier.fn` keeps its `Result<Output> | null` return type. The internal `PreModifiersResult` isn't a Result and doesn't change.
+- **Lint enforcement.** A `no-restricted-syntax` selector, scoped to `@pcvl/schema`'s source, reports an object literal whose only property is `issues` or only `value`. Its message names `Result.failure(...)` / `Result.success(...)`. It lands with the migration, so the tree stays green. Per ADR-0022 the convention lives in lint, not in prose.
 - **ADR-0023 (new).** Validation outputs are classes that `implements` their Standard Schema interface, with `@internal` constructors and factories the Destination File can call. It records `Issue` after the fact and applies the rule to `Result`. It also explains the `ResultBase` runtime name and lists the rejected alternatives: a `ValidationResult` union name, a named class expression (which can't be `abstract`), a plain factory object (no `instanceof Result`), and a single class (which breaks narrowing).
 - **ADR-0011 (rewritten in place)**, the way ADR-0010 and ADR-0016 were. Its decision stays: the failure branch carries pvl's `Issue`, so `code` is reachable. The mechanism becomes a class that `implements StandardSchemaV1.FailureResult`, and the record links to ADR-0023.
-- **Docs.** Update the Standard Schema specification (conformance via `implements`), the schema pipeline specification (runners return factory-built Results), the schema testing specification, the schema-compiler code-generation specification (generated code calls the factories, as it already calls `new Issue`), the user guide's schemas page, the TSDoc and `{@link Result}` references in the source, and the glossary's **Result** entry. The TypeDoc API pages regenerate on their own.
+- **Docs.** Update the Standard Schema specification (conformance via `implements`), the schema pipeline specification (runners return factory-built Results), the schema testing specification, the compiler code-generation specification (generated code calls the factories, as it already calls `new Issue`), the user guide's schemas page, the TSDoc and `{@link Result}` references in the source, and the glossary's **Result** entry. The TypeDoc API pages regenerate on their own.
 - **Glossary.** **Result** stays the term. _Validation Result_ is still on the avoid list, and that list is one reason the union wasn't renamed.
 
 ## Testing Decisions
@@ -87,7 +87,7 @@ In `@pvl/schema`, a **Result** is only a type: `Result<Output>` is a union of th
   4. One real `.validate()` call per branch returns those instances. This proves the migration reached the public seam.
 - Seams: the existing `schema.validate(input)` → Result seam from the schema testing specification, plus the `Result` factories as public values. No new internal seams.
 - Prior art: the per-Schema test files (e.g. the string Schema's tests) for `.validate()` assertions, and the shared test helpers for reading issue codes.
-- The schema-compiler's differential test must keep passing without changes.
+- The compiler's differential test must keep passing without changes.
 
 ## Out of Scope
 

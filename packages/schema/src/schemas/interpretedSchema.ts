@@ -17,7 +17,7 @@ import type { Schema, StandaloneMarker } from './schema.js';
  *
  * @example
  * ```ts
- * import { pvl, type InterpretedSchema, type Schema } from '@pvl/schema';
+ * import { pvl, type InterpretedSchema, type Schema } from '@pcvl/schema';
  *
  * const name: InterpretedSchema<string> = pvl.string().min(2);
  * const field: Schema<string> = name;
@@ -53,7 +53,7 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   /**
    * The Standard Schema protocol property. Consumers reach for
    * `.validate()`; this exists so any Standard Schema-aware tool can use a
-   * `@pvl/schema` schema without knowing about this library.
+   * `@pcvl/schema` schema without knowing about this library.
    *
    * @internal
    */
@@ -76,7 +76,7 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const result = pvl.number().int().validate(1.5);
    * if (result.issues) {
@@ -93,7 +93,7 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
   /**
    * Marks this schema as a Standalone Key: as a field of `pvl.object()`, it
    * is kept in that object's `shape`, so it can be validated on its own, and
-   * once the object is compiled, `@pvl/schema-compiler` gives it a compiled
+   * once the object is compiled, `@pcvl/compiler` gives it a compiled
    * validator of its own. Validation is unchanged.
    *
    * The schema comes back as the same type it went in as, marked, so the
@@ -103,7 +103,7 @@ export abstract class InterpretedSchema<Input = unknown, Output = Input> impleme
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const user = pvl.object({
    *   email: pvl.string().standalone().min(3),

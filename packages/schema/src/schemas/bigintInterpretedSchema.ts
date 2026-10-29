@@ -7,7 +7,7 @@ import { ChainableInterpretedSchema } from './chainableInterpretedSchema.js';
 
 /**
  * The default message of every Issue `BigintInterpretedSchema` reports, keyed by the method
- * that reports it. `@pvl/schema-compiler` calls the same functions to write
+ * that reports it. `@pcvl/compiler` calls the same functions to write
  * each message into a Compiled Schema as a literal.
  *
  * @internal
@@ -41,7 +41,7 @@ interface BigintInterpretedSchemaKind extends InterpretedSchemaKind<
  *
  * @example
  * ```ts
- * import { pvl } from '@pvl/schema';
+ * import { pvl } from '@pcvl/schema';
  *
  * const fileSize = pvl.bigint().min(0n);
  *
@@ -70,7 +70,7 @@ export class BigintInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const positive = pvl.bigint().min(1n);
    *
@@ -101,7 +101,7 @@ export class BigintInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const int64 = pvl.bigint().max(9223372036854775807n);
    *
@@ -135,7 +135,7 @@ export class BigintInterpretedSchema<
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const id = pvl.bigint().min(1n).coerce();
    *

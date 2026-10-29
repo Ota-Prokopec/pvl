@@ -168,7 +168,7 @@ The array's own `_validate` never calls `element`: its checks are inlined in the
 ## Source
 
 - [`arrayInterpretedSchema.ts`](../../packages/schema/src/schemas/arrayInterpretedSchema.ts): `ArrayInterpretedSchema`, `ARRAY_SCHEMA_ISSUE_MESSAGE`
-- [`schemas/arraySchema.ts`](../../packages/schema-compiler/src/schemas/arraySchema.ts): `ArraySchema`
-- [`emitters/arraySchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/arraySchemaEmitter.ts): `ArraySchemaEmitter`, `emitLoop`
+- [`schemas/arraySchema.ts`](../../packages/compiler/src/schemas/arraySchema.ts): `ArraySchema`
+- [`emitters/arraySchemaEmitter.ts`](../../packages/compiler/src/emitters/arraySchemaEmitter.ts): `ArraySchemaEmitter`, `emitLoop`
 
-Further reading: [schema-types.md](../specification/schema/schema-types.md), [code-generation.md](../specification/schema-compiler/code-generation.md#a-compiled-schema-exposes-its-standalone-keys), [ADR-0012](../adr/0012-composite-schemas-collect-every-issue.md), [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md).
+Further reading: [schema-types.md](../specification/schema/schema-types.md), [code-generation.md](../specification/compiler/code-generation.md#a-compiled-schema-exposes-its-standalone-keys), [ADR-0012](../adr/0012-composite-schemas-collect-every-issue.md), [ADR-0036](../adr/0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md).

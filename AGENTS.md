@@ -6,8 +6,8 @@ Each section below says when it applies and which file to read. Read only the se
 
 `PVL` (Precompiled Validation Library) is a validation library that can compile schemas into optimized code (e.g. `if`/`for`) for fast runtime validation. It's a pnpm + Turborepo TypeScript monorepo, and two packages define the project:
 
-- **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pvl/schema`): a Zod-style schema-validation library. Implemented.
-- **[`packages/schema-compiler`](./packages/schema-compiler/AGENTS.md)** (npm `@pvl/schema-compiler`): the ahead-of-time compiler that turns `pvl.compile(...)`-marked schemas into `Compiled Schema`s. In progress: its config, `pvl compile` CLI and the mirrored Destination Directory exist, and it compiles primitive, literal, enum, object and array Schemas, nested and imported ones and every Modifier included, exposing their Standalone Keys.
+- **[`packages/schema`](./packages/schema/AGENTS.md)** (npm `@pcvl/schema`): a Zod-style schema-validation library. Implemented.
+- **[`packages/compiler`](./packages/compiler/AGENTS.md)** (npm `@pcvl/compiler`): the ahead-of-time compiler that turns `pvl.compile(...)`-marked schemas into `Compiled Schema`s. In progress: its config, `pvl compile` CLI and the mirrored Destination Directory exist, and it compiles primitive, literal, enum, object and array Schemas, nested and imported ones and every Modifier included, exposing their Standalone Keys.
 
 [`MONOREPO.md`](./MONOREPO.md) lists every other workspace entry. Each entry has its own `AGENTS.md` with its technology, architecture, package-specific rules and commands. Code style isn't one of them: ESLint checks it. Read it before working inside that entry.
 
@@ -21,6 +21,10 @@ Read [`README.md`](./README.md) before you run a root command or check that a ch
 ## GitHub
 
 Read [`docs/agents/git-workflow.md`](./docs/agents/git-workflow.md) before you branch, commit, push, open a PR, or touch a GitHub issue. It covers naming, commits, pull requests and resolving an issue.
+
+## Releases
+
+Read [`docs/agents/releasing.md`](./docs/agents/releasing.md) before you version or publish `@pcvl/schema` and `@pcvl/compiler`, or change the release workflow. It covers the version PR, the push to `release`, the one-time setup and when prerelease mode ends.
 
 ## Code
 

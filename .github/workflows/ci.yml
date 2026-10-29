@@ -1,6 +1,8 @@
 # The slow half of the post-modification checklist (README.md): lefthook's
 # pre-commit hook runs format, lint and check-types locally, and this runs
-# test and build on every pull request and push to main.
+# test and build on every pull request and push to main. It also checks that a
+# pull request changing a published package carries a changeset, and that both
+# packages install and work from their packed tarballs.
 name: CI
 
 on:
@@ -9,15 +11,79 @@ on:
     branches: [main]
 
 jobs:
+  # The floor in package.json's engines and the current Node (README.md says
+  # why the floor is 22.19).
   test-and-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19', 24]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
+
+  # A PR changing either published package's code (changedFilePatterns in
+  # .changeset/config.json) must carry a changeset; docs and private entries
+  # don't need one.
+  changeset:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm changeset status --since=origin/main
+
+  # Both packages as a user installs them (ADR-0048): publint and attw check
+  # the manifests and per-format types, then a throwaway project outside the
+  # workspace, where no `@repo/*` resolves, installs the packed tarballs,
+  # compiles a Schema, type-checks against the shipped declarations (so a
+  # declaration importing a package the tarball doesn't depend on fails it),
+  # and imports both packages as ESM and requires them as CJS. Each step is a
+  # script in .github/tarball/, and consumer/ there holds the project's sources.
+  tarball:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.19', 24]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build
+        run: .github/tarball/build.sh
+      - name: publint
+        run: .github/tarball/publint.sh
+      - name: Pack
+        run: .github/tarball/pack.sh
+      - name: attw
+        run: .github/tarball/attw.sh
+      - name: Install the tarballs into a project outside the workspace
+        run: .github/tarball/install.sh
+      - name: pvl compile
+        run: .github/tarball/compile.sh
+      - name: Type-check against the shipped declarations
+        run: .github/tarball/type-check.sh
+      - name: Import as ESM
+        run: .github/tarball/esm.sh
+      - name: Require as CJS
+        run: .github/tarball/cjs.sh

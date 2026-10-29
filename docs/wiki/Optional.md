@@ -83,7 +83,7 @@ Interpreted and compiled, an object leaves an omitted optional key out of its ou
 ## Source
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `optional()`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/chainableSchemaEmitter.ts): `optional`, in `shortCircuitConditions`
-- [`emitters/frame.ts`](../../packages/schema-compiler/src/emitters/frame.ts): `groupPreModifierSteps`, `composeChecks`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `optional`, in `shortCircuitConditions`
+- [`emitters/frame.ts`](../../packages/compiler/src/emitters/frame.ts): `groupPreModifierSteps`, `composeChecks`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md), [ADR-0010](../adr/0010-modifiers-run-in-chain-order-around-the-type-check.md).

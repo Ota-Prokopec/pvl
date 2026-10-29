@@ -1,6 +1,6 @@
 # `docs`
 
-The user-facing documentation site for [`@pvl/schema`](../../packages/schema/AGENTS.md): a [VitePress](https://vitepress.dev) site with hand-written guide pages and an API reference that [TypeDoc](https://typedoc.org) generates from the library's source. It documents `@pvl/schema` only, since `@pvl/schema-compiler` is still in progress. It builds and previews locally; hosting is [issue #59](https://github.com/Ota-Prokopec/pvl/issues/59).
+The user-facing documentation site for [`@pcvl/schema`](../../packages/schema/AGENTS.md): a [VitePress](https://vitepress.dev) site with hand-written guide pages and an API reference that [TypeDoc](https://typedoc.org) generates from the library's source. It documents `@pcvl/schema` only, since `@pcvl/compiler` is still in progress. It builds and previews locally; hosting is [issue #59](https://github.com/Ota-Prokopec/pvl/issues/59).
 
 ## Technology
 
@@ -25,7 +25,7 @@ The guide sidebar in `content/.vitepress/config.ts` is hand-written. The API sid
 
 The entry point is `packages/schema/src/index.ts`, with that package's own `tsconfig.json`. There's no build to sequence, and `excludeInternal` sees the `@internal` tags that declaration output would strip.
 
-`package.json` still declares `"@pvl/schema": "workspace:*"`: without that graph edge Turborepo wouldn't invalidate the docs cache when the library's TSDoc changes, and the guide's examples import the package anyway.
+`package.json` still declares `"@pcvl/schema": "workspace:*"`: without that graph edge Turborepo wouldn't invalidate the docs cache when the library's TSDoc changes, and the guide's examples import the package anyway.
 
 ## No tests, by decision
 
@@ -38,7 +38,7 @@ Two pages, and a third is a deliberate decision:
 - `content/guide/getting-started.md`: installing, a first schema, reading a `Result`, type inference.
 - `content/guide/schemas.md`: one section per schema type, then the shared Modifiers.
 
-The getting-started page opens with a `::: warning` callout saying `@pvl/schema` is unpublished, so the `pnpm add @pvl/schema` line under it doesn't fail a reader silently. Delete that callout on the first npm release.
+The getting-started page opens with a `::: warning` callout saying `@pcvl/schema` is unpublished, so the `pnpm add @pcvl/schema` line under it doesn't fail a reader silently. Delete that callout on the first npm release.
 
 ## Writing the guide
 

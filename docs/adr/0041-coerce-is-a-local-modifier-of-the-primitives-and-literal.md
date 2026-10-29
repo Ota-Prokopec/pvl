@@ -32,7 +32,7 @@ Both packages are unreleased (`0.0.0`), so removing the method breaks no user.
 ## Considered options
 
 - **Keep `.coerce()` shared, as the identity on the composites and `enum`.** Rejected: it does nothing there but widen the Input to `unknown`.
-- **Drop `.coerce()` only from the compiler's `ChainableSchemaEmitter`.** Rejected: the compiler would reject `pvl.object({}).coerce()`, which `@pvl/schema` accepts and runs.
+- **Drop `.coerce()` only from the compiler's `ChainableSchemaEmitter`.** Rejected: the compiler would reject `pvl.object({}).coerce()`, which `@pcvl/schema` accepts and runs.
 - **Keep it shared, and have the compiler warn that it does nothing on a composite.** Rejected: the warning would describe a method that shouldn't exist.
 - **Give `enum` a conversion to the member an input matches.** Rejected for now: a source may mix string and number members, so `'1'` matches two members when `'1'` and `1` both are. It can be its own feature.
 - **An intermediate `CoercibleInterpretedSchema` holding `coerce()` over an abstract `_coerceInput`.** Rejected: it adds a third kind of Modifier beside Shared and Local, and a class level the compiler would be tempted to mirror, to save five three-line methods.

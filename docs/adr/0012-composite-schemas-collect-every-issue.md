@@ -1,6 +1,6 @@
 # Schemas collect every `Issue` rather than failing fast
 
-A `@pvl/schema` Schema reports every `Issue` it can meaningfully find in one `Result`, rather than returning at the first failure. Three rules, all applications of [ADR-0010](./0010-modifiers-run-in-chain-order-around-the-type-check.md)'s pipeline, make that precise:
+A `@pcvl/schema` Schema reports every `Issue` it can meaningfully find in one `Result`, rather than returning at the first failure. Three rules, all applications of [ADR-0010](./0010-modifiers-run-in-chain-order-around-the-type-check.md)'s pipeline, make that precise:
 
 - **Children always all collect.** `pvl.object()` validates every declared field even after an earlier one has failed, and `pvl.array()` every element, so one `Result` carries an `Issue` per failing field or element, each pathed to its own location.
 - **A failed type check ends validation.** Any `Issue` from `_checkType`, whether its own type guard or a child, is returned before any post-modifier runs. So a composite's own Constraints (`array`'s `.max()`) and `object`'s `.strict()` never report alongside child issues, and `pvl.string().min(5)` given `42` reports only `INVALID_TYPE`. A Constraint checked against a value of the wrong type, or an unrecognized key reported on an object whose fields are already wrong, would be noise.
@@ -10,4 +10,4 @@ A **union** that no member accepts reports one `INVALID_UNION` issue at its own 
 
 The driver is the shape of the thing being validated. A Schema's typical caller is checking a whole payload — an HTTP body, a form submission, a third-party API response — and wants to tell the user everything wrong with it in one pass. Fail-fast turns that into as many validate-fix-resubmit round trips as there are problems, and the information needed to avoid them was already computed and then thrown away. `Issue.path` exists precisely so several issues from one `Result` can each be attributed to their own field, and `StandardSchemaV1`'s failure branch is an `issues` array, not a single issue.
 
-The cost is that a failing Schema does strictly more work than it needs to in order to answer "is this valid?". That is accepted: the library's performance target is the success path, where every check must run anyway, and `@pvl/schema-compiler`'s compiled output makes the same trade, since it compiles the same semantics.
+The cost is that a failing Schema does strictly more work than it needs to in order to answer "is this valid?". That is accepted: the library's performance target is the success path, where every check must run anyway, and `@pcvl/compiler`'s compiled output makes the same trade, since it compiles the same semantics.

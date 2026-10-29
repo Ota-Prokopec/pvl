@@ -1,0 +1,83 @@
+{
+  "name": "@pcvl/compiler",
+  "version": "0.0.0",
+  "description": "The ahead-of-time compiler for @pcvl/schema: turns pvl.compile(...)-marked schemas into plain if/for validation code.",
+  "keywords": [
+    "validation",
+    "schema",
+    "compiler",
+    "codegen",
+    "typescript",
+    "pvl"
+  ],
+  "homepage": "https://pvl-docs.vercel.app",
+  "bugs": "https://github.com/Ota-Prokopec/pvl/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ota-Prokopec/pvl.git",
+    "directory": "packages/compiler"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "pvl": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./json-schema": "./dist/json-schema.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@pcvl/schema": "workspace:*"
+  },
+  "dependencies": {
+    "dedent": "^1.7.2",
+    "lodash-es": "^4.18.1",
+    "minimatch": "^10.2.6",
+    "ts-morph": "^28.0.0",
+    "yargs": "^18.2.0"
+  },
+  "devDependencies": {
+    "@pcvl/schema": "workspace:*",
+    "@repo/conventions": "workspace:*",
+    "@repo/eslint-config": "workspace:*",
+    "@repo/types": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^26.4.1",
+    "@types/yargs": "^17.0.35",
+    "eslint": "10.9.1",
+    "fast-check": "^4.10.1",
+    "jiti": "2.7.0",
+    "tsup": "^9.0.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

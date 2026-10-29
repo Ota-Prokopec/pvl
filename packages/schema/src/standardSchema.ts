@@ -3,21 +3,21 @@ import type { VENDOR } from './consts.js';
 import type { Result } from './result.js';
 
 // Narrows the spec's `Props` on the vendor, which every Schema built here
-// reports as the same literal, and on `validate`, which `@pvl/schema` only
+// reports as the same literal, and on `validate`, which `@pcvl/schema` only
 // ever implements synchronously and with its own coded `Issue`s. `Omit` rather
 // than a plain intersection: intersecting two `validate` signatures yields an
 // overload, and a call resolves to the spec's wider one.
 /**
- * The Standard Schema properties every `@pvl/schema` schema reports: `vendor`
- * is exactly `'@pvl/schema'`, and `validate` returns a {@link Result}
+ * The Standard Schema properties every `@pcvl/schema` schema reports: `vendor`
+ * is exactly `'@pcvl/schema'`, and `validate` returns a {@link Result}
  * synchronously.
  *
  * @example
  * ```ts
- * import { pvl, type StandardSchemaProps } from '@pvl/schema';
+ * import { pvl, type StandardSchemaProps } from '@pcvl/schema';
  *
  * const props: StandardSchemaProps<string, string> = pvl.string()['~standard'];
- * props.vendor; // '@pvl/schema'
+ * props.vendor; // '@pcvl/schema'
  * props.validate('hello'); // { value: 'hello' }
  * ```
  */

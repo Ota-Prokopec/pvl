@@ -25,7 +25,7 @@ export const username = (new (class PvlCompiledSchema0 implements PvlSchema<stri
   readonly _standalone: boolean = false;
 
   get "~standard"(): PvlStandardSchemaProps<string, string> {
-    return { version: 1, vendor: "@pvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
+    return { version: 1, vendor: "@pcvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
   }
 
   validate(value: unknown): PvlResult<string> {
@@ -55,14 +55,14 @@ export const username = (new (class PvlCompiledSchema0 implements PvlSchema<stri
 
 | Member                   | What it does                                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `[PVL_SCHEMA_BRAND]`     | A type-only brand: TypeScript accepts the class wherever a `@pvl/schema` Schema is expected                   |
+| `[PVL_SCHEMA_BRAND]`     | A type-only brand: TypeScript accepts the class wherever a `@pcvl/schema` Schema is expected                  |
 | `_standalone`            | Whether it is marked `.standalone()`, which an interpreted object reads when this Schema is one of its fields |
 | `"~standard"`            | The [Standard Schema](https://standardschema.dev) interface, so other libraries can use it                    |
 | `validate(value)`        | Calls `_validate` at the root path, as the interpreted `validate` does                                        |
 | `_validate(value, path)` | The emitted checks                                                                                            |
 | `standalone()`           | Returns a marked copy, as the interpreted `standalone()` does                                                 |
 
-The class implements the `Schema` type and extends nothing, so the code imports only types from `@pvl/schema`: nothing of the library runs during validation. Every message is written in as text, computed by `@pvl/schema`'s own message functions while compiling, so the two can't drift apart. The final `as PvlSchema<…>` types the result exactly as `pvl.compile()` typed it before compiling, so swapping the source for the Destination Directory changes no type.
+The class implements the `Schema` type and extends nothing, so the code imports only types from `@pcvl/schema`: nothing of the library runs during validation. Every message is written in as text, computed by `@pcvl/schema`'s own message functions while compiling, so the two can't drift apart. The final `as PvlSchema<…>` types the result exactly as `pvl.compile()` typed it before compiling, so swapping the source for the Destination Directory changes no type.
 
 ## How the checks are written
 
@@ -213,11 +213,11 @@ A function passed to `.refine()` or `.transform()` is always a Runtime Argument:
 
 ## Source
 
-- [`emitters/emitter.ts`](../../packages/schema-compiler/src/emitters/emitter.ts): `Emitter`, `_emitSchemaParts`, `emitNestedSchemaChecks`, `emitCompiledSchema`
-- [`emitters/frame.ts`](../../packages/schema-compiler/src/emitters/frame.ts): `Frame.composeChecks`, `Frame.composeSchema`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/schema-compiler/src/emitters/chainableSchemaEmitter.ts): the Shared Modifiers
-- [`emitters/scope.ts`](../../packages/schema-compiler/src/emitters/scope.ts): the numbered locals
-- [`emitters/emittersTypes.ts`](../../packages/schema-compiler/src/emitters/emittersTypes.ts): `SchemaParts` and the method tables
-- [`issue.ts`](../../packages/schema-compiler/src/issue.ts): the emitted Issue literals
+- [`emitters/emitter.ts`](../../packages/compiler/src/emitters/emitter.ts): `Emitter`, `_emitSchemaParts`, `emitNestedSchemaChecks`, `emitCompiledSchema`
+- [`emitters/frame.ts`](../../packages/compiler/src/emitters/frame.ts): `Frame.composeChecks`, `Frame.composeSchema`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): the Shared Modifiers
+- [`emitters/scope.ts`](../../packages/compiler/src/emitters/scope.ts): the numbered locals
+- [`emitters/emittersTypes.ts`](../../packages/compiler/src/emitters/emittersTypes.ts): `SchemaParts` and the method tables
+- [`issue.ts`](../../packages/compiler/src/issue.ts): the emitted Issue literals
 
-Further reading: [code-generation.md](../specification/schema-compiler/code-generation.md), [compile.md](../specification/schema/compile.md), [ADR-0023](../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md), [ADR-0029](../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md), [ADR-0032](../adr/0032-an-emitter-returns-a-schemas-parts-and-the-frame-composes-them-as-a-pure-function.md).
+Further reading: [code-generation.md](../specification/compiler/code-generation.md), [compile.md](../specification/schema/compile.md), [ADR-0023](../adr/0023-compiled-schemas-inline-nested-schemas-and-mirror-schema-methods.md), [ADR-0029](../adr/0029-a-compiled-schema-is-a-class-expression-implementing-the-schema-type.md), [ADR-0032](../adr/0032-an-emitter-returns-a-schemas-parts-and-the-frame-composes-them-as-a-pure-function.md).

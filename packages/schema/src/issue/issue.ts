@@ -4,7 +4,7 @@ import type { IssueCode } from './enums.js';
 /**
  * The message an {@link Issue} reported with `message` carries: `message`
  * itself, or `'Invalid type'` when it is missing or empty.
- * `@pvl/schema-compiler` calls it to write a message into a Compiled Schema
+ * `@pcvl/compiler` calls it to write a message into a Compiled Schema
  * as the interpreted path reports it.
  *
  * ```ts
@@ -30,7 +30,7 @@ export const replaceEmptyIssueMessage = (message: string | undefined): string =>
  *
  * @example
  * ```ts
- * import { pvl, type Issue } from '@pvl/schema';
+ * import { pvl, type Issue } from '@pcvl/schema';
  *
  * const result = pvl.object({ name: pvl.string() }).validate({ name: 42 });
  * if (result.issues) {
@@ -46,7 +46,7 @@ export class Issue implements StandardSchemaV1.Issue {
    *
    * @example
    * ```ts
-   * import { ISSUE_CODE, pvl } from '@pvl/schema';
+   * import { ISSUE_CODE, pvl } from '@pcvl/schema';
    *
    * const result = pvl.number().int().validate(1.5);
    * result.issues?.[0]?.code === ISSUE_CODE.NOT_INTEGER; // true
@@ -59,7 +59,7 @@ export class Issue implements StandardSchemaV1.Issue {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const result = pvl.string().min(3, { message: 'too short' }).validate('hi');
    * result.issues?.[0]?.message; // 'too short'
@@ -72,7 +72,7 @@ export class Issue implements StandardSchemaV1.Issue {
    *
    * @example
    * ```ts
-   * import { pvl } from '@pvl/schema';
+   * import { pvl } from '@pcvl/schema';
    *
    * const result = pvl.object({ tags: pvl.array(pvl.string()) }).validate({ tags: ['a', 1] });
    * result.issues?.[0]?.path; // ['tags', 1]
@@ -106,7 +106,7 @@ export class Issue implements StandardSchemaV1.Issue {
  *
  * @example
  * ```ts
- * import { pvl, type IssueProps } from '@pvl/schema';
+ * import { pvl, type IssueProps } from '@pcvl/schema';
  *
  * const result = pvl.string().validate(42);
  * const failures: IssueProps[] = result.issues ? [...result.issues] : [];
@@ -119,7 +119,7 @@ export type IssueProps = Pick<Issue, 'code' | 'message' | 'path'>;
  *
  * @example
  * ```ts
- * import type { IssueEditableProps } from '@pvl/schema';
+ * import type { IssueEditableProps } from '@pcvl/schema';
  *
  * const edited: IssueEditableProps = { message: 'must be at least 3 characters' };
  * ```
