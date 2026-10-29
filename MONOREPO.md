@@ -32,7 +32,7 @@ scripts/
 
 ## Scripts
 
-`scripts/` holds only folders. `git-worktrees/` is the library the scripts share; every other folder is a script: its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "node scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
+`scripts/` holds only folders. `git-worktrees/` is the library the scripts share; every other folder is a script: its own workspace package `scripts/<name>/` with its own `package.json`, `tsconfig.json`, `eslint.config.ts` and `AGENTS.md`, started from the root by a `"<name>": "tsx scripts/<name>/src/index.ts"` script in the root `package.json`. [`scripts/claude/AGENTS.md`](./scripts/claude/AGENTS.md) explains how they run.
 
 ## Wiring
 
