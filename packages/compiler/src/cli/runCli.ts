@@ -1,11 +1,14 @@
 // `pvl compile`, in process: argv in, an exit code out, every byte of output
 // through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
+import { Parser } from 'yargs/helpers';
+import type { CompilationOutput } from '../compilation/types.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { report } from './report.js';
 import type { RunCliOptions } from './types.js';
 import { runCompile } from './runCompile.js';
+import { CompileUi } from './compileUi.js';
 
 /**
  * Runs the `pvl` CLI against `argv` (without the `node` and script entries)
@@ -54,6 +57,11 @@ export const runCli = async (
             default: false,
             description: 'Print the result as JSON on stdout',
           },
+          tty: {
+            type: 'boolean',
+            default: true,
+            description: 'Draw the progress UI (false: plain lines)',
+          },
         }),
       async (flags) => {
         exitCode = await runCompile(flags, options);
@@ -75,15 +83,22 @@ export const runCli = async (
 
   if (failure !== undefined) {
     const message = `${failure.message} Run \`pvl compile --help\` for usage.`;
-    // yargs failed before it could parse `--json`, so look for it by hand.
+    const payload: CompilationOutput = {
+      diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
+      settings: undefined,
+      destination: undefined,
+      written: false,
+    };
+    // yargs failed before it could hand over `--json` and `--tty`, so read
+    // them with its own parser.
+    const { json, tty } = Parser([...argv], {
+      boolean: ['json', 'tty'],
+      default: { json: false, tty: true },
+    });
     report({
-      payload: {
-        diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
-        settings: undefined,
-        destination: undefined,
-        written: false,
-      },
-      json: argv.includes('--json'),
+      payload,
+      json,
+      ui: CompileUi.start({ json, tty }, options),
       stdout: options.stdout,
       stderr: options.stderr,
     });

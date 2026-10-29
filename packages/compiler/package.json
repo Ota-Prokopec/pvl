@@ -58,6 +58,7 @@
     "@pcvl/schema": "workspace:*"
   },
   "dependencies": {
+    "@clack/prompts": "^1.8.1",
     "dedent": "^1.7.2",
     "lodash-es": "^4.18.1",
     "minimatch": "^10.2.6",

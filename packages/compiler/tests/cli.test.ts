@@ -1,5 +1,7 @@
 import * as path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import * as stream from 'node:stream';
+import * as util from 'node:util';
+import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli/runCli.js';
 import {
   DIAGNOSTIC_CODE,
@@ -24,15 +26,38 @@ type CliRun = {
   stderr: string;
 };
 
-const run = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> => {
-  let stdout = '';
-  let stderr = '';
-  const exitCode = await runCli(argv, {
-    cwd,
-    stdout: { write: (text: string) => (stdout += text) },
-    stderr: { write: (text: string) => (stderr += text) },
+/** A Writable that keeps every byte written to it, as `text()`. */
+const collectingStream = (): { stream: stream.Writable; text: () => string } => {
+  let text = '';
+  const writable = new stream.Writable({
+    write: (chunk, _encoding, callback): void => {
+      text += String(chunk);
+      callback();
+    },
   });
-  return { exitCode, stdout, stderr };
+  return { stream: writable, text: () => text };
+};
+
+const run = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> => {
+  const stdout = collectingStream();
+  const stderr = collectingStream();
+  const exitCode = await runCli(argv, { cwd, stdout: stdout.stream, stderr: stderr.stream });
+  return { exitCode, stdout: stdout.text(), stderr: stderr.text() };
+};
+
+/** The first line of `text` holding `needle`. */
+const lineWith = (text: string, needle: string): string | undefined => {
+  return text.split('\n').find((line) => line.includes(needle));
+};
+
+/** The UI's output with its escape codes stripped, so a test reads only its text. */
+const runUi = async (cwd: string, argv: ReadonlyArray<string>): Promise<CliRun> => {
+  const cliRun = await run(cwd, argv);
+  return {
+    ...cliRun,
+    stdout: util.stripVTControlCharacters(cliRun.stdout),
+    stderr: util.stripVTControlCharacters(cliRun.stderr),
+  };
 };
 
 // `--json` prints one CompilationOutput, so a test reads it back as one.
@@ -125,11 +150,153 @@ describe('pvl compile: settings from flags', () => {
   });
 });
 
-describe('pvl compile: output', () => {
+describe('pvl compile: the progress UI', () => {
+  it('frames a successful run: the scanned count, each file compiled, where it wrote, and nothing on stderr', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/order.ts': SCHEMA_FILE,
+    });
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destination', 'out']);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('pvl compile');
+    expect(stdout).toContain('Scanned 2 files');
+    expect(stdout).toContain('src/schemas/order.ts');
+    expect(stdout).toContain('src/schemas/user.ts');
+    expect(stdout).toContain('Compiled 2 files');
+    expect(stdout).toMatch(/📁 Written to out\n/);
+    expect(stderr).toBe('');
+  });
+
+  it('lists a warning on stderr and counts it on the success line', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destination', 'out']);
+
+    expect(exitCode).toBe(0);
+    expect(stderr).toMatch(/warning FILE_EXPORTS_NOTHING: .*setup\.ts/);
+    expect(stdout).toContain('📁 Written to out  (⚠️ 1 warning)');
+  });
+
+  it('lists every error on stderr, closes with the counts, and writes nothing', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());'),
+      'src/schemas/order.ts': schemaFile('export const order = pvl.compile(makeOrder());'),
+    });
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destination', 'out']);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toMatch(/error COMPILE_ARGUMENT_UNRESOLVABLE: .*order\.ts/);
+    expect(stderr).toMatch(/error COMPILE_ARGUMENT_UNRESOLVABLE: .*user\.ts/);
+    expect(stdout).toContain('Compiled 2 files');
+    expect(stdout).toMatch(/❌ 2 errors, 0 warnings\. Nothing written\n+$/);
+    expect(await listFixtureFiles(root, 'out')).toBe(undefined);
+  });
+
+  it('draws a precheck failure after the scan step, with no compile progress', async () => {
+    const root = await createFixture({ 'src/schemas/user.ts': 'export const = ;\n' });
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destination', 'out']);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Scanned 1 file');
+    expect(stdout).not.toMatch(/Compiling|Compiled/);
+    expect(stderr).toContain('error PARSE_FAILED: ');
+  });
+
+  it('draws a config failure with no scan step', async () => {
+    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile']);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).not.toContain('Scanned');
+    expect(stderr).toContain('error NO_CONFIG: ');
+    expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
+  });
+
+  it('draws an error in red and a warning in yellow when color is on', async () => {
+    vi.stubEnv('FORCE_COLOR', '1');
+    vi.stubEnv('NO_COLOR', undefined);
+    const red = '\u001B[31m';
+    const yellow = '\u001B[33m';
+    const failing = await createFixture({ 'src/schemas/user.ts': 'export const = ;\n' });
+    const warning = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
+
+    const failed = await run(failing, ['compile', '--destination', 'out']);
+    const warned = await run(warning, ['compile', '--destination', 'out']);
+
+    expect(lineWith(failed.stderr, 'PARSE_FAILED')).toContain(red);
+    expect(lineWith(warned.stderr, 'FILE_EXPORTS_NOTHING')).toContain(yellow);
+  });
+
+  it('--strict draws a warning as an error and exits non-zero', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
+
+    const { exitCode, stdout, stderr } = await runUi(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--strict',
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('error FILE_EXPORTS_NOTHING: ');
+    expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
+  });
+
+  it('draws a usage error like any other error', async () => {
+    const root = await createFixture({});
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destinaton', 'out']);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('pvl compile');
+    expect(stderr).toMatch(/error INVALID_ARGUMENTS: .*destinaton/);
+    expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
+  });
+
+  it.each([[[]], [['--tty']], [['--tty', 'false']]])(
+    '--json prints only the payload, whatever %j says',
+    async (ttyArgv) => {
+      const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+      const { stdout, stderr } = await run(root, [
+        'compile',
+        '--destination',
+        'out',
+        '--json',
+        ...ttyArgv,
+      ]);
+
+      expect(stderr).toBe('');
+      expect((JSON.parse(stdout) as CompilationOutput).written).toBe(true);
+    },
+  );
+});
+
+describe('pvl compile: plain output (--tty false)', () => {
   it('reports the written directory on stdout and nothing on stderr', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const { exitCode, stdout, stderr } = await run(root, ['compile', '--destination', 'out']);
+    const { exitCode, stdout, stderr } = await run(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--tty',
+      'false',
+    ]);
 
     expect(exitCode).toBe(0);
     expect(stdout).toBe(`Wrote ${path.join(root, 'out')}\n`);
@@ -139,7 +306,7 @@ describe('pvl compile: output', () => {
   it('prints each diagnostic with its severity and code on stderr', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-    const { exitCode, stdout, stderr } = await run(root, ['compile']);
+    const { exitCode, stdout, stderr } = await run(root, ['compile', '--no-tty']);
 
     expect(exitCode).toBe(1);
     expect(stdout).toBe('');
@@ -167,9 +334,16 @@ describe('pvl compile: output', () => {
   it('exits non-zero on an unknown flag', async () => {
     const root = await createFixture({});
 
-    const { exitCode, stderr } = await run(root, ['compile', '--destinaton', 'out']);
+    const { exitCode, stdout, stderr } = await run(root, [
+      'compile',
+      '--destinaton',
+      'out',
+      '--tty',
+      'false',
+    ]);
 
     expect(exitCode).toBe(1);
+    expect(stdout).toBe('');
     expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*destinaton/);
   });
 
@@ -178,7 +352,7 @@ describe('pvl compile: output', () => {
     async (flag) => {
       const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
-      const { exitCode, stderr } = await run(root, ['compile', flag]);
+      const { exitCode, stderr } = await run(root, ['compile', flag, '--tty=false']);
 
       expect(exitCode).toBe(1);
       expect(stderr).toMatch(/^error INVALID_ARGUMENTS: /);
@@ -194,6 +368,7 @@ describe('pvl compile: output', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('--destination');
     expect(stdout).toContain('--root-dir');
+    expect(stdout).toMatch(/--tty [^-]*\[default: true\]/);
     expect(stdout).not.toContain('with-types');
     expect(stdout).not.toContain('--watch');
   });
@@ -384,7 +559,13 @@ describe('pvl compile: warnings', () => {
       'src/schemas/setup.ts': 'const internal = 1;\n',
     });
 
-    const { exitCode, stderr } = await run(root, ['compile', '--destination', 'out']);
+    const { exitCode, stderr } = await run(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--tty',
+      'false',
+    ]);
 
     expect(exitCode).toBe(0);
     expect(stderr).toMatch(/^warning FILE_EXPORTS_NOTHING: .*setup\.ts/);

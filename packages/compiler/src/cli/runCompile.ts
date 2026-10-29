@@ -2,17 +2,15 @@ import { runCompilation } from '../compilation/runCompilation.js';
 import { isErrorInDiagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
+import { CompileUi } from './compileUi.js';
 
 /**
- *
- * @param flags
- * @param param1
- * @returns exit code (1 = has errors, 0 = no errors)
+ * Runs `pvl compile` with its parsed `flags`, drawing or printing the run,
+ * and returns its exit code: `1` when an error fired, `0` otherwise.
  */
-export const runCompile = async (
-  flags: CompileFlags,
-  { cwd, stdout, stderr }: RunCliOptions,
-): Promise<number> => {
+export const runCompile = async (flags: CompileFlags, options: RunCliOptions): Promise<number> => {
+  const { cwd, stdout, stderr } = options;
+  const ui = CompileUi.start(flags, options);
   const payload = await runCompilation({
     cwd,
     configPath: flags.config,
@@ -22,7 +20,8 @@ export const runCompile = async (
       destination: flags.destination,
     },
     strict: flags.strict,
+    onProgress: ui?.onProgress.bind(ui),
   });
-  report({ payload, json: flags.json, stdout, stderr });
+  report({ payload, json: flags.json, ui, stdout, stderr });
   return isErrorInDiagnostics(payload.diagnostics) ? 1 : 0;
 };

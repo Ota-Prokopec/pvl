@@ -6,7 +6,7 @@ Each section below says when it applies and which file to read. Read only the se
 
 ## Technology
 
-- TypeScript, ESM source. Depends on `@pcvl/schema` (for validating its own configuration, and for the Issue codes and default messages its Emitters reuse), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), and yargs for the CLI.
+- TypeScript, ESM source. Depends on `@pcvl/schema` (for validating its own configuration, and for the Issue codes and default messages its Emitters reuse), [ts-morph](https://github.com/dsherret/ts-morph) for AST work (see the `ts-morph-analyzer` skill), and yargs and [`@clack/prompts`](https://bomb.sh/docs/clack/packages/prompts/) for the CLI and its progress UI.
 - Built and published with tsup (see the `tsup` skill), emitting **both** ESM and CJS output — see [ADR-0004](../../docs/adr/0004-dual-esm-cjs-publish-via-tsup.md). The same build copies the hand-written `src/config/json-schema.json` to `dist/json-schema.json` (`tsup.config.ts`); it can drift from `pvlConfigFilePayloadSchema`, so change both together. The same build emits the declarations with the private `@repo/types` inlined, as in `@pcvl/schema` ([ADR-0048](../../docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)).
 - The `pvl` bin is `dist/bin.js`. Run the local build against a project with `node packages/compiler/dist/bin.js compile` from that project's directory, after `pnpm build`.
 

@@ -22,3 +22,17 @@ export type CompilationOutput = {
   /** Whether the Destination Directory was written. Never `true` when an error fired. */
   written: boolean;
 };
+
+/**
+ * One step of a {@link runCompilation} run, reported to its `onProgress`:
+ * `scanned` once after the scan, `compiling` once per scanned module, before
+ * it is read (`file` relative to the base directory, `done` the modules
+ * compiled before it), and `writing` once before the Destination Directory is
+ * written. A run that stops early sends no further events.
+ *
+ * @internal Only the CLI's progress UI reads it.
+ */
+export type CompilationProgress =
+  | { phase: 'scanned'; total: number }
+  | { phase: 'compiling'; file: string; done: number; total: number }
+  | { phase: 'writing' };
