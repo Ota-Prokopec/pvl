@@ -1,15 +1,12 @@
+import type * as stream from 'node:stream';
 import type { PvlConfigOverrides } from '../config/types.js';
-
-/** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
-type CliStream = {
-  write: (text: string) => unknown;
-};
 
 export type RunCliOptions = {
   /** The working directory `pvl compile` runs in. */
   cwd: string;
-  stdout: CliStream;
-  stderr: CliStream;
+  /** Where the CLI writes; `process.stdout` and `process.stderr` fit. */
+  stdout: stream.Writable;
+  stderr: stream.Writable;
 };
 
 // Every setting is also a flag, so the settings come from `PvlConfigOverrides`
@@ -18,4 +15,6 @@ export type CompileFlags = PvlConfigOverrides & {
   config: string | undefined;
   strict: boolean;
   json: boolean;
+  /** Draws the progress UI; `false` prints plain lines. `--json` turns it off too. */
+  tty: boolean;
 };

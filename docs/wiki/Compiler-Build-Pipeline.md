@@ -20,6 +20,18 @@ flowchart LR
 
 `pvl compile` (`bin.ts` → `runCli`) parses the flags and calls `runCompilation`, the programmatic entry point. Every step that can fail adds a [Diagnostic](./Concepts.md#diagnostic) and keeps going, so one run lists every problem at once. Only when there are none is anything written.
 
+By default the CLI draws each step as it runs, on stdout, and every Diagnostic on stderr at the end ([ADR-0051](../adr/0051-pvl-compile-draws-a-clack-progress-ui-by-default.md)). `--tty false` prints plain lines instead, and `--json` only the result:
+
+```
+┌  pvl compile
+│
+◇  Scanned 12 files
+│
+◒  Compiling 3/12 (25%) src/schemas/user.ts
+│
+└  📁 Written to .pvl  (⚠️ 1 warning)
+```
+
 ```mermaid
 flowchart TD
     CLI["pvl compile --flags<br/>runCli"] --> RC["runCompilation"]

@@ -14,8 +14,8 @@ import { Precheck } from '../precheck/precheck.js';
 import { Module } from '../module/module.js';
 import { Scanner } from '../scanner/scanner.js';
 import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
-import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
-import type { CompilationOutput } from './types.js';
+import { findMarkedToCompileSchemas, type ModuleCompilation } from '../schemas/readSchema.js';
+import type { CompilationOutput, CompilationProgress } from './types.js';
 
 /**
  * Whether `diagnostics` stop the run before anything is written: any error
@@ -52,6 +52,13 @@ type RunCompilationArgs = {
   overrides?: PvlConfigOverrides;
   /** Promotes every warning to an error. */
   strict?: boolean;
+  /**
+   * Called at each step of the run, which waits for what it returns, so a
+   * terminal can repaint before each module is compiled.
+   *
+   * @internal Only the CLI's progress UI passes it.
+   */
+  onProgress?: (progress: CompilationProgress) => void | Promise<void>;
 };
 
 /**
@@ -109,6 +116,7 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
+  onProgress,
 }: RunCompilationArgs): Promise<CompilationOutput> => {
   const resolvedSettingsPayload = await resolveConfig({
     cwd: path.resolve(cwd),
@@ -133,6 +141,7 @@ const runCompilationWithoutPromoting = async ({
     DestinationWriter.checkDestination(destination.absolutePath),
     Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
   ]);
+  await onProgress?.({ phase: 'scanned', total: scanPayload.scannedFilePaths.length });
 
   // What `include` and the destination raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
@@ -174,7 +183,19 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
-  const compilations = modules.map((module) => findMarkedToCompileSchemas(module));
+  const compilations: ModuleCompilation[] = [];
+  for (const [done, module] of modules.entries()) {
+    // Without a callback the loop stays synchronous.
+    if (onProgress !== undefined) {
+      await onProgress({
+        phase: 'compiling',
+        file: path.relative(baseDirectory, module.path.absolutePath),
+        done,
+        total: modules.length,
+      });
+    }
+    compilations.push(findMarkedToCompileSchemas(module));
+  }
 
   const diagnostics = [
     ...scanScopeDiagnostics,
@@ -192,6 +213,8 @@ const runCompilationWithoutPromoting = async ({
   }
 
   const mirroredFiles = compileAll(compilations);
+
+  await onProgress?.({ phase: 'writing' });
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });
