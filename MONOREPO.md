@@ -12,6 +12,7 @@ packages/
 ├── schema/            (npm: @pcvl/schema)          — Zod-style schema/validation library
 ├── compiler/          (npm: @pcvl/compiler)        — the ahead-of-time compiler and its `pvl` CLI (in progress)
 ├── types/             (@repo/types)               — the shared ValueOfEnum utility type
+├── utils/             (@repo/utils)               — runtime helpers that aren't specific to the domain (pluralize)
 ├── conventions/       (@repo/conventions)         — the repo's conventions as ESLint rules and git hooks
 ├── eslint-config/     (@repo/eslint-config)       — shared ESLint presets
 └── typescript-config/ (@repo/typescript-config)   — shared tsconfig bases
@@ -28,7 +29,7 @@ scripts/
 ## Dependencies
 
 - `@pcvl/compiler` depends on `@pcvl/schema`, never the other way round. Those two publish to npm; everything else is private.
-- `@pcvl/schema` and `@pcvl/compiler` take `@repo/types` as a devDependency only: their build inlines it into the declarations they publish ([ADR-0048](./docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)).
+- A published package takes a private `@repo/*` package as a devDependency only, and its build inlines it ([`private-packages.md`](./docs/specification/private-packages.md)). `@pcvl/schema` and `@pcvl/compiler` take `@repo/types` that way, inlined into the declarations they publish ([ADR-0048](./docs/adr/0048-tsup-bundles-the-declarations-and-inlines-the-private-repo-types.md)), and `@pcvl/compiler` takes `@repo/utils`, bundled into its code.
 - Both scripts read worktrees through `@repo/git-worktrees`, and `claude` takes the branch-name pattern from `@repo/conventions`. Nothing depends on the scripts or the apps, and `thesis-web` depends on no workspace package.
 - `@repo/eslint-config` and `@repo/typescript-config` are real, adopted dependencies, not create-turbo leftovers: every entry takes them as `workspace:*` devDependencies. `@repo/eslint-config` wires in `@repo/conventions`.
 

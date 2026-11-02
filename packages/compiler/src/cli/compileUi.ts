@@ -5,13 +5,9 @@
 import * as path from 'node:path';
 import * as timersPromises from 'node:timers/promises';
 import { intro, log, outro, progress, type ProgressResult } from '@clack/prompts';
+import { pluralize } from '@repo/utils';
 import type { CompilationOutput, CompilationProgress } from '../compilation/types.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
-
-/** `count` followed by `noun`, plural unless it is one. */
-const pluralize = (count: number, noun: string): string => {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-};
 
 /**
  * The UI of one run: constructing it opens the frame, `onProgress` draws each

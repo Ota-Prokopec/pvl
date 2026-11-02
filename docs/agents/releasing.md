@@ -1,6 +1,6 @@
 # Releasing
 
-How `@pcvl/schema` and `@pcvl/compiler` get a new version and reach npm ([ADR-0049](../adr/0049-releases-are-fixed-changesets-prereleases-published-from-the-release-branch-by-trusted-publishing.md)). Changesets keeps both on one version, in prerelease mode `next` (`0.1.0-next.N` on the `next` dist-tag). An agent prepares the version PR; publishing is the maintainer's push.
+How `@pcvl/schema` and `@pcvl/compiler` get a new version and reach npm ([ADR-0049](../adr/0049-releases-are-fixed-changesets-prereleases-published-from-the-release-branch-by-trusted-publishing.md)). Changesets keeps both on one version, in prerelease mode `next` (`0.1.0-next.N` on the `next` dist-tag). An agent prepares the version PR; publishing is the maintainer's push. Neither package may list a private `@repo/*` package in `dependencies`: npm would try to install it from the registry ([`private-packages.md`](../specification/private-packages.md)).
 
 ## Release steps
 
