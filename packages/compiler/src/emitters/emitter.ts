@@ -319,6 +319,20 @@ export abstract class Emitter {
   }
 
   /**
+   * The type parameter the root's Compiled Schema declares for the function
+   * passed to `call`, a method chained onto `schema`, as its first
+   * argument, which its type from `_spellParameterTypes` names; `undefined`
+   * for a method declaring none. Only `ChainableSchemaEmitter` has it, for
+   * `.refine()` and `.transform()`.
+   *
+   * ```ts
+   * StringSchemaEmitter._spellTypeParameter({ schema, call: <.max(max)> })     // undefined
+   * StringSchemaEmitter._spellTypeParameter({ schema, call: <.transform(trim)> }) // 'TArg0Output = unknown'
+   * ```
+   */
+  public static _spellTypeParameter?(args: SpellParameterTypesArgs): string | undefined;
+
+  /**
    * The `Input` and `Output` types of `schema`'s factory call, before any
    * Modifier widens them. Defaults to the factory's name, which is the type
    * of a primitive (`pvl.string()` types as `string`); the other emitters

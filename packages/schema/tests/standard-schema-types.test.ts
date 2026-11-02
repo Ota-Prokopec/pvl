@@ -331,6 +331,15 @@ describe('type inference', () => {
       expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'ahoj'>();
     });
 
+    it('narrows a coerced literal Schema to its literal, leaving its Input unknown', () => {
+      const schema = pvl
+        .literal(HTTP_STATUS.OK_200)
+        .coerce()
+        .refine((value) => value === HTTP_STATUS.OK_200);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<unknown>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<200>();
+    });
+
     it('narrows an enum Schema', () => {
       const schema = pvl.enum(SYSTEM_ROLE).refine((value) => value === 'OWNER');
       expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<

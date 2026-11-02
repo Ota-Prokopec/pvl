@@ -1,7 +1,7 @@
 import { ISSUE_CODE } from '../issue/enums.js';
 import { Issue } from '../issue/issue.js';
 import { MODIFIER_TAG } from '../modifiers/enums.js';
-import type { CheckOptions, RetypedSchema } from '../types.js';
+import type { CheckOptions, RefinedOutput, RetypedSchema } from '../types.js';
 import { InterpretedSchema } from './interpretedSchema.js';
 import type { Schema, StandaloneMarkerOf } from './schema.js';
 
@@ -134,14 +134,14 @@ export abstract class ChainableInterpretedSchema<
   refine<Refined extends Output = Output>(
     predicate: ((value: Output) => value is Refined) | ((value: Output) => boolean),
     options?: CheckOptions,
-  ): RetypedSchema<this, Input, Refined | Extract<Output, null | undefined>> {
+  ): RetypedSchema<this, Input, RefinedOutput<Output, Refined>> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
         return predicate(value)
           ? null
           : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, options?.message)] };
       },
-    }) as unknown as RetypedSchema<this, Input, Refined | Extract<Output, null | undefined>>;
+    }) as unknown as RetypedSchema<this, Input, RefinedOutput<Output, Refined>>;
   }
 
   /**

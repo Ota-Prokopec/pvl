@@ -24,6 +24,6 @@ export type RuntimeArgumentParameter = {
   passedExpression: string;
   /** The field holding the default message naming it, which the constructor builds once: its name (`arg0Message`) and the message's expression, in terms of the parameter. `undefined` when no default message names it. */
   messageField: { fieldName: string; expression: string } | undefined;
-  /** The type parameter the root's class is generic in for it, as declared: `TArg0Output` for a `.transform()`'s function at the root, `TArg0Refined extends string = string` for a `.refine()`'s, `undefined` otherwise, as a nested class is written inside the root, where its type parameters are in scope. */
+  /** The type parameter the root's class is generic in for it, as declared: `TArg0Output = unknown` for a `.transform()`'s function at the root, `TArg0Refined extends string = string` for a `.refine()`'s, `undefined` otherwise, as a nested class is written inside the root, where its type parameters are in scope. */
   typeParameter: string | undefined;
 };

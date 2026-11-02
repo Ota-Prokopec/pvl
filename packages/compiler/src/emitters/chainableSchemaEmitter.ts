@@ -17,6 +17,23 @@ import type { PostModifierStepTable, PreModifierStepTable } from './types/method
 import { nullable, optional, refine, transform } from './utils/sharedModifiers.js';
 import { widenType } from '../spelledType/spelledType.js';
 import { readFunctionArgument } from '../runtimeArgument/utils.js';
+import type { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
+import type { SchemaModifierCall } from '../schemas/types/modifierCall.js';
+
+/**
+ * The predicate `call` is passed when it is a `.refine()`, the Runtime
+ * Argument it always is, which names the type parameter its type predicate
+ * narrows the Output to (ADR-0051); `undefined` for any other call.
+ *
+ * ```ts
+ * readRefinePredicate(<.refine(isAhoj)>) // <Runtime Argument isAhoj>
+ * readRefinePredicate(<.optional()>)     // undefined
+ * ```
+ */
+const readRefinePredicate = (call: SchemaModifierCall): RuntimeArgument | undefined =>
+  call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE
+    ? readFunctionArgument(call.args?.[0])
+    : undefined;
 
 export class ChainableSchemaEmitter extends Emitter {
   public static override readonly preModifierSteps = {
@@ -51,11 +68,11 @@ export class ChainableSchemaEmitter extends Emitter {
   ): ReadonlyArray<string> | undefined {
     const { schema, call } = args;
     const transformFunction = schema.getTransformFunction();
-    if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE) {
+    const refinePredicate = readRefinePredicate(call);
+    if (refinePredicate !== undefined) {
       const { output } = this._spellTypes({ schema, before: call });
-      const { refinedTypeParameterName } = readFunctionArgument(call.args?.[0]);
       return [
-        `((value: ${output.text}) => value is ${refinedTypeParameterName}) | ((value: ${output.text}) => boolean)`,
+        `((value: ${output.text}) => value is ${refinePredicate.refinedTypeParameterName}) | ((value: ${output.text}) => boolean)`,
         CHECK_OPTIONS_TYPE_STRING,
       ];
     }
@@ -68,6 +85,39 @@ export class ChainableSchemaEmitter extends Emitter {
       return [`(value: ${output.text}) => ${transformFunction.outputTypeParameterName}`];
     }
     return super._spellParameterTypes(args);
+  }
+
+  /**
+   * The type parameter the root's Compiled Schema declares for the function
+   * passed to `call`, which its type from `_spellParameterTypes` names:
+   * `.transform()`'s return type, and a `.refine()`'s narrowed type, bounded
+   * and defaulted by the Output the methods chained before it left, so a
+   * `boolean` predicate leaves it as it was (ADR-0051). Each has a default,
+   * so their order is free.
+   *
+   * ```ts
+   * StringSchemaEmitter._spellTypeParameter({ schema: <pvl.string().optional().refine(isOk)>, call: <.refine(isOk)> })
+   * // 'TArg0Refined extends string | undefined = string | undefined'
+   * StringSchemaEmitter._spellTypeParameter({ schema: <pvl.string().transform(trim)>, call: <.transform(trim)> })
+   * // 'TArg0Output = unknown'
+   * StringSchemaEmitter._spellTypeParameter({ schema: <pvl.string().max(max)>, call: <.max(max)> })
+   * // undefined
+   * ```
+   */
+  public static override _spellTypeParameter({
+    schema,
+    call,
+  }: SpellParameterTypesArgs): string | undefined {
+    const refinePredicate = readRefinePredicate(call);
+    if (refinePredicate !== undefined) {
+      const { output } = this._spellTypes({ schema, before: call });
+      return `${refinePredicate.refinedTypeParameterName} extends ${output.text} = ${output.text}`;
+    }
+    const transformFunction = schema.getTransformFunction();
+    return call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM &&
+      transformFunction !== undefined
+      ? `${transformFunction.outputTypeParameterName} = unknown`
+      : undefined;
   }
 
   /**
@@ -93,30 +143,32 @@ export class ChainableSchemaEmitter extends Emitter {
     const { schema, before } = args;
     const transformFunction = schema.getTransformFunction();
     const calls = schema.findCallsBefore(before);
+    const widenedInput = calls.some(
+      (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE,
+    )
+      ? UNKNOWN_SPELLED_TYPE
+      : widenType(input, calls);
+    // A `.transform()` is chained last, so after any `before`.
+    if (transformFunction !== undefined && before === undefined) {
+      return {
+        input: widenedInput,
+        output: {
+          text: transformFunction.outputTypeParameterName,
+          undefinedness: UNDEFINEDNESS.CONDITIONAL,
+        },
+      };
+    }
     // The last one's type parameter is bounded by those of the ones before it.
-    const lastRefine = calls
-      .filter((call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE)
-      .at(-1);
-    // widenType adds back the `| null`/`| undefined` chained before it too, which skip it.
-    const refinedOutput =
-      lastRefine === undefined
-        ? output
-        : {
-            ...output,
-            text: readFunctionArgument(lastRefine.args?.[0]).refinedTypeParameterName,
-          };
+    const lastRefinePredicate = calls.flatMap((call) => readRefinePredicate(call) ?? []).at(-1);
     return {
-      input: calls.some((call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.COERCE)
-        ? UNKNOWN_SPELLED_TYPE
-        : widenType(input, calls),
-      // A `.transform()` is chained last, so after any `before`.
-      output:
-        transformFunction === undefined || before !== undefined
-          ? widenType(refinedOutput, calls)
-          : {
-              text: transformFunction.outputTypeParameterName,
-              undefinedness: UNDEFINEDNESS.CONDITIONAL,
-            },
+      input: widenedInput,
+      // widenType adds back the `| null`/`| undefined` chained before it too, which skip it.
+      output: widenType(
+        lastRefinePredicate === undefined
+          ? output
+          : { ...output, text: lastRefinePredicate.refinedTypeParameterName },
+        calls,
+      ),
     };
   }
 }

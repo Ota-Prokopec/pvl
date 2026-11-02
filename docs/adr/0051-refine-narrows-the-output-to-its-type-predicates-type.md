@@ -37,7 +37,7 @@ refine<Refined extends Output = Output>(
 
 It still returns `RetypedSchema`, so the Schema's class, an object's `shape`, an array's `element` and the `.standalone()` marker are kept, and Constraints chained after it keep the narrowed Output. Every Chainable Schema gets it with no per-class work.
 
-A Compiled Schema types alike, so the two sides of the swap agree ([ADR-0036](./0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md)): each `.refine()`'s Runtime Argument gets a type parameter on the root's generic arrow, `TArg<n>Refined extends <output> = <output>`, beside `.transform()`'s `TArg<n>Output`, and its predicate is spelled `((value: <output>) => value is TArg<n>Refined) | ((value: <output>) => boolean)`, the same shape as V1.
+A Compiled Schema types alike, so the two sides of the swap agree ([ADR-0036](./0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md)): each `.refine()`'s Runtime Argument gets a type parameter on the root's generic arrow, `TArg<n>Refined extends <output> = <output>`, beside `.transform()`'s `TArg<n>Output`, which now defaults to `unknown` so every type parameter has a default and they keep the Runtime Arguments' order, and its predicate is spelled `((value: <output>) => value is TArg<n>Refined) | ((value: <output>) => boolean)`, the same shape as V1.
 
 ## Alternatives rejected
 

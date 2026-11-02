@@ -149,6 +149,13 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   narrowedBeforeTransform: 'pvl.string().refine(isAhoj).transform((value) => ({ value }))',
   narrowedField:
     "pvl.object({ name: pvl.string().refine((value) => value === 'ahoj'), list: pvl.array(pvl.number()).refine((value) => value.length > 0).optional() })",
+  // A field whose Output admits `undefined` before the predicate, which keeps it or not.
+  narrowedOptionalFields: [
+    'pvl.object({',
+    "  kept: pvl.string().optional().refine((value): value is 'a' | undefined => value === undefined || value === 'a'),",
+    "  dropped: pvl.string().optional().refine((value): value is 'a' => value === 'a').nullable(),",
+    '})',
+  ].join('\n'),
   transformedFields: [
     'pvl.object({',
     "  name: pvl.string().optional().transform((value) => value ?? 'none'),",

@@ -1,12 +1,11 @@
 // A Runtime Argument: a method's argument the compiler can't read
 // statically, which a Compiled Schema evaluates once, where it is written,
 // rather than reading it at compile time (ADR-0030).
-import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pcvl/schema';
 import type { Node } from 'ts-morph';
 import { js } from '../emitters/utils/js.js';
 import { emitMessageAroundValue } from '../issue/utils.js';
 import type { Schema } from '../schemas/schema.js';
-import type { ChainedRuntimeArgument, RuntimeArgumentParameter } from './types.js';
+import type { RuntimeArgumentParameter } from './types.js';
 
 /** What {@link RuntimeArgument.getArgumentParameters} reads a Compiled Schema's Runtime Arguments for: its Schema, and, at the root, the hoisted `const`s holding them; `undefined` for a nested class, which is passed its parent's fields. */
 type GetArgumentParametersArgs = {
@@ -102,17 +101,16 @@ export class RuntimeArgument {
    * argument as written or its hoisted `const` at the root, its parent's
    * field in a nested class; when it is a method's first argument, the
    * default message naming it (`argumentMessages`); and, at the root, the
-   * type parameter declared for a `.transform()`'s function, which its
-   * return type is inferred as, or for a `.refine()`'s, which its type
-   * predicate's type is, bounded and defaulted by the Output it refines
-   * (ADR-0051). Throws for a parameter with no type, which is a
-   * bug in an emitter, never a user error.
+   * type parameter its emitter declares for it (`_spellTypeParameter`), for
+   * a `.transform()`'s function or a `.refine()`'s predicate. Throws for a
+   * parameter with no type, which is a bug in an emitter, never a user
+   * error.
    *
    * ```ts
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, hoistedNameByExpression: new Map() })
    * // [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: new Map() })
-   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'trim', messageField: undefined, typeParameter: 'TArg0Output' }]
+   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'trim', messageField: undefined, typeParameter: 'TArg0Output = unknown' }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().refine(isAhoj)>, hoistedNameByExpression: new Map() })
    * // [{ fieldName: 'arg0', type: '((value: string) => value is TArg0Refined) | ((value: string) => boolean)', passedExpression: 'isAhoj', messageField: undefined, typeParameter: 'TArg0Refined extends string = string' }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: undefined })
@@ -150,34 +148,13 @@ export class RuntimeArgument {
                   fieldName: argument.messageFieldName,
                   expression: emitMessageAroundValue(messageOf, argument.fieldName),
                 },
-          // Only the root's class is generic: a nested one is written inside it.
-          typeParameter: isRoot
-            ? RuntimeArgument.declareTypeParameter({ argument, owner, call, position })
-            : undefined,
+          // Only the root's class is generic: a nested one is written inside
+          // it. A method's function is its first argument.
+          typeParameter:
+            isRoot && position === 0
+              ? emitter._spellTypeParameter?.({ schema: owner, call })
+              : undefined,
         };
       });
-  }
-
-  /**
-   * The type parameter the root's class declares for `argument`, if any:
-   * a `.transform()`'s function's return type, or a `.refine()`'s
-   * predicate's narrowed type, bounded and defaulted by the Output the
-   * methods chained before it left, so a `boolean` predicate leaves it as
-   * it was.
-   */
-  private static declareTypeParameter({
-    argument,
-    owner,
-    call,
-    position,
-  }: ChainedRuntimeArgument): string | undefined {
-    if (argument === owner.getTransformFunction()) {
-      return argument.outputTypeParameterName;
-    }
-    if (call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE || position !== 0) {
-      return undefined;
-    }
-    const { output } = owner.emitter._spellTypes({ schema: owner, before: call });
-    return `${argument.refinedTypeParameterName} extends ${output.text} = ${output.text}`;
   }
 }

@@ -342,12 +342,10 @@ export class Frame {
     const passedExpressions = runtimeArguments
       .map(({ passedExpression }) => passedExpression)
       .join(', ');
-    // In the order their Runtime Arguments are numbered, but the
-    // `.transform()`s' first: TypeScript rejects a type parameter with no
-    // default after a `.refine()`'s, which has one.
-    const typeParameters = runtimeArguments
-      .flatMap(({ typeParameter }) => (typeParameter === undefined ? [] : [typeParameter]))
-      .sort((left, right) => Number(left.includes(' = ')) - Number(right.includes(' = ')));
+    // In the order their Runtime Arguments are numbered.
+    const typeParameters = runtimeArguments.flatMap(({ typeParameter }) =>
+      typeParameter === undefined ? [] : [typeParameter],
+    );
 
     if (typeParameters.length === 0) {
       return {
