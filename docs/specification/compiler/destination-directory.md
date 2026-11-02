@@ -56,6 +56,16 @@ Development runs the Interpreted Schemas, so there is no watch mode ([ADR-0045](
 
 CI runs `pvl compile`, then the typecheck and tests under the production alias, so the compiled code that ships is tested.
 
+Some diagnostics only the compiler raises (`UNSUPPORTED_SCHEMA`, `COMPILE_ARGUMENT_UNRESOLVABLE`, …), so a pre-commit hook catches them before CI with `pvl compile --no-emit`, which reports them without touching the Destination Directory ([configuration-and-cli.md](./configuration-and-cli.md#--no-emit)):
+
+```yaml
+# lefthook.yml
+pre-commit:
+  commands:
+    pvl:
+      run: pvl compile --no-emit
+```
+
 ## Where it lands
 
 [ADR-0015](../../adr/0015-compiled-schema-destination-resolution.md) decides it. With `destination` unset, it goes to `<baseDirectory>/.pvl/`, which also gets a `.gitignore` of `*` so it stays out of version control. With `destination` set, it goes there and nothing is added for git. Either way it is plain TypeScript and the consuming build owns compilation. `<baseDirectory>` is the directory holding `pvlconfig.json` (or the working directory for a flags-only run), which is what keeps two applications in one workspace from overwriting each other. Read that ADR before proposing to put the output in `node_modules` or expose it through `@pcvl/schema`'s own `exports`.

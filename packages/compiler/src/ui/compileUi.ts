@@ -14,7 +14,7 @@ import type { CompilationProgress } from './types.js';
  * phase, `drawDiagnostic` draws one diagnostic, `finish` closes the frame.
  *
  * ```ts
- * const ui = CompileUi.start({ json: false, tty: true }, { cwd, stdout, stderr }); // ┌  pvl compile
+ * const ui = CompileUi.start({ json: false, tty: true, emit: true }, { cwd, stdout, stderr }); // ┌  pvl compile
  * ui?.onProgress('scanning'); // ◇  Scanning
  * ui?.drawDiagnostic(diagnostic); // ■  error PARSE_FAILED: …
  * ui?.finish(payload); // └  📁 Written to .pvl
@@ -22,9 +22,11 @@ import type { CompilationProgress } from './types.js';
  */
 export class CompileUi {
   private readonly cliOptions: CliOptions;
+  private readonly emit: boolean;
 
-  private constructor(options: CliOptions) {
+  private constructor(options: CliOptions, emit: boolean) {
     this.cliOptions = options;
+    this.emit = emit;
     intro('pvl compile', { output: options.stdout });
   }
 
@@ -33,10 +35,10 @@ export class CompileUi {
    * `--tty false` asks for the plain output.
    */
   public static start(
-    flags: Pick<CompileFlags, 'json' | 'tty'>,
+    flags: Pick<CompileFlags, 'json' | 'tty' | 'emit'>,
     options: CliOptions,
   ): CompileUi | undefined {
-    return flags.json || !flags.tty ? undefined : new CompileUi(options);
+    return flags.json || !flags.tty ? undefined : new CompileUi(options, flags.emit);
   }
 
   /** Draws the phase the run is entering. */
@@ -56,9 +58,13 @@ export class CompileUi {
     const { cwd, stdout } = this.cliOptions;
     const errors = diagnostics.filter((diagnostic) => diagnostic.isError()).length;
     const warnings = diagnostics.length - errors;
+    const warned = warnings > 0 ? `  (⚠️ ${pluralize(warnings, 'warning')})` : '';
     if (written && destination !== undefined) {
-      const warned = warnings > 0 ? `  (⚠️ ${pluralize(warnings, 'warning')})` : '';
       outro(`📁 Written to ${path.relative(cwd, destination) || '.'}${warned}`, { output: stdout });
+      return;
+    }
+    if (!this.emit && errors === 0) {
+      outro(`✅ No errors. Nothing written (--no-emit)${warned}`, { output: stdout });
       return;
     }
     outro(`❌ ${pluralize(errors, 'error')}, ${pluralize(warnings, 'warning')}. Nothing written`, {

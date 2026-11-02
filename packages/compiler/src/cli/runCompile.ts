@@ -39,6 +39,7 @@ export const runCompile = async (
       destination: flags.destination,
     },
     strict: flags.strict,
+    emit: flags.emit,
     ui,
   }).catch(createCrashPayload);
   report({ payload, json: flags.json, ui, stdout, stderr });

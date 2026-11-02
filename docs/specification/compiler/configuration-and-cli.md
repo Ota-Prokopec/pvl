@@ -20,6 +20,7 @@ The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--inc
 | ----------------- | ------------------------------------------------------------------------------------------------ |
 | `--config <path>` | The config file to read, relative to the working directory                                       |
 | `--strict`        | Promotes every warning to an error                                                               |
+| `--no-emit`       | Runs every check and writes nothing ([below](#--no-emit))                                        |
 | `--json`          | Prints the run's `CompilationOutput` as one JSON document on stdout only, a usage error included |
 | `--tty`           | Draws the progress UI (default `true`); `--tty false` or `--no-tty` prints plain lines instead   |
 
@@ -27,13 +28,22 @@ Precedence is flags, then the config file, then defaults. A run with no config f
 
 Every diagnostic's text is `<severity> <code>: <message> (<file>)`, the severity in lower case. The output has three modes ([ADR-0051](../../adr/0051-pvl-compile-draws-a-clack-progress-ui-by-default.md)):
 
-- **The UI** (the default): a `@clack/prompts` frame on stdout, with a line as the run enters each phase (`Scanning` before the scan, `Compiling` once every scanned file passed the precheck, `Writing` before the Destination Directory is written), and a closing line. Every diagnostic is drawn on stderr, errors in red and warnings in yellow. A written run closes with `📁 Written to <destination, relative to the working directory>`, plus `(⚠️ N warnings)` when any fired; any other run with `❌ N errors, M warnings. Nothing written`. A run that stops in a phase draws no phase after it.
+- **The UI** (the default): a `@clack/prompts` frame on stdout, with a line as the run enters each phase (`Scanning` before the scan, `Compiling` once every scanned file passed the precheck, `Writing` before the Destination Directory is written), and a closing line. Every diagnostic is drawn on stderr, errors in red and warnings in yellow. A written run closes with `📁 Written to <destination, relative to the working directory>`, plus `(⚠️ N warnings)` when any fired; a `--no-emit` run with no error with `✅ No errors. Nothing written (--no-emit)`, plus the same warning count; any other run with `❌ N errors, M warnings. Nothing written`. A run that stops in a phase draws no phase after it.
 - **`--tty false`**: each diagnostic as a plain line on stderr, and `Wrote <absolute destination>` on stdout once written.
 - **`--json`**: the `CompilationOutput` on stdout and nothing else, whatever `--tty` says.
 
 A run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
 
-The programmatic entry point is `runCompilation({ cwd, configPath, overrides, strict })` from `@pcvl/compiler`; the CLI is a thin wrapper over it, and a bundler plugin would be another.
+### `--no-emit`
+
+`pvl compile --no-emit` runs everything a normal run does except the write ([ADR-0052](../../adr/0052-pvl-compile-no-emit-checks-diagnostics-and-writes-nothing.md)): it resolves the settings, scans and prechecks every file, compiles every Marked-to-Compile Schema and generates every mirrored module in memory, then drops the output. It reports every diagnostic a normal run would and exits as one would, `--strict` included, except where a diagnostic is found only by writing. For the destination, that means:
+
+- **Still reported**, as the destination checks run before anything is written: `DESTINATION_NOT_EMPTY` (a directory holding files but no `.pvl-generated` marker), `DESTINATION_INSIDE_INCLUDE`, and `DESTINATION_UNWRITABLE` when `destination` is a file.
+- **Never reported**: `DESTINATION_UNWRITABLE` when a parent of `destination` is a file or a directory is read-only. A normal run finds these only when its write fails, so a clean `--no-emit` run doesn't promise the write will succeed.
+
+Nothing on disk changes: no Destination Directory, temporary sibling, marker or `.gitignore` is created, and a crashed run's siblings are left alone. Its payload has `written: false` and the resolved `destination`; with `--tty false`, a clean run prints nothing. It is a flag only, never a `pvlconfig.json` key, and `--no-emit` is its only spelling (`--emit` is an unknown flag); it doesn't compare the existing Destination Directory with what it would write.
+
+The programmatic entry point is `runCompilation({ cwd, configPath, overrides, strict, emit })` from `@pcvl/compiler`, `emit` defaulting to `true` (`emit: false` is `--no-emit`); the CLI is a thin wrapper over it, and a bundler plugin would be another.
 
 ## Diagnostics
 
@@ -46,7 +56,7 @@ Every diagnostic carries a stable, publicly documented code, so users and tests 
 | `INVALID_CONFIG`                      | `ERROR`   | A setting, from the config file or a flag, fails `pvlConfigFilePayloadSchema`, or as a flag `pvlConfigSchema` (wrong type, or an unknown key in the file); one diagnostic per failing setting                                                                                                                                |
 | `NO_INPUT_FILES`                      | `ERROR`   | `include` matched no file                                                                                                                                                                                                                                                                                                    |
 | `SYMLINK_SKIPPED`                     | `WARNING` | `include` matched a symlink, or a file through a symlinked directory, which the compiler doesn't follow, so nothing reached through it is mirrored or compiled, though a Schema it leads to can still be nested through an import ([compilation.md](./compilation.md#what-reads-statically)); one per symlink                |
-| `DESTINATION_UNWRITABLE`              | `ERROR`   | `destination` is a file, or it can't be created or written (a parent is a file, a directory is read-only); only a file is found up front, the rest when the run writes                                                                                                                                                       |
+| `DESTINATION_UNWRITABLE`              | `ERROR`   | `destination` is a file, or it can't be created or written (a parent is a file, a directory is read-only); only a file is found up front, the rest when the run writes, so never under `--no-emit`                                                                                                                           |
 | `DESTINATION_NOT_EMPTY`               | `ERROR`   | `destination` is a directory holding files but no `.pvl-generated` marker, so it wasn't written by the compiler and won't be replaced                                                                                                                                                                                        |
 | `DESTINATION_INSIDE_INCLUDE`          | `ERROR`   | An `include` pattern matches the destination or could match anything inside it, so the compiler would read its own output, inside the base directory or not                                                                                                                                                                  |
 | `TSCONFIG_UNREADABLE`                 | `ERROR`   | `<baseDirectory>/tsconfig.json` can't be read or parsed, or a file it extends can't, so alias imports can't be resolved; reported before any file is read, so no scanned file gets a diagnostic                                                                                                                              |
