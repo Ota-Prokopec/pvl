@@ -21,10 +21,17 @@ The CLI is `pvl compile`, built with yargs. Every setting is also a flag (`--inc
 | `--config <path>` | The config file to read, relative to the working directory                                       |
 | `--strict`        | Promotes every warning to an error                                                               |
 | `--json`          | Prints the run's `CompilationOutput` as one JSON document on stdout only, a usage error included |
+| `--tty`           | Draws the progress UI (default `true`); `--tty false` or `--no-tty` prints plain lines instead   |
 
 Precedence is flags, then the config file, then defaults. A run with no config file at all is valid as long as at least one setting is passed as a flag; with neither, it fails with `NO_CONFIG`.
 
-Without `--json`, each diagnostic is printed to stderr as `<severity> <code>: <message> (<file>)`, the severity in lower case, and the written path to stdout. A run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
+Every diagnostic's text is `<severity> <code>: <message> (<file>)`, the severity in lower case. The output has three modes ([ADR-0051](../../adr/0051-pvl-compile-draws-a-clack-progress-ui-by-default.md)):
+
+- **The UI** (the default): a `@clack/prompts` frame on stdout, with a line as the run enters each phase (`Scanning` before the scan, `Compiling` once every scanned file passed the precheck, `Writing` before the Destination Directory is written), and a closing line. Every diagnostic is drawn on stderr, errors in red and warnings in yellow. A written run closes with `📁 Written to <destination, relative to the working directory>`, plus `(⚠️ N warnings)` when any fired; any other run with `❌ N errors, M warnings. Nothing written`. A run that stops in a phase draws no phase after it.
+- **`--tty false`**: each diagnostic as a plain line on stderr, and `Wrote <absolute destination>` on stdout once written.
+- **`--json`**: the `CompilationOutput` on stdout and nothing else, whatever `--tty` says.
+
+A run exits `1` when any error fired (an unknown flag included) and `0` otherwise, warnings included unless `--strict`. **Nothing is written when any error fired**: a partially written Destination Directory that still typechecks is worse than no output.
 
 The programmatic entry point is `runCompilation({ cwd, configPath, overrides, strict })` from `@pcvl/compiler`; the CLI is a thin wrapper over it, and a bundler plugin would be another.
 
@@ -54,3 +61,4 @@ Every diagnostic carries a stable, publicly documented code, so users and tests 
 | `FILE_EXPORTS_NOTHING`                | `WARNING` | A scanned file has no export, so nothing can be imported from its mirrored module                                                                                                                                                                                                                                            |
 | `SIDE_EFFECT_COPIED`                  | `WARNING` | A top-level statement that isn't a declaration (a call, an `if`, a loop) is copied, so it runs again wherever the mirror is loaded; one per statement                                                                                                                                                                        |
 | `INVALID_ARGUMENTS`                   | `ERROR`   | The CLI got an unknown flag, a flag value of the wrong type, or no command (CLI only)                                                                                                                                                                                                                                        |
+| `INTERNAL_ERROR`                      | `ERROR`   | `pvl compile` crashed on a bug in the compiler; the message carries the stack (CLI only)                                                                                                                                                                                                                                     |

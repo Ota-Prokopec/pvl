@@ -6,5 +6,6 @@ export default defineConfig({
     // Each test builds a TypeScript program over a fixture on disk, which
     // can stall past the 5s default while `pnpm test` builds in parallel.
     testTimeout: 30_000,
+    unstubEnvs: true,
   },
 });

@@ -151,7 +151,7 @@ Run the compiler with `pnpm exec`. Not `npx pvl`: where `@pcvl/compiler` isn't i
 pnpm exec pvl compile
 ```
 
-It writes each file to the `.pvl/` folder at the same path, relative to `src/`, so `src/schemas/user.ts` becomes `.pvl/schemas/user.ts`. Import the Compiled Schema from there:
+It shows its progress as it runs and ends with `📁 Written to .pvl` (pass `--tty false` for plain lines in CI). It writes each file to the `.pvl/` folder at the same path, relative to `src/`, so `src/schemas/user.ts` becomes `.pvl/schemas/user.ts`. Import the Compiled Schema from there:
 
 ```ts
 // src/index.ts

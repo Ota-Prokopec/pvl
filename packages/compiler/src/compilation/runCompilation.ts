@@ -5,16 +5,17 @@
 import * as path from 'node:path';
 import { resolveConfig } from '../config/configResolver.js';
 import type { PvlConfigOverrides } from '../config/types.js';
+import { DestinationWriter } from '../destination/destinationWriter.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { isErrorInDiagnostics, promoteAllDiagnostics } from '../diagnostics/utils.js';
-import { compileAll } from './compileAll.js';
-import { DestinationWriter } from '../destination/destinationWriter.js';
-import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
-import { Precheck } from '../precheck/precheck.js';
 import { Module } from '../module/module.js';
+import { Precheck } from '../precheck/precheck.js';
 import { Scanner } from '../scanner/scanner.js';
 import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
+import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
+import { compileAll } from './compileAll.js';
+import type { CompilationUi } from '../ui/types.js';
 import type { CompilationOutput } from './types.js';
 
 /**
@@ -52,6 +53,8 @@ type RunCompilationArgs = {
   overrides?: PvlConfigOverrides;
   /** Promotes every warning to an error. */
   strict?: boolean;
+  /** The UI (if enabled) */
+  ui?: CompilationUi;
 };
 
 /**
@@ -109,6 +112,7 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
+  ui,
 }: RunCompilationArgs): Promise<CompilationOutput> => {
   const resolvedSettingsPayload = await resolveConfig({
     cwd: path.resolve(cwd),
@@ -129,6 +133,7 @@ const runCompilationWithoutPromoting = async ({
   const { rawSettings, baseDirectory, destination } = resolvedSettingsPayload;
   const rootDirectory = path.resolve(baseDirectory, rawSettings.rootDir);
 
+  ui?.onProgress('scanning');
   const [destinationDiagnostics, scanPayload] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
     Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
@@ -174,6 +179,7 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
+  ui?.onProgress('compiling');
   const compilations = modules.map((module) => findMarkedToCompileSchemas(module));
 
   const diagnostics = [
@@ -192,6 +198,8 @@ const runCompilationWithoutPromoting = async ({
   }
 
   const mirroredFiles = compileAll(compilations);
+
+  ui?.onProgress('writing');
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });

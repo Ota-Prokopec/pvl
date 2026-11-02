@@ -185,6 +185,9 @@ importers:
 
   packages/compiler:
     dependencies:
+      '@clack/prompts':
+        specifier: ^1.8.1
+        version: 1.8.1
       dedent:
         specifier: ^1.7.2
         version: 1.7.2
@@ -216,6 +219,9 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
+      '@repo/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@types/lodash-es':
         specifier: ^4.17.12
         version: 4.17.12
@@ -397,6 +403,27 @@ importers:
         version: 6.0.3
 
   packages/typescript-config: {}
+
+  packages/utils:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      eslint:
+        specifier: 10.9.1
+        version: 10.9.1(jiti@2.7.0)(supports-color@7.2.0)
+      jiti:
+        specifier: 2.7.0
+        version: 2.7.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.1
+        version: 5.0.1(@types/node@26.4.1)(vite@8.3.0(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
   scripts/claude:
     dependencies:
@@ -7114,7 +7141,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.19
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   preact@10.29.8: {}
 
