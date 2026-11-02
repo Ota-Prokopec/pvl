@@ -34,10 +34,11 @@ export type SchemaTypes = {
  * declares, so TypeScript infers it from the function (ADR-0051).
  *
  * ```ts
- * <the type of trim in .transform(trim)> // { text: '(value: string) => TArg0Output', undefinedness: 'NEVER', typeParameter: 'TArg0Output = unknown' }
+ * <the type of trim in .transform(trim)> // { text: '(value: string) => TArg0Output', typeParameter: 'TArg0Output = unknown' }
  * ```
  */
-export type SpelledGenericType = SpelledType & {
+export type SpelledGenericType = {
+  text: string;
   /** Declared with a default, so the root's type parameters come in their Runtime Arguments' order. */
   typeParameter: string;
 };

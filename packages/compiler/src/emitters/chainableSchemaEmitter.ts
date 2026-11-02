@@ -44,9 +44,9 @@ export class ChainableSchemaEmitter extends Emitter {
    *
    * ```ts
    * StringSchemaEmitter._spellParameterTypes({ schema: <pvl.string().optional().refine(isOk)>, call: <.refine(isOk)> })
-   * // [{ text: '((value: string | undefined) => value is TArg0Refined) | ((value: string | undefined) => boolean)', undefinedness: 'NEVER', typeParameter: 'TArg0Refined extends string | undefined = string | undefined' }, '{ message?: string } | undefined']
+   * // [{ text: '((value: string | undefined) => value is TArg0Refined) | ((value: string | undefined) => boolean)', typeParameter: 'TArg0Refined extends string | undefined = string | undefined' }, '{ message?: string } | undefined']
    * StringSchemaEmitter._spellParameterTypes({ schema: <pvl.string().optional().transform(trim)>, call: <.transform(trim)> })
-   * // [{ text: '(value: string | undefined) => TArg0Output', undefinedness: 'NEVER', typeParameter: 'TArg0Output = unknown' }]
+   * // [{ text: '(value: string | undefined) => TArg0Output', typeParameter: 'TArg0Output = unknown' }]
    * ```
    */
   public static override _spellParameterTypes(
@@ -62,12 +62,10 @@ export class ChainableSchemaEmitter extends Emitter {
 
     const functionArgument = RuntimeArgument.assert(call.args?.[0]);
     const { output } = this._spellTypes({ schema, before: call });
-    // A function's type never admits `undefined`.
     if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM) {
       return [
         {
           text: `(value: ${output.text}) => ${functionArgument.outputTypeParameterName}`,
-          undefinedness: UNDEFINEDNESS.NEVER,
           typeParameter: `${functionArgument.outputTypeParameterName} = unknown`,
         },
       ];
@@ -75,7 +73,6 @@ export class ChainableSchemaEmitter extends Emitter {
     return [
       {
         text: `((value: ${output.text}) => value is ${functionArgument.refinedTypeParameterName}) | ((value: ${output.text}) => boolean)`,
-        undefinedness: UNDEFINEDNESS.NEVER,
         typeParameter: `${functionArgument.refinedTypeParameterName} extends ${output.text} = ${output.text}`,
       },
       CHECK_OPTIONS_TYPE_STRING,
