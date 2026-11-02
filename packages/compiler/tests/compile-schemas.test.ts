@@ -904,11 +904,11 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
       import type { Issue as PvlIssue, Result as PvlResult, SCHEMA_BRAND as PVL_SCHEMA_BRAND, Schema as PvlSchema, StandaloneMarker as PvlStandaloneMarker, StandardSchemaProps as PvlStandardSchemaProps } from '@pcvl/schema';
 
       const isShort = (value: string): boolean => value.length < 5;
-      export const name = (<TArg1Output,>(arg0: (value: string) => boolean, arg1: (value: string | undefined) => TArg1Output): PvlSchema<unknown, TArg1Output> => new (class PvlCompiledSchema0 implements PvlSchema<unknown, TArg1Output> {
+      export const name = (<TArg1Output, TArg0Refined extends string = string,>(arg0: ((value: string) => value is TArg0Refined) | ((value: string) => boolean), arg1: (value: TArg0Refined | undefined) => TArg1Output): PvlSchema<unknown, TArg1Output> => new (class PvlCompiledSchema0 implements PvlSchema<unknown, TArg1Output> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
 
-        constructor(readonly arg0: (value: string) => boolean, readonly arg1: (value: string | undefined) => TArg1Output) {}
+        constructor(readonly arg0: ((value: string) => value is TArg0Refined) | ((value: string) => boolean), readonly arg1: (value: TArg0Refined | undefined) => TArg1Output) {}
 
         get "~standard"(): PvlStandardSchemaProps<unknown, TArg1Output> {
           return { version: 1, vendor: "@pcvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
@@ -941,18 +941,18 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
       })(arg0, arg1))(isShort, (value) => value?.length);
-      export const tags = (new (class PvlCompiledSchema1 implements PvlSchema<(unknown)[], (number)[]> {
+      export const tags = (<TArg0Refined extends (number)[] = (number)[],>(arg0: ((value: (number)[]) => value is TArg0Refined) | ((value: (number)[]) => boolean)): PvlSchema<(unknown)[], TArg0Refined> => new (class PvlCompiledSchema1 implements PvlSchema<(unknown)[], TArg0Refined> {
         declare readonly [PVL_SCHEMA_BRAND]: true;
         readonly _standalone: boolean = false;
 
-        constructor(readonly arg0: (value: (number)[]) => boolean) {}
+        constructor(readonly arg0: ((value: (number)[]) => value is TArg0Refined) | ((value: (number)[]) => boolean)) {}
 
-        get "~standard"(): PvlStandardSchemaProps<(unknown)[], (number)[]> {
+        get "~standard"(): PvlStandardSchemaProps<(unknown)[], TArg0Refined> {
           return { version: 1, vendor: "@pcvl/schema", types: undefined, validate: (value: unknown) => this.validate(value) };
         }
 
-        validate(value: unknown): PvlResult<(number)[]> {
-          return this._validate(value, []) as PvlResult<(number)[]>;
+        validate(value: unknown): PvlResult<TArg0Refined> {
+          return this._validate(value, []) as PvlResult<TArg0Refined>;
         }
 
         _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
@@ -986,7 +986,7 @@ describe('runCompilation(): emitting Compiled Schemas', () => {
         standalone(): this & PvlStandaloneMarker {
           return Object.assign(Object.create(Object.getPrototypeOf(this) as object) as this, this, { _standalone: true }) as unknown as this & PvlStandaloneMarker;
         }
-      })((value) => value.length > 0) as PvlSchema<(unknown)[], (number)[]>);
+      })(arg0))((value) => value.length > 0);
       "
     `);
   });
