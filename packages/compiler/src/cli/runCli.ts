@@ -4,8 +4,8 @@ import yargs from 'yargs';
 import { Parser } from 'yargs/helpers';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { CompileUi } from './compileUi.js';
-import { report } from './report.js';
+import { CompileUi } from '../ui/compileUi.js';
+import { report } from '../ui/report.js';
 import { runCompile } from './runCompile.js';
 import type { CliOptions } from './types.js';
 

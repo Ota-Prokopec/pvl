@@ -3,9 +3,9 @@ import { runCompilation } from '../compilation/runCompilation.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { isErrorInDiagnostics } from '../diagnostics/utils.js';
-import { report } from './report.js';
+import { report } from '../ui/report.js';
 import type { CompileFlags, CliOptions } from './types.js';
-import type { CompileUi } from './compileUi.js';
+import type { CompileUi } from '../ui/compileUi.js';
 
 /** The payload of a run that threw: one `INTERNAL_ERROR` carrying the stack. */
 const createCrashPayload = (error: unknown): CompilationOutput => {

@@ -15,7 +15,8 @@ import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
 import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
 import { compileAll } from './compileAll.js';
-import type { CompilationOutput, CompilationUi } from './types.js';
+import type { CompilationUi } from '../ui/types.js';
+import type { CompilationOutput } from './types.js';
 
 /**
  * Whether `diagnostics` stop the run before anything is written: any error
