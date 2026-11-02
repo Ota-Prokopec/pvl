@@ -95,6 +95,12 @@ export class CompileUi {
     });
   }
 
+  /** Ends the progress bar as failed, when the run threw before `finish`. */
+  public abort(): void {
+    this.progressBar?.error('Compiling failed');
+    this.progressBar = undefined;
+  }
+
   private stopProgressBar(): void {
     this.progressBar?.stop(`Compiled ${pluralize(this.fileCount, 'file')}`);
     this.progressBar = undefined;

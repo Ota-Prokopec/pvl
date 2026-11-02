@@ -3,6 +3,7 @@ import * as stream from 'node:stream';
 import * as util from 'node:util';
 import { describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli/runCli.js';
+import { runCompilation } from '../src/compilation/runCompilation.js';
 import {
   DIAGNOSTIC_CODE,
   SEVERITY,
@@ -19,6 +20,9 @@ import {
   readFixtureFile,
   schemaFile,
 } from './helpers.js';
+
+// Calls through to the real run; only the INTERNAL_ERROR test makes one throw.
+vi.mock(import('../src/compilation/runCompilation.js'), { spy: true });
 
 type CliRun = {
   exitCode: number;
@@ -284,6 +288,43 @@ describe('pvl compile: the progress UI', () => {
       expect((JSON.parse(stdout) as CompilationOutput).written).toBe(true);
     },
   );
+});
+
+/** Makes the next run throw `error` once its progress bar has started. */
+const crashNextRun = (error: Error): void => {
+  vi.mocked(runCompilation).mockImplementationOnce(async ({ onProgress }) => {
+    await onProgress?.({ phase: 'scanned', total: 2 });
+    await onProgress?.({ phase: 'compiling', file: 'a.ts', done: 0, total: 2 });
+    throw error;
+  });
+};
+
+describe('pvl compile: a crash inside the compiler', () => {
+  it('stops the progress bar, so nothing keeps the process alive', async () => {
+    const root = await createFixture({});
+    const sigintListeners = process.listenerCount('SIGINT');
+    crashNextRun(new Error('bug inside runCompilation'));
+
+    const { exitCode, stdout, stderr } = await runUi(root, ['compile']);
+
+    expect(exitCode).toBe(1);
+    expect(process.listenerCount('SIGINT')).toBe(sigintListeners);
+    expect(stdout).toContain('Compiling failed');
+    expect(stderr).toMatch(/error INTERNAL_ERROR: /);
+    expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
+  });
+
+  it('reports INTERNAL_ERROR with the stack', async () => {
+    const root = await createFixture({});
+    crashNextRun(new Error('bug inside runCompilation'));
+
+    const { exitCode, payload } = await runJson(root, ['compile']);
+
+    expect(exitCode).toBe(1);
+    expect(diagnosticCodes(payload)).toEqual([DIAGNOSTIC_CODE.INTERNAL_ERROR]);
+    expect(payload.diagnostics[0]?.message).toMatch(/bug inside runCompilation\n\s+at /);
+    expect(payload.written).toBe(false);
+  });
 });
 
 describe('pvl compile: plain output (--tty false)', () => {

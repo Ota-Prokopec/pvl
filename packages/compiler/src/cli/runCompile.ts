@@ -1,8 +1,23 @@
+import type { CompilationOutput } from '../compilation/types.js';
 import { runCompilation } from '../compilation/runCompilation.js';
+import { Diagnostic } from '../diagnostics/diagnostic.js';
+import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { isErrorInDiagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
 import { CompileUi } from './compileUi.js';
+
+/** The payload of a run that threw: one `INTERNAL_ERROR` carrying the stack. */
+const crashPayload = (error: unknown): CompilationOutput => {
+  const stack = error instanceof Error ? error.stack : String(error);
+  const message = `pvl compile crashed. This is a bug in pvl; please report it.\n${stack}`;
+  return {
+    diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INTERNAL_ERROR, message })],
+    settings: undefined,
+    destination: undefined,
+    written: false,
+  };
+};
 
 /**
  * Runs `pvl compile` with its parsed `flags`, drawing or printing the run,
@@ -21,6 +36,10 @@ export const runCompile = async (flags: CompileFlags, options: RunCliOptions): P
     },
     strict: flags.strict,
     onProgress: ui?.onProgress.bind(ui),
+  }).catch((error: unknown) => {
+    // The bar's timer would otherwise keep the process alive.
+    ui?.abort();
+    return crashPayload(error);
   });
   report({ payload, json: flags.json, ui, stdout, stderr });
   return isErrorInDiagnostics(payload.diagnostics) ? 1 : 0;

@@ -55,6 +55,8 @@ export const DIAGNOSTIC_CODE = {
   UNSUPPORTED_SCHEMA: 'UNSUPPORTED_SCHEMA',
   /** The CLI was given an unknown flag, a flag value of the wrong type, or no command. */
   INVALID_ARGUMENTS: 'INVALID_ARGUMENTS',
+  /** `pvl compile` crashed on a bug in the compiler; the message carries the stack. */
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const;
 
 /**
