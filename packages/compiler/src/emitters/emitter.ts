@@ -18,7 +18,7 @@
 // schema's to its tables and overrides the `_` hooks. What reads nothing of
 // the emitter it is called on is a function in `./utils/`.
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaTypes, SpelledType } from '../spelledType/types.js';
+import type { SchemaTypes, SpelledGenericType, SpelledType } from '../spelledType/types.js';
 import { UNDEFINEDNESS } from '../spelledType/enums.js';
 import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
@@ -304,33 +304,19 @@ export abstract class Emitter {
    * The TypeScript type of each parameter of `call`, a method chained onto
    * `schema`, which a Compiled Schema's constructor declares a Runtime
    * Argument passed there with: its emitter's `parameterTypes`. An emitter
-   * whose method takes a parameter typed by the Schema itself, as
-   * `.refine()`'s predicate takes the value, overrides it.
+   * whose method takes a function typed by the Schema itself, as
+   * `.refine()`'s predicate takes the value, overrides it, spelling that
+   * function's type with the type parameter it names (`SpelledGenericType`).
    *
    * ```ts
-   * StringSchemaEmitter._spellParameterTypes({ schema, call: <.max(max)> })          // ['number', '{ message?: string } | undefined']
-   * StringSchemaEmitter._spellParameterTypes({ schema, call: <.refine(isOk)> })      // ['(value: string) => boolean', '{ message?: string } | undefined']
+   * StringSchemaEmitter._spellParameterTypes({ schema, call: <.max(max)> }) // ['number', '{ message?: string } | undefined']
    * ```
    */
   public static _spellParameterTypes({
     call,
-  }: SpellParameterTypesArgs): ReadonlyArray<string> | undefined {
+  }: SpellParameterTypesArgs): ReadonlyArray<string | SpelledGenericType> | undefined {
     return this.parameterTypes[call.name];
   }
-
-  /**
-   * The type parameter the root's Compiled Schema declares for the function
-   * passed to `call`, a method chained onto `schema`, as its first
-   * argument, which its type from `_spellParameterTypes` names; `undefined`
-   * for a method declaring none. Only `ChainableSchemaEmitter` has it, for
-   * `.refine()` and `.transform()`.
-   *
-   * ```ts
-   * StringSchemaEmitter._spellTypeParameter({ schema, call: <.max(max)> })     // undefined
-   * StringSchemaEmitter._spellTypeParameter({ schema, call: <.transform(trim)> }) // 'TArg0Output = unknown'
-   * ```
-   */
-  public static _spellTypeParameter?(args: SpellParameterTypesArgs): string | undefined;
 
   /**
    * The `Input` and `Output` types of `schema`'s factory call, before any

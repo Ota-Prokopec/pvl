@@ -1,6 +1,7 @@
 // A Schema's `Input` and `Output` types spelled as TypeScript, each with
 // whether it admits `undefined`, as an Emitter spells them and a Frame
-// writes them into a Compiled Schema's type.
+// writes them into a Compiled Schema's type, and the generic type of a
+// function passed `.refine()` or `.transform()`.
 import type { Undefinedness } from './enums.js';
 
 /**
@@ -25,4 +26,18 @@ export type SchemaTypes = {
    * it, and a `.transform()` can make it any type.
    */
   output: SpelledType;
+};
+
+/**
+ * The type of a function passed `.refine()` or `.transform()`, spelled as
+ * TypeScript, which names a type parameter the root's Compiled Schema
+ * declares, so TypeScript infers it from the function (ADR-0051).
+ *
+ * ```ts
+ * <the type of trim in .transform(trim)> // { text: '(value: string) => TArg0Output', undefinedness: 'NEVER', typeParameter: 'TArg0Output = unknown' }
+ * ```
+ */
+export type SpelledGenericType = SpelledType & {
+  /** Declared with a default, so the root's type parameters come in their Runtime Arguments' order. */
+  typeParameter: string;
 };

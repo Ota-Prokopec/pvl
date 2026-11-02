@@ -49,3 +49,9 @@ A Compiled Schema types alike, so the two sides of the swap agree ([ADR-0036](./
 ## Accepted risk: surprise narrowing
 
 Zod v3 narrowed on type predicates. Zod v4, as far as we know, ignores them, because TypeScript's inferred predicates narrow where a developer didn't expect it. pvl narrows on purpose: an existing `.refine((v) => v === 'a' || v === 'b')` now outputs `'a' | 'b'`, which can surface a type error downstream. The packages are in prerelease, and the changeset says so.
+
+## Accepted gap: a `null` or `undefined` the predicate rejects
+
+`Extract<Output, null | undefined>` keeps every `null` and `undefined` in the Output, not only those a `.nullable()` or `.optional()` on this chain lets past the predicate. When the Schema's own type admits one, the predicate does see it, and the Output keeps it anyway: `pvl.union([pvl.string(), pvl.number().nullable()]).refine((v) => v !== null)` outputs `string | number | null`, though no `null` passes. That type is wider than the truth, never unsound. Telling the two apart would need the Schema's type to record which Modifiers were chained, which nothing else needs.
+
+The Compiled Schema reads the chain instead: it adds back the `| null`/`| undefined` of each `.optional()`/`.nullable()` chained before the `.refine()`, which is the exact type. The two agree for every factory the compiler compiles today, as none of their own types admits `null` or `undefined`. Compiling `pvl.union()` will make them differ, and the differential test will fail on such a case until one side changes.

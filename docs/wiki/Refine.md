@@ -21,7 +21,7 @@ pvl.string().refine((value) => value === 'a' || value === 'b'); // Output 'a' | 
 pvl.string().refine((value) => value.length > 3); //            Output string
 ```
 
-A `null` or `undefined` that `.nullable()` or `.optional()` chained before lets past the predicate stays in the Output, since it never reaches the predicate: `pvl.string().nullable().refine((value) => value !== null)` outputs `string | null`. One chained after adds its own, as always: `.refine(isAhoj).optional()` outputs `'ahoj' | undefined`. The Schema keeps its class, so later Constraints keep the narrowed Output, and a later `.refine()` or `.transform()` receives it.
+A `null` or `undefined` that `.nullable()` or `.optional()` chained before lets past the predicate stays in the Output, since it never reaches the predicate: `pvl.string().nullable().refine((value) => value !== null)` outputs `string | null`. So does one the Schema's own type admits, even when the predicate rejects it: `pvl.union([pvl.string(), pvl.number().nullable()]).refine((value) => value !== null)` outputs `string | number | null` ([ADR-0051](../adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md#accepted-gap-a-null-or-undefined-the-predicate-rejects)). One chained after adds its own, as always: `.refine(isAhoj).optional()` outputs `'ahoj' | undefined`. The Schema keeps its class, so later Constraints keep the narrowed Output, and a later `.refine()` or `.transform()` receives it.
 
 ## The short version
 

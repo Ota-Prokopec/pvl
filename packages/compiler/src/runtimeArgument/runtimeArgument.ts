@@ -101,8 +101,8 @@ export class RuntimeArgument {
    * argument as written or its hoisted `const` at the root, its parent's
    * field in a nested class; when it is a method's first argument, the
    * default message naming it (`argumentMessages`); and, at the root, the
-   * type parameter its emitter declares for it (`_spellTypeParameter`), for
-   * a `.transform()`'s function or a `.refine()`'s predicate. Throws for a
+   * type parameter its type names, which its emitter spells with it, for a
+   * `.transform()`'s function or a `.refine()`'s predicate. Throws for a
    * parameter with no type, which is a bug in an emitter, never a user
    * error.
    *
@@ -136,7 +136,7 @@ export class RuntimeArgument {
         const messageOf = position === 0 ? emitter.argumentMessages[call.name] : undefined;
         return {
           fieldName: argument.fieldName,
-          type,
+          type: typeof type === 'string' ? type : type.text,
           passedExpression:
             hoistedNameByExpression === undefined
               ? js`this.${argument.fieldName}`
@@ -148,12 +148,8 @@ export class RuntimeArgument {
                   fieldName: argument.messageFieldName,
                   expression: emitMessageAroundValue(messageOf, argument.fieldName),
                 },
-          // Only the root's class is generic: a nested one is written inside
-          // it. A method's function is its first argument.
-          typeParameter:
-            isRoot && position === 0
-              ? emitter._spellTypeParameter?.({ schema: owner, call })
-              : undefined,
+          // Only the root's class is generic: a nested one is written inside it.
+          typeParameter: isRoot && typeof type !== 'string' ? type.typeParameter : undefined,
         };
       });
   }
