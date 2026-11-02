@@ -384,6 +384,25 @@ describe('pvl compile: plain output (--tty false)', () => {
     expect(stderr).toMatch(/^error INVALID_ARGUMENTS: .*destinaton/);
   });
 
+  it.each(['--emit', '--emit=false', '--emit=true'])(
+    'exits non-zero on %s, as only --no-emit is a flag',
+    async (flag) => {
+      const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+      const { exitCode, stderr } = await run(root, [
+        'compile',
+        '--destination',
+        'out',
+        flag,
+        '--tty=false',
+      ]);
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toMatch(/^error INVALID_ARGUMENTS: Unknown argument: emit/);
+      expect(await listFixtureFiles(root, 'out')).toBe(undefined);
+    },
+  );
+
   it.each(['--with-types', '--no-with-types', '--watch'])(
     'exits non-zero on the removed %s and writes nothing',
     async (flag) => {
@@ -406,6 +425,8 @@ describe('pvl compile: plain output (--tty false)', () => {
     expect(stdout).toContain('--destination');
     expect(stdout).toContain('--root-dir');
     expect(stdout).toMatch(/--tty [^-]*\[default: true\]/);
+    expect(stdout).toMatch(/--no-emit +Report every diagnostic, write nothing/);
+    expect(stdout).not.toMatch(/ --emit /);
     expect(stdout).not.toContain('with-types');
     expect(stdout).not.toContain('--watch');
   });
@@ -606,5 +627,113 @@ describe('pvl compile: warnings', () => {
 
     expect(exitCode).toBe(0);
     expect(stderr).toMatch(/^warning FILE_EXPORTS_NOTHING: .*setup\.ts/);
+  });
+});
+
+describe('pvl compile --no-emit', () => {
+  it('prints nothing on a clean run, exits zero and writes nothing', async () => {
+    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+    const { exitCode, stdout, stderr } = await run(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+      '--no-tty',
+    ]);
+
+    expect({ exitCode, stdout, stderr }).toEqual({ exitCode: 0, stdout: '', stderr: '' });
+    expect(await listFixtureFiles(root, 'out')).toBe(undefined);
+  });
+
+  it('prints an error on stderr and exits non-zero', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': schemaFile('export const user = pvl.compile(makeUser());'),
+    });
+
+    const { exitCode, stdout, stderr } = await run(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+      '--no-tty',
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(stdout).toBe('');
+    expect(stderr).toMatch(/^error COMPILE_ARGUMENT_UNRESOLVABLE: .*user\.ts/);
+  });
+
+  it('--strict promotes a warning to an error and exits non-zero', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
+
+    const { exitCode, payload } = await runJson(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+      '--strict',
+    ]);
+
+    expect(exitCode).toBe(1);
+    expect(payload.diagnostics).toEqual([
+      expect.objectContaining({
+        code: DIAGNOSTIC_CODE.FILE_EXPORTS_NOTHING,
+        severity: SEVERITY.ERROR,
+      }),
+    ]);
+  });
+
+  it('--json prints written: false and the resolved destination', async () => {
+    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+    const { exitCode, payload } = await runJson(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(payload).toMatchObject({
+      diagnostics: [],
+      written: false,
+      destination: path.join(root, 'out'),
+    });
+  });
+
+  it('closes the progress UI with a passing check, not a failure', async () => {
+    const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
+
+    const { exitCode, stdout } = await runUi(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).not.toContain('Writing');
+    expect(stdout).toMatch(/✅ No errors\. Nothing written \(--no-emit\)\n+$/);
+  });
+
+  it('counts a warning on the closing line of the progress UI', async () => {
+    const root = await createFixture({
+      'src/schemas/user.ts': SCHEMA_FILE,
+      'src/schemas/setup.ts': 'const internal = 1;\n',
+    });
+
+    const { exitCode, stdout } = await runUi(root, [
+      'compile',
+      '--destination',
+      'out',
+      '--no-emit',
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('✅ No errors. Nothing written (--no-emit)  (⚠️ 1 warning)');
   });
 });

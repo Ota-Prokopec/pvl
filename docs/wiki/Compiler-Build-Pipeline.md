@@ -13,7 +13,9 @@ flowchart LR
     READ --> CHECK{"any error?"}
     CHECK -- yes --> STOP["report the Diagnostics,<br/>write nothing"]
     CHECK -- no --> EMIT["emit each Compiled Schema<br/>into a mirror of the file"]
-    EMIT --> WRITE["write the<br/>Destination Directory"]
+    EMIT --> NOEMIT{"--no-emit?"}
+    NOEMIT -- yes --> DROP["report the Diagnostics,<br/>drop the output"]
+    NOEMIT -- no --> WRITE["write the<br/>Destination Directory"]
 ```
 
 ## The whole run
@@ -50,7 +52,9 @@ flowchart TD
     PC --> ERR{"any error?<br/>(or any warning with --strict)"}
     ERR -- yes --> NOWRITE["print the Diagnostics, exit 1,<br/>write nothing"]
     ERR -- no --> CA["compileAll<br/>Module.compile for each file"]
-    CA --> WD["DestinationWriter.writeDestination<br/>into .pvl.pvl-tmp, then swapped in"]
+    CA --> NE{"--no-emit?"}
+    NE -- yes --> SKIP["skip the write; exit 0"]
+    NE -- no --> WD["DestinationWriter.writeDestination<br/>into .pvl.pvl-tmp, then swapped in"]
     WD --> DONE["exit 0"]
 ```
 

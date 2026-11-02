@@ -53,6 +53,8 @@ type RunCompilationArgs = {
   overrides?: PvlConfigOverrides;
   /** Promotes every warning to an error. */
   strict?: boolean;
+  /** Writes the Destination Directory; `false` runs every check and drops the output. Defaults to `true`. */
+  emit?: boolean;
   /** The UI (if enabled) */
   ui?: CompilationUi;
 };
@@ -67,7 +69,7 @@ type RunCompilationArgs = {
  *    precheck, and stops there when the precheck stops the run;
  * 4. reads each scanned module's `pvl.compile(...)` calls;
  * 5. unless an error fired, compiles every scanned module with `compileAll`
- *    and writes the Destination Directory.
+ *    and, unless `emit` is `false`, writes the Destination Directory.
  *
  * Nothing is written when any error fired, or under `strict` any warning,
  * which then comes back as an error. Problems come back as diagnostics; it
@@ -112,6 +114,7 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
+  emit = true,
   ui,
 }: RunCompilationArgs): Promise<CompilationOutput> => {
   const resolvedSettingsPayload = await resolveConfig({
@@ -199,10 +202,14 @@ const runCompilationWithoutPromoting = async ({
 
   const mirroredFiles = compileAll(compilations);
 
-  ui?.onProgress('writing');
-
-  const { isWritten, diagnostics: writeDestinationDiagnostics } =
-    await DestinationWriter.writeDestination({ destination, mirroredFiles });
+  if (emit) {
+    ui?.onProgress('writing');
+  }
+  // Without `emit`, the mirrored files are still generated, so a failure there
+  // surfaces, and are dropped here.
+  const { isWritten, diagnostics: writeDestinationDiagnostics } = emit
+    ? await DestinationWriter.writeDestination({ destination, mirroredFiles })
+    : { isWritten: false, diagnostics: [] };
 
   return {
     diagnostics: [...diagnostics, ...writeDestinationDiagnostics],

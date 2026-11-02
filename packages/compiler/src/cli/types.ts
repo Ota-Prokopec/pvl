@@ -14,6 +14,8 @@ export type CliOptions = {
 export type CompileFlags = PvlConfigOverrides & {
   config: string | undefined;
   strict: boolean;
+  /** `--no-emit` sets it to `false`: every check runs and nothing is written. */
+  emit: boolean;
   json: boolean;
   /** Draws the progress UI; `false` prints plain lines. `--json` turns it off too. */
   tty: boolean;
