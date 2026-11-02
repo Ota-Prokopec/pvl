@@ -18,7 +18,7 @@
 // schema's to its tables and overrides the `_` hooks. What reads nothing of
 // the emitter it is called on is a function in `./utils/`.
 import type { Schema } from '../schemas/schema.js';
-import type { SchemaTypes, SpelledGenericType, SpelledType } from '../spelledType/types.js';
+import type { SchemaTypes, SpelledParameterType, SpelledType } from '../spelledType/types.js';
 import { UNDEFINEDNESS } from '../spelledType/enums.js';
 import { Frame } from '../frame/frame.js';
 import { Scope } from '../scope.js';
@@ -306,7 +306,8 @@ export abstract class Emitter {
    * Argument passed there with: its emitter's `parameterTypes`. An emitter
    * whose method takes a function typed by the Schema itself, as
    * `.refine()`'s predicate takes the value, overrides it, spelling that
-   * function's type with the type parameter it names (`SpelledGenericType`).
+   * function's type with the type parameter it names
+   * (`SpelledGenericParameterType`).
    *
    * ```ts
    * StringSchemaEmitter._spellParameterTypes({ schema, call: <.max(max)> }) // ['number', '{ message?: string } | undefined']
@@ -314,7 +315,7 @@ export abstract class Emitter {
    */
   public static _spellParameterTypes({
     call,
-  }: SpellParameterTypesArgs): ReadonlyArray<string | SpelledGenericType> | undefined {
+  }: SpellParameterTypesArgs): ReadonlyArray<SpelledParameterType> | undefined {
     return this.parameterTypes[call.name];
   }
 

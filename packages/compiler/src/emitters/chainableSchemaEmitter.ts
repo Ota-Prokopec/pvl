@@ -9,7 +9,7 @@
 import { PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM } from '@pcvl/schema';
 import { CHECK_OPTIONS_TYPE_STRING } from './consts/checkOptions.js';
 import { UNDEFINEDNESS } from '../spelledType/enums.js';
-import type { SchemaTypes, SpelledGenericType, SpelledType } from '../spelledType/types.js';
+import type { SchemaTypes, SpelledParameterType, SpelledType } from '../spelledType/types.js';
 import { UNKNOWN_SPELLED_TYPE } from '../spelledType/consts.js';
 import { Emitter } from './emitter.js';
 import type { SpellParameterTypesArgs, SpellTypesArgs } from './types/hookArgs.js';
@@ -51,7 +51,7 @@ export class ChainableSchemaEmitter extends Emitter {
    */
   public static override _spellParameterTypes(
     args: SpellParameterTypesArgs,
-  ): ReadonlyArray<string | SpelledGenericType> | undefined {
+  ): ReadonlyArray<SpelledParameterType> | undefined {
     const { schema, call } = args;
     if (
       call.name !== PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.REFINE &&
