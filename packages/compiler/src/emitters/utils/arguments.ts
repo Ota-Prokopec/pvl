@@ -4,7 +4,6 @@
 import type { PossibleLiteralValue } from '@pcvl/schema';
 import type { AnyFunction } from '@repo/types';
 import { RuntimeArgument } from '../../runtimeArgument/runtimeArgument.js';
-import { readFunctionArgument } from '../../runtimeArgument/utils.js';
 import { js } from './js.js';
 import { emitLiteral } from './literal.js';
 
@@ -25,7 +24,7 @@ export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): 
 /**
  * A call to a function the user passed a method, `.refine()`'s predicate or
  * `.transform()`'s function, on `value`, read off the Compiled Schema's
- * instance (`readFunctionArgument`) and called with no `this`, as the
+ * instance (`RuntimeArgument.assert`) and called with no `this`, as the
  * interpreted path calls it, so a `function` never sees the instance. Its
  * constructor types the function's parameter as the
  * interpreted Schema does at that point of its chain, but `value` may be
@@ -38,5 +37,5 @@ export const emitArgument = (argument: PossibleLiteralValue | RuntimeArgument): 
  * ```
  */
 export const emitFunctionCall = (fn: RuntimeArgument | AnyFunction, value: string): string => {
-  return js`${readFunctionArgument(fn).emitReading()}.call(undefined, ${value} as never)`;
+  return js`${RuntimeArgument.assert(fn).emitReading()}.call(undefined, ${value} as never)`;
 };

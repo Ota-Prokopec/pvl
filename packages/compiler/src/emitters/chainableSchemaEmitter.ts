@@ -16,7 +16,7 @@ import type { SpellParameterTypesArgs, SpellTypesArgs } from './types/hookArgs.j
 import type { PostModifierStepTable, PreModifierStepTable } from './types/methodTables.js';
 import { nullable, optional, refine, transform } from './utils/sharedModifiers.js';
 import { widenType } from '../spelledType/spelledType.js';
-import { readFunctionArgument } from '../runtimeArgument/utils.js';
+import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 
 export class ChainableSchemaEmitter extends Emitter {
   public static override readonly preModifierSteps = {
@@ -60,7 +60,7 @@ export class ChainableSchemaEmitter extends Emitter {
       return super._spellParameterTypes(args);
     }
 
-    const functionArgument = readFunctionArgument(call.args?.[0]);
+    const functionArgument = RuntimeArgument.assert(call.args?.[0]);
     const { output } = this._spellTypes({ schema, before: call });
     // A function's type never admits `undefined`.
     if (call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM) {
@@ -115,7 +115,7 @@ export class ChainableSchemaEmitter extends Emitter {
         ? output
         : {
             ...output,
-            text: readFunctionArgument(lastRefineCall.args?.[0]).refinedTypeParameterName,
+            text: RuntimeArgument.assert(lastRefineCall.args?.[0]).refinedTypeParameterName,
           };
 
     return {

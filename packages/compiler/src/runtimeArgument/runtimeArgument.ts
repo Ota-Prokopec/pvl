@@ -41,6 +41,26 @@ export class RuntimeArgument {
     this.index = index;
   }
 
+  /**
+   * An argument that is always a Runtime Argument, such as `.refine()`'s or
+   * `.transform()`'s function, as it is never a literal, returned as one;
+   * anything else is a bug in the compiler, never a user error, which throws.
+   *
+   * ```ts
+   * RuntimeArgument.assert(<the 1st Runtime Argument>) // <the 1st Runtime Argument>
+   * RuntimeArgument.assert((value) => value > 0)      // throws: a function is never read as a literal
+   * RuntimeArgument.assert(undefined)                 // throws: a spread argument has no position
+   * ```
+   */
+  public static assert(argument: unknown): RuntimeArgument {
+    if (!(argument instanceof RuntimeArgument)) {
+      throw new Error(
+        `Expected a Runtime Argument, not ${String(argument)}: a bug in the compiler.`,
+      );
+    }
+    return argument;
+  }
+
   /** The Compiled Schema's field holding its value: `arg0`, `arg1`, … */
   public get fieldName(): string {
     return `arg${String(this.index)}`;

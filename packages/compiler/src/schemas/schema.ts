@@ -20,7 +20,6 @@ import type { SchemaEmitter } from '../emitters/schemaEmitter.js';
 import type { Module } from '../module/module.js';
 import { RuntimeArgument } from '../runtimeArgument/runtimeArgument.js';
 import type { ChainedRuntimeArgument } from '../runtimeArgument/types.js';
-import { readFunctionArgument } from '../runtimeArgument/utils.js';
 import type { SchemaModifierCall } from './types/modifierCall.js';
 import type { SchemaOptions } from './types/schemaOptions.js';
 import { createUnsupportedSchemaDiagnostic, findUncompilableCallDiagnostic } from './utils.js';
@@ -129,7 +128,9 @@ export abstract class Schema {
     const transformCall = this.calls.find(
       (call) => call.name === PVL_SCHEMA_MODIFIER_METHOD_NAMES_ENUM.TRANSFORM,
     );
-    return transformCall === undefined ? undefined : readFunctionArgument(transformCall.args?.[0]);
+    return transformCall === undefined
+      ? undefined
+      : RuntimeArgument.assert(transformCall.args?.[0]);
   }
 
   /**
