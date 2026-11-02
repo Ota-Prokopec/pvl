@@ -41,6 +41,26 @@ export class RuntimeArgument {
     this.index = index;
   }
 
+  /**
+   * An argument that is always a Runtime Argument, such as `.refine()`'s or
+   * `.transform()`'s function, as it is never a literal, returned as one;
+   * anything else is a bug in the compiler, never a user error, which throws.
+   *
+   * ```ts
+   * RuntimeArgument.assert(<the 1st Runtime Argument>) // <the 1st Runtime Argument>
+   * RuntimeArgument.assert((value) => value > 0)      // throws: a function is never read as a literal
+   * RuntimeArgument.assert(undefined)                 // throws: a spread argument has no position
+   * ```
+   */
+  public static assert(argument: unknown): RuntimeArgument {
+    if (!(argument instanceof RuntimeArgument)) {
+      throw new Error(
+        `Expected a Runtime Argument, not ${String(argument)}: a bug in the compiler.`,
+      );
+    }
+    return argument;
+  }
+
   /** The Compiled Schema's field holding its value: `arg0`, `arg1`, … */
   public get fieldName(): string {
     return `arg${String(this.index)}`;
@@ -67,6 +87,15 @@ export class RuntimeArgument {
     return `TArg${String(this.index)}Output`;
   }
 
+  /**
+   * The type parameter a Compiled Schema is generic in for the type its
+   * `.refine()` predicate narrows the Output to, when it is a type
+   * predicate (ADR-0051): `TArg0Refined`, …
+   */
+  public get refinedTypeParameterName(): string {
+    return `TArg${String(this.index)}Refined`;
+  }
+
   /** The Compiled Schema's field holding the default message naming its value, which its constructor builds: `arg0Message`, … */
   public get messageFieldName(): string {
     return `${this.fieldName}Message`;
@@ -91,16 +120,19 @@ export class RuntimeArgument {
    * its own Schema's emitter (`parameterTypes`); what is passed for it, the
    * argument as written or its hoisted `const` at the root, its parent's
    * field in a nested class; when it is a method's first argument, the
-   * default message naming it (`argumentMessages`); and, when it is a
-   * `.transform()`'s function at the root, the type parameter its return
-   * type is inferred as. Throws for a parameter with no type, which is a
-   * bug in an emitter, never a user error.
+   * default message naming it (`argumentMessages`); and, at the root, the
+   * type parameter its type names, which its emitter spells with it, for a
+   * `.transform()`'s function or a `.refine()`'s predicate. Throws for a
+   * parameter with no type, which is a bug in an emitter, never a user
+   * error.
    *
    * ```ts
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().max(max)>, hoistedNameByExpression: new Map() })
    * // [{ fieldName: 'arg0', type: 'number', passedExpression: 'max', messageField: { fieldName: 'arg0Message', expression: '`String must contain at most ${arg0} character(s)`' }, typeParameter: undefined }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: new Map() })
-   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'trim', messageField: undefined, typeParameter: 'TArg0Output' }]
+   * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'trim', messageField: undefined, typeParameter: 'TArg0Output = unknown' }]
+   * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().refine(isAhoj)>, hoistedNameByExpression: new Map() })
+   * // [{ fieldName: 'arg0', type: '((value: string) => value is TArg0Refined) | ((value: string) => boolean)', passedExpression: 'isAhoj', messageField: undefined, typeParameter: 'TArg0Refined extends string = string' }]
    * RuntimeArgument.getArgumentParameters({ schema: <pvl.string().transform(trim)>, hoistedNameByExpression: undefined })
    * // [{ fieldName: 'arg0', type: '(value: string) => TArg0Output', passedExpression: 'this.arg0', messageField: undefined, typeParameter: undefined }]
    * ```
@@ -124,7 +156,7 @@ export class RuntimeArgument {
         const messageOf = position === 0 ? emitter.argumentMessages[call.name] : undefined;
         return {
           fieldName: argument.fieldName,
-          type,
+          type: typeof type === 'string' ? type : type.text,
           passedExpression:
             hoistedNameByExpression === undefined
               ? js`this.${argument.fieldName}`
@@ -137,10 +169,7 @@ export class RuntimeArgument {
                   expression: emitMessageAroundValue(messageOf, argument.fieldName),
                 },
           // Only the root's class is generic: a nested one is written inside it.
-          typeParameter:
-            isRoot && argument === owner.getTransformFunction()
-              ? argument.outputTypeParameterName
-              : undefined,
+          typeParameter: isRoot && typeof type !== 'string' ? type.typeParameter : undefined,
         };
       });
   }

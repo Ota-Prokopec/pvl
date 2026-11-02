@@ -61,7 +61,7 @@ A built-in check on a value, such as "at least 3 characters" or "a whole number"
 _Avoid_: Rule, validator, assertion.
 
 **Refinement**:
-An extra, user-supplied predicate attached to a Schema that a value must satisfy in addition to the Schema's base shape. A Refinement only accepts or rejects a value — it never changes it (contrast Transform). It is attached by `.refine()`, a Shared Modifier.
+An extra, user-supplied predicate attached to a Schema that a value must satisfy in addition to the Schema's base shape. A Refinement only accepts or rejects a value — it never changes it (contrast Transform) — and narrows the Output when its predicate is a type predicate ([ADR-0051](./docs/adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md)). It is attached by `.refine()`, a Shared Modifier.
 _Avoid_: Custom validator, constraint.
 
 **Check Options**:

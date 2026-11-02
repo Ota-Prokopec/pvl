@@ -59,17 +59,17 @@ flowchart TD
 
 <!-- prettier-ignore -->
 ```ts
-export const trimmedLength = (<TArg0Output,>(arg0: (value: string) => TArg0Output): PvlSchema<string, TArg0Output> => new (class PvlCompiledSchema0 implements PvlSchema<string, TArg0Output> {
+export const trimmedLength = (<TArg0Output = unknown,>(arg0: (value: string) => TArg0Output): PvlSchema<string, TArg0Output> => new (class PvlCompiledSchema0 implements PvlSchema<string, TArg0Output> {
   …
   constructor(readonly arg0: (value: string) => TArg0Output) {}
   …
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
     const issues: PvlIssue[] = [];
-    const valueIssueCount = issues.length;
+    const issueCountBeforeValueValidation = issues.length;
     if (typeof value !== "string") {
       issues.push({ code: "INVALID_TYPE", message: "Expected string", path: path.length > 0 ? path : undefined });
     }
-    if (issues.length === valueIssueCount) {
+    if (issues.length === issueCountBeforeValueValidation) {
       value = this.arg0.call(undefined, value as never);
     }
     return issues.length > 0 ? { issues } : { value };

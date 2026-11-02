@@ -11,6 +11,18 @@ even.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' }] }
 
 The predicate never changes the value. Returning `false` reports a `CUSTOM` Issue, with your message or the default `"Invalid type"`.
 
+## The Output type
+
+When the predicate is a type predicate, written out (`(value): value is T => …`) or inferred by TypeScript, the Schema's Output narrows to its type ([ADR-0051](../adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md)). A predicate returning a plain `boolean` leaves it as it was, and the Input never narrows:
+
+```ts
+pvl.string().refine((value) => value === 'ahoj'); //            Output 'ahoj', Input string
+pvl.string().refine((value) => value === 'a' || value === 'b'); // Output 'a' | 'b'
+pvl.string().refine((value) => value.length > 3); //            Output string
+```
+
+A `null` or `undefined` that `.nullable()` or `.optional()` chained before lets past the predicate stays in the Output, since it never reaches the predicate: `pvl.string().nullable().refine((value) => value !== null)` outputs `string | null`. So does one the Schema's own type admits, even when the predicate rejects it: `pvl.union([pvl.string(), pvl.number().nullable()]).refine((value) => value !== null)` outputs `string | number | null` ([ADR-0051](../adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md#accepted-gap-a-null-or-undefined-the-predicate-rejects)). One chained after adds its own, as always: `.refine(isAhoj).optional()` outputs `'ahoj' | undefined`. The Schema keeps its class, so later Constraints keep the narrowed Output, and a later `.refine()` or `.transform()` receives it.
+
 ## The short version
 
 ```mermaid
@@ -48,7 +60,8 @@ The compiler never copies your function's body. The function is a [Runtime Argum
 ```mermaid
 flowchart TD
     READ["readSchema: the predicate isn't a literal"] --> RA["a RuntimeArgument: arg0"]
-    RA --> CTOR["the class takes it in its constructor:<br/>constructor(readonly arg0: (value: number) => boolean)"]
+    RA --> CTOR["the class takes it in its constructor:<br/>constructor(readonly arg0: ((value: number) => value is TArg0Refined) | ((value: number) => boolean))"]
+    RA --> GEN["the Output type is TArg0Refined, inferred from the predicate:<br/>the class is built by a generic arrow function"]
     CALL[".refine in schema.postModifierCalls"] --> TAB["_emitPostModifierChecks finds 'refine'<br/>in ChainableSchemaEmitter.postModifierChecks"]
     TAB --> CHK["emitCheck: if (!this.arg0.call(undefined, value))<br/>issues.push(a CUSTOM Issue)"]
     CHK --> PLACE["Frame: inside the type check's else,<br/>in chain order among the Constraints"]
@@ -58,9 +71,9 @@ flowchart TD
 
 <!-- prettier-ignore -->
 ```ts
-export const even = (new (class PvlCompiledSchema0 implements PvlSchema<number, number> {
+export const even = (<TArg0Refined extends number = number,>(arg0: ((value: number) => value is TArg0Refined) | ((value: number) => boolean)): PvlSchema<number, TArg0Refined> => new (class PvlCompiledSchema0 implements PvlSchema<number, TArg0Refined> {
   …
-  constructor(readonly arg0: (value: number) => boolean) {}
+  constructor(readonly arg0: ((value: number) => value is TArg0Refined) | ((value: number) => boolean)) {}
   …
   _validate(value: unknown, path: ReadonlyArray<PropertyKey>): PvlResult<unknown> {
     const issues: PvlIssue[] = [];
@@ -74,15 +87,17 @@ export const even = (new (class PvlCompiledSchema0 implements PvlSchema<number, 
     return issues.length > 0 ? { issues } : { value };
   }
   …
-})((value) => value % 2 === 0) as PvlSchema<number, number>);
+})(arg0))((value) => value % 2 === 0);
 ```
 
 The predicate is passed exactly as you wrote it, so a function you imported or defined elsewhere in the file is reached as it was in the source. Its parameter is typed as the methods chained before it left the value (`number`, or `number | null` after `.nullable()`).
 
+The generic arrow function around the class is there for the types only, as for [`.transform()`](./Transform.md): TypeScript infers `TArg0Refined` from the predicate it is passed, the predicate's type for a type predicate, else its default, the Output before the call (`number` here), so the Output narrows exactly as the interpreted one does. `TArg0Refined` takes the place of the Output from that call on, keeping the `| null` or `| undefined` chained before it ([ADR-0051](../adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md)).
+
 ## Source
 
 - [`chainableInterpretedSchema.ts`](../../packages/schema/src/schemas/chainableInterpretedSchema.ts): `refine()`
-- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `refine`, in `postModifierChecks`, and `_spellParameterTypes`
-- [`schemas/runtimeArgument.ts`](../../packages/compiler/src/schemas/runtimeArgument.ts): `RuntimeArgument`
+- [`emitters/chainableSchemaEmitter.ts`](../../packages/compiler/src/emitters/chainableSchemaEmitter.ts): `refine`, in `postModifierChecks`, `_spellParameterTypes` and `_spellTypeParameter`
+- [`runtimeArgument/runtimeArgument.ts`](../../packages/compiler/src/runtimeArgument/runtimeArgument.ts): `RuntimeArgument`
 
 Further reading: [pipeline.md](../specification/schema/pipeline.md#refinements-transforms-coercion), [ADR-0035](../adr/0035-modifiers-compile-to-calls-to-the-users-own-functions-typed-at-their-place-in-the-chain.md).

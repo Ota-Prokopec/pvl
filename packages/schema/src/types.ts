@@ -94,6 +94,22 @@ export type RetypedSchema<TSchema, Input, Output> = (TSchema extends {
   : ChainableInterpretedSchema<Input, Output>) &
   StandaloneMarkerOf<TSchema>;
 
+/**
+ * The Output a `.refine()` narrows `Output` to: its type predicate's
+ * `Refined`, plus every `null` and `undefined` in `Output`. That covers the
+ * ones a short-circuit lets past the predicate, and keeps one the predicate
+ * saw and rejected too, a wider type than the truth (ADR-0051).
+ *
+ * ```ts
+ * RefinedOutput<string | null, 'ahoj'> // 'ahoj' | null
+ * RefinedOutput<string, string>        // string
+ * ```
+ *
+ * @internal
+ */
+export type RefinedOutput<Output, Refined extends Output> =
+  Refined | Extract<Output, null | undefined>;
+
 // Distributes over a union, as `keyof` of a union keeps only the shared keys.
 type MethodNameOf<TSchema> = TSchema extends unknown
   ? {

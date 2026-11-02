@@ -139,6 +139,23 @@ const DIFFERENTIAL_CASES: Readonly<Record<string, string>> = {
   rootCoercedNumber: 'pvl.number().coerce().min(0)',
   rootCoercedBigint: 'pvl.bigint().optional().coerce()',
   rootTransform: 'pvl.string().min(1).refine(isNotUser).transform((value) => value.length)',
+  // A type predicate's `.refine()` narrows the Output (ADR-0051).
+  narrowedRoot: "pvl.string().refine((value) => value === 'ahoj')",
+  narrowedByNamedPredicate: 'pvl.string().max(4).refine(isAhoj)',
+  narrowedAfterNullable: 'pvl.string().nullable().refine((value) => value !== null)',
+  narrowedBeforeOptional: 'pvl.string().refine(isAhoj).optional()',
+  narrowedTwice:
+    "pvl.string().refine((value) => value === 'ahoj' || value === 'user').refine((value) => value !== 'user')",
+  narrowedBeforeTransform: 'pvl.string().refine(isAhoj).transform((value) => ({ value }))',
+  narrowedField:
+    "pvl.object({ name: pvl.string().refine((value) => value === 'ahoj'), list: pvl.array(pvl.number()).refine((value) => value.length > 0).optional() })",
+  // A field whose Output admits `undefined` before the predicate, which keeps it or not.
+  narrowedOptionalFields: [
+    'pvl.object({',
+    "  kept: pvl.string().optional().refine((value): value is 'a' | undefined => value === undefined || value === 'a'),",
+    "  dropped: pvl.string().optional().refine((value): value is 'a' => value === 'a').nullable(),",
+    '})',
+  ].join('\n'),
   transformedFields: [
     'pvl.object({',
     "  name: pvl.string().optional().transform((value) => value ?? 'none'),",
@@ -229,6 +246,7 @@ const DIFFERENTIAL_FILE = schemaFile(
     'const OPTIONS = { message: getMessage() };',
     'const hoistedBase = pvl.string().max(LIMIT + 1);',
     "const isNotUser = (value: string): boolean => value !== 'user';",
+    "const isAhoj = (value: string) => value === 'ahoj';",
     ...Object.entries(DIFFERENTIAL_CASES).map(
       ([exportName, source]) => `export const ${exportName} = pvl.compile(${source});`,
     ),
@@ -270,7 +288,22 @@ const primitiveValue: fc.Arbitrary<unknown> = fc.oneof(
   fc.double(),
   fc.bigInt({ min: -5n, max: 150n }),
   fc.boolean(),
-  fc.constantFrom(null, undefined, 'user', 'ADMIN', 'USER', 'a', 'A', 'B', 1, 0, -0, 1n, true),
+  fc.constantFrom(
+    null,
+    undefined,
+    'user',
+    'ahoj',
+    'ADMIN',
+    'USER',
+    'a',
+    'A',
+    'B',
+    1,
+    0,
+    -0,
+    1n,
+    true,
+  ),
 );
 
 // A primitive, or an object or array a few levels deep built of them, so the
