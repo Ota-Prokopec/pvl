@@ -7,17 +7,14 @@ import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { CompileUi } from './compileUi.js';
 import { report } from './report.js';
 import { runCompile } from './runCompile.js';
-import type { RunCliOptions } from './types.js';
+import type { CliOptions } from './types.js';
 
 /**
  * Runs the `pvl` CLI against `argv` (without the `node` and script entries)
  * and resolves to its exit code: `0` on success or with only warnings, `1`
  * on any error, a usage error included.
  */
-export const runCli = async (
-  argv: ReadonlyArray<string>,
-  options: RunCliOptions,
-): Promise<number> => {
+export const runCli = async (argv: ReadonlyArray<string>, options: CliOptions): Promise<number> => {
   // Read `--json` and `--tty` with yargs' own parser, as the UI must exist
   // before yargs runs and a usage error never hands over the parsed flags.
   const { json, tty } = Parser([...argv], {

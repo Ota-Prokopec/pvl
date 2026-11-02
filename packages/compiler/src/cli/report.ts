@@ -1,8 +1,8 @@
 import type { CompilationOutput } from '../compilation/types.js';
 import type { CompileUi } from './compileUi.js';
-import type { RunCliOptions } from './types.js';
+import type { CliOptions } from './types.js';
 
-type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
+type ReportArgs = Pick<CliOptions, 'stdout' | 'stderr'> & {
   payload: CompilationOutput;
   json: boolean;
   /** The run's UI, which draws the outcome instead when there is one. */

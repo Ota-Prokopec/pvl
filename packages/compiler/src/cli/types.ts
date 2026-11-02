@@ -1,7 +1,7 @@
 import type * as stream from 'node:stream';
 import type { PvlConfigOverrides } from '../config/types.js';
 
-export type RunCliOptions = {
+export type CliOptions = {
   /** The working directory `pvl compile` runs in. */
   cwd: string;
   /** Where the CLI writes; `process.stdout` and `process.stderr` fit. */

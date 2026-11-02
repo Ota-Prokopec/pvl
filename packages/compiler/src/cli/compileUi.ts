@@ -2,11 +2,11 @@
 // around a line per phase of the run, then every diagnostic on stderr and a
 // closing summary. `--tty false` and `--json` print `report`'s plain output
 // instead.
-import * as path from 'node:path';
 import { intro, log, outro } from '@clack/prompts';
 import { pluralize } from '@repo/utils';
+import * as path from 'node:path';
 import type { CompilationOutput } from '../compilation/types.js';
-import type { CompilationProgress, CompileFlags, RunCliOptions } from './types.js';
+import type { CliOptions, CompilationProgress, CompileFlags } from './types.js';
 
 /**
  * The UI of one run: constructing it opens the frame, `onProgress` draws each
@@ -19,10 +19,10 @@ import type { CompilationProgress, CompileFlags, RunCliOptions } from './types.j
  * ```
  */
 export class CompileUi {
-  private readonly options: RunCliOptions;
+  private readonly cliOptions: CliOptions;
 
-  private constructor(options: RunCliOptions) {
-    this.options = options;
+  private constructor(options: CliOptions) {
+    this.cliOptions = options;
     intro('pvl compile', { output: options.stdout });
   }
 
@@ -32,7 +32,7 @@ export class CompileUi {
    */
   public static start(
     flags: Pick<CompileFlags, 'json' | 'tty'>,
-    options: RunCliOptions,
+    options: CliOptions,
   ): CompileUi | undefined {
     return flags.json || !flags.tty ? undefined : new CompileUi(options);
   }
@@ -40,12 +40,12 @@ export class CompileUi {
   /** Draws the phase the run is entering. */
   public onProgress(phase: CompilationProgress): void {
     // `scanning` draws `Scanning`.
-    log.step(phase.charAt(0).toUpperCase() + phase.slice(1), { output: this.options.stdout });
+    log.step(phase.charAt(0).toUpperCase() + phase.slice(1), { output: this.cliOptions.stdout });
   }
 
   /** Draws the run's diagnostics on stderr, then its summary, closing the frame. */
   public finish({ diagnostics, destination, written }: CompilationOutput): void {
-    const { cwd, stdout, stderr } = this.options;
+    const { cwd, stdout, stderr } = this.cliOptions;
     const errors = diagnostics.filter((diagnostic) => diagnostic.isError()).length;
     const warnings = diagnostics.length - errors;
     for (const diagnostic of diagnostics) {

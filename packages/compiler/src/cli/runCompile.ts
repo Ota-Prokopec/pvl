@@ -4,7 +4,7 @@ import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { isErrorInDiagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
-import type { CompileFlags, RunCliOptions } from './types.js';
+import type { CompileFlags, CliOptions } from './types.js';
 import type { CompileUi } from './compileUi.js';
 
 /** The payload of a run that threw: one `INTERNAL_ERROR` carrying the stack. */
@@ -25,7 +25,7 @@ const createCrashPayload = (error: unknown): CompilationOutput => {
  */
 export const runCompile = async (
   flags: CompileFlags,
-  options: RunCliOptions,
+  options: CliOptions,
   ui: CompileUi | undefined,
 ): Promise<number> => {
   const { cwd, stdout, stderr } = options;
