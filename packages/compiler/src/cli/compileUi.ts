@@ -6,7 +6,8 @@ import { intro, log, outro } from '@clack/prompts';
 import { pluralize } from '@repo/utils';
 import * as path from 'node:path';
 import type { CompilationOutput } from '../compilation/types.js';
-import type { CliOptions, CompilationProgress, CompileFlags } from './types.js';
+import type { CompilationProgress } from '../compilation/types.js';
+import type { CliOptions, CompileFlags } from './types.js';
 
 /**
  * The UI of one run: constructing it opens the frame, `onProgress` draws each

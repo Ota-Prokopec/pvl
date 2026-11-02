@@ -3,7 +3,6 @@
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
 import * as path from 'node:path';
-import type { CompileUi } from '../cli/compileUi.js';
 import { resolveConfig } from '../config/configResolver.js';
 import type { PvlConfigOverrides } from '../config/types.js';
 import { DestinationWriter } from '../destination/destinationWriter.js';
@@ -16,7 +15,7 @@ import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
 import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
 import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
 import { compileAll } from './compileAll.js';
-import type { CompilationOutput } from './types.js';
+import type { CompilationOutput, CompilationUi } from './types.js';
 
 /**
  * Whether `diagnostics` stop the run before anything is written: any error
@@ -54,7 +53,7 @@ type RunCompilationArgs = {
   /** Promotes every warning to an error. */
   strict?: boolean;
   /** The UI (if enabled) */
-  ui?: CompileUi;
+  ui?: CompilationUi;
 };
 
 /**
