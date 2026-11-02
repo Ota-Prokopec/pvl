@@ -426,6 +426,17 @@ const email = pvl.string().refine((value) => value.includes('@'), { message: 'no
 
 It runs in chain order among the constraints, and a failing refinement does not stop the ones after it — every failing check is reported. It never throws — a rejection is an `Issue`, as everywhere else.
 
+When the predicate is a type predicate, written out (`(value): value is T => …`) or inferred by TypeScript, the schema's `Output` narrows to its type. The input type stays as it was, and a `null` or `undefined` that `.nullable()` or `.optional()` lets past the predicate stays in the output:
+
+```ts
+pvl.string().refine((value) => value === 'ahoj'); // Output: 'ahoj', input still string
+pvl.string().refine((value) => value.length > 3); // Output: string, a plain boolean predicate
+pvl
+  .string()
+  .nullable()
+  .refine((value) => value !== null); // Output: string | null
+```
+
 ::: info Behind the scenes
 [How `.refine()` works](https://github.com/Ota-Prokopec/pvl/wiki/Refine), interpreted and compiled, graphed step by step.
 :::

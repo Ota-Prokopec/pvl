@@ -19,6 +19,10 @@ const HTTP_STATUS = {
   NOT_FOUND_404: 404,
 } as const;
 
+// Annotated, as the return-type lint requires of a named function; the
+// inline cases cover the predicates TypeScript infers.
+const isAhoj = (value: string): value is 'ahoj' => value === 'ahoj';
+
 describe('type inference', () => {
   it("infers pvl.string()'s input/output as string", () => {
     const schema = pvl.string();
@@ -300,6 +304,123 @@ describe('type inference', () => {
     const schema = pvl.string().refine((value) => value !== 'root');
     expectTypeOf(schema.min(1)).toEqualTypeOf<StringInterpretedSchema>();
     expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
+  });
+
+  describe(".refine() narrowing the Output to its predicate's type", () => {
+    it('narrows to an inline inferred type predicate', () => {
+      const schema = pvl.string().refine((value) => value === 'ahoj');
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'ahoj'>();
+    });
+
+    it("narrows to a union predicate's union", () => {
+      const schema = pvl.string().refine((value) => value === 'a' || value === 'b');
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'a' | 'b'>();
+    });
+
+    it('leaves the Output unchanged for a boolean predicate', () => {
+      const schema = pvl.string().refine((value) => value.length > 3);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string>();
+    });
+
+    it('narrows to a named predicate as to an inline one', () => {
+      const schema = pvl.string().refine(isAhoj);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'ahoj'>();
+    });
+
+    it('narrows an enum Schema', () => {
+      const schema = pvl.enum(SYSTEM_ROLE).refine((value) => value === 'OWNER');
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+        'OWNER' | 'MEMBER'
+      >();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'OWNER'>();
+    });
+
+    it('narrows an object Schema to an annotated predicate and keeps shape', () => {
+      const schema = pvl
+        .object({ kind: pvl.string().standalone() })
+        .refine((value): value is { kind: 'a' } => value.kind === 'a');
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{
+        kind: string;
+      }>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{ kind: 'a' }>();
+      expectTypeOf(schema.shape.kind).toEqualTypeOf<StringInterpretedSchema & StandaloneMarker>();
+    });
+
+    it('narrows an array Schema to an annotated predicate and keeps element', () => {
+      const schema = pvl
+        .array(pvl.string().standalone())
+        .refine((value): value is [string] => value.length === 1);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string[]>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<[string]>();
+      expectTypeOf(schema.element).toEqualTypeOf<StringInterpretedSchema & StandaloneMarker>();
+    });
+
+    it('keeps the null .nullable() lets past the Refinement', () => {
+      const schema = pvl
+        .string()
+        .nullable()
+        .refine((value) => value !== null);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string | null>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<string | null>();
+    });
+
+    it('adds the undefined of a later .optional() to the narrowed Output', () => {
+      const schema = pvl.string().refine(isAhoj).optional();
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<
+        string | undefined
+      >();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<
+        'ahoj' | undefined
+      >();
+    });
+
+    it('narrows chained Refinements in turn, each predicate seeing the earlier narrowing', () => {
+      const schema = pvl
+        .string()
+        .refine((value) => value === 'a' || value === 'b')
+        .refine((value) => {
+          expectTypeOf(value).toEqualTypeOf<'a' | 'b'>();
+          return value === 'a';
+        })
+        .min(1);
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'a'>();
+    });
+
+    it('hands a later .transform() the narrowed type', () => {
+      const schema = pvl
+        .string()
+        .refine(isAhoj)
+        .transform((value) => {
+          expectTypeOf(value).toEqualTypeOf<'ahoj'>();
+          return value.length;
+        });
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<number>();
+    });
+
+    it("narrows the parent object's Output at a narrowed field", () => {
+      const schema = pvl.object({ greeting: pvl.string().refine(isAhoj) });
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<{
+        greeting: string;
+      }>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<{
+        greeting: 'ahoj';
+      }>();
+    });
+
+    it('keeps the .standalone() marker and takes the { message } option', () => {
+      const schema = pvl.string().standalone().refine(isAhoj, { message: 'must be ahoj' });
+      expectTypeOf(schema).toEqualTypeOf<
+        StringInterpretedSchema<string, 'ahoj'> & StandaloneMarker
+      >();
+      expectTypeOf<StandardSchemaV1.InferInput<typeof schema>>().toEqualTypeOf<string>();
+      expectTypeOf<StandardSchemaV1.InferOutput<typeof schema>>().toEqualTypeOf<'ahoj'>();
+    });
   });
 
   // standalone-keys.md: `shape` holds the Standalone Keys only.

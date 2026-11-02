@@ -13,3 +13,5 @@ Both `.transform(f)` and `pvl.compile(x)` return a plain `Schema<Input, Output>`
 The restriction is scoped to where it is earned: an uncompiled, untransformed Schema stays fully editable, primitive or composite. The cost is that the Modifier chain cannot be continued past a Transform or a compile marker, so adding a Refinement to a compiled Schema means editing the expression rather than wrapping it. That is one edit, made once, at the place the Schema is defined.
 
 > Superseded in part by [ADR-0036](./0036-standalone-keys-are-reinstated-and-shape-and-element-survive-every-call-but-transform.md): a compiled object keeps its `shape`, and an array its `element`, and `.standalone()` can be called on a plain Schema. A transformed object or array still has neither.
+
+> Amended by [ADR-0051](./0051-refine-narrows-the-output-to-its-type-predicates-type.md): `.refine()` still keeps the Schema's class and Input, but its Output narrows to its predicate's type when the predicate is a type predicate, `R | Extract<Output, null | undefined>`.

@@ -94,6 +94,12 @@ export abstract class ChainableInterpretedSchema<
    * does not stop it and both issues are reported. It is skipped for a value
    * `.optional()` or `.nullable()` accepted.
    *
+   * When the predicate is a type predicate, written out (`(value): value is T`)
+   * or inferred by TypeScript (`(value) => value === 'ahoj'`), the output
+   * narrows to its type; a predicate returning a plain `boolean` leaves it as
+   * it was. The input never narrows. A `null` or `undefined` that `.nullable()`
+   * or `.optional()` chained before lets past the predicate stays in the output.
+   *
    * The schema comes back as the same type it went in as, so a refined
    * `object` or `array` schema is still one, with its `shape` or `element`.
    *
@@ -107,6 +113,14 @@ export abstract class ChainableInterpretedSchema<
    *
    * evenNumber.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' }] }
    *
+   * // Output 'ahoj', input still string.
+   * const greeting = pvl.string().refine((value) => value === 'ahoj');
+   * // Output string | null: a null never reaches the predicate.
+   * const name = pvl
+   *   .string()
+   *   .nullable()
+   *   .refine((value) => value !== null);
+   *
    * // Still an object schema, so `shape` is still there.
    * const range = pvl
    *   .object({ min: pvl.number().standalone(), max: pvl.number() })
@@ -116,17 +130,18 @@ export abstract class ChainableInterpretedSchema<
    */
   // `Output` is wider than the predicate ever sees after `.nullable()` or
   // `.optional()`, since a short-circuited value skips it, which is harmless.
-  refine(
-    predicate: (value: Output) => boolean,
+  // The same short-circuit is why the narrowed Output keeps them (ADR-0051).
+  refine<Refined extends Output = Output>(
+    predicate: ((value: Output) => value is Refined) | ((value: Output) => boolean),
     options?: CheckOptions,
-  ): RetypedSchema<this, Input, Output> {
+  ): RetypedSchema<this, Input, Refined | Extract<Output, null | undefined>> {
     return this._withPostModifier<Output, Output>({
       fn: (value, path) => {
         return predicate(value)
           ? null
           : { issues: [new Issue(ISSUE_CODE.CUSTOM, path, options?.message)] };
       },
-    }) as unknown as RetypedSchema<this, Input, Output>;
+    }) as unknown as RetypedSchema<this, Input, Refined | Extract<Output, null | undefined>>;
   }
 
   /**

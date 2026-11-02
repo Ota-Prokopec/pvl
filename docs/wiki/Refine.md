@@ -11,6 +11,18 @@ even.validate(3); // { issues: [{ code: 'CUSTOM', message: 'must be even' }] }
 
 The predicate never changes the value. Returning `false` reports a `CUSTOM` Issue, with your message or the default `"Invalid type"`.
 
+## The Output type
+
+When the predicate is a type predicate, written out (`(value): value is T => …`) or inferred by TypeScript, the Schema's Output narrows to its type ([ADR-0051](../adr/0051-refine-narrows-the-output-to-its-type-predicates-type.md)). A predicate returning a plain `boolean` leaves it as it was, and the Input never narrows:
+
+```ts
+pvl.string().refine((value) => value === 'ahoj'); //            Output 'ahoj', Input string
+pvl.string().refine((value) => value === 'a' || value === 'b'); // Output 'a' | 'b'
+pvl.string().refine((value) => value.length > 3); //            Output string
+```
+
+A `null` or `undefined` that `.nullable()` or `.optional()` chained before lets past the predicate stays in the Output, since it never reaches the predicate: `pvl.string().nullable().refine((value) => value !== null)` outputs `string | null`. One chained after adds its own, as always: `.refine(isAhoj).optional()` outputs `'ahoj' | undefined`. The Schema keeps its class, so later Constraints keep the narrowed Output, and a later `.refine()` or `.transform()` receives it.
+
 ## The short version
 
 ```mermaid
