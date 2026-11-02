@@ -1,8 +1,6 @@
 # `@repo/utils`
 
-Runtime helpers that aren't specific to the domain, such as `pluralize`, which `@pcvl/compiler`'s `pvl compile` output uses. It is a private package with no build: `exports` points at `src/index.ts`, which re-exports one file per helper.
-
-`@pcvl/compiler` takes it as a devDependency, and its tsup build bundles it into the published code ([`private-packages.md`](../../docs/specification/private-packages.md)).
+Runtime helpers that aren't specific to the domain, such as `pluralize`. It is a private package with no build: `exports` points at `src/index.ts`, which re-exports one file per helper.
 
 ## Scope
 
