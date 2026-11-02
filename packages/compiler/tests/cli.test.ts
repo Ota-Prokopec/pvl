@@ -155,7 +155,7 @@ describe('pvl compile: settings from flags', () => {
 });
 
 describe('pvl compile: the progress UI', () => {
-  it('frames a successful run: the scanned count, each file compiled, where it wrote, and nothing on stderr', async () => {
+  it('frames a successful run: each phase, where it wrote, and nothing on stderr', async () => {
     const root = await createFixture({
       'src/schemas/user.ts': SCHEMA_FILE,
       'src/schemas/order.ts': SCHEMA_FILE,
@@ -165,11 +165,7 @@ describe('pvl compile: the progress UI', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain('pvl compile');
-    expect(stdout).toContain('Scanned 2 files');
-    expect(stdout).toContain('src/schemas/order.ts');
-    expect(stdout).toContain('src/schemas/user.ts');
-    expect(stdout).toContain('Compiled 2 files');
-    expect(stdout).toMatch(/📁 Written to out\n/);
+    expect(stdout).toMatch(/Scanning[\s\S]*Compiling[\s\S]*Writing[\s\S]*📁 Written to out\n/);
     expect(stderr).toBe('');
   });
 
@@ -197,29 +193,30 @@ describe('pvl compile: the progress UI', () => {
     expect(exitCode).toBe(1);
     expect(stderr).toMatch(/error COMPILE_ARGUMENT_UNRESOLVABLE: .*order\.ts/);
     expect(stderr).toMatch(/error COMPILE_ARGUMENT_UNRESOLVABLE: .*user\.ts/);
-    expect(stdout).toContain('Compiled 2 files');
+    expect(stdout).toContain('Compiling');
+    expect(stdout).not.toContain('Writing');
     expect(stdout).toMatch(/❌ 2 errors, 0 warnings\. Nothing written\n+$/);
     expect(await listFixtureFiles(root, 'out')).toBe(undefined);
   });
 
-  it('draws a precheck failure after the scan step, with no compile progress', async () => {
+  it('draws a precheck failure after the scanning phase, with no later phase', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': 'export const = ;\n' });
 
     const { exitCode, stdout, stderr } = await runUi(root, ['compile', '--destination', 'out']);
 
     expect(exitCode).toBe(1);
-    expect(stdout).toContain('Scanned 1 file');
-    expect(stdout).not.toMatch(/Compiling|Compiled/);
+    expect(stdout).toContain('Scanning');
+    expect(stdout).not.toMatch(/Compiling|Writing/);
     expect(stderr).toContain('error PARSE_FAILED: ');
   });
 
-  it('draws a config failure with no scan step', async () => {
+  it('draws a config failure with no phase', async () => {
     const root = await createFixture({ 'src/schemas/user.ts': SCHEMA_FILE });
 
     const { exitCode, stdout, stderr } = await runUi(root, ['compile']);
 
     expect(exitCode).toBe(1);
-    expect(stdout).not.toContain('Scanned');
+    expect(stdout).not.toContain('Scanning');
     expect(stderr).toContain('error NO_CONFIG: ');
     expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
   });
@@ -290,26 +287,25 @@ describe('pvl compile: the progress UI', () => {
   );
 });
 
-/** Makes the next run throw `error` once its progress bar has started. */
+/** Makes the next run throw `error` once it has entered the compiling phase. */
 const crashNextRun = (error: Error): void => {
-  vi.mocked(runCompilation).mockImplementationOnce(async ({ onProgress }) => {
-    await onProgress?.({ phase: 'scanned', total: 2 });
-    await onProgress?.({ phase: 'compiling', file: 'a.ts', done: 0, total: 2 });
+  vi.mocked(runCompilation).mockImplementationOnce(async ({ ui }) => {
+    ui?.onProgress('scanning');
+    ui?.onProgress('compiling');
     throw error;
   });
 };
 
 describe('pvl compile: a crash inside the compiler', () => {
-  it('stops the progress bar, so nothing keeps the process alive', async () => {
+  it('draws INTERNAL_ERROR after the phases it reached', async () => {
     const root = await createFixture({});
-    const sigintListeners = process.listenerCount('SIGINT');
     crashNextRun(new Error('bug inside runCompilation'));
 
     const { exitCode, stdout, stderr } = await runUi(root, ['compile']);
 
     expect(exitCode).toBe(1);
-    expect(process.listenerCount('SIGINT')).toBe(sigintListeners);
-    expect(stdout).toContain('Compiling failed');
+    expect(stdout).toContain('Compiling');
+    expect(stdout).not.toContain('Writing');
     expect(stderr).toMatch(/error INTERNAL_ERROR: /);
     expect(stdout).toContain('❌ 1 error, 0 warnings. Nothing written');
   });

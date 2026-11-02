@@ -27,7 +27,7 @@ Precedence is flags, then the config file, then defaults. A run with no config f
 
 Every diagnostic's text is `<severity> <code>: <message> (<file>)`, the severity in lower case. The output has three modes ([ADR-0051](../../adr/0051-pvl-compile-draws-a-clack-progress-ui-by-default.md)):
 
-- **The UI** (the default): a `@clack/prompts` frame on stdout, with the scan step (`Scanned N files`), a progress bar naming the file being compiled with a `done/total` count and percentage, and a closing line. Every diagnostic is drawn on stderr, errors in red and warnings in yellow. A written run closes with `📁 Written to <destination, relative to the working directory>`, plus `(⚠️ N warnings)` when any fired; any other run with `❌ N errors, M warnings. Nothing written`. A run that stops before a step draws no step after it.
+- **The UI** (the default): a `@clack/prompts` frame on stdout, with a line as the run enters each phase (`Scanning` before the scan, `Compiling` once every scanned file passed the precheck, `Writing` before the Destination Directory is written), and a closing line. Every diagnostic is drawn on stderr, errors in red and warnings in yellow. A written run closes with `📁 Written to <destination, relative to the working directory>`, plus `(⚠️ N warnings)` when any fired; any other run with `❌ N errors, M warnings. Nothing written`. A run that stops in a phase draws no phase after it.
 - **`--tty false`**: each diagnostic as a plain line on stderr, and `Wrote <absolute destination>` on stdout once written.
 - **`--json`**: the `CompilationOutput` on stdout and nothing else, whatever `--tty` says.
 

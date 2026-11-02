@@ -3,19 +3,20 @@
 // diagnostic, hands the scanned modules to `compileAll`, then writes what it
 // returns. The CLI and any future bundler plugin wrap it.
 import * as path from 'node:path';
+import type { CompileUi } from '../cli/compileUi.js';
 import { resolveConfig } from '../config/configResolver.js';
 import type { PvlConfigOverrides } from '../config/types.js';
+import { DestinationWriter } from '../destination/destinationWriter.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { isErrorInDiagnostics, promoteAllDiagnostics } from '../diagnostics/utils.js';
-import { compileAll } from './compileAll.js';
-import { DestinationWriter } from '../destination/destinationWriter.js';
-import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
-import { Precheck } from '../precheck/precheck.js';
 import { Module } from '../module/module.js';
+import { Precheck } from '../precheck/precheck.js';
 import { Scanner } from '../scanner/scanner.js';
 import { createNoInputFilesDiagnostic } from '../scanner/utils.js';
-import { findMarkedToCompileSchemas, type ModuleCompilation } from '../schemas/readSchema.js';
-import type { CompilationOutput, CompilationProgress } from './types.js';
+import { findMarkedToCompileSchemas } from '../schemas/readSchema.js';
+import { TsMorphProject } from '../tsMorphProject/tsMorphProject.js';
+import { compileAll } from './compileAll.js';
+import type { CompilationOutput } from './types.js';
 
 /**
  * Whether `diagnostics` stop the run before anything is written: any error
@@ -52,13 +53,8 @@ type RunCompilationArgs = {
   overrides?: PvlConfigOverrides;
   /** Promotes every warning to an error. */
   strict?: boolean;
-  /**
-   * Called at each step of the run, which waits for what it returns, so a
-   * terminal can repaint before each module is compiled.
-   *
-   * @internal Only the CLI's progress UI passes it.
-   */
-  onProgress?: (progress: CompilationProgress) => void | Promise<void>;
+  /** The UI (if enabled) */
+  ui?: CompileUi;
 };
 
 /**
@@ -116,7 +112,7 @@ const runCompilationWithoutPromoting = async ({
   configPath,
   overrides = {},
   strict = false,
-  onProgress,
+  ui,
 }: RunCompilationArgs): Promise<CompilationOutput> => {
   const resolvedSettingsPayload = await resolveConfig({
     cwd: path.resolve(cwd),
@@ -137,11 +133,11 @@ const runCompilationWithoutPromoting = async ({
   const { rawSettings, baseDirectory, destination } = resolvedSettingsPayload;
   const rootDirectory = path.resolve(baseDirectory, rawSettings.rootDir);
 
+  ui?.onProgress('scanning');
   const [destinationDiagnostics, scanPayload] = await Promise.all([
     DestinationWriter.checkDestination(destination.absolutePath),
     Scanner.scan({ baseDirectory, include: rawSettings.include, destination }),
   ]);
-  await onProgress?.({ phase: 'scanned', total: scanPayload.scannedFilePaths.length });
 
   // What `include` and the destination raise before any file is read.
   const scanScopeDiagnostics: Diagnostic[] = [
@@ -183,19 +179,8 @@ const runCompilationWithoutPromoting = async ({
     };
   }
 
-  const compilations: ModuleCompilation[] = [];
-  for (const [done, module] of modules.entries()) {
-    // Without a callback the loop stays synchronous.
-    if (onProgress !== undefined) {
-      await onProgress({
-        phase: 'compiling',
-        file: path.relative(baseDirectory, module.path.absolutePath),
-        done,
-        total: modules.length,
-      });
-    }
-    compilations.push(findMarkedToCompileSchemas(module));
-  }
+  ui?.onProgress('compiling');
+  const compilations = modules.map((module) => findMarkedToCompileSchemas(module));
 
   const diagnostics = [
     ...scanScopeDiagnostics,
@@ -214,7 +199,7 @@ const runCompilationWithoutPromoting = async ({
 
   const mirroredFiles = compileAll(compilations);
 
-  await onProgress?.({ phase: 'writing' });
+  ui?.onProgress('writing');
 
   const { isWritten, diagnostics: writeDestinationDiagnostics } =
     await DestinationWriter.writeDestination({ destination, mirroredFiles });

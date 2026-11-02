@@ -25,7 +25,7 @@ The shipped JSON Schema for `pvlconfig.json` is pinned by an inline snapshot of 
 
 `tests/check-options-type.test.ts` is the second. `CHECK_OPTIONS_TYPE_STRING` (`src/emitters/consts/checkOptions.ts`) is `@pcvl/schema`'s `CheckOptions` spelled by hand, and can drift from it. No seam can show that two types are exactly equal, as a typed options variable passed to a Compiled Schema still type-checks once `CheckOptions` gains an optional key, so the test parses the string and type-checks it against `CheckOptions` for exact equality.
 
-The third is the `INTERNAL_ERROR` test in `tests/cli.test.ts`. No fixture makes the compiler crash, so it spies on `src/compilation/runCompilation.ts` and makes one run throw after the progress bar starts. These tests will be refactored soon.
+The third is the `INTERNAL_ERROR` test in `tests/cli.test.ts`. No fixture makes the compiler crash, so it spies on `src/compilation/runCompilation.ts` and makes one run throw once it has entered the compiling phase. These tests will be refactored soon.
 
 ## Required cases
 

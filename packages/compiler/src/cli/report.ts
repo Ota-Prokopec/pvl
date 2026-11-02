@@ -10,7 +10,7 @@ type ReportArgs = Pick<RunCliOptions, 'stdout' | 'stderr'> & {
 };
 
 export const report = ({ payload, json, ui, stdout, stderr }: ReportArgs): void => {
-  if (ui !== undefined) {
+  if (ui) {
     ui.finish(payload);
     return;
   }

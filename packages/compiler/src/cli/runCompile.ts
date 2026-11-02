@@ -5,10 +5,10 @@ import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
 import { isErrorInDiagnostics } from '../diagnostics/utils.js';
 import { report } from './report.js';
 import type { CompileFlags, RunCliOptions } from './types.js';
-import { CompileUi } from './compileUi.js';
+import type { CompileUi } from './compileUi.js';
 
 /** The payload of a run that threw: one `INTERNAL_ERROR` carrying the stack. */
-const crashPayload = (error: unknown): CompilationOutput => {
+const createCrashPayload = (error: unknown): CompilationOutput => {
   const stack = error instanceof Error ? error.stack : String(error);
   const message = `pvl compile crashed. This is a bug in pvl; please report it.\n${stack}`;
   return {
@@ -20,12 +20,16 @@ const crashPayload = (error: unknown): CompilationOutput => {
 };
 
 /**
- * Runs `pvl compile` with its parsed `flags`, drawing or printing the run,
+ * Runs `pvl compile` with its parsed `flags`, drawing the run on `ui` or printing it,
  * and returns its exit code: `1` when an error fired, `0` otherwise.
  */
-export const runCompile = async (flags: CompileFlags, options: RunCliOptions): Promise<number> => {
+export const runCompile = async (
+  flags: CompileFlags,
+  options: RunCliOptions,
+  ui: CompileUi | undefined,
+): Promise<number> => {
   const { cwd, stdout, stderr } = options;
-  const ui = CompileUi.start(flags, options);
+
   const payload = await runCompilation({
     cwd,
     configPath: flags.config,
@@ -35,12 +39,8 @@ export const runCompile = async (flags: CompileFlags, options: RunCliOptions): P
       destination: flags.destination,
     },
     strict: flags.strict,
-    onProgress: ui?.onProgress.bind(ui),
-  }).catch((error: unknown) => {
-    // The bar's timer would otherwise keep the process alive.
-    ui?.abort();
-    return crashPayload(error);
-  });
+    ui,
+  }).catch(createCrashPayload);
   report({ payload, json: flags.json, ui, stdout, stderr });
   return isErrorInDiagnostics(payload.diagnostics) ? 1 : 0;
 };

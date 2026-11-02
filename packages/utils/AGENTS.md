@@ -1,10 +1,10 @@
 # `@repo/utils`
 
-Runtime helpers that aren't specific to the domain, such as `pluralize`. It is a private package with no build: `exports` points at `src/index.ts`, which re-exports one file per helper.
+Runtime helpers that aren't specific to the domain. It is a private package with no build: `exports` points at `src/index.ts`, which re-exports one file per helper.
 
 ## Scope
 
-A helper belongs here when more CLI output and scripts could need it (now, or in the future) and it isn't specific to the domain. `pluralize` qualifies on both counts. Domain logic stays in its package.
+A helper function belongs here if the purpose of the function is not domain specific.
 
 ## Commands
 

@@ -2,13 +2,12 @@
 // through the streams it is handed. `../bin.ts` wires it to the real process.
 import yargs from 'yargs';
 import { Parser } from 'yargs/helpers';
-import type { CompilationOutput } from '../compilation/types.js';
 import { Diagnostic } from '../diagnostics/diagnostic.js';
 import { DIAGNOSTIC_CODE } from '../diagnostics/enums.js';
-import { report } from './report.js';
-import type { RunCliOptions } from './types.js';
-import { runCompile } from './runCompile.js';
 import { CompileUi } from './compileUi.js';
+import { report } from './report.js';
+import { runCompile } from './runCompile.js';
+import type { RunCliOptions } from './types.js';
 
 /**
  * Runs the `pvl` CLI against `argv` (without the `node` and script entries)
@@ -19,6 +18,13 @@ export const runCli = async (
   argv: ReadonlyArray<string>,
   options: RunCliOptions,
 ): Promise<number> => {
+  // Read `--json` and `--tty` with yargs' own parser, as the UI must exist
+  // before yargs runs and a usage error never hands over the parsed flags.
+  const { json, tty } = Parser([...argv], {
+    boolean: ['json', 'tty'],
+    default: { json: false, tty: true },
+  });
+  const ui = CompileUi.start({ json, tty }, options);
   let exitCode: number | undefined;
   let failure: Error | undefined;
   let output = '';
@@ -64,7 +70,7 @@ export const runCli = async (
           },
         }),
       async (flags) => {
-        exitCode = await runCompile(flags, options);
+        exitCode = await runCompile(flags, options, ui);
       },
     )
     .demandCommand(1, 'Name a command: pvl compile')
@@ -83,22 +89,16 @@ export const runCli = async (
 
   if (failure !== undefined) {
     const message = `${failure.message} Run \`pvl compile --help\` for usage.`;
-    const payload: CompilationOutput = {
-      diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
-      settings: undefined,
-      destination: undefined,
-      written: false,
-    };
-    // yargs failed before it could hand over `--json` and `--tty`, so read
-    // them with its own parser.
-    const { json, tty } = Parser([...argv], {
-      boolean: ['json', 'tty'],
-      default: { json: false, tty: true },
-    });
+
     report({
-      payload,
+      payload: {
+        diagnostics: [new Diagnostic({ code: DIAGNOSTIC_CODE.INVALID_ARGUMENTS, message })],
+        settings: undefined,
+        destination: undefined,
+        written: false,
+      },
       json,
-      ui: CompileUi.start({ json, tty }, options),
+      ui,
       stdout: options.stdout,
       stderr: options.stderr,
     });
